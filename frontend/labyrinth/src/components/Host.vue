@@ -20,7 +20,19 @@ export default {
   name: "Host",
   data() {
     return {
-      icons: ["Phone", "VMWare"],
+      icons: [
+        "Camera",
+        "Cloud",
+        "Linux",
+        "NAS",
+        "Phone",
+        "Router",
+        "Speaker",
+        "Tower",
+        "VMWare",
+        "Windows",
+        "Wireless",
+      ],
       components: {}, 
       myComponent: {},
     };
