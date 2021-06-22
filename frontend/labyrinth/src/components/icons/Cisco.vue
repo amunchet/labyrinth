@@ -1,0 +1,4 @@
+
+<template>
+<svg></svg>
+</template>
