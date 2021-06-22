@@ -1,37 +1,35 @@
 <template>
   <div id="app">
-
-    <div id="nav">
-    <button @click="logOut">Log Out</button>
-    <br /><br />
-    <button @click="$auth.login()">Log In</button>
+    <div id="nav" v-if="false">
+      <button @click="logOut">Log Out</button>
+      <br /><br />
+      <button @click="$auth.login()">Log In</button>
     </div>
-    
-      {{$auth}}
-    <div id="nav">
+    <span v-if="false">{{ $auth }}</span>
+    <div id="nav" v-if="false">
       <router-link to="/">Home</router-link> |
       <router-link to="/about">About</router-link>
     </div>
-    <router-view/>
+    <router-view />
   </div>
 </template>
 <script>
 export default {
   created() {
-    try{
-    this.$auth.handleAuthentication()
-    }catch(e){
-      console.log("Authentication failed")
-      console.log(e)
+    try {
+      this.$auth.handleAuthentication();
+    } catch (e) {
+      console.log("Authentication failed");
+      console.log(e);
     }
   },
   methods: {
-    logOut: function(){
-      this.$auth.logOut()
-      this.$router.push("/callback")
-    }
-  }
-}
+    logOut: function () {
+      this.$auth.logOut();
+      this.$router.push("/callback");
+    },
+  },
+};
 </script>
 <style>
 #app {

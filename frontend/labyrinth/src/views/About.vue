@@ -6,17 +6,17 @@
       verticals="10"
       horizontals="2"
       color="green"
-      style="top: 220px; left: 15px; position: absolute; float: left"
+      style="top: 120px; left: 15px; position: absolute; float: left"
     />
-    <Connector verticals="20" horizontals="2" color="orange" style="position:absolute; top:250px; left:40px;" />
+    <Connector verticals="20" horizontals="2" color="orange" style="position:absolute; top:150px; left:40px;" />
 
     <div class="outer">
       <div class="left">
         <div class="corner">
-          <Host />
+          <Host icon="VMWare"/>
         </div>
         <div class="routes">
-          <Host />
+          <Host icon="Router" />
         </div>
       </div>
 
@@ -25,19 +25,19 @@
         <div class="grouped">
           <h2>Linux</h2>
           <div>
-            <Host />
-            <Host />
-            <Host />
-            <Host />
+            <Host icon="Linux" />
+            <Host icon="Linux" />
+            <Host icon="Linux" />
+            <Host icon="Linux" />
           </div>
         </div>
         <div class="grouped">
           <h2>Windows</h2>
           <div>
-            <Host />
-            <Host />
-            <Host />
-            <Host />
+            <Host icon="Windows"/>
+            <Host icon="Windows"/>
+            <Host icon="Windows"/>
+            <Host icon="Windows"/>
           </div>
         </div>
       </div>
@@ -46,10 +46,10 @@
     <div class="outer orange-bg">
       <div class="left">
         <div class="corner">
-          <Host />
+          <Host icon="Cloud"/>
         </div>
         <div class="routes">
-          <Host />
+          <Host icon="Wireless"/>
         </div>
       </div>
 
@@ -58,19 +58,19 @@
         <div class="grouped">
           <h2>Linux</h2>
           <div>
-            <Host />
-            <Host />
-            <Host />
-            <Host />
+            <Host icon="Phone"/>
+            <Host icon="Phone"/>
+            <Host icon="Phone"/>
+            <Host icon="Phone"/>
           </div>
         </div>
         <div class="grouped">
           <h2>Windows</h2>
           <div>
-            <Host />
-            <Host />
-            <Host />
-            <Host />
+            <Host icon="Tower" />
+            <Host icon="Tower" />
+            <Host icon="Tower" />
+            <Host icon="Tower" />
           </div>
         </div>
       </div>
@@ -133,7 +133,7 @@ h2 {
   width: 100%;
 }
 .grouped {
-  border: 1px solid green;
+    background-color: lightblue;
   float: right;
   min-width: 300px;
 }
