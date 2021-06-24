@@ -59,16 +59,16 @@ export default {
 .main {
   padding: 10px;
   border-radius: 1rem;
-  width: 150px;
   margin: 1%;
   text-align: center;
   display: block;
   border: 1px solid #fefefd;
-box-shadow: 5px 5px 39px -12px rgba(0,0,0,0.75);
--webkit-box-shadow: 5px 5px 39px -12px rgba(0,0,0,0.75);
--moz-box-shadow: 5px 5px 39px -12px rgba(0,0,0,0.75);
-
-
+  min-width: 120px;
+  max-width: 150px;
+  margin-bottom:20px;
+  box-shadow: 5px 5px 39px -12px rgba(0, 0, 0, 0.75);
+  -webkit-box-shadow: 5px 5px 39px -12px rgba(0, 0, 0, 0.75);
+  -moz-box-shadow: 5px 5px 39px -12px rgba(0, 0, 0, 0.75);
 }
 .top {
   padding-top: 10px;
@@ -81,7 +81,7 @@ box-shadow: 5px 5px 39px -12px rgba(0,0,0,0.75);
   display: flex;
   justify-content: space-around;
 }
-.col{
+.col {
   float: left;
   width: 30%;
   margin: 1%;
