@@ -1,28 +1,32 @@
 <template>
-  <div class="main">
+  <div :class="passed_class">
     <div class="top">
       <span>.176</span>
       <br />
       <component :is="myComponent[icon]" />
     </div>
     <div class="bottom">
-      <table>
-        <tr v-for="j in 5" v-bind:key="j">
-          <div v-if="j % 2" class="padding:1px;">
-            <td class="lightblue-bg" v-for="i in 5" v-bind:key="i">&nbsp;&nbsp;&nbsp;</td>
+      <div class="table">
+        <div class="row" v-for="j in 5" v-bind:key="j">
+          <div v-if="j % 2" class="col">
+            <div class="lightblue-bg col" v-for="i in 3" v-bind:key="i">
+              &nbsp;&nbsp;&nbsp;
+            </div>
           </div>
-          <div v-else class="padding:1px;">
-            <td class="red-bg" v-for="i in 5" v-bind:key="i">&nbsp;&nbsp;&nbsp;</td>
+          <div v-else class="col">
+            <div class="red-bg col" v-for="i in 3" v-bind:key="i">
+              &nbsp;&nbsp;&nbsp;
+            </div>
           </div>
-        </tr>
-      </table>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 <script>
 export default {
   name: "Host",
-  props: ["icon"],
+  props: ["icon", "passed_class"],
   data() {
     return {
       icons: [
@@ -53,12 +57,18 @@ export default {
 </script>
 <style scoped>
 .main {
-  border: 1px dotted #efefed;
-  padding: 5px;
-  margin: 3px;
-  border-radius: 0.25rem;
+  padding: 10px;
+  border-radius: 1rem;
   width: 150px;
+  margin: 1%;
+  text-align: center;
   display: block;
+  border: 1px solid #fefefd;
+box-shadow: 5px 5px 39px -12px rgba(0,0,0,0.75);
+-webkit-box-shadow: 5px 5px 39px -12px rgba(0,0,0,0.75);
+-moz-box-shadow: 5px 5px 39px -12px rgba(0,0,0,0.75);
+
+
 }
 .top {
   padding-top: 10px;
@@ -68,6 +78,14 @@ export default {
   width: 100%;
   overflow: hidden;
   border-top: 1px solid #b6b6be;
+  display: flex;
+  justify-content: space-around;
+}
+.col{
+  float: left;
+  width: 30%;
+  margin: 1%;
+  flex-grow: 1;
 }
 .first {
   float: left;

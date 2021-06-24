@@ -4,9 +4,9 @@
     <svg
       height="50"
       :width="50 * horizontals"
-      style="position: relative; top: 60px; left: 50px"
+      style="position: relative; top: 66.5px; left: 50px"
     >
-      <line x1="0" y1="0" :x2="50 * horizontals" y2="0" :stroke="color" stroke-width="20" />
+      <line x1="0" y1="0" :x2="50 * horizontals" y2="0" :stroke="color" stroke-width="10" />
     </svg>
 
     <!-- Top turn -->
@@ -15,16 +15,16 @@
       width="50"
       height="50"
       fill="transparent"
-      stroke-width="10"
+      stroke-width="5"
       :stroke="color"
     >
-      <circle cx="50" cy="50" r="35" />
+      <circle cx="50" cy="50" r="30" />
     </svg>
 
     <!-- Repeated middle connectors -->
 
-    <svg height="50" width="50" style="margin-left: 10px" v-for="idx in (1 * verticals)" v-bind:key="idx">
-      <line x1="0" y1="0" x2="0" y2="100" :stroke="color" stroke-width="20" />
+    <svg height="50" width="40" style="margin-left: 16.5px" v-for="idx in (1 * verticals)" v-bind:key="idx">
+      <line x1="0" y1="0" x2="0" y2="100" :stroke="color" stroke-width="10" />
     </svg>
 
     <!-- Bottom turn -->
@@ -32,11 +32,11 @@
       class="angle-connector"
       width="50"
       fill="transparent"
-      height="50"
-      stroke-width="10"
+      height="47.5"
+      stroke-width="5"
       :stroke="color"
     >
-      <circle cx="50" cy="0" r="35" />
+      <circle cx="50" cy="0" r="30" />
     </svg>
 
     <!-- Repeated Bottom connector -->
@@ -45,7 +45,7 @@
       :width="50 * horizontals"
       style="position: relative; left: 50px; bottom: 20px"
     >
-      <line x1="0" y1="0" :x2="50 * horizontals " y2="0" :stroke="color" stroke-width="20" />
+      <line x1="0" y1="0" :x2="50 * horizontals " y2="0" :stroke="color" stroke-width="10" />
     </svg>
   </div>
 </template>
@@ -67,5 +67,6 @@ svg {
   display: -moz-inline-grid;
   display: inline-grid;
   position: relative;
+
 }
 </style>
