@@ -226,36 +226,5 @@ h2.light{
   margin: 10px;
   text-align: center;
 }
-/* Color Theme Swatches in Hex */
-.lightblue {
-  color: #83d3df;
-}
-.red {
-  color: #db7077;
-}
-.orange {
-  color: #ffab71;
-}
-.darkblue {
-  color: #375775;
-}
-.superlight {
-  color: #d8faff;
-}
 
-.lightblue-bg {
-  background-color: #83d3df;
-}
-.red-bg {
-  background-color: #db7077;
-}
-.orange-bg {
-  background-color: #ffab71;
-}
-.darkblue-bg {
-  background-color: #375775;
-}
-.superlight-bg {
-  background-color: #d8faff;
-}
 </style>
