@@ -24,6 +24,7 @@
   </div>
 </template>
 <script>
+import {defineAsyncComponent} from 'vue'
 export default {
   name: "Host",
   props: ["icon", "passed_class"],
@@ -49,8 +50,8 @@ export default {
   created() {
     for (var i = 0; i < this.icons.length; i++) {
       let componentName = this.icons[i];
-      this.myComponent[this.icons[i]] = () =>
-        import("../components/icons/" + componentName + ".vue");
+      this.myComponent[this.icons[i]] = defineAsyncComponent(() =>
+        import("../components/icons/" + componentName + ".vue"));
     }
   },
 };
@@ -63,9 +64,7 @@ export default {
   text-align: center;
   display: block;
   border: 1px solid #fefefd;
-  min-width: 120px;
-  max-width: 150px;
-  margin-bottom:20px;
+  min-width: 10px;
   box-shadow: 5px 5px 39px -12px rgba(0, 0, 0, 0.75);
   -webkit-box-shadow: 5px 5px 39px -12px rgba(0, 0, 0, 0.75);
   -moz-box-shadow: 5px 5px 39px -12px rgba(0, 0, 0, 0.75);
