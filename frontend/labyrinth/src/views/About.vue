@@ -33,7 +33,7 @@
           <h2 class="text-right">192.168.0.*</h2>
           <div class="flexed">
             <div class="grouped">
-              <h2>Linux</h2>
+              <h2 class="light">Linux Servers</h2>
               <div class="flexed">
                 <Host passed_class="main" icon="Linux" />
                 <Host passed_class="main" icon="Linux" />
@@ -42,7 +42,7 @@
               </div>
             </div>
             <div class="grouped">
-              <h2>Windows</h2>
+              <h2 class="light">Windows Servers</h2>
               <div class="flexed">
                 <Host passed_class="main" icon="Windows" />
                 <Host passed_class="main" icon="Windows" />
@@ -69,7 +69,7 @@
         <h2 class="text-right">192.168.0.*</h2>
         <div class="flexed">
           <div class="grouped">
-            <h2>Linux</h2>
+            <h2 class="light">Linux Servers</h2>
             <div class="flexed">
               <Host passed_class="main" icon="Phone" />
               <Host passed_class="main" icon="Phone" />
@@ -78,7 +78,7 @@
             </div>
           </div>
           <div class="grouped">
-            <h2>Windows</h2>
+            <h2 class="light">Windows Clients</h2>
             <div class="flexed">
               <Host passed_class="main" icon="Tower" />
               <Host passed_class="main" icon="Tower" />
@@ -130,7 +130,7 @@ export default {
   },
 };
 </script>
-<style>
+<style lang="scss">
 body,
 html {
   padding: 0;
@@ -146,6 +146,13 @@ h2 {
   margin: 0;
   padding: 0;
   margin-bottom: 5px;
+}
+h2.light{
+  text-align: left;
+  color: #bdbdbf;
+  padding-bottom: 5px;
+  border-bottom: 1px solid #bdbdbf;
+  margin-bottom: 15px;
 }
 .text-right {
   text-align: right;
@@ -189,7 +196,7 @@ h2 {
   position: relative;
   top: 0;
   left: 0;
-  border-radius: 0 0 5rem 0;
+  border-radius: 0 0 2rem 0;
   min-width: 150px;
   background-color: lightblue;
   box-shadow: 10px 10px 39px -12px rgba(0, 0, 0, 0.75);
