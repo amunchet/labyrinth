@@ -4,7 +4,7 @@
       <Connector
         verticals="10"
         horizontals="1"
-        color="#375775"
+        color="orange"
         :style="
           'top: ' +
           offsetTop +
@@ -14,7 +14,7 @@
       <Connector
         verticals="20"
         horizontals="2"
-        color="#db7077"
+        color="red"
         style="position: absolute; top: 650px; left: 20px; float: left"
       />
     </div>
@@ -22,7 +22,7 @@
       <div class="outer">
         <div class="left">
           <div class="corner">
-            <Host icon="VMWare" />
+            <Host icon="VMWare" show_ports=0 />
           </div>
           <div class="routes">
             <Host passed_class="main" icon="Router" />
@@ -30,7 +30,7 @@
         </div>
 
         <div class="right">
-          <h2 class="text-right">192.168.0.*</h2>
+          <h2 class="text-right subnet">192.168.0</h2>
           <div class="flexed">
             <div class="grouped">
               <h2 class="light">Linux Servers</h2>
@@ -58,15 +58,15 @@
     <div class="outer orange-bg">
       <div class="left">
         <div class="corner">
-          <Host icon="Cloud" />
+          <Host icon="Cloud" show_ports=0 />
         </div>
         <div class="routes">
-          <Host passed_class="main" icon="Wireless" />
+          <Host passed_class="main" icon="Wireless"/>
         </div>
       </div>
 
       <div class="right">
-        <h2 class="text-right">192.168.0.*</h2>
+        <h2 class="text-right subnet orange">192.168.1</h2>
         <div class="flexed">
           <div class="grouped">
             <h2 class="light">Linux Servers</h2>
@@ -154,6 +154,12 @@ h2.light{
   border-bottom: 1px solid #bdbdbf;
   margin-bottom: 15px;
 }
+h2.subnet{
+    font-family: fantasy, system-ui, 'sans-serif';
+    font-size: 28pt;
+    color: #5b5b56;
+    font-weight: 100;
+}
 .text-right {
   text-align: right;
 }
@@ -188,9 +194,10 @@ h2.light{
   min-height: 300px;
 }
 .right {
-  width: 80%;
   overflow: hidden;
   padding-top: 10px;
+  margin: 20px;
+  margin-top: 0;
 }
 .corner {
   position: relative;
@@ -202,7 +209,7 @@ h2.light{
   box-shadow: 10px 10px 39px -12px rgba(0, 0, 0, 0.75);
   -webkit-box-shadow: 10px 10px 39px -12px rgba(0, 0, 0, 0.75);
   -moz-box-shadow: 10px 10px 39px -12px rgba(0, 0, 0, 0.75);
-  height: 250px;
+  height: 100px;
   margin-right: 20px;
 }
 .routes {
