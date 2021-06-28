@@ -5,6 +5,24 @@ $orange: #ffab71;
 $darkblue: #375775;
 $superlight: #d8faff;
 
+/* Color Theme Swatches in Hex */
+$darkblue: #1E2F3E;
+$lightblue: #56C0F8;
+$blue: #0DA3A8;
+$yellow: #F5CA4E;
+$orange: #EFBA48;
+
+
+/* Colors */
+
+// Main color
+//$lightblue: #83d3df;
+$darkblue: #38595E;
+$green: #78DEB3;
+//$red: #DE7562; //Pivot off the green
+$orange: #F5B65F;
+
+/* Implementation */
 .lightblue-bg {
   background-color: $lightblue;
 }
@@ -12,11 +30,37 @@ $superlight: #d8faff;
   background-color: $red;
 }
 .orange-bg {
-  background-color: $orange;
+  //background-color: $orange !important;
+  border: 1px solid $orange;
 }
 .darkblue-bg {
   background-color: $darkblue;
 }
 .superlight-bg {
   background-color: $superlight;
+}
+.lightblue {
+  color: $lightblue !important;
+}
+.red {
+  color: $red !important;
+}
+.orange {
+  color: $orange !important;
+}
+.darkblue {
+  color: $darkblue !important;
+}
+.superlight {
+  color: $superlight !important;
+}
+
+:export{
+    darkblue: $darkblue;
+    lightblue: $lightblue;
+    blue: $blue;
+    yellow: $yellow;
+    orange: $orange;
+    red: $red;
+
 }
