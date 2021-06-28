@@ -5,7 +5,7 @@
       <br />
       <component :is="myComponent[icon]" />
     </div>
-    <div class="bottom">
+    <div class="bottom" v-if="show_ports != 0">
       <div class="table">
         <div class="row" v-for="j in 5" v-bind:key="j">
           <div v-if="j % 2" class="col">
@@ -27,7 +27,7 @@
 import {defineAsyncComponent} from 'vue'
 export default {
   name: "Host",
-  props: ["icon", "passed_class"],
+  props: ["icon", "passed_class", "show_ports"],
   data() {
     return {
       icons: [
