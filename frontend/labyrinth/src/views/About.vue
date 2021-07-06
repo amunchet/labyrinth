@@ -2,7 +2,7 @@
   <div class="about">
     <div class="outer_left">
       <Connector
-        verticals="10"
+        :verticals="connectorBottom"
         horizontals="1"
         color="orange"
         :style="
@@ -10,12 +10,6 @@
           offsetTop +
           'px; left: 32px; position: absolute; float: left;'
         "
-      />
-      <Connector
-        verticals="20"
-        horizontals="2"
-        color="red"
-        style="position: absolute; top: 650px; left: 20px; float: left"
       />
     </div>
     <div class="outer_right">
@@ -25,7 +19,7 @@
             <Host icon="VMWare" show_ports=0 />
           </div>
           <div class="routes">
-            <Host passed_class="main" icon="Router" />
+            <Host passed_class="main" icon="Router" ref="start_1"/>
           </div>
         </div>
 
@@ -38,7 +32,7 @@
                 <Host passed_class="main" icon="Linux" />
                 <Host passed_class="main" icon="Linux" />
                 <Host passed_class="main" icon="Linux" />
-                <Host passed_class="main" icon="Linux" ref="start_1" />
+                <Host passed_class="main" icon="Linux"  />
               </div>
             </div>
             <div class="grouped">
@@ -57,7 +51,7 @@
 
     <div class="outer orange-bg">
       <div class="left">
-        <div class="corner">
+        <div class="corner" ref="end_1">
           <Host icon="Cloud" show_ports=0 />
         </div>
         <div class="routes">
@@ -98,6 +92,7 @@ export default {
   data() {
     return {
       offsetTop: 10,
+      connectorBottom: 10,
     };
   },
   components: {
@@ -110,6 +105,11 @@ export default {
       console.log(this.$refs["start_1"].$el.offsetTop);
       this.offsetTop =
         this.$refs["start_1"].$el.offsetTop * 1;
+      
+      console.log(this.$refs["end_1"])
+      var bottom = this.$refs["end_1"].offsetTop * 1
+      console.log(bottom)
+      this.connectorBottom = Math.ceil((this.offsetTop - this.$refs["end_1"].offsetTop * 1)/50) * -1 - 1
       this.$forceUpdate();
     },
   },
