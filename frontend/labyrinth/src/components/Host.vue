@@ -7,14 +7,14 @@
     </div>
     <div class="bottom" v-if="show_ports != 0">
       <div class="table">
-        <div class="row" v-for="j in 5" v-bind:key="j">
-          <div v-if="j % 2" class="col">
-            <div class="lightblue-bg col" v-for="i in 3" v-bind:key="i">
+        <div class="host_row" v-for="j in 5" v-bind:key="j">
+          <div v-if="j % 2" class="host_col">
+            <div class="lightblue-bg host_col" v-for="i in 3" v-bind:key="i">
               &nbsp;&nbsp;&nbsp;
             </div>
           </div>
-          <div v-else class="col">
-            <div class="red-bg col" v-for="i in 3" v-bind:key="i">
+          <div v-else class="host_col">
+            <div class="red-bg host_col" v-for="i in 3" v-bind:key="i">
               &nbsp;&nbsp;&nbsp;
             </div>
           </div>
@@ -81,14 +81,14 @@ export default {
   padding-top: 10px;
   display: block;
 }
-.row {
+.host_row {
   width: 100%;
   overflow: hidden;
   border-top: 1px solid #b6b6be;
   display: flex;
   justify-content: space-around;
 }
-.col {
+.host_col {
   float: left;
   width: 30%;
   margin: 1%;
