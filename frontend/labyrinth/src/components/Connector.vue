@@ -6,7 +6,14 @@
       :width="50 * horizontals"
       style="position: relative; top: 66.5px; left: 50px"
     >
-      <line x1="0" y1="0" :x2="50 * horizontals" y2="0" :stroke="set_color" stroke-width="10" />
+      <line
+        x1="0"
+        y1="0"
+        :x2="50 * horizontals"
+        y2="0"
+        :stroke="set_color"
+        stroke-width="10"
+      />
     </svg>
 
     <!-- Top turn -->
@@ -23,8 +30,21 @@
 
     <!-- Repeated middle connectors -->
 
-    <svg height="50" width="40" style="margin-left: 16.5px" v-for="idx in (1 * verticals)" v-bind:key="idx">
-      <line x1="0" y1="0" x2="0" y2="100" :stroke="set_color" stroke-width="10" />
+    <svg
+      height="50"
+      width="40"
+      style="margin-left: 16.5px"
+      v-for="idx in 1 * verticals"
+      v-bind:key="idx"
+    >
+      <line
+        x1="0"
+        y1="0"
+        x2="0"
+        y2="100"
+        :stroke="set_color"
+        stroke-width="10"
+      />
     </svg>
 
     <!-- Bottom turn -->
@@ -45,27 +65,33 @@
       :width="50 * horizontals"
       style="position: relative; left: 50px; bottom: 20px"
     >
-      <line x1="0" y1="0" :x2="50 * horizontals " y2="0" :stroke="set_color" stroke-width="10" />
+      <line
+        x1="0"
+        y1="0"
+        :x2="50 * horizontals"
+        y2="0"
+        :stroke="set_color"
+        stroke-width="10"
+      />
     </svg>
   </div>
 </template>
 <script>
-import styles from '@/assets/variables.scss'
+import styles from "@/assets/variables.scss";
 export default {
   name: "Connector",
   props: ["verticals", "horizontals", "color"],
-  data(){
-      return{
-          set_color: ""
-      }
+  data() {
+    return {
+      set_color: "",
+    };
   },
-  created(){
-      this.set_color = styles[this.color]
-  }
+  created() {
+    this.set_color = styles[this.color];
+  },
 };
 </script>
 <style scoped lang="scss">
-
 /* SVGs */
 svg {
 }
@@ -77,6 +103,5 @@ svg {
   display: -moz-inline-grid;
   display: inline-grid;
   position: relative;
-
 }
 </style>

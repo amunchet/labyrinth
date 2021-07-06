@@ -16,10 +16,10 @@
       <div class="outer">
         <div class="left">
           <div class="corner">
-            <Host ip="127.0.0.1" icon="VMWare" show_ports=0 />
+            <Host ip="127.0.0.1" icon="VMWare" show_ports="0" />
           </div>
           <div class="routes">
-            <Host ip=".176" passed_class="main" icon="Router" ref="start_1"/>
+            <Host ip=".176" passed_class="main" icon="Router" ref="start_1" />
           </div>
         </div>
 
@@ -32,7 +32,7 @@
                 <Host ip=".176" passed_class="main" icon="Linux" />
                 <Host ip=".176" passed_class="main" icon="Linux" />
                 <Host ip=".176" passed_class="main" icon="Linux" />
-                <Host ip=".176" passed_class="main" icon="Linux"  />
+                <Host ip=".176" passed_class="main" icon="Linux" />
               </div>
             </div>
             <div class="grouped">
@@ -52,10 +52,10 @@
     <div class="outer orange-bg">
       <div class="left">
         <div class="corner" ref="end_1">
-          <Host ip="10.8.0.6" icon="Cloud" show_ports=0 />
+          <Host ip="10.8.0.6" icon="Cloud" show_ports="0" />
         </div>
         <div class="routes">
-          <Host ip=".176" passed_class="main" icon="Wireless"/>
+          <Host ip=".176" passed_class="main" icon="Wireless" />
         </div>
       </div>
 
@@ -83,13 +83,13 @@
         </div>
       </div>
     </div>
-<div class="outer darkblue-bg">
+    <div class="outer darkblue-bg">
       <div class="left">
         <div class="corner" ref="end_2">
-          <Host ip=".176" icon="Cloud" show_ports=0 />
+          <Host ip=".176" icon="Cloud" show_ports="0" />
         </div>
         <div class="routes">
-          <Host ip=".176" passed_class="main" icon="Wireless"/>
+          <Host ip=".176" passed_class="main" icon="Wireless" />
         </div>
       </div>
 
@@ -137,13 +137,15 @@ export default {
     findTop: function () {
       console.log(this.$refs);
       console.log(this.$refs["start_1"].$el.offsetTop);
-      this.offsetTop =
-        this.$refs["start_1"].$el.offsetTop * 1;
-      
-      console.log(this.$refs["end_1"])
-      var bottom = this.$refs["end_1"].offsetTop * 1
-      console.log(bottom)
-      this.connectorBottom = Math.ceil((this.offsetTop - this.$refs["end_1"].offsetTop * 1)/50) * -1 - 1
+      this.offsetTop = this.$refs["start_1"].$el.offsetTop * 1;
+
+      console.log(this.$refs["end_1"]);
+      var bottom = this.$refs["end_1"].offsetTop * 1;
+      console.log(bottom);
+      this.connectorBottom =
+        Math.ceil((this.offsetTop - this.$refs["end_1"].offsetTop * 1) / 50) *
+          -1 -
+        1;
       this.$forceUpdate();
     },
   },
@@ -156,8 +158,8 @@ export default {
       },
     },
   },
-  created: function(){
-    window.addEventListener('resize', this.findTop)
+  created: function () {
+    window.addEventListener("resize", this.findTop);
   },
   mounted: function () {
     this.findTop();
@@ -172,7 +174,7 @@ html {
   background-color: #fffeff;
 }
 
-.about{
+.about {
   margin-bottom: 20px;
 }
 
@@ -185,22 +187,21 @@ h2 {
   padding: 0;
   margin-bottom: 5px;
 }
-h2.light{
+h2.light {
   text-align: left;
   color: #bdbdbf;
   padding-bottom: 5px;
   border-bottom: 1px solid #bdbdbf;
   margin-bottom: 15px;
 }
-h2.subnet{
-    font-family: fantasy, system-ui, 'sans-serif';
-    font-size: 28pt;
-    color: #5b5b56;
-    font-weight: 100;
-    cursor: pointer;
-
+h2.subnet {
+  font-family: fantasy, system-ui, "sans-serif";
+  font-size: 28pt;
+  color: #5b5b56;
+  font-weight: 100;
+  cursor: pointer;
 }
-h2.subnet:hover{
+h2.subnet:hover {
   text-decoration: underline;
 }
 .text-right {
@@ -276,5 +277,4 @@ h2.subnet:hover{
   margin: 10px;
   text-align: center;
 }
-
 </style>

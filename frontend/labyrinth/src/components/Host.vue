@@ -1,7 +1,7 @@
 <template>
   <div :class="passed_class">
     <div class="top">
-      <span>{{ip}}</span>
+      <span>{{ ip }}</span>
       <br />
       <component :is="myComponent[icon]" />
     </div>
@@ -24,7 +24,8 @@
   </div>
 </template>
 <script>
-import {defineAsyncComponent} from 'vue'
+// Vue 3 code
+//import { defineAsyncComponent } from "vue";
 export default {
   name: "Host",
   props: ["icon", "passed_class", "show_ports", "ip"],
@@ -50,8 +51,13 @@ export default {
   created() {
     for (var i = 0; i < this.icons.length; i++) {
       let componentName = this.icons[i];
+      // Vue 3 code
+      /*
       this.myComponent[this.icons[i]] = defineAsyncComponent(() =>
-        import("../components/icons/" + componentName + ".vue"));
+        import("../components/icons/" + componentName + ".vue")
+      );
+      */
+        this.myComponent[this.icons[i]] = () => import("../components/icons/" + componentName + ".vue")
     }
   },
 };

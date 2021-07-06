@@ -1,27 +1,27 @@
 <!-- src/components/Callback.vue -->
 
 <template>
-    <div>
-        <p>Loading...</p>
-    </div>
+  <div>
+    <p>Loading...</p>
+  </div>
 </template>
 
 <script>
 export default {
-    methods: {
-        handleLoginEvent() {
-            //console.log(data);
-            /* istanbul ignore next */
-            this.$router.push('/')
-        },
+  methods: {
+    handleLoginEvent() {
+      //console.log(data);
+      /* istanbul ignore next */
+      this.$router.push("/");
     },
-    created() {
-        try {
-            this.$auth.handleAuthentication()
-        } catch (e) {
-            this.$store.commit('updateError', e)
-        }
-    },
-    mounted() {},
-}
+  },
+  created() {
+    try {
+      this.$auth.handleAuthentication();
+    } catch (e) {
+      this.$store.commit("updateError", e);
+    }
+  },
+  mounted() {},
+};
 </script>
