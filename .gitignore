@@ -1,3 +1,6 @@
 auth_config.json
 frontend/labyrinth/package-lock.json
 **.env
+**.pyc
+**/**.pyc
+backend/common/__pycache__/auth.cpython-38.pyc

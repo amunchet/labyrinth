@@ -1,0 +1,10 @@
+flask
+flask-cors
+gunicorn
+python-dotenv
+python-jose
+
+# Development tools
+pytest
+pytest-cov
+requests
