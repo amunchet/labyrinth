@@ -90,7 +90,7 @@ export default {
 }
 .host_col {
   float: left;
-  width: 30%;
+  width: 31.33%;
   margin: 1%;
   flex-grow: 1;
 }

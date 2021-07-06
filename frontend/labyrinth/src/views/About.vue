@@ -97,7 +97,10 @@
         <h2 class="text-right subnet darkblue">192.168.1</h2>
         <div class="flexed">
           <div class="grouped">
-            <h2 class="light">Linux Servers</h2>
+            <div class="overflow-hidden light p-0">
+            <h2 class="float-left">Linux Servers</h2>
+            <font-awesome-icon class="float-right p-1 mt-1" icon="edit" size="2x" />
+            </div>
             <div class="flexed">
               <Host ip=".176" passed_class="main" icon="Phone" />
               <Host ip=".176" passed_class="main" icon="Phone" />
@@ -120,6 +123,7 @@
   </div>
 </template>
 <script>
+
 import Connector from "@/components/Connector";
 import Host from "@/components/Host";
 export default {
@@ -167,6 +171,9 @@ export default {
 };
 </script>
 <style lang="scss">
+@import '@/assets/variables.scss';
+
+
 body,
 html {
   padding: 0;
@@ -179,7 +186,7 @@ html {
 }
 
 h2 {
-  width: 100%;
+  width: 50%;
   clear: both;
   font-family: Helvetica Neue, Helvetica, Arial, sans-serif;
   font-weight: 1;
@@ -187,7 +194,7 @@ h2 {
   padding: 0;
   margin-bottom: 5px;
 }
-h2.light {
+.light {
   text-align: left;
   color: #bdbdbf;
   padding-bottom: 5px;
@@ -200,12 +207,10 @@ h2.subnet {
   color: #5b5b56;
   font-weight: 100;
   cursor: pointer;
+  width: 100%;
 }
 h2.subnet:hover {
   text-decoration: underline;
-}
-.text-right {
-  text-align: right;
 }
 .outer_left {
   width: 10%;
@@ -247,9 +252,9 @@ h2.subnet:hover {
   position: relative;
   top: 0;
   left: 0;
-  border-radius: 0 0 2rem 0;
+  border-radius: 0 0 3rem 0;
   min-width: 150px;
-  background-color: lightblue;
+  background-color: #fafafe;
   box-shadow: 10px 10px 39px -12px rgba(0, 0, 0, 0.75);
   -webkit-box-shadow: 10px 10px 39px -12px rgba(0, 0, 0, 0.75);
   -moz-box-shadow: 10px 10px 39px -12px rgba(0, 0, 0, 0.75);
