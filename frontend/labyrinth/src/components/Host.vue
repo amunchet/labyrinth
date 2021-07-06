@@ -57,7 +57,8 @@ export default {
         import("../components/icons/" + componentName + ".vue")
       );
       */
-        this.myComponent[this.icons[i]] = () => import("../components/icons/" + componentName + ".vue")
+      this.myComponent[this.icons[i]] = () =>
+        import("../components/icons/" + componentName + ".vue");
     }
   },
 };
