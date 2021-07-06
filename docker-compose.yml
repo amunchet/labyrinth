@@ -12,4 +12,11 @@ services:
     volumes:
       - ./frontend:/src
       - /src/labyrinth/node_modules
-  
+
+  backend:
+      build: "backend"
+      ports:
+          - "7200:7000"
+      volumes:
+          - ./backend/:/src
+          
