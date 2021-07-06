@@ -16,10 +16,10 @@
       <div class="outer">
         <div class="left">
           <div class="corner">
-            <Host icon="VMWare" show_ports=0 />
+            <Host ip="127.0.0.1" icon="VMWare" show_ports=0 />
           </div>
           <div class="routes">
-            <Host passed_class="main" icon="Router" ref="start_1"/>
+            <Host ip=".176" passed_class="main" icon="Router" ref="start_1"/>
           </div>
         </div>
 
@@ -29,19 +29,19 @@
             <div class="grouped">
               <h2 class="light">Linux Servers</h2>
               <div class="flexed">
-                <Host passed_class="main" icon="Linux" />
-                <Host passed_class="main" icon="Linux" />
-                <Host passed_class="main" icon="Linux" />
-                <Host passed_class="main" icon="Linux"  />
+                <Host ip=".176" passed_class="main" icon="Linux" />
+                <Host ip=".176" passed_class="main" icon="Linux" />
+                <Host ip=".176" passed_class="main" icon="Linux" />
+                <Host ip=".176" passed_class="main" icon="Linux"  />
               </div>
             </div>
             <div class="grouped">
               <h2 class="light">Windows Servers</h2>
               <div class="flexed">
-                <Host passed_class="main" icon="Windows" />
-                <Host passed_class="main" icon="Windows" />
-                <Host passed_class="main" icon="Windows" />
-                <Host passed_class="main" icon="Windows" />
+                <Host ip=".176" passed_class="main" icon="Windows" />
+                <Host ip=".176" passed_class="main" icon="Windows" />
+                <Host ip=".176" passed_class="main" icon="Windows" />
+                <Host ip=".176" passed_class="main" icon="Windows" />
               </div>
             </div>
           </div>
@@ -52,10 +52,10 @@
     <div class="outer orange-bg">
       <div class="left">
         <div class="corner" ref="end_1">
-          <Host icon="Cloud" show_ports=0 />
+          <Host ip="10.8.0.6" icon="Cloud" show_ports=0 />
         </div>
         <div class="routes">
-          <Host passed_class="main" icon="Wireless"/>
+          <Host ip=".176" passed_class="main" icon="Wireless"/>
         </div>
       </div>
 
@@ -65,19 +65,53 @@
           <div class="grouped">
             <h2 class="light">Linux Servers</h2>
             <div class="flexed">
-              <Host passed_class="main" icon="Phone" />
-              <Host passed_class="main" icon="Phone" />
-              <Host passed_class="main" icon="Phone" />
-              <Host passed_class="main" icon="Phone" />
+              <Host ip=".176" passed_class="main" icon="Phone" />
+              <Host ip=".176" passed_class="main" icon="Phone" />
+              <Host ip=".176" passed_class="main" icon="Phone" />
+              <Host ip=".176" passed_class="main" icon="Phone" />
             </div>
           </div>
           <div class="grouped">
             <h2 class="light">Windows Clients</h2>
             <div class="flexed">
-              <Host passed_class="main" icon="Tower" />
-              <Host passed_class="main" icon="Tower" />
-              <Host passed_class="main" icon="Tower" />
-              <Host passed_class="main" icon="Tower" />
+              <Host ip=".176" passed_class="main" icon="Tower" />
+              <Host ip=".176" passed_class="main" icon="Tower" />
+              <Host ip=".176" passed_class="main" icon="Tower" />
+              <Host ip=".176" passed_class="main" icon="Tower" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+<div class="outer darkblue-bg">
+      <div class="left">
+        <div class="corner" ref="end_2">
+          <Host ip=".176" icon="Cloud" show_ports=0 />
+        </div>
+        <div class="routes">
+          <Host ip=".176" passed_class="main" icon="Wireless"/>
+        </div>
+      </div>
+
+      <div class="right">
+        <h2 class="text-right subnet darkblue">192.168.1</h2>
+        <div class="flexed">
+          <div class="grouped">
+            <h2 class="light">Linux Servers</h2>
+            <div class="flexed">
+              <Host ip=".176" passed_class="main" icon="Phone" />
+              <Host ip=".176" passed_class="main" icon="Phone" />
+              <Host ip=".176" passed_class="main" icon="Phone" />
+              <Host ip=".176" passed_class="main" icon="Phone" />
+            </div>
+          </div>
+          <div class="grouped">
+            <h2 class="light">Windows Clients</h2>
+            <div class="flexed">
+              <Host ip=".176" passed_class="main" icon="Tower" />
+              <Host ip=".176" passed_class="main" icon="Tower" />
+              <Host ip=".176" passed_class="main" icon="Tower" />
+              <Host ip=".176" passed_class="main" icon="Tower" />
             </div>
           </div>
         </div>
@@ -138,6 +172,10 @@ html {
   background-color: #fffeff;
 }
 
+.about{
+  margin-bottom: 20px;
+}
+
 h2 {
   width: 100%;
   clear: both;
@@ -159,6 +197,11 @@ h2.subnet{
     font-size: 28pt;
     color: #5b5b56;
     font-weight: 100;
+    cursor: pointer;
+
+}
+h2.subnet:hover{
+  text-decoration: underline;
 }
 .text-right {
   text-align: right;

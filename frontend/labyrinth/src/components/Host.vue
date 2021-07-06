@@ -1,7 +1,7 @@
 <template>
   <div :class="passed_class">
     <div class="top">
-      <span>.176</span>
+      <span>{{ip}}</span>
       <br />
       <component :is="myComponent[icon]" />
     </div>
@@ -27,7 +27,7 @@
 import {defineAsyncComponent} from 'vue'
 export default {
   name: "Host",
-  props: ["icon", "passed_class", "show_ports"],
+  props: ["icon", "passed_class", "show_ports", "ip"],
   data() {
     return {
       icons: [
