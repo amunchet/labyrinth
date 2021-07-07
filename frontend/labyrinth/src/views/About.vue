@@ -1,125 +1,45 @@
 <template>
   <div class="about">
     <div class="outer_left">
-      <Connector
-        :verticals="connectorBottom"
-        horizontals="1"
-        color="orange"
+      <Connector 
+        :verticals="connectorBottom[0]" 
+        horizontals="1" 
+        color="orange" 
         :style="
           'top: ' +
-          offsetTop +
-          'px; left: 32px; position: absolute; float: left;'
-        "
-      />
+          offsetTop[0] +
+          'px; left: ' + 32 + 
+          'px; position: absolute; float: left;'
+        " />
     </div>
     <div class="outer_right">
-      <div class="outer">
+      <div :class="findClass(subnet)" v-for="(subnet, i) in full_data" v-bind:key="i">
         <div class="left">
-          <div class="corner">
-            <Host ip="127.0.0.1" icon="VMWare" show_ports="0" />
+          <div class="corner" :ref="'end_' + i">
+            <Host :ip="subnet.origin.ip" :icon="subnet.origin.icon" show_ports="0"/>
           </div>
           <div class="routes">
-            <Host ip=".176" passed_class="main" icon="Router" ref="start_1" />
+            <Host :ip="subnet.links.ip" show_ports="0" passed_class="main" :ref="'start_' + i" :icon="subnet.links.icon" />
           </div>
         </div>
-
         <div class="right">
-          <h2 class="text-right subnet">192.168.0</h2>
+          <h2 :class="findTitleClass(subnet)">{{subnet.subnet}}</h2>
           <div class="flexed">
-            <div class="grouped">
-              <h2 class="light">Linux Servers</h2>
-              <div class="flexed">
-                <Host ip=".176" passed_class="main" icon="Linux" />
-                <Host ip=".176" passed_class="main" icon="Linux" />
-                <Host ip=".176" passed_class="main" icon="Linux" />
-                <Host ip=".176" passed_class="main" icon="Linux" />
+            <div class="grouped" v-for="(group, j) in subnet.groups" v-bind:key="j">
+              <div class="overflow-hidden light p-0">
+                <h2 class="float-left">{{group.name}}</h2>
+                <font-awesome-icon class="float-right p-1 mt-1" icon="edit" size="2x" />
               </div>
-            </div>
-            <div class="grouped">
-              <h2 class="light">Windows Servers</h2>
               <div class="flexed">
-                <Host ip=".176" passed_class="main" icon="Windows" />
-                <Host ip=".176" passed_class="main" icon="Windows" />
-                <Host ip=".176" passed_class="main" icon="Windows" />
-                <Host ip=".176" passed_class="main" icon="Windows" />
+                <Host v-for="(host, k) in group.hosts" v-bind:key="k" :ip="host.ip" passed_class="main" :icon="host.icon"/>
               </div>
             </div>
           </div>
         </div>
       </div>
+
     </div>
 
-    <div class="outer orange-bg">
-      <div class="left">
-        <div class="corner" ref="end_1">
-          <Host ip="10.8.0.6" icon="Cloud" show_ports="0" />
-        </div>
-        <div class="routes">
-          <Host ip=".176" passed_class="main" icon="Wireless" />
-        </div>
-      </div>
-
-      <div class="right">
-        <h2 class="text-right subnet orange">192.168.1</h2>
-        <div class="flexed">
-          <div class="grouped">
-            <h2 class="light">Linux Servers</h2>
-            <div class="flexed">
-              <Host ip=".176" passed_class="main" icon="Phone" />
-              <Host ip=".176" passed_class="main" icon="Phone" />
-              <Host ip=".176" passed_class="main" icon="Phone" />
-              <Host ip=".176" passed_class="main" icon="Phone" />
-            </div>
-          </div>
-          <div class="grouped">
-            <h2 class="light">Windows Clients</h2>
-            <div class="flexed">
-              <Host ip=".176" passed_class="main" icon="Tower" />
-              <Host ip=".176" passed_class="main" icon="Tower" />
-              <Host ip=".176" passed_class="main" icon="Tower" />
-              <Host ip=".176" passed_class="main" icon="Tower" />
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="outer darkblue-bg">
-      <div class="left">
-        <div class="corner" ref="end_2">
-          <Host ip=".176" icon="Cloud" show_ports="0" />
-        </div>
-        <div class="routes">
-          <Host ip=".176" passed_class="main" icon="Wireless" />
-        </div>
-      </div>
-
-      <div class="right">
-        <h2 class="text-right subnet darkblue">192.168.1</h2>
-        <div class="flexed">
-          <div class="grouped">
-            <div class="overflow-hidden light p-0">
-            <h2 class="float-left">Linux Servers</h2>
-            <font-awesome-icon class="float-right p-1 mt-1" icon="edit" size="2x" />
-            </div>
-            <div class="flexed">
-              <Host ip=".176" passed_class="main" icon="Phone" />
-              <Host ip=".176" passed_class="main" icon="Phone" />
-              <Host ip=".176" passed_class="main" icon="Phone" />
-              <Host ip=".176" passed_class="main" icon="Phone" />
-            </div>
-          </div>
-          <div class="grouped">
-            <h2 class="light">Windows Clients</h2>
-            <div class="flexed">
-              <Host ip=".176" passed_class="main" icon="Tower" />
-              <Host ip=".176" passed_class="main" icon="Tower" />
-              <Host ip=".176" passed_class="main" icon="Tower" />
-              <Host ip=".176" passed_class="main" icon="Tower" />
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 <script>
@@ -129,8 +49,127 @@ import Host from "@/components/Host";
 export default {
   data() {
     return {
-      offsetTop: 10,
-      connectorBottom: 10,
+      offsetTop: [],
+      connectorBottom: [],
+      connector_count: 1,
+      full_data: [
+        {
+          subnet: "192.168.0",
+          origin: {
+            ip: "127.0.0.1",
+            icon : "VMWare"
+          },
+          groups: [
+            {
+              name: "Linux Servers",
+              hosts: [
+                {
+                  "ip" : "176",
+                  "icon" : "Linux"
+                },
+                {
+                  "ip" : "176",
+                  "icon" : "Linux"
+                },
+                {
+                  "ip" : "176",
+                  "icon" : "Linux"
+                },
+                {
+                  "ip" : "176",
+                  "icon" : "Linux"
+                },
+              ]
+            },
+            {
+              name: "Windows Servers",
+              hosts: [
+                {
+                  "ip" : "176",
+                  "icon" :  "Windows",
+                },
+                {
+                  "ip" : "176",
+                  "icon" : "Windows",
+                },
+                {
+                  "ip" : "176",
+                  "icon" : "Windows",
+                },
+                {
+                  "ip" : "176",
+                  "icon" : "Windows",
+                },
+              ]
+            }
+          ],
+          links: {
+            ref: "start_1",
+            ip: ".175",
+            icon: "Router",
+            color: "orange"
+          }
+        },
+        {
+          subnet: "192.168.1",
+          color: "orange",
+          origin: {
+            ref: "end_1",
+            icon: "Cloud",
+            ip: "10.8.0.6"
+          },
+          groups: [
+            {
+              name: "Linux Servers",
+              hosts: [
+                {
+                  "ip" : "176",
+                  "icon" : "Phone"
+                },
+                {
+                  "ip" : "176",
+                  "icon" : "Phone"
+                },
+                {
+                  "ip" : "176",
+                  "icon" : "Phone"
+                },
+                {
+                  "ip" : "176",
+                  "icon" : "Phone"
+                },
+              ]
+            },
+            {
+              name: "Windows Servers",
+              hosts: [
+                {
+                  "ip" : "176",
+                  "icon" :  "Tower",
+                },
+                {
+                  "ip" : "176",
+                  "icon" : "Tower",
+                },
+                {
+                  "ip" : "176",
+                  "icon" : "Tower",
+                },
+                {
+                  "ip" : "176",
+                  "icon" : "Tower",
+                },
+              ]
+            }
+          ],
+          links: {
+            ref: "start_2",
+            ip: ".176",
+            icon: "Wireless",
+            color: "blue"
+          }
+        }
+      ]
     };
   },
   components: {
@@ -138,19 +177,40 @@ export default {
     Host,
   },
   methods: {
+    findClass: function(subnet){
+      if (subnet.color == undefined){
+        return "outer"
+      }else{
+        return "outer " + subnet.color + "-bg"
+      }
+    },
+    findTitleClass: function(subnet){
+    if (subnet.color == undefined){
+        return "text-right subnet"
+      }else{
+        return "text-right subnet " + subnet.color + ""
+      }
+    },
     findTop: function () {
-      console.log(this.$refs);
-      console.log(this.$refs["start_1"].$el.offsetTop);
-      this.offsetTop = this.$refs["start_1"].$el.offsetTop * 1;
+      console.log(this.$refs)
+      console.log("Connector count: " + this.connector_count)
+      for(var i = 0; i<this.connector_count; i++){
+        console.log("I: " + i)
+        console.log("Top item")
+        console.log(this.$refs["start_" + i][0].$el)
+        this.offsetTop[i] = this.$refs["start_" + i][0].$el.offsetTop
+        console.log("Top location:")
+        console.log(this.offsetTop[i])
+        var bottom = this.$refs["end_" + (i+1)][0].offsetTop * 1
+        console.log("Bottom item:")
+        console.log(this.$refs["end_" + (i+1)][0])
+        console.log("Bottom location: ")
+        console.log(bottom)
+        this.connectorBottom[i] = Math.ceil((bottom - this.offsetTop[i])/50) * 1 -1
+        console.log(this.connectorBottom[i])
+      }
+      this.$forceUpdate()
 
-      console.log(this.$refs["end_1"]);
-      var bottom = this.$refs["end_1"].offsetTop * 1;
-      console.log(bottom);
-      this.connectorBottom =
-        Math.ceil((this.offsetTop - this.$refs["end_1"].offsetTop * 1) / 50) *
-          -1 -
-        1;
-      this.$forceUpdate();
     },
   },
   watch: {
