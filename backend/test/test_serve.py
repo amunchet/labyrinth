@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-"""Sample tests"""
 import requests
 
 
@@ -19,8 +18,6 @@ def test_secure():
 
 
 # Labyrinth main functions
-DATA = [{"subnet": "192.168.0", "origin": {"ip": "127.0.0.1", "icon": "VMWare"}, "groups": [{"name": "Linux Servers", "hosts": [{"ip": "176", "icon": "Linux"}, {"ip": "176", "icon": "Linux"}, {"ip": "176", "icon": "Linux"}, {"ip": "176", "icon": "Linux"}]}, {"name": "Windows Servers", "hosts": [{"ip": "176", "icon": "Windows"}, {"ip": "176", "icon": "Windows"}, {"ip": "176", "icon": "Windows"}, {"ip": "176", "icon": "Windows"}]}], "links": {"ref": "start_1", "ip": ".175", "icon": "Router", "color": "orange"}}, {
-    "subnet": "192.168.1", "color": "orange", "origin": {"ref": "end_1", "icon": "Cloud", "ip": "10.8.0.6"}, "groups": [{"name": "Linux Servers", "hosts": [{"ip": "176", "icon": "Phone"}, {"ip": "176", "icon": "Phone"}, {"ip": "176", "icon": "Phone"}, {"ip": "176", "icon": "Phone"}]}, {"name": "Windows Servers", "hosts": [{"ip": "176", "icon": "Tower"}, {"ip": "176", "icon": "Tower"}, {"ip": "176", "icon": "Tower"}, {"ip": "176", "icon": "Tower"}]}], "links": {"ref": "start_2", "ip": ".176", "icon": "Wireless", "color": "blue"}}]
 
 
 
@@ -32,9 +29,6 @@ def test_create_edit_subnet():
 def test_create_edit_host():
     """Creates/Edits a host for the given subnet"""
 
-
-def test_create_edit_service():
-    """Creates/Edits a service for the given host"""
 
 
 def test_create_edit_link():
@@ -51,3 +45,20 @@ def test_list_dashboard():
     - This will be interesting, as localhost (whatever the scanner is) will be the top
     - Graph traversal for the given links
     """
+
+"""
+Tests for Services
+    - Services are definitions of how to interpret the received metrics
+    - For example, a service could be reading the metric of "mem" for a host and seeing if "free" was greater than 1000
+"""
+
+def test_create_service():
+    """
+    Creating services is difficult.  
+        - Need to have the JSON definiton
+        - Type: service can be a port scan, a telegraf input, or data to be pulled
+        - Need to have the boolean comparison operations - and, not, or, contains, etc.
+    """
+
+def test_read_services():
+    """Returns the services for a given host"""

@@ -1,0 +1,118 @@
+[
+    {
+        "subnet": "192.168.0",
+        "origin": {
+            "ip": "127.0.0.1",
+            "icon": "VMWare"
+        },
+        "groups": [
+            {
+                "name": "Linux Servers",
+                "hosts": [
+                    {
+                        "ip": "176",
+                        "icon": "Linux"
+                    },
+                    {
+                        "ip": "176",
+                        "icon": "Linux"
+                    },
+                    {
+                        "ip": "176",
+                        "icon": "Linux"
+                    },
+                    {
+                        "ip": "176",
+                        "icon": "Linux"
+                    }
+                ]
+            },
+            {
+                "name": "Windows Servers",
+                "hosts": [
+                    {
+                        "ip": "176",
+                        "icon": "Windows"
+                    },
+                    {
+                        "ip": "176",
+                        "icon": "Windows"
+                    },
+                    {
+                        "ip": "176",
+                        "icon": "Windows"
+                    },
+                    {
+                        "ip": "176",
+                        "icon": "Windows"
+                    }
+                ]
+            }
+        ],
+        "links": {
+            "ref": "start_1",
+            "ip": ".175",
+            "icon": "Router",
+            "color": "orange"
+        }
+    },
+    {
+        "subnet": "192.168.1",
+        "color": "orange",
+        "origin": {
+            "ref": "end_1",
+            "icon": "Cloud",
+            "ip": "10.8.0.6"
+        },
+        "groups": [
+            {
+                "name": "Linux Servers",
+                "hosts": [
+                    {
+                        "ip": "176",
+                        "icon": "Phone"
+                    },
+                    {
+                        "ip": "176",
+                        "icon": "Phone"
+                    },
+                    {
+                        "ip": "176",
+                        "icon": "Phone"
+                    },
+                    {
+                        "ip": "176",
+                        "icon": "Phone"
+                    }
+                ]
+            },
+            {
+                "name": "Windows Servers",
+                "hosts": [
+                    {
+                        "ip": "176",
+                        "icon": "Tower"
+                    },
+                    {
+                        "ip": "176",
+                        "icon": "Tower"
+                    },
+                    {
+                        "ip": "176",
+                        "icon": "Tower"
+                    },
+                    {
+                        "ip": "176",
+                        "icon": "Tower"
+                    }
+                ]
+            }
+        ],
+        "links": {
+            "ref": "start_2",
+            "ip": ".176",
+            "icon": "Wireless",
+            "color": "blue"
+        }
+    }
+]
