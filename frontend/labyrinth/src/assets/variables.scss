@@ -18,7 +18,7 @@ $orange: #EFBA48;
 // Main color
 //$lightblue: #83d3df;
 $darkblue: #38595E;
-$green: #78DEB3;
+$green: #49D184;
 //$red: #DE7562; //Pivot off the green
 $orange: #F5B65F;
 
@@ -34,6 +34,9 @@ $darkerblue: #56a0f8;
 .orange-bg {
   //background-color: $orange !important;
   border: 1px solid $orange;
+}
+.green-bg{
+    background-color: $green;
 }
 .darkblue-bg {
   //background-color: $darkblue;
