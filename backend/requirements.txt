@@ -3,6 +3,7 @@ flask-cors
 gunicorn
 python-dotenv
 python-jose
+pymongo
 
 # Development tools
 pytest

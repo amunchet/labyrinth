@@ -1,0 +1,55 @@
+version: "3.2"
+services:
+  devel:
+    environment:
+      COMPOSE_CONVERT_WINDOWS_PATHS: 1
+      CHOKIDAR_USEPOLLING: "true"
+
+    build: ./frontend
+    ports:
+      - "8100:8000"
+      - "8101:8080"
+    networks:
+      - labyrinth
+    volumes:
+      - ./frontend:/src
+      - /src/labyrinth/node_modules
+
+  backend:
+    build: "backend"
+    ports:
+      - "7200:7000"
+    volumes:
+      - ./backend/:/src
+    networks:
+      - labyrinth
+  
+
+  # Test Client
+  sampleclient:
+    build: "test_client"
+    networks:
+      - labyrinth
+  
+  # Mongo
+  mongo:
+    image: mongo
+    networks:
+      - labyrinth
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: temp
+
+  mongo-express:
+    image: mongo-express
+    restart: always
+    networks:
+      - labyrinth
+    ports:
+      - 127.0.0.1:8082:8081
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: root
+      ME_CONFIG_MONGODB_ADMINPASSWORD: temp
+
+networks:
+  labyrinth:
