@@ -23,6 +23,9 @@ $orange: #f5b65f;
 
 $darkerblue: #56a0f8;
 
+$grey: #bfbfbd;
+$darkgrey: #64646e;
+
 /* Implementation */
 .lightblue-bg {
   background-color: $lightblue;
@@ -60,6 +63,12 @@ $darkerblue: #56a0f8;
   color: $superlight !important;
 }
 
+.grey{
+    color: $grey !important;
+}
+.darkgrey{
+    color: $darkgrey !important;
+}
 .text-success {
   color: $green !important;
 }

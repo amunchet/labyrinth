@@ -23,7 +23,7 @@
       <div class="table">
         <div class="host_row" v-for="j in 5" v-bind:key="j">
           <div v-if="j % 2" class="host_col">
-            <div class="green-bg host_col" v-for="i in 3" v-bind:key="i">
+            <div class="green-bg host_col darkgrey" v-for="i in 3" v-bind:key="i">
               &nbsp;&nbsp;&nbsp;
             </div>
           </div>
