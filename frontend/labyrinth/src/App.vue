@@ -8,7 +8,7 @@
 
         <b-navbar-toggle target="nav-collapse"></b-navbar-toggle>
 
-        <b-collapse id="nav-collapse" is-nav class="pt-3">
+        <b-collapse id="nav-collapse" is-nav >
           <b-navbar-nav>
             <b-nav-item href="#">
               <router-link to="/">
@@ -82,10 +82,10 @@
 .top_logo {
   position: absolute;
   left:20px;
-  top: 0;
+  top: 1px;
 }
 .top_logo img {
-  height: 75px;
+  height: 50px;
 }
 #nav-collapse{
   margin-left: 75px;

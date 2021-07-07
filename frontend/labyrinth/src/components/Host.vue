@@ -19,6 +19,9 @@
             </div>
           </div>
         </div>
+        <b-button class="add_button">
+          <font-awesome-icon icon="cog" size="1x" />
+        </b-button>
       </div>
     </div>
   </div>
@@ -110,5 +113,13 @@ export default {
   text-align: center;
   min-width: 25%;
   font-weight: bold;
+}
+.add_button{
+  width: 100%;
+  margin-top: 10px;
+  background-color: #efefed;
+  border:1px dotted #bfbfbd;
+  color: darkgrey;
+  padding: 0;
 }
 </style>
