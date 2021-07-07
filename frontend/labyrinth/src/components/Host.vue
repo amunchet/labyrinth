@@ -6,6 +6,20 @@
       <component :is="myComponent[icon]" />
     </div>
     <div class="bottom" v-if="show_ports != 0">
+      <div class="table mb-0">
+        <div class="host_row">
+          <div class="host_col text-success">
+            <font-awesome-icon icon="chart-area" size="1x" />
+          </div>
+          <div class="host_col text-warning">
+            <font-awesome-icon icon="memory" size="1x" />
+          </div>
+          <div class="host_col text-danger">
+            <font-awesome-icon icon="database" size="1x" />
+          </div>
+        </div>
+      </div>
+
       <div class="table">
         <div class="host_row" v-for="j in 5" v-bind:key="j">
           <div v-if="j % 2" class="host_col">
@@ -114,11 +128,11 @@ export default {
   min-width: 25%;
   font-weight: bold;
 }
-.add_button{
+.add_button {
   width: 100%;
   margin-top: 10px;
   background-color: #efefed;
-  border:1px dotted #bfbfbd;
+  border: 1px dotted #bfbfbd;
   color: darkgrey;
   padding: 0;
 }
