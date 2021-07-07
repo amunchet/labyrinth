@@ -1,4 +1,4 @@
-# notfun
+# Labyrinth
 
 ## Project setup
 ```
