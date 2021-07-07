@@ -1,0 +1,324 @@
+{
+    "metrics": [
+        {
+            "fields": {
+                "boot_time": 1625587759,
+                "context_switches": 4143261228,
+                "entropy_avail": 3760,
+                "interrupts": 1578002983,
+                "processes_forked": 884284
+            },
+            "name": "kernel",
+            "tags": {
+                "host": "aacd4239ee68"
+            },
+            "timestamp": 1625683390
+        },
+        {
+            "fields": {
+                "free": 7516192768,
+                "total": 7516192768,
+                "used": 0,
+                "used_percent": 0
+            },
+            "name": "swap",
+            "tags": {
+                "host": "aacd4239ee68"
+            },
+            "timestamp": 1625683390
+        },
+        {
+            "fields": {
+                "in": 0,
+                "out": 0
+            },
+            "name": "swap",
+            "tags": {
+                "host": "aacd4239ee68"
+            },
+            "timestamp": 1625683390
+        },
+        {
+            "fields": {
+                "active": 5321134080,
+                "available": 23942545408,
+                "available_percent": 89.41629549767953,
+                "buffered": 2354409472,
+                "cached": 7853826048,
+                "commit_limit": 20904435712,
+                "committed_as": 16859033600,
+                "dirty": 77824,
+                "free": 14420312064,
+                "high_free": 0,
+                "high_total": 0,
+                "huge_page_size": 2097152,
+                "huge_pages_free": 0,
+                "huge_pages_total": 0,
+                "inactive": 3170877440,
+                "low_free": 0,
+                "low_total": 0,
+                "mapped": 426835968,
+                "page_tables": 16232448,
+                "shared": 421613568,
+                "slab": 3635642368,
+                "sreclaimable": 3316862976,
+                "sunreclaim": 318779392,
+                "swap_cached": 0,
+                "swap_free": 7516192768,
+                "swap_total": 7516192768,
+                "total": 26776489984,
+                "used": 2147942400,
+                "used_percent": 8.021747440696968,
+                "vmalloc_chunk": 0,
+                "vmalloc_total": 35184372087808,
+                "vmalloc_used": 0,
+                "write_back": 0,
+                "write_back_tmp": 0
+            },
+            "name": "mem",
+            "tags": {
+                "host": "aacd4239ee68"
+            },
+            "timestamp": 1625683390
+        },
+        {
+            "fields": {
+                "io_time": 10,
+                "iops_in_progress": 0,
+                "merged_reads": 0,
+                "merged_writes": 0,
+                "read_bytes": 2185216,
+                "read_time": 23,
+                "reads": 100,
+                "weighted_io_time": 20,
+                "write_bytes": 0,
+                "write_time": 0,
+                "writes": 0
+            },
+            "name": "diskio",
+            "tags": {
+                "host": "aacd4239ee68",
+                "name": "loop0"
+            },
+            "timestamp": 1625683390
+        },
+        {
+            "fields": {
+                "io_time": 1780,
+                "iops_in_progress": 0,
+                "merged_reads": 0,
+                "merged_writes": 0,
+                "read_bytes": 206404608,
+                "read_time": 4039,
+                "reads": 2574,
+                "weighted_io_time": 4140,
+                "write_bytes": 0,
+                "write_time": 0,
+                "writes": 0
+            },
+            "name": "diskio",
+            "tags": {
+                "host": "aacd4239ee68",
+                "name": "loop1"
+            },
+            "timestamp": 1625683390
+        },
+        {
+            "fields": {
+                "io_time": 1690,
+                "iops_in_progress": 0,
+                "merged_reads": 0,
+                "merged_writes": 410,
+                "read_bytes": 168960,
+                "read_time": 64,
+                "reads": 42,
+                "weighted_io_time": 1850,
+                "write_bytes": 4298919936,
+                "write_time": 8559,
+                "writes": 8759
+            },
+            "name": "diskio",
+            "tags": {
+                "host": "aacd4239ee68",
+                "name": "sda"
+            },
+            "timestamp": 1625683390
+        },
+        {
+            "fields": {
+                "io_time": 300,
+                "iops_in_progress": 0,
+                "merged_reads": 0,
+                "merged_writes": 54,
+                "read_bytes": 29426688,
+                "read_time": 2680,
+                "reads": 518,
+                "weighted_io_time": 2580,
+                "write_bytes": 512000,
+                "write_time": 173,
+                "writes": 77
+            },
+            "name": "diskio",
+            "tags": {
+                "host": "aacd4239ee68",
+                "name": "sdb"
+            },
+            "timestamp": 1625683390
+        },
+        {
+            "fields": {
+                "io_time": 388970,
+                "iops_in_progress": 0,
+                "merged_reads": 58,
+                "merged_writes": 1619782,
+                "read_bytes": 3195790336,
+                "read_time": 274571,
+                "reads": 554284,
+                "weighted_io_time": 2110050,
+                "write_bytes": 25377353728,
+                "write_time": 1773103,
+                "writes": 774348
+            },
+            "name": "diskio",
+            "tags": {
+                "host": "aacd4239ee68",
+                "name": "sdc"
+            },
+            "timestamp": 1625683390
+        },
+        {
+            "fields": {
+                "load1": 0.33,
+                "load15": 1.01,
+                "load5": 0.75,
+                "n_cpus": 16,
+                "n_users": 0
+            },
+            "name": "system",
+            "tags": {
+                "host": "aacd4239ee68"
+            },
+            "timestamp": 1625683390
+        },
+        {
+            "fields": {
+                "uptime": 95631
+            },
+            "name": "system",
+            "tags": {
+                "host": "aacd4239ee68"
+            },
+            "timestamp": 1625683390
+        },
+        {
+            "fields": {
+                "uptime_format": "1 day,  2:33"
+            },
+            "name": "system",
+            "tags": {
+                "host": "aacd4239ee68"
+            },
+            "timestamp": 1625683390
+        },
+        {
+            "fields": {
+                "blocked": 0,
+                "dead": 0,
+                "idle": 0,
+                "paging": 0,
+                "running": 0,
+                "sleeping": 4,
+                "stopped": 0,
+                "total": 4,
+                "total_threads": 21,
+                "unknown": 0,
+                "zombies": 0
+            },
+            "name": "processes",
+            "tags": {
+                "host": "aacd4239ee68"
+            },
+            "timestamp": 1625683390
+        },
+        {
+            "fields": {
+                "free": 1289769791488,
+                "inodes_free": 1000000,
+                "inodes_total": 999,
+                "inodes_used": 0,
+                "total": 1999744589824,
+                "used": 0,
+                "used_percent": 0
+            },
+            "name": "disk",
+            "tags": {
+                "device": "C:\\134",
+                "fstype": "9p",
+                "host": "aacd4239ee68",
+                "mode": "rw",
+                "path": "/src"
+            },
+            "timestamp": 1625683390
+        },
+        {
+            "fields": {
+                "free": 104003403776,
+                "inodes_free": 11342120,
+                "inodes_total": 16777216,
+                "inodes_used": 5435096,
+                "total": 269490393088,
+                "used": 151726317568,
+                "used_percent": 59.330732763714344
+            },
+            "name": "disk",
+            "tags": {
+                "device": "sdc",
+                "fstype": "ext4",
+                "host": "aacd4239ee68",
+                "mode": "rw",
+                "path": "/etc/resolv.conf"
+            },
+            "timestamp": 1625683390
+        },
+        {
+            "fields": {
+                "free": 104003403776,
+                "inodes_free": 11342120,
+                "inodes_total": 16777216,
+                "inodes_used": 5435096,
+                "total": 269490393088,
+                "used": 151726317568,
+                "used_percent": 59.330732763714344
+            },
+            "name": "disk",
+            "tags": {
+                "device": "sdc",
+                "fstype": "ext4",
+                "host": "aacd4239ee68",
+                "mode": "rw",
+                "path": "/etc/hostname"
+            },
+            "timestamp": 1625683390
+        },
+        {
+            "fields": {
+                "free": 104003403776,
+                "inodes_free": 11342120,
+                "inodes_total": 16777216,
+                "inodes_used": 5435096,
+                "total": 269490393088,
+                "used": 151726317568,
+                "used_percent": 59.330732763714344
+            },
+            "name": "disk",
+            "tags": {
+                "device": "sdc",
+                "fstype": "ext4",
+                "host": "aacd4239ee68",
+                "mode": "rw",
+                "path": "/etc/hosts"
+            },
+            "timestamp": 1625683390
+        }
+    ]
+}

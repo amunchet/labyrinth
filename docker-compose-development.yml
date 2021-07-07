@@ -30,6 +30,8 @@ services:
     build: "test_client"
     networks:
       - labyrinth
+    volumes:
+      - ./test_client:/src
   
   # Mongo
   mongo:
@@ -46,7 +48,7 @@ services:
     networks:
       - labyrinth
     ports:
-      - 127.0.0.1:8082:8081
+      - 127.0.0.1:8089:8081
     environment:
       ME_CONFIG_MONGODB_ADMINUSERNAME: root
       ME_CONFIG_MONGODB_ADMINPASSWORD: temp
