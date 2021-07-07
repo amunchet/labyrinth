@@ -6,21 +6,20 @@ $darkblue: #375775;
 $superlight: #d8faff;
 
 /* Color Theme Swatches in Hex */
-$darkblue: #1E2F3E;
-$lightblue: #56C0F8;
-$blue: #0DA3A8;
-$yellow: #F5CA4E;
-$orange: #EFBA48;
-
+$darkblue: #1e2f3e;
+$lightblue: #56c0f8;
+$blue: #0da3a8;
+$yellow: #f5ca4e;
+$orange: #efba48;
 
 /* Colors */
 
 // Main color
 //$lightblue: #83d3df;
-$darkblue: #38595E;
-$green: #49D184;
+$darkblue: #38595e;
+$green: #49d184;
 //$red: #DE7562; //Pivot off the green
-$orange: #F5B65F;
+$orange: #f5b65f;
 
 $darkerblue: #56a0f8;
 
@@ -35,8 +34,8 @@ $darkerblue: #56a0f8;
   //background-color: $orange !important;
   border: 1px solid $orange;
 }
-.green-bg{
-    background-color: $green;
+.green-bg {
+  background-color: $green;
 }
 .darkblue-bg {
   //background-color: $darkblue;
@@ -61,13 +60,22 @@ $darkerblue: #56a0f8;
   color: $superlight !important;
 }
 
-:export{
-    darkblue: $darkblue;
-    lightblue: $lightblue;
-    blue: $blue;
-    yellow: $yellow;
-    orange: $orange;
-    red: $red;
-    darkerblue: $darkerblue;
+.text-success {
+  color: $green !important;
+}
+.text-danger{
+    color: $red !important;
+}
+.text-warning{
+    color: $orange !important;
+}
 
+:export {
+  darkblue: $darkblue;
+  lightblue: $lightblue;
+  blue: $blue;
+  yellow: $yellow;
+  orange: $orange;
+  red: $red;
+  darkerblue: $darkerblue;
 }
