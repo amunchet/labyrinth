@@ -23,6 +23,10 @@ services:
       - ./backend/:/src
     networks:
       - labyrinth
+    environment: 
+      MONGO_USERNAME: root
+      MONGO_PASSWORD: temp
+      MONGO_HOST: mongo
   
 
   # Test Client
