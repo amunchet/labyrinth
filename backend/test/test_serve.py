@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 
+import os
+import json
+
 import requests
 import pytest
 import serve
+
 
 from common.test import unwrap
 
@@ -37,7 +41,6 @@ def setup():
     """Sets up tests"""
     teardown()
     yield "Setting up..."
-    teardown()
     return "Done"
 
 
@@ -93,7 +96,6 @@ def test_create_edit_group(setup):
     Creates/Edits Group
         - (_id)
         - Name
-        - Children MACs
 
     """
     sample_group = {
@@ -196,7 +198,6 @@ def test_create_edit_link(setup):
     }
     a = unwrap(serve.create_edit_link)(data, "192.168.0")
 
-
     b = serve.mongo_client["labyrinth"]["subnets"].find({})
     c = [x for x in b]
     assert len(c) == 1
@@ -217,7 +218,7 @@ def test_delete_subnet(setup):
     b = serve.mongo_client["labyrinth"]["subnets"].find({})
     c = [x for x in b]
     assert len(c) == 0
-    
+
     a = unwrap(serve.delete_subnet)("192.168.0")
     assert a[1] == 407
 
@@ -256,7 +257,6 @@ def test_delete_host(setup):
     c = [x for x in b]
     assert len(c) == 0
 
-
     a = unwrap(serve.delete_host)("00-00-00-00-01")
     assert a[1] == 407
 
@@ -274,25 +274,24 @@ def test_create_service(setup):
         - THESE INVOLVE SNIPPETS
     """
     port_service = {
-        "name" : "port_ssh",
-        "type" : "port",
-        "port" : 22,
+        "name": "port_ssh",
+        "type": "port",
+        "port": 22,
         "state": "open"
     }
     check_service = {
-        "name" : "check_hd",
-        "type" : "check",
-        "metric" : "diskio",
+        "name": "check_hd",
+        "type": "check",
+        "metric": "diskio",
         "field": "read_time",
-        "comparison" : "greater",
-        "value" : 1000
-        
+        "comparison": "greater",
+        "value": 1000
+
     }
 
     # Create Service
     a = unwrap(serve.create_edit_service)(port_service)
     assert a[1] == 200
-
 
     a = unwrap(serve.create_edit_service)(check_service)
     assert a[1] == 200
@@ -307,14 +306,12 @@ def test_create_service(setup):
     for item in check_service.keys():
         assert c[1][item] == check_service[item]
 
-
     # Edit Service
     port_service["port"] = 23
     check_service["value"] = 300
 
     a = unwrap(serve.create_edit_service)(port_service)
     assert a[1] == 200
-
 
     a = unwrap(serve.create_edit_service)(check_service)
     assert a[1] == 200
@@ -339,13 +336,54 @@ def test_read_services(setup):
 
     assert a[0] == """["port_ssh","check_hd"]"""
 
+
 def test_delete_service(setup):
     """
     Deletes a Service
         - THIS NOW HAS IMPLICATIONS FOR SNIPPETS
         - Implications for hosts that have this service enabled
     """
+    test_create_edit_host(setup)
+    test_create_service(setup)
 
+    # Create snippet if not exists
+    filename = "/src/snippets/check_hd"
+    if not os.path.exists(filename):
+        with open(filename, "w") as f:
+            f.write(".")
+
+    assert os.path.exists(filename)
+
+    b = serve.mongo_client["labyrinth"]["hosts"].find({})
+    c = [x for x in b]
+    assert len(c) == 1
+    assert c[0]["services"] == [
+        "check_hd",
+        "port_ssh"
+    ]
+
+    b = serve.mongo_client["labyrinth"]["services"].find({})
+    c = [x for x in b]
+    assert len(c) == 2
+
+    a = unwrap(serve.delete_service)("port_ssh")
+    assert a[1] == 200
+
+    a = unwrap(serve.delete_service)("check_hd")
+    assert a[1] == 200
+
+    b = serve.mongo_client["labyrinth"]["services"].find({})
+    c = [x for x in b]
+    assert len(c) == 0
+
+    # Check that snippet is gone
+    assert not os.path.exists(filename)
+
+    # Check that all hosts have the service deleted
+    b = serve.mongo_client["labyrinth"]["hosts"].find({})
+    c = [x for x in b]
+    assert len(c) == 1
+    assert c[0]["services"] == []
 
 
 def test_list_dashboard(setup):
@@ -359,3 +397,43 @@ def test_list_dashboard(setup):
     - This will be interesting, as localhost (whatever the scanner is) will be the top
     - Graph traversal for the given links
     """
+    expected = [
+        {
+            "subnet": "192.168.0",
+            "origin": {
+                "ip": "127.0.0.1",
+                "icon": "VMWare"
+            },
+            "groups": [
+                {
+                    "name": "Linux Servers",
+                    "hosts": [
+                        {
+                            "ip": "192.168.0.172",
+                            "subnet": "192.168.0",
+                            "mac": "00-00-00-00-01",
+                            "group": "Linux Servers",
+                            "icon": "linux",
+                            "services": [
+                                "port_ssh",
+                                "check_hd"
+                            ],
+                            "class": "health"
+                        }
+                    ]
+                }
+            ],
+            "links": {
+                "ref": "start_1",
+                "ip": ".175",
+                "icon": "Router",
+                "color": "orange"
+            }
+        }
+    ]
+
+    a = unwrap(serve.dashboard)()
+    assert a[1] == 200
+
+    b = json.loads(a[0])
+    assert b == expected
