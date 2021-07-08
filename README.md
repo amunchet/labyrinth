@@ -23,3 +23,6 @@ Labyrinth is built for smaller to midsize networks - I simply don't know how it 
 
 ### 3.  Who is Labyrinth made for?
 Labyrinth is for whatever poor sysadmin has a small to midsize network they can't keep up with - and they just want something easy and pretty to occasionally look at.  Whether that's a homelab admin or a one-man devops band, Labyrinth is here to help.
+
+# TODO
+- Documentation on setting up Auth0 for the system.  Also notes on how to disable using auth (can just have it as an ENV variable in the docker compose)

@@ -9,3 +9,7 @@
 
 - Metrics
     - Dump of data from the various collection points
+
+## Resources
+- http://xael.org/pages/python-nmap-en.html
+- https://stackoverflow.com/questions/27590039/running-ansible-playbook-using-python-api
