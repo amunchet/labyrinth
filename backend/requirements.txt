@@ -4,6 +4,7 @@ gunicorn
 python-dotenv
 python-jose
 pymongo
+python-nmap
 
 # Development tools
 pytest
