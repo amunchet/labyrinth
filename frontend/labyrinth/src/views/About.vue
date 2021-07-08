@@ -13,6 +13,9 @@
         " />
     </div>
     <div class="outer_right">
+      <b-button variant="link" class="add-button">
+        <font-awesome-icon icon="plus" size="1x" /> New Subnet
+      </b-button>
       <div :class="findClass(subnet)" v-for="(subnet, i) in full_data" v-bind:key="i">
         <div class="left">
           <div class="corner" :ref="'end_' + i">
@@ -244,7 +247,12 @@ html {
 .about {
   margin-bottom: 20px;
 }
-
+.add-button{
+  position: absolute;
+  top: 55px;
+  right: 2%;
+  
+}
 h2 {
   width: 50%;
   clear: both;
