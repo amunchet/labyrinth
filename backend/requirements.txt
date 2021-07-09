@@ -5,6 +5,7 @@ python-dotenv
 python-jose
 pymongo
 python-nmap
+ansi2html
 
 # Development tools
 pytest

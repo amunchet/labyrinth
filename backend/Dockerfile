@@ -8,7 +8,8 @@ RUN   apt-get update && apt-get -y install python3 \
         libssl-dev \
         nmap \
         openssh-client \
-        ansible
+        ansible \
+        sshpass
 
 
 COPY requirements.txt /requirements.txt

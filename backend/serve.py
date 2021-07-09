@@ -51,6 +51,19 @@ def secure():
     return "Secure route.", 200
 
 
+# Ansible 
+"""
+>>> a = ansible_runner.run(private_data_dir="/src/test/ansible", playbook="install.yml", cmdline="--vault-password-file ../vault.pass")
+>>> b = "\n".join([x for x in a.stdout])
+>>> c = aconv().convert(b).replace("\x1b[", "")
+>>> with open('test.html', 'w') as f:
+...     f.write(c)
+...
+3398
+>>> aconv
+<class 'ansi2html.converter.Ansi2HTMLConverter'>
+"""
+
 if __name__ == "__main__":  # Run the Flask server in development mode
     app.debug = True
     app.config["ENV"] = "development"
