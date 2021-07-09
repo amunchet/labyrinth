@@ -26,3 +26,9 @@ Labyrinth is for whatever poor sysadmin has a small to midsize network they can'
 
 # TODO
 - Documentation on setting up Auth0 for the system.  Also notes on how to disable using auth (can just have it as an ENV variable in the docker compose)
+
+# Other Wonderful Projects
+- https://github.com/SabyasachiRana/WebMap - although this project is pretty quiet currently, this had lots of good ideas.  I just wish it was more of a network management tool than just scanning.
+- Prometheus
+- Sensu Go
+- etc.
