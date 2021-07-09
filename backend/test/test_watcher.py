@@ -5,3 +5,6 @@ Tests for Watcher
     - Email functionality
     - [FUTURE] Slack, Discord, etc.
 """
+
+def test_unexpected_host():
+    """Want alerts on an unexpected host"""

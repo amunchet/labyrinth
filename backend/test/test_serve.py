@@ -130,8 +130,12 @@ def test_create_edit_host(setup):
         "group": "Linux Servers",
         "icon": "linux",
         "services": [
-            "port_ssh",
+            "open_ports",
+            "closed_ports",
             "check_hd"
+        ],
+        "open_ports" : [
+            22
         ],
         "class": "health"
     }
@@ -385,6 +389,19 @@ def test_delete_service(setup):
     assert len(c) == 1
     assert c[0]["services"] == []
 
+def test_update_mac_address(setup):
+    """
+    There may be an odd case where a hardware failure (or VMWare reconfiguration)
+    causes a MAC change.
+
+    In that case, we would need to update the other entries in the database
+    with the new MAC
+    """
+    assert False
+
+def test_update_ip_address(setup):
+    """Updates an IP address for the given MAC address"""
+    assert False
 
 def test_list_dashboard(setup):
     """
@@ -415,8 +432,19 @@ def test_list_dashboard(setup):
                             "group": "Linux Servers",
                             "icon": "linux",
                             "services": [
-                                "port_ssh",
-                                "check_hd"
+                                {
+                                    "name" : "open_ports",
+                                    "state" : True
+                                },
+                                {
+                                    "name" : "closed_ports",
+                                    "state" :True 
+                                },
+                                {
+                                    "name" : "check_hd",
+                                    "state" : True
+                                },
+
                             ],
                             "class": "health"
                         }
