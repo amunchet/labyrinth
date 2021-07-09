@@ -36,6 +36,7 @@ services:
       - labyrinth
     volumes:
       - ./test_client:/src
+      - ./test_client/sshd_config:/etc/ssh/sshd_config
   
   # Mongo
   mongo:

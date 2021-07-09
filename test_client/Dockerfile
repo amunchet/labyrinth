@@ -11,7 +11,7 @@ RUN apt update && apt -y install \
     curl \
     gnupg
 
-
+RUN echo "root:test" | chpasswd
 
 ADD entrypoint.sh /
 RUN dos2unix /entrypoint.sh
