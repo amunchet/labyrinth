@@ -11,7 +11,10 @@ ansible_runner.run(\
 
 """
 def test_deploy():
-    """Tests deploying a new telegraf installation"""
+    """
+    Tests deploying a new telegraf installation
+        - An annoying problem is this will differ depending on host (ARM get a different deploy than Ubuntu, etc.)
+    """
 
     # A major point will be hostname - this might be the MAC Address that we can see
 
