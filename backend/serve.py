@@ -10,6 +10,7 @@ import json
 import pymongo
 
 from common import auth
+from common.test import unwrap
 from flask import Flask, request
 from flask_cors import CORS
 
@@ -246,22 +247,63 @@ def delete_service(name):
     return "Success", 200
 
 # Utilities
+
+
 @app.route("/mac/<old_mac>/<new_mac>")
 @requires_auth_write
 def update_mac(old_mac, new_mac):
     """Updates the old mac to the new mac"""
-    mongo_client["labyrinth"]["hosts"].update_one({"mac" : old_mac}, {"$set" : {"mac" : new_mac}})
+    mongo_client["labyrinth"]["hosts"].update_one(
+        {"mac": old_mac}, {"$set": {"mac": new_mac}})
     return "Success", 200
+
 
 @app.route("/ip/<mac>/<new_ip>")
 @requires_auth_write
 def update_ip(mac, new_ip):
     """Updates an IP for a given MAC address"""
-    mongo_client["labyrinth"]["hosts"].update_one({"mac" : mac}, {"$set" : {"ip" : new_ip}})
+    mongo_client["labyrinth"]["hosts"].update_one(
+        {"mac": mac}, {"$set": {"ip": new_ip}})
     return "Success", 200
 
-
 # Dashboard
+
+
+@app.route("/dashboard")
+@requires_auth_read
+def dashboard():
+    """Dashboard"""
+    # Get all the subnets
+    subnets = {}
+    for item in unwrap(list_subnets)()[0]:
+        subnets[item] = {}
+
+    for item in subnets.keys():
+        subnets[item] = unwrap(list_subnet)(subnets[item])[0]
+
+    # Get all the hosts
+    hosts = [x for x in mongo_client["labyrinth"]["hosts"].find({})]
+
+    # Get the hosts latest metrics for states
+    for host in [x for x in hosts if "services" in x]:
+        for service in host["services"]:
+            latest_metric = mongo_client["labyrinth"]["metrics"].find_one(
+                {"name": service, "tags.host": host["mac"]},
+                sort=[("timestamp", pymongo.DESCENDING)]
+            )
+
+            # TODO: need to interpret the metric
+
+            # TODO: set result to service status
+
+    # Sort hosts into subnets
+    for item in hosts:
+        if "subnet" in item and item["subnet"] in subnets:
+            if "hosts" not in subnets[item["subnet"]]:
+                subnets[item["subnet"]]["hosts"] = []
+            subnets[item["subnet"]]["hosts"].append(item)
+
+    # TODO: Within each subnet, sort into groups
 
 
 # Ansible
