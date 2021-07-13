@@ -34,6 +34,8 @@ def teardown():
     serve.mongo_client["labyrinth"]["hosts"].delete_many({})
     serve.mongo_client["labyrinth"]["services"].delete_many({})
     serve.mongo_client["labyrinth"]["settings"].delete_many({})
+    serve.mongo_client["labyrinth"]["metrics"].delete_many({})
+
 
 
 @pytest.fixture

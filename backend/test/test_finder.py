@@ -4,6 +4,7 @@ Tests for auto-scanner (nmap)
 """
 import os
 import json
+import time
 
 import pytest
 import finder
@@ -197,6 +198,80 @@ sample_input = {
 }
 
 
+def test_create_initial():
+    """
+    Testing for initial creation of the host
+        - Only the initial run will create service hosts
+    """
+
+    sample_host = {
+        "ip": "192.168.0.2",
+        "subnet": "192.168.0",
+        "mac": '02:42:C0:A8:00:02',
+        "group": "",
+        "icon": "linux",
+        "services": [
+            "open_ports",
+            "closed_ports",
+        ],
+        "open_ports": [
+            22
+        ],
+        "class": ""
+    }
+    a = finder.convert_host(sample_input)
+    assert a == sample_host
+
+
+def test_after_initial():
+    """
+    Tests after initial run - if different ports exist, need to flag
+        - This will actually enter a metrics item
+        - Setup will need to change expected ports
+    """
+
+    b = json.loads(json.dumps(sample_input))
+
+    b['tcp'][23] = {
+        'state': 'open',
+        'reason': 'syn-ack',
+        'name': 'ssh',
+        'product': 'OpenSSH',
+        'version': '7.9p1 Debian 10+deb10u2',
+        'extrainfo': 'protocol 2.0',
+        'conf': '10',
+        'cpe': 'cpe:/o:linux:linux_kernel'
+    }
+
+    # Interesting here is an IP update for the host - really only matching on mac
+    b["addresses"]["ipv4"] = "192.168.0.6"
+
+    a = finder.process_scan(b)
+    expected = {
+        "fields": {
+            "ports": [
+                22,
+                23
+            ],
+            "ip" : "192.168.0.6"
+        },
+        "name": "open_ports",
+        "tags": {
+            "host": '02:42:C0:A8:00:02',
+        },
+        "timestamp": time.time()
+    }
+
+    assert expected["fields"] == a["fields"]
+    assert expected["name"] == a["name"]
+    assert expected["tags"] == a["tags"]
+    assert expected["timestamp"] - a["timestamp"]  < 10
+
+
+def test_vuln_scanner():
+    """[FUTURE] Tests vuln scanner integration"""
+    assert False
+
 def test_scan():
     """
     Tests running a scan
@@ -256,76 +331,15 @@ def test_scan():
     print("Subnet: ", subnet)
     a = finder.scan(subnet)
 
-    assert a[0]["hostnames"][0]["name"] == "sampleclient"
-    assert a[0]["status"]["state"] == "up"
-    assert a[0]["tcp"].keys() == [22]
+    idx = ""
+    for i in range(0, len(a)):
+        print(a[i]["hostnames"])
+        if "sampleclient" in a[i]["hostnames"][0]["name"]: 
+            idx = i
 
+    assert idx != ""
 
-def test_create_initial():
-    """
-    Testing for initial creation of the host
-        - Only the initial run will create service hosts
-    """
+    assert "sampleclient" in a[idx]["hostnames"][0]["name"] 
+    assert a[idx]["status"]["state"] == "up"
+    assert list(a[idx]["tcp"].keys()) == [22]
 
-    sample_host = {
-        "ip": "192.168.0.2",
-        "subnet": "192.168.0",
-        "mac": '02:42:C0:A8:00:02',
-        "group": "",
-        "icon": "linux",
-        "services": [
-            "open_ports",
-            "closed_ports",
-        ],
-        "open_ports": [
-            22
-        ],
-        "class": ""
-    }
-    a = finder.convert_host(sample_input)
-    assert a == sample_host
-
-
-def test_after_initial():
-    """
-    Tests after initial run - if different ports exist, need to flag
-        - This will actually enter a metrics item
-        - Setup will need to change expected ports
-    """
-
-    b = json.loads(json.dumps(sample_input))
-    b[0]['tcp'][23] = {
-        'state': 'open',
-        'reason': 'syn-ack',
-        'name': 'ssh',
-        'product': 'OpenSSH',
-        'version': '7.9p1 Debian 10+deb10u2',
-        'extrainfo': 'protocol 2.0',
-        'conf': '10',
-        'cpe': 'cpe:/o:linux:linux_kernel'
-    }
-
-    # Interesting here is an IP update for the host - really only matching on mac
-    b[0]["addresses"]["ipv4"] = "192.168.0.6"
-
-    a = finder.process_scan(b)
-    expected = {
-        "fields": {
-            "ports": [
-                22,
-                23
-            ],
-            "ip" : "192.168.0.6"
-        },
-        "name": "open_ports",
-        "tags": {
-            "host": '02:42:C0:A8:00:02',
-        },
-        "timestamp": 1625683390
-    }
-
-
-
-def test_vuln_scanner():
-    """[FUTURE] Tests vuln scanner integration"""
-    assert False
