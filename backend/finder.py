@@ -7,7 +7,7 @@ from typing import Dict, List
 from nmap import PortScanner as ps
 
 from common.test import unwrap
-from serve import list_subnet, list_subnets, create_edit_host, 
+from serve import list_subnet, list_subnets, create_edit_host 
 
 def scan(subnet: str) -> List: 
     """Scans a given subnet"""
