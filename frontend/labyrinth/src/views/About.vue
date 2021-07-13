@@ -31,7 +31,7 @@
             <div class="grouped" v-for="(group, j) in subnet.groups" v-bind:key="j">
               <div class="overflow-hidden light p-0">
                 <h2 class="float-left">{{group.name}}</h2>
-                <font-awesome-icon class="float-right p-1 mt-1" icon="edit" size="2x" />
+                <font-awesome-icon class="float-right p-1 mt-1" icon="plus" size="2x" />
               </div>
               <div class="flexed">
                 <Host v-for="(host, k) in group.hosts" v-bind:key="k" :ip="host.ip" passed_class="main" :icon="host.icon"/>
