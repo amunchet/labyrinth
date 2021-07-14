@@ -36,7 +36,6 @@ def teardown():
     serve.mongo_client["labyrinth"]["metrics"].delete_many({})
 
 
-
 @pytest.fixture
 def setup():
     """Sets up tests"""
@@ -44,6 +43,7 @@ def setup():
     yield "Setting up..."
     teardown()
     return "Done"
+
 
 def test_list_subnets(setup):
     """Lists all subnets"""
@@ -83,13 +83,13 @@ def test_list_subnets(setup):
     a = unwrap(serve.create_edit_subnet)(sample_subnet)
     assert a[1] == 200
 
-
     a = unwrap(serve.create_edit_subnet)(sample_subnet_two)
     assert a[1] == 200
 
     a = unwrap(serve.list_subnets)()
     assert a[1] == 200
     assert json.loads(a[0]) == ["192.168.0", "192.168.1"]
+
 
 def test_list_subnet(setup):
     """
@@ -193,9 +193,6 @@ def test_create_edit_host(setup):
             "closed_ports",
             "check_hd"
         ],
-        "open_ports" : [
-            22
-        ],
         "class": "health"
     }
 
@@ -210,7 +207,6 @@ def test_create_edit_host(setup):
 
     for key in sample_host.keys():
         assert sample_host[key] == c[0][key]
-
 
     b = serve.mongo_client["labyrinth"]["subnets"].find({})
     c = [x for x in b]
@@ -232,7 +228,6 @@ def test_create_edit_host(setup):
 
     for key in sample_host.keys():
         assert sample_host[key] == c[0][key]
-
 
     b = serve.mongo_client["labyrinth"]["subnets"].find({})
     c = [x for x in b]
@@ -278,6 +273,7 @@ def test_delete_subnet(setup):
     a = unwrap(serve.delete_subnet)("192.168.0")
     assert a[1] == 407
 
+
 def test_delete_host(setup):
     """
     Deletes a Host
@@ -297,6 +293,7 @@ def test_delete_host(setup):
     a = unwrap(serve.delete_host)("00-00-00-00-01")
     assert a[1] == 407
 
+
 def test_read_service(setup):
     """Reads a given service"""
     port_service = {
@@ -305,7 +302,6 @@ def test_read_service(setup):
         "port": 22,
         "state": "open"
     }
-
 
     # Create Service
     a = unwrap(serve.create_edit_service)(port_service)
@@ -350,6 +346,8 @@ def test_read_services(setup):
     b = json.loads(a[0])
 
     assert b == ["port_ssh", "check_hd"]
+
+
 def test_create_service(setup):
     """
     Services are definitions of how to interpret the received metrics
@@ -465,6 +463,7 @@ def test_delete_service(setup):
     assert len(c) == 1
     assert c[0]["services"] == ["closed_ports"]
 
+
 def test_update_mac_address(setup):
     """
     There may be an odd case where a hardware failure (or VMWare reconfiguration)
@@ -506,6 +505,52 @@ def test_update_ip_address(setup):
 
     assert c[0]["ip"] == "000000"
 
+
+def test_insert_metric(setup):
+    sample_data = {
+        "metrics": [
+            {
+                "fields": {
+                    "boot_time": 1625587759,
+                    "context_switches": 4143261228,
+                    "entropy_avail": 3760,
+                    "interrupts": 1578002983,
+                    "diskio": 884284
+                },
+                "name": "check_hd",
+                "tags": {
+                    "host": "00-00-00-00-01"
+                },
+                "timestamp": 1625683390
+            },
+        ]
+    }
+    """Tests inserting into database"""
+    try:
+        serve.mongo_client["labyrinth"]["metrics"].drop_index(
+            "metrics.timestamp_1")
+    except Exception:
+        print("No index found.  Continuing.")
+
+    a = unwrap(serve.insert_metric)(sample_data)
+    assert a[1] == 200
+
+    b = serve.mongo_client["labyrinth"]["metrics"].find({})
+    c = [x for x in b]
+    assert len(c) == 1
+    for item in sample_data["metrics"][0]:
+        assert c[0][item] == sample_data["metrics"][0][item]
+
+    # Tests list of indexes
+    indexes = [
+        "metrics.timestamp_-1"
+    ]
+    x = [x for x in serve.mongo_client["labyrinth"]
+         ["metrics"].index_information().keys()]
+    for item in indexes:
+        assert item in x
+
+
 def test_list_dashboard(setup):
     """
     Lists all items for the dashboard
@@ -517,54 +562,67 @@ def test_list_dashboard(setup):
     - This will be interesting, as localhost (whatever the scanner is) will be the top
     - Graph traversal for the given links
     """
-    expected = [
-        {
-            "subnet": "192.168.0",
-            "origin": {
-                "ip": "127.0.0.1",
-                "icon": "VMWare"
-            },
-            "groups": [
-                {
-                    "name": "Linux Servers",
-                    "hosts": [
-                        {
-                            "ip": "192.168.0.172",
-                            "subnet": "192.168.0",
-                            "mac": "00-00-00-00-01",
-                            "group": "Linux Servers",
-                            "icon": "linux",
-                            "services": [
-                                {
-                                    "name" : "open_ports",
-                                    "state" : True
-                                },
-                                {
-                                    "name" : "closed_ports",
-                                    "state" :True 
-                                },
-                                {
-                                    "name" : "check_hd",
-                                    "state" : True
-                                },
-
-                            ],
-                            "class": "health"
-                        }
-                    ]
-                }
-            ],
-            "links": {
-                "ref": "start_1",
-                "ip": ".175",
-                "icon": "Router",
-                "color": "orange"
-            }
+    test_create_edit_subnet("")
+    test_list_subnet("")
+    test_create_edit_host("")
+    test_create_service("")
+    test_insert_metric("")
+    expected = [{
+        'subnet': '192.168.0',
+        'origin': {
+            'ip': '127.0.0.1',
+            'icon': 'VMWare'
+        },
+        'links': {
+            'ref': 'start_1',
+            'ip': '.175',
+            'icon': 'Router',
+            'color': 'orange'
         }
-    ]
+    }, {
+        'subnet': '192.168.10',
+        'origin': {},
+        'links': {},
+        'groups': [{
+            'name': 'Windows Servers',
+            'hosts': [{
+                'ip': '192.168.10.176',
+                'subnet': '192.168.10',
+                'mac': '00-00-00-00-01',
+                'group': 'Windows Servers',
+                'icon': 'linux',
+                'services': [{
+                    'name': 'open_ports',
+                    'state': False
+                }, {
+                    'name': 'closed_ports',
+                    'state': False
+                }, {
+                    'name': 'check_hd',
+                    'state': True
+                }],
+                'class': 'health'
+            }]
+        }]
+    }]
+
+    # Time to list every area
+    categories = ["subnets", "hosts", "services", "metrics"]
+
+    for category in categories:
+        print("---")
+        print(category.upper(), ":", [
+              x for x in serve.mongo_client["labyrinth"][category].find({})])
+        print("---")
 
     a = unwrap(serve.dashboard)()
     assert a[1] == 200
 
     b = json.loads(a[0])
+
+    del b[0]["_id"]
+    del b[1]["_id"]
+    del b[1]["groups"][0]["hosts"][0]["_id"]
+
+
     assert b == expected

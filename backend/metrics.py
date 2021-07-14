@@ -4,7 +4,7 @@ Metrics helper functions
 """
 import logging
 
-logging.basicConfig(level=logging.DEBUG, propogate=True)
+logging.basicConfig(level=logging.DEBUG)
 
 logger = logging.getLogger(__name__)
 

@@ -9,6 +9,8 @@ import json
 
 import pymongo
 
+import metrics as mc
+
 from common import auth
 from common.test import unwrap
 from flask import Flask, request
@@ -287,26 +289,43 @@ def dashboard():
     """Dashboard"""
     # Get all the subnets
     subnets = {}
-    for item in unwrap(list_subnets)()[0]:
+    for item in json.loads(unwrap(list_subnets)()[0]):
         subnets[item] = {}
 
     for item in subnets.keys():
-        subnets[item] = unwrap(list_subnet)(subnets[item])[0]
+        subnets[item] = json.loads(unwrap(list_subnet)(item)[0])
 
     # Get all the hosts
     hosts = [x for x in mongo_client["labyrinth"]["hosts"].find({})]
 
+
     # Get the hosts latest metrics for states
     for host in [x for x in hosts if "services" in x]:
+        service_results = {}
         for service in host["services"]:
             latest_metric = mongo_client["labyrinth"]["metrics"].find_one(
                 {"name": service, "tags.host": host["mac"]},
                 sort=[("timestamp", pymongo.DESCENDING)]
             )
 
-            # TODO: need to interpret the metric
-
-            # TODO: set result to service status
+            found_service = mongo_client["labyrinth"]["services"].find_one({"name" : service})
+            
+            if latest_metric is None or found_service is None:
+                result = False
+            else:
+                result = mc.judge(latest_metric, found_service)
+            
+            temp = {
+                "name" : service,
+                "state" : result
+            }
+            service_results[service] = {
+                "name": service,
+                "state" : result
+            }
+        for item in service_results:
+            host["services"] = [service_results[x] for x in service_results]
+        
 
     # Sort hosts into subnets
     for item in hosts:
@@ -315,7 +334,26 @@ def dashboard():
                 subnets[item["subnet"]]["hosts"] = []
             subnets[item["subnet"]]["hosts"].append(item)
 
-    # TODO: Within each subnet, sort into groups
+    # Within each subnet, sort into groups
+    subnets = [subnets[x] for x in subnets]
+    for subnet in [x for x in subnets if "hosts" in x]:
+        groups = {}
+        for host in [x for x in subnet["hosts"] if "group" in x]:
+            if host["group"] not in groups:
+                groups[host["group"]] = []
+            groups[host["group"]].append(host)
+
+        if "groups" not in subnet:
+            subnet["groups"] = []
+
+        for group in groups:
+            subnet["groups"].append({
+                "name" : group,
+                "hosts" : groups[group]
+            })
+        del subnet["hosts"]
+
+    return json.dumps(subnets, default=str), 200
 
 # Metrics - this DOES NOT require a wrapper
 @app.route("/metrics", methods=["POST"])
@@ -331,8 +369,14 @@ def insert_metric(inp=""):
     else: # pragma: no cover
         return "Invalid data", 419
     
-    mongo_client["labyrinth"]["metrics"].create_index("metrics.timestamp")
-    mongo_client["labyrinth"]["metrics"].insert_one(data)
+    mongo_client["labyrinth"]["metrics"].create_index([ ("metrics.timestamp", -1) ])
+    
+    if "metrics" not in data:
+        return "Invalid data", 421
+    
+    for item in data["metrics"]:
+        mongo_client["labyrinth"]["metrics"].insert_one(item)
+    
     return "Success", 200
 
 
