@@ -14,6 +14,17 @@ from common.test import unwrap
 from flask import Flask, request
 from flask_cors import CORS
 
+TELEGRAF_KEY=os.environ.get("TELEGRAF_KEY")
+
+def _requires_header(f, permission):
+    @functools.wraps(f)
+    def decorated(*args, **kwargs):
+        if request.headers.get("Authorization") != permission:
+            raise Exception("Invalid Header")
+    
+    return decorated
+
+
 
 PERM_READ = "read"
 PERM_WRITE = "write"
@@ -26,6 +37,7 @@ requires_auth_write = functools.partial(
     auth._requires_auth, permission=PERM_WRITE)
 requires_auth_admin = functools.partial(
     auth._requires_auth, permission=PERM_ADMIN)
+requires_header = functools.partial(_requires_header, permission = TELEGRAF_KEY)
 
 app = Flask(__name__)
 CORS(app)
@@ -304,6 +316,25 @@ def dashboard():
             subnets[item["subnet"]]["hosts"].append(item)
 
     # TODO: Within each subnet, sort into groups
+
+# Metrics - this DOES NOT require a wrapper
+@app.route("/metrics", methods=["POST"])
+@requires_header
+def insert_metric(inp=""):
+    """
+    Inserts metric
+    """
+    if inp != "":
+        data = inp
+    elif request.method == "POST": # pragma: no cover
+        data = request.form.get("data")
+    else: # pragma: no cover
+        return "Invalid data", 419
+    
+    mongo_client["labyrinth"]["metrics"].create_index("metrics.timestamp")
+    mongo_client["labyrinth"]["metrics"].insert_one(data)
+    return "Success", 200
+
 
 
 # Ansible

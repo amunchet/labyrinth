@@ -33,6 +33,10 @@ def setup():
 
 def test_insert(setup):
     """Tests inserting into database"""
+    try:
+        serve.mongo_client["labyrinth"]["metrics"].drop_index("metrics.timestamp_1")
+    except Exception:
+        print("No index found.  Continuing.")
 
     a = unwrap(serve.insert_metric)(sample_data)
     assert a[1] == 200
@@ -46,7 +50,7 @@ def test_insert(setup):
     indexes = [
         "metrics.timestamp_1"
     ]
-    x = serve.mongo_client["labyrinth"]["metrics"].index_information().keys().values()
+    x = [x for x in serve.mongo_client["labyrinth"]["metrics"].index_information().keys()]
     for item in indexes:
         assert item in x
     
