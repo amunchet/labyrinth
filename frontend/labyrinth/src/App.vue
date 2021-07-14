@@ -18,6 +18,9 @@
             <b-nav-item href="/about">
               <router-link to="/about">Dashboard</router-link>
             </b-nav-item>
+            <b-nav-item href="/about">
+              <router-link to="/about">Settings</router-link>
+            </b-nav-item>
           </b-navbar-nav>
 
           <!-- Right aligned nav items -->
