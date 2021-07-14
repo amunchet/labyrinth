@@ -58,5 +58,11 @@ services:
       ME_CONFIG_MONGODB_ADMINUSERNAME: root
       ME_CONFIG_MONGODB_ADMINPASSWORD: temp
 
+  # Vulnerable server running on the network 
+  dva:
+    image: vulnerables/web-dvwa
+    networks:
+      - labyrinth
+
 networks:
   labyrinth:
