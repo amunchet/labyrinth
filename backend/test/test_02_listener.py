@@ -26,9 +26,9 @@ sample_data = {
 
 @pytest.fixture
 def setup():
-    serve.mongo_client["labyrinth"]["metrics"].delete({})
+    serve.mongo_client["labyrinth"]["metrics"].delete_many({})
     yield "Setup"
-    serve.mongo_client["labyrinth"]["metrics"].delete({})
+    serve.mongo_client["labyrinth"]["metrics"].delete_many({})
     return "Finished"
 
 def test_insert(setup):
