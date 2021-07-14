@@ -1,6 +1,9 @@
 # Labyrinth
 The beautiful network analyzer and mapper.
 
+## Build
+1.  Labyrinth is using **CVE-Search-Docker** (https://github.com/cve-search/CVE-Search-Docker) to provide vulnerability searching.  This exists as a submodule.  To correctly pull or initialize, you'll need two additional commands `git submodule init && git submodule init`.  Warning: It's a rather large folder.
+
 ## FAQ
 ### 1.  Aren't you reinventing the wheel?
 Sure - to some extent.  Labyrinth is built upon very solid projects: NMap, Ansible, and Telegraf.  

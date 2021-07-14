@@ -1,0 +1,3 @@
+[submodule "CVE-Search-Docker"]
+	path = CVE-Search-Docker
+	url = https://github.com/cve-search/CVE-Search-Docker
