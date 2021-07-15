@@ -1,7 +1,13 @@
 <template>
   <div class="home">
-    <img alt="Vue logo" src="../assets/logo.png" />
-    {{$auth}}
+    <div v-if="$auth.profile == null || $auth.profile == undefined">
+        <h4>Please login to continue.</h4>
+        <b-button @click="$auth.login()" variant="success">Login</b-button>
+    </div>
+    <div v-else>
+        <b-avatar class="mb-2" :src="$auth.profile.picture" size="5rem"/>
+        <h4>Welcome, {{$auth.profile.name}}</h4>
+    </div>
   </div>
 </template>
 

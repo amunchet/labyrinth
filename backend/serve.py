@@ -27,22 +27,32 @@ def _requires_header(f, permission):
     return decorated
 
 
+app = Flask(__name__)
+CORS(app)
 
 PERM_READ = "read"
 PERM_WRITE = "write"
 PERM_ADMIN = "reports"
 
+@app.route("/error/<int:code>")
+def error_func(code=401, command=""):  # pragma: no cover
+    if isinstance(code, int):
+        return "Auth Error - {}".format(code), code
+    return "Auth Error", 500
+
 
 requires_auth_read = functools.partial(
-    auth._requires_auth, permission=PERM_READ)
+    auth._requires_auth, permission=PERM_READ, error_func=error_func
+)
 requires_auth_write = functools.partial(
-    auth._requires_auth, permission=PERM_WRITE)
+    auth._requires_auth, permission=PERM_WRITE, error_func=error_func
+)
 requires_auth_admin = functools.partial(
-    auth._requires_auth, permission=PERM_ADMIN)
+    auth._requires_auth, permission=PERM_ADMIN, error_func=error_func
+)
+
 requires_header = functools.partial(_requires_header, permission = TELEGRAF_KEY)
 
-app = Flask(__name__)
-CORS(app)
 
 # Mongo Access
 mongo_client = pymongo.MongoClient(

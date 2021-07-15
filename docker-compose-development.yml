@@ -29,6 +29,41 @@ services:
       MONGO_HOST: mongo
   
 
+  # NGINX Frontend server
+  frontend:
+    image: nginx:latest
+    restart: always
+    depends_on:
+      - lego
+    networks:
+      - labyrinth
+    user: ${CURRENT_UID}
+    command: /entrypoint.sh
+    volumes:
+        - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+        - ./nginx:/nginx
+        - ./frontend/labyrinth/dist/:/dist
+        - ./nginx/entrypoint.sh:/entrypoint.sh
+        - ./nginx/watch.sh:/watch.sh
+    environment:
+        COMPOSE_CONVERT_WINDOWS_PATHS: 1
+    healthcheck:
+        test: curl -k -f https://localhost || service nginx restart
+        interval: 20s
+        timeout: 10s
+        retries: 3
+    ports:
+        - "7210:443"
+
+  lego:
+    build: nginx
+    restart: always
+    volumes:
+      - ./nginx:/nginx
+      - ./nginx/lego.sh:/lego.sh
+    env_file: 
+      - nginx/.env
+
   # Test Client
   sampleclient:
     build: "test_client"

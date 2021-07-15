@@ -44,10 +44,10 @@
                 <b-avatar size="2rem" v-else></b-avatar>
               </template>
               <b-dropdown-item href="#" @click="$auth.login()"
+                v-if="$auth.profile == null"
                 >Sign In</b-dropdown-item
               >
-              <b-dropdown-item href="#">Profile</b-dropdown-item>
-              <b-dropdown-item href="#" @click="$auth.logOut()">Sign Out</b-dropdown-item>
+              <b-dropdown-item v-else href="#" @click="$auth.logOut()">Sign Out</b-dropdown-item>
             </b-nav-item-dropdown>
           </b-navbar-nav>
         </b-collapse>
