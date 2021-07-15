@@ -22,12 +22,12 @@ def test_secure():
     """Checks access to a protected resource"""
 
     a = requests.get("http://localhost:7000/secure")
-    assert a.status_code == 500  # Production would be 401
+    assert a.status_code == 401
 
 
 # Labyrinth main functions
 
-def teardown():
+def tearDown():
     """Tears down tests"""
     serve.mongo_client["labyrinth"]["subnets"].delete_many({})
     serve.mongo_client["labyrinth"]["hosts"].delete_many({})
@@ -39,9 +39,9 @@ def teardown():
 @pytest.fixture
 def setup():
     """Sets up tests"""
-    teardown()
+    tearDown()
     yield "Setting up..."
-    teardown()
+    tearDown()
     return "Done"
 
 
