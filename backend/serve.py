@@ -67,6 +67,7 @@ mongo_client = pymongo.MongoClient(
 
 
 @app.route("/insecure")
+@app.route("/insecure/")
 def insecure():
     return "Insecure route.", 200
 
@@ -79,7 +80,7 @@ def secure():
 # CRUD for network structure
 
 
-@app.route("/subnets")
+@app.route("/subnets/")
 @requires_auth_read
 def list_subnets():
     """
@@ -163,7 +164,7 @@ def create_edit_link(subnet="", link=""):
 # Hosts
 
 
-@app.route("/host")
+@app.route("/host/")
 @requires_auth_read
 def create_edit_host(inp="", methods=["POST"]):
     """Creates/Edits a host"""
@@ -205,7 +206,7 @@ def delete_host(host):
 # Services
 
 
-@app.route("/services")
+@app.route("/services/")
 @requires_auth_read
 def list_services():
     """Lists all services"""
@@ -219,7 +220,7 @@ def read_service(name):
     return json.dumps([x for x in mongo_client["labyrinth"]["services"].find({"name": name})], default=str), 200
 
 
-@app.route("/service", methods=["POST"])
+@app.route("/service/", methods=["POST"])
 @requires_auth_write
 def create_edit_service(service=""):
     """Creates/Edits a Service"""
@@ -273,7 +274,7 @@ def delete_service(name):
 # Utilities
 
 
-@app.route("/mac/<old_mac>/<new_mac>")
+@app.route("/mac/<old_mac>/<new_mac>/")
 @requires_auth_write
 def update_mac(old_mac, new_mac):
     """Updates the old mac to the new mac"""
@@ -282,7 +283,7 @@ def update_mac(old_mac, new_mac):
     return "Success", 200
 
 
-@app.route("/ip/<mac>/<new_ip>")
+@app.route("/ip/<mac>/<new_ip>/")
 @requires_auth_write
 def update_ip(mac, new_ip):
     """Updates an IP for a given MAC address"""
@@ -293,7 +294,7 @@ def update_ip(mac, new_ip):
 # Dashboard
 
 
-@app.route("/dashboard")
+@app.route("/dashboard/")
 @requires_auth_read
 def dashboard():
     """Dashboard"""
@@ -366,7 +367,7 @@ def dashboard():
     return json.dumps(subnets, default=str), 200
 
 # Metrics - this DOES NOT require a wrapper
-@app.route("/metrics", methods=["POST"])
+@app.route("/metrics/", methods=["POST"])
 @requires_header
 def insert_metric(inp=""):
     """
