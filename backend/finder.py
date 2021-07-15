@@ -3,6 +3,13 @@
 Auto discovery finder
 """
 import time
+
+import redis
+
+from common.test import unwrap
+from serve import list_subnets
+
+from pid import PidFile
 from typing import Dict, List
 from nmap import PortScanner as ps
 
@@ -69,16 +76,20 @@ def process_scan(input: Dict) -> Dict:
 
 def main():
     """Runs scan and updates database"""
+    with PidFile("labyrinth-finder") as p:
+        rclient = redis.Redis(host="redis")
+        rclient.set("output", "")
 
-    # List each subnet
+        # List each subnet
+        subnets = unwrap(serve.list_subnets)()[0]
 
-    # Lists hosts in database with subnet
+        # Lists hosts in database with subnet
 
-    # Scan
+        # Scan - at each line, update redis
 
-    # For each host, if it doesn't exist, create
-    
-    # Insert metric 
+        # For each host, if it doesn't exist, create
+        
+        # Insert metric for the host
 
 if __name__ == "__main__":
     # Main run loop
