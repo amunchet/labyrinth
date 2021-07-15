@@ -32,7 +32,7 @@ CORS(app)
 
 PERM_READ = "read"
 PERM_WRITE = "write"
-PERM_ADMIN = "reports"
+PERM_ADMIN = "admin"
 
 @app.route("/error/<int:code>")
 def error_func(code=401, msg="", command=""):  # pragma: no cover

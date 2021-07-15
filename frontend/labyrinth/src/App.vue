@@ -36,18 +36,27 @@
               >
             </b-nav-form>
 
-            <b-nav-item-dropdown right class='ml-3'>
+            <b-nav-item-dropdown right class="ml-3">
               <!-- Using 'button-content' slot -->
               <template #button-content>
-                <b-avatar v-if="$auth.profile" variant="info" size="2rem" :src="$auth.profile.picture">
+                <b-avatar
+                  v-if="$auth.profile"
+                  variant="info"
+                  size="2rem"
+                  :src="$auth.profile.picture"
+                >
                 </b-avatar>
                 <b-avatar size="2rem" v-else></b-avatar>
               </template>
-              <b-dropdown-item href="#" @click="$auth.login()"
+              <b-dropdown-item
+                href="#"
+                @click="$auth.login()"
                 v-if="$auth.profile == null"
                 >Sign In</b-dropdown-item
               >
-              <b-dropdown-item v-else href="#" @click="$auth.logOut()">Sign Out</b-dropdown-item>
+              <b-dropdown-item v-else href="#" @click="$auth.logOut()"
+                >Sign Out</b-dropdown-item
+              >
             </b-nav-item-dropdown>
           </b-navbar-nav>
         </b-collapse>
@@ -64,38 +73,41 @@ export default {
   data() {
     return {};
   },
-  mounted: function () {
+  created: function () {
     var auth = this.$auth;
 
     var current_page = this.$route.query.page;
-
-    if(this.$auth.profile ==  null && !this.$store.state.logged_in){
-        this.$auth.login()
-    }
-
+    auth.handleAuthentication()
     if (current_page == undefined || current_page.indexOf("callback") == -1) {
-      Helper.apiCall("secure", "", auth)
-        .then((res) => {
-          this.sandbox = ("" + res).toLowerCase() == "true";
-        })
-        .catch((e) => {
-          var output = "" + e;
-          var page = this.$route.query.page;
+      try {
+        
+        Helper.apiCall("secure", "", auth)
+          .then((res) => {
+            this.sandbox = ("" + res).toLowerCase() == "true";
+          })
+          .catch((e) => {
+            var output = "" + e;
+            var page = this.$route.query.page;
 
-          if (
-            output.indexOf("401") != -1 &&
-            (page == undefined || page.indexOf("callback") == -1)
-          ) {
-            this.$auth.logOut();
-            this.$auth.login();
-          } else {
-            this.$bvToast.toast("" + e, {
-              title: "Error",
-              variant: "danger",
-              solid: true,
-            });
-          }
-        });
+            if (
+              output.indexOf("401") != -1 &&
+              (page == undefined || page.indexOf("callback") == -1)
+            ) {
+              //this.$auth.login();
+            } else {
+              this.$bvToast.toast("" + e, {
+                title: "Error",
+                variant: "danger",
+                solid: true,
+              });
+            }
+          });
+      } catch (e) {
+        console.log(this.$auth)
+        console.log(e)
+        //this.$auth.login();
+        this.$auth.handleAuthentication()
+      }
     }
   },
 };

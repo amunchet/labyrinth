@@ -141,11 +141,10 @@ class AuthService extends EventEmitter {
         this.tokenExpiry = new Date(localStorage.getItem('tokenExpiry'))
         this.accessTokenExpiry = new Date(localStorage.getItem('accessExpiry'))
         this.accessToken = localStorage.getItem('accessToken')
+        
 
-        return (
-            Date.now() < this.tokenExpiry &&
-            localStorage.getItem(localStorageKey) === 'true'
-        )
+        var retval = Date.now() < this.tokenExpiry && localStorage.getItem(localStorageKey) === 'true'
+        return retval
     }
     isAccessTokenValid() {
         return (

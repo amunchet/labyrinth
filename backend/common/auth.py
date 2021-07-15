@@ -172,7 +172,8 @@ def _requires_auth(f, permission="", error_func=""):
                     raise AuthError(
                         {"code": "token_expired", "description": "token is expired"}, 401
                     )
-                except jwt.JWTClaimsError:
+                except jwt.JWTClaimsError as exc:
+                    print(exc)
                     raise AuthError(
                         {
                             "code": "invalid_claims",
@@ -202,6 +203,7 @@ def _requires_auth(f, permission="", error_func=""):
                 401,
             )
         except AuthError as exc:
+            print(exc.error)
             return error_func(msg=exc.error, code=exc.status_code, *args, **kwargs)
 
     return decorated
