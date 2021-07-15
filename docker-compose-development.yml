@@ -93,6 +93,18 @@ services:
       ME_CONFIG_MONGODB_ADMINUSERNAME: root
       ME_CONFIG_MONGODB_ADMINPASSWORD: temp
 
+
+  # Redis
+  redis:
+    image: bitnami/redis:latest
+    restart: always
+    environment:
+      ALLOW_EMPTY_PASSWORD: "yes"
+    networks:
+      - labyrinth
+    volumes:
+      - ./redis_data:/bitnami/redis/data
+
   # Vulnerable server running on the network 
   dva:
     image: vulnerables/web-dvwa

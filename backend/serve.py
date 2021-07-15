@@ -8,6 +8,7 @@ import os
 import json
 
 import pymongo
+import redis
 
 import metrics as mc
 
@@ -76,6 +77,24 @@ def insecure():
 @requires_auth_read
 def secure():
     return "Secure route.", 200
+
+# Redis handler
+@app.route("/redis/")
+@requires_auth_read
+def read_redis():
+    """Returns the output of the redis run"""
+    a = redis.Redis(host="redis")
+    b = a.get("output")
+    if b:
+        return b
+    return "[No output found]", 200
+
+# Scan handler
+@app.route("/scan/", methods=["POST"])
+@requires_auth_write
+def scan():
+    """Runs NMAP Scan"""
+    return "Started.", 200
 
 # CRUD for network structure
 
@@ -162,6 +181,11 @@ def create_edit_link(subnet="", link=""):
     return "Success", 200
 
 # Hosts
+
+@app.route("/host/<host>", methods=["GET"])
+@requires_auth_read
+def list_host(host=""):
+    return json.dumps(mongo_client["labyrinth"]["hosts"].find_one({"mac" : host}), default=str), 200
 
 
 @app.route("/host/")

@@ -6,6 +6,8 @@ python-jose
 pymongo
 python-nmap
 ansi2html
+redis
+pid
 
 # Development tools
 pytest
