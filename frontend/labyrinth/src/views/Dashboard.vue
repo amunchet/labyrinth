@@ -1,52 +1,81 @@
 <template>
   <div class="dashboard">
     <div class="outer_left">
-      <Connector 
-        :verticals="connectorBottom[0]" 
-        horizontals="1" 
-        color="orange" 
+      <Connector
+        :verticals="connectorBottom[0]"
+        horizontals="1"
+        color="orange"
         :style="
           'top: ' +
           offsetTop[0] +
-          'px; left: ' + 32 + 
+          'px; left: ' +
+          32 +
           'px; position: absolute; float: left;'
-        " />
+        "
+      />
     </div>
     <div class="outer_right">
       <b-button variant="link" class="add-button">
         <font-awesome-icon icon="plus" size="1x" /> New Subnet
       </b-button>
-      <div :class="findClass(subnet)" v-for="(subnet, i) in full_data" v-bind:key="i">
+      <div
+        :class="findClass(subnet)"
+        v-for="(subnet, i) in full_data"
+        v-bind:key="i"
+      >
         <div class="left">
           <div class="corner" :ref="'end_' + i">
-            <Host :ip="subnet.origin.ip" :icon="subnet.origin.icon" show_ports="0"/>
+            <Host
+              :ip="subnet.origin.ip"
+              :icon="subnet.origin.icon"
+              show_ports="0"
+            />
           </div>
           <div class="routes">
-            <Host :ip="subnet.links.ip" show_ports="0" passed_class="main" :ref="'start_' + i" :icon="subnet.links.icon" />
+            <Host
+              :ip="subnet.links.ip"
+              show_ports="0"
+              passed_class="main"
+              :ref="'start_' + i"
+              :icon="subnet.links.icon"
+            />
           </div>
         </div>
         <div class="right">
-          <h2 :class="findTitleClass(subnet)">{{subnet.subnet}}</h2>
+          <h2 :class="findTitleClass(subnet)">{{ subnet.subnet }}</h2>
           <div class="flexed">
-            <div class="grouped" v-for="(group, j) in subnet.groups" v-bind:key="j">
+            <div
+              class="grouped"
+              v-for="(group, j) in subnet.groups"
+              v-bind:key="j"
+            >
               <div class="overflow-hidden light p-0">
-                <h2 class="float-left">{{group.name}}</h2>
-                <font-awesome-icon class="float-right p-1 mt-1" icon="plus" size="2x" />
+                <h2 class="float-left">{{ group.name }}</h2>
+                <font-awesome-icon
+                  class="float-right p-1 mt-1"
+                  icon="plus"
+                  size="2x"
+                />
               </div>
               <div class="flexed">
-                <Host v-for="(host, k) in group.hosts" v-bind:key="k" :ip="host.ip" passed_class="main" :icon="host.icon"/>
+                <Host
+                  v-for="(host, k) in group.hosts"
+                  v-bind:key="k"
+                  :ip="host.ip"
+                  passed_class="main"
+                  :icon="host.icon"
+                  :services="host.services"
+                />
               </div>
             </div>
           </div>
         </div>
       </div>
-
     </div>
-
   </div>
 </template>
 <script>
-
+import Helper from "@/helper";
 import Connector from "@/components/Connector";
 import Host from "@/components/Host";
 export default {
@@ -55,124 +84,7 @@ export default {
       offsetTop: [],
       connectorBottom: [],
       connector_count: 1,
-      full_data: [
-        {
-          subnet: "192.168.0",
-          origin: {
-            ip: "127.0.0.1",
-            icon : "VMWare"
-          },
-          groups: [
-            {
-              name: "Linux Servers",
-              hosts: [
-                {
-                  "ip" : "176",
-                  "icon" : "Linux"
-                },
-                {
-                  "ip" : "176",
-                  "icon" : "Linux"
-                },
-                {
-                  "ip" : "176",
-                  "icon" : "Linux"
-                },
-                {
-                  "ip" : "176",
-                  "icon" : "Linux"
-                },
-              ]
-            },
-            {
-              name: "Windows Servers",
-              hosts: [
-                {
-                  "ip" : "176",
-                  "icon" :  "Windows",
-                },
-                {
-                  "ip" : "176",
-                  "icon" : "Windows",
-                },
-                {
-                  "ip" : "176",
-                  "icon" : "Windows",
-                },
-                {
-                  "ip" : "176",
-                  "icon" : "Windows",
-                },
-              ]
-            }
-          ],
-          links: {
-            ref: "start_1",
-            ip: ".175",
-            icon: "Router",
-            color: "orange"
-          }
-        },
-        {
-          subnet: "192.168.1",
-          color: "orange",
-          origin: {
-            ref: "end_1",
-            icon: "Cloud",
-            ip: "10.8.0.6"
-          },
-          groups: [
-            {
-              name: "Linux Servers",
-              hosts: [
-                {
-                  "ip" : "176",
-                  "icon" : "Phone"
-                },
-                {
-                  "ip" : "176",
-                  "icon" : "Phone"
-                },
-                {
-                  "ip" : "176",
-                  "icon" : "Phone"
-                },
-                {
-                  "ip" : "176",
-                  "icon" : "Phone"
-                },
-              ]
-            },
-            {
-              name: "Windows Servers",
-              hosts: [
-                {
-                  "ip" : "176",
-                  "icon" :  "Tower",
-                },
-                {
-                  "ip" : "176",
-                  "icon" : "Tower",
-                },
-                {
-                  "ip" : "176",
-                  "icon" : "Tower",
-                },
-                {
-                  "ip" : "176",
-                  "icon" : "Tower",
-                },
-              ]
-            }
-          ],
-          links: {
-            ref: "start_2",
-            ip: ".176",
-            icon: "Wireless",
-            color: "blue"
-          }
-        }
-      ]
+      full_data: [],
     };
   },
   components: {
@@ -180,43 +92,87 @@ export default {
     Host,
   },
   methods: {
-    findClass: function(subnet){
-      if (subnet.color == undefined){
-        return "outer"
-      }else{
-        return "outer " + subnet.color + "-bg"
+    loadData: /* istanbul ignore next */ function () {
+      var auth = this.$auth;
+
+      Helper.apiCall("dashboard", "", auth)
+        .then((res) => {
+          this.full_data = res;
+          this.findTop();
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
+    },
+    findClass: function (subnet) {
+      if (subnet.color == undefined) {
+        return "outer";
+      } else {
+        return "outer " + subnet.color + "-bg";
       }
     },
-    findTitleClass: function(subnet){
-    if (subnet.color == undefined){
-        return "text-right subnet"
-      }else{
-        return "text-right subnet " + subnet.color + ""
+    findTitleClass: function (subnet) {
+      if (subnet.color == undefined) {
+        return "text-right subnet";
+      } else {
+        return "text-right subnet " + subnet.color + "";
       }
     },
     findTop: function () {
-      console.log(this.$refs)
-      console.log("Connector count: " + this.connector_count)
-      for(var i = 0; i<this.connector_count; i++){
-        console.log("I: " + i)
-        console.log("Top item")
-        console.log(this.$refs["start_" + i][0].$el)
-        this.offsetTop[i] = this.$refs["start_" + i][0].$el.offsetTop
-        console.log("Top location:")
-        console.log(this.offsetTop[i])
-        var bottom = this.$refs["end_" + (i+1)][0].offsetTop * 1
-        console.log("Bottom item:")
-        console.log(this.$refs["end_" + (i+1)][0])
-        console.log("Bottom location: ")
-        console.log(bottom)
-        this.connectorBottom[i] = Math.ceil((bottom - this.offsetTop[i])/50) * 1 -1
-        console.log(this.connectorBottom[i])
+      try {
+        for (var i = 0; i < this.connector_count; i++) {
+          this.offsetTop[i] = this.$refs["start_" + i][0].$el.offsetTop;
+          var bottom = this.$refs["end_" + (i + 1)][0].offsetTop * 1;
+          this.connectorBottom[i] =
+            Math.ceil((bottom - this.offsetTop[i]) / 50) * 1 - 1;
+        }
+        this.$forceUpdate();
+      } catch (e) {
+        setTimeout(this.findTop, 50);
       }
-      this.$forceUpdate()
-
+    },
+    checkErrorMessage: function () {
+      var msg = "";
+      try {
+        msg = JSON.stringify(this.$store.state.error);
+      } catch (e) {
+        /* istanbul ignore next */
+        msg = this.$store.state.error;
+      }
+      if (msg.indexOf("rror") != -1) {
+        return "danger";
+      } else {
+        /*istanbul ignore next */
+        return "success";
+      }
     },
   },
   watch: {
+    "$store.state.error": function (val, prev) {
+      //window.scrollTo(0, 0)
+      if (val != undefined) {
+        var parsed_val = ("" + val).replace(/\[.*\]/, "");
+        if (parsed_val != undefined && parsed_val != "" && parsed_val != " ") {
+          if (parsed_val.indexOf("401") != -1) {
+            parsed_val = "Error: Logged out.  Please login again.";
+          }
+
+          if (this.$bvToast != undefined && prev.indexOf(val) == -1) {
+            this.$bvToast.toast(
+              parsed_val.charAt(0).toUpperCase() + parsed_val.slice(1),
+              {
+                title: `Notice`,
+                variant: this.checkErrorMessage(),
+                solid: true,
+                toaster: "b-toaster-bottom-right",
+              }
+            );
+          }
+          this.$store.state.error = parsed_val;
+          this.countDown = 10;
+        }
+      }
+    },
     $refs: {
       start_1: function (val) {
         if (val.$el != undefined) {
@@ -229,13 +185,16 @@ export default {
     window.addEventListener("resize", this.findTop);
   },
   mounted: function () {
-    this.findTop();
+    try {
+      this.loadData();
+    } catch (e) {
+      this.$store.commit("updateError", e);
+    }
   },
 };
 </script>
 <style lang="scss">
-@import '@/assets/variables.scss';
-
+@import "@/assets/variables.scss";
 
 body,
 html {
@@ -244,14 +203,13 @@ html {
   background-color: #fffeff;
 }
 
-.dashboard{
+.dashboard {
   margin-bottom: 20px;
 }
-.add-button{
+.add-button {
   position: absolute;
   top: 55px;
   right: 2%;
-  
 }
 h2 {
   width: 50%;
@@ -289,7 +247,7 @@ h2.subnet:hover {
 .flexed {
   display: flex;
   flex-wrap: wrap;
-  justify-content: space-around;
+  justify-content: start;
   align-items: stretch;
 }
 

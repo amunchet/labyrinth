@@ -21,14 +21,13 @@
       </div>
 
       <div class="table">
-        <div class="host_row" v-for="j in 5" v-bind:key="j">
-          <div v-if="j % 2" class="host_col">
-            <div class="green-bg host_col darkgrey" v-for="i in 3" v-bind:key="i">
-              &nbsp;&nbsp;&nbsp;
-            </div>
-          </div>
-          <div v-else class="host_col">
-            <div class="red-bg host_col" v-for="i in 3" v-bind:key="i">
+        <div class="host_row">
+          <div class="host_col">
+            <div
+              :class="determineClass(service)"
+              v-for="(service, idx) in services"
+              v-bind:key="idx"
+            >
               &nbsp;&nbsp;&nbsp;
             </div>
           </div>
@@ -45,7 +44,7 @@
 //import { defineAsyncComponent } from "vue";
 export default {
   name: "Host",
-  props: ["icon", "passed_class", "show_ports", "ip"],
+  props: ["icon", "passed_class", "show_ports", "ip", "services"],
   data() {
     return {
       icons: [
@@ -64,6 +63,14 @@ export default {
       components: {},
       myComponent: {},
     };
+  },
+  methods: {
+    determineClass: function (service) {
+      if (service.state == false) {
+        return "red-bg host_col darkgrey";
+      }
+      return "green-bg host_col darkgrey";
+    },
   },
   created() {
     for (var i = 0; i < this.icons.length; i++) {
