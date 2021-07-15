@@ -10,6 +10,12 @@ import store from "./store";
 
 Vue.config.productionTip = false;
 
+
+//Auth
+import AuthPlugin from './plugins/auth'
+// Install the authentication plugin here
+Vue.use(AuthPlugin)
+
 new Vue({
   router,
   store,
