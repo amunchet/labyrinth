@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const local_backend = "https://localhost:7210/api/"
-const devel_port = "8002"
+const devel_port = "8101"
 
 export default {
     name: "Helper",

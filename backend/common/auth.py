@@ -202,6 +202,6 @@ def _requires_auth(f, permission="", error_func=""):
                 401,
             )
         except AuthError as exc:
-            return error_func(code=exc.status_code, *args, **kwargs)
+            return error_func(msg=exc.error, code=exc.status_code, *args, **kwargs)
 
     return decorated

@@ -35,9 +35,9 @@ PERM_WRITE = "write"
 PERM_ADMIN = "reports"
 
 @app.route("/error/<int:code>")
-def error_func(code=401, command=""):  # pragma: no cover
+def error_func(code=401, msg="", command=""):  # pragma: no cover
     if isinstance(code, int):
-        return "Auth Error - {}".format(code), code
+        return "Auth Error {} - {}".format(code, msg), code
     return "Auth Error", 500
 
 
@@ -70,7 +70,7 @@ mongo_client = pymongo.MongoClient(
 def insecure():
     return "Insecure route.", 200
 
-
+@app.route("/secure/")
 @app.route("/secure")
 @requires_auth_read
 def secure():

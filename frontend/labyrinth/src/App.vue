@@ -69,6 +69,10 @@ export default {
 
     var current_page = this.$route.query.page;
 
+    if(this.$auth.profile ==  null && !this.$store.state.logged_in){
+        this.$auth.login()
+    }
+
     if (current_page == undefined || current_page.indexOf("callback") == -1) {
       Helper.apiCall("secure", "", auth)
         .then((res) => {
