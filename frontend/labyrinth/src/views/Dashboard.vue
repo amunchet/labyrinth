@@ -1,5 +1,5 @@
 <template>
-  <div class="about">
+  <div class="dashboard">
     <div class="outer_left">
       <Connector 
         :verticals="connectorBottom[0]" 
@@ -244,7 +244,7 @@ html {
   background-color: #fffeff;
 }
 
-.about {
+.dashboard{
   margin-bottom: 20px;
 }
 .add-button{
