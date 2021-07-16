@@ -27,9 +27,10 @@ def scan(subnet: str, callback_fn) -> List:
     for line in scanner.scan(hosts=search, arguments="-sV -O -A --script vulners"):
         if line[1]["nmap"]["scanstats"]["uphosts"] != '0':
             callback_fn("\n" + str(line[0]) + ": " + str(line[1]["nmap"]["scanstats"]) + "\n")
+            callback_fn("*")
             results.append(line[1])
         else:
-            callback_fn(".")
+            callback_fn("*")
     return results
 
 def convert_host(input: Dict) -> Dict:
@@ -100,7 +101,7 @@ def main():
             results = scan(subnet, update_redis)
 
         # For each host, if it doesn't exist, create it.
-        update_redis("\nStarting check of hosts...")
+        update_redis("\nHosts Check...")
         for result in results:
             host = [x for x in result["scan"].values()]
             if not host:

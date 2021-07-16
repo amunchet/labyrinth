@@ -8,11 +8,16 @@
       </b-col>
     </b-row>
     <hr />
-    <b-progress  :max="100" show-progress class="mb-2" height="2rem">
-    <b-progress-bar :value="(((data.match(/\./g) || []).length)/255)*100">
-    <span><strong>{{ ((data.match(/\./g) || []).length / 255 * 100).toFixed(1) }}%</strong></span>
+    <div v-for="(subnet, idx) in data.split('Starting')" v-bind:key="idx">
+    <b-progress v-if="idx != 0" :max="100" show-progress class="mb-2" height="2rem">
+    <b-progress-bar :value="(((subnet.match(/\*/g) || []).length)/255)*100">
+    <span><strong>
+        {{subnet.split(".")[0].split("*")[0]}}.
+        {{subnet.split(".")[1].split("*")[0]}}.
+        {{subnet.split(".")[2].split("*")[0]}} - {{ ((subnet.match(/\*/g) || []).length / 255 * 100).toFixed(1) }}%</strong></span>
     </b-progress-bar>
     </b-progress>
+    </div>
     <b-textarea ref="textarea_1" disabled v-model="data" />
   </b-container>
 </template>
