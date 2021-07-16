@@ -18,10 +18,38 @@ export default {
 
         return [year, month, day].join('-');
     },
+    listIcons: function () {
+        var retval = [
+            "Camera",
+            "Cloud",
+            "Linux",
+            "NAS",
+            "Phone",
+            "Router",
+            "Speaker",
+            "Tower",
+            "VMWare",
+            "Windows",
+            "Wireless",
+        ]
+        return retval
+    },
+    listColors: function () {
+        var retval = [
+            "darkblue",
+            "lightblue",
+            "blue",
+            "yellow",
+            "orange",
+            "red",
+            "darkerblue",
+        ]
+        return retval
+    },
     getURL() {
         var full_url = ""
         if (window.location.host.indexOf(devel_port) != -1) {
-            full_url = local_backend 
+            full_url = local_backend
         } else {
             full_url = "/api/"
         }
@@ -31,7 +59,7 @@ export default {
         var profile = auth["profile"]["email"];
         var full_url = ""
         if (window.location.host.indexOf(devel_port) != -1) {
-            full_url =  local_backend + url
+            full_url = local_backend + url
         } else {
             full_url = "/api/" + url
         }
@@ -53,7 +81,7 @@ export default {
         var profile = auth["profile"]["email"];
         var full_url = ""
         if (window.location.host.indexOf(devel_port) != -1) {
-            full_url =  local_backend + url
+            full_url = local_backend + url
         } else {
             full_url = "/api/" + url
         }
@@ -75,7 +103,7 @@ export default {
         var profile = auth['profile']['email']
         var full_url = ""
         if (window.location.host.indexOf(devel_port) != -1) {
-            full_url =  local_backend + url
+            full_url = local_backend + url
         } else {
             full_url = "/api/" + url
         }

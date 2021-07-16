@@ -27,12 +27,17 @@
               :class="determineClass(service)"
               v-for="(service, idx) in services"
               v-bind:key="idx"
+              @click="()=>{
+                  $bvModal.show('service_detail')
+                  }"
             >
               &nbsp;&nbsp;&nbsp;
             </div>
           </div>
         </div>
-        <b-button class="add_button">
+        <b-button class="add_button" @click="()=>{
+            $bvModal.show('create_edit_host')
+            }">
           <font-awesome-icon icon="cog" size="1x" />
         </b-button>
       </div>
@@ -67,9 +72,9 @@ export default {
   methods: {
     determineClass: function (service) {
       if (service.state == false) {
-        return "red-bg host_col darkgrey";
+        return "red-bg host_col darkgrey hover";
       }
-      return "green-bg host_col darkgrey";
+      return "green-bg host_col darkgrey hover";
     },
   },
   created() {
@@ -104,6 +109,9 @@ export default {
 .top {
   padding-top: 10px;
   display: block;
+}
+.hover{
+    cursor: pointer;
 }
 .host_row {
   width: 100%;

@@ -2,38 +2,10 @@
   <div class="dashboard">
 
     <!-- Modals -->
+    <CreateEditSubnet :inp_subnet="selected_subnet"/>
 
-    <b-modal id="create_edit_subnet" size="lg" title="Create/Edit Subnet">
-      Color
-      Links
-      Delete
-
-      One thing we can't change is the subnet itself
-
-    </b-modal>
-
-    <b-modal id="create_edit_host">
-      Delete
-
-      Group
-      MAC
-      IP
-      
-
-      Is this a host with standard health metrics?
-
-      Services list - this is going to be the painful one.  Want to be able to create service
-
-      [FUTURE] - push the new metrics out
-
-      I want to see the latest metrics for this host.
-    </b-modal>
-
-    <b-modal id="service_detail">
-        This opens when you click on a service entry.
-    </b-modal>
-
-
+    <CreateEditHost />
+    <HostMetric />
 
     <div class="outer_left">
       <Connector
@@ -51,6 +23,7 @@
     </div>
     <div class="outer_right">
       <b-button variant="link" class="add-button" @click="()=>{
+          selected_subnet = ''
         $bvModal.show('create_edit_subnet')
         }">
         <font-awesome-icon icon="plus" size="1x" /> New Subnet
@@ -79,7 +52,10 @@
           </div>
         </div>
         <div class="right">
-          <h2 :class="findTitleClass(subnet)">{{ subnet.subnet }}</h2>
+          <h2 @click="()=>{
+              $bvModal.show('create_edit_subnet')
+              selected_subnet = subnet
+              }" :class="findTitleClass(subnet)">{{ subnet.subnet }}</h2>
           <div class="flexed">
             <div
               class="grouped"
@@ -89,7 +65,7 @@
               <div class="overflow-hidden light p-0">
                 <h2 class="float-left">{{ group.name }}</h2>
                 <font-awesome-icon
-                  class="float-right p-1 mt-1"
+                  class="float-right p-1 mt-1 hover"
                   icon="plus"
                   size="2x"
                   @click="$bvModal.show('create_edit_host')"
@@ -116,6 +92,9 @@
 import Helper from "@/helper";
 import Connector from "@/components/Connector";
 import Host from "@/components/Host";
+import CreateEditSubnet from '@/components/CreateEditSubnet'
+import CreateEditHost from '@/components/CreateEditHost'
+import HostMetric from '@/components/HostMetric'
 export default {
   data() {
     return {
@@ -123,11 +102,16 @@ export default {
       connectorBottom: [],
       connector_count: 1,
       full_data: [],
+
+      selected_subnet: ""
     };
   },
   components: {
     Connector,
     Host,
+    CreateEditSubnet,
+    CreateEditHost,
+    HostMetric
   },
   methods: {
     loadData: /* istanbul ignore next */ function () {
@@ -200,6 +184,14 @@ html {
   padding: 0;
   margin: 0;
   background-color: #fffeff;
+}
+
+.hover{
+    cursor: pointer;
+}
+
+.hover:hover{
+    color: darkgrey;
 }
 
 .dashboard {
