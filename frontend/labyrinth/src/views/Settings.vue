@@ -40,6 +40,11 @@ export default {
           el.scrollTop = el.scrollHeight + 500;
           this.$forceUpdate();
         }
+      }).catch(e=>{
+        if(("" + e).indexOf("401") != -1){
+          this.$auth.logOut()
+          this.$auth.login()
+        }
       });
     },
     startScan: /* istanbul ignore next */ function () {
@@ -57,8 +62,7 @@ export default {
   },
   mounted: function () {
     try {
-      this.loadData()
-      setInterval(this.loadData, 2000);
+      setInterval(this.loadData, 1000);
     } catch (e) {
       this.$store.commit("updateError", e);
     }
