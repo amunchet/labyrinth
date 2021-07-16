@@ -46,11 +46,8 @@ export default {
           this.$forceUpdate();
           setTimeout(this.loadData, 1000)
         }
-      }).catch(e=>{
-        if(("" + e).indexOf("401") != -1){
-          this.$auth.logOut()
-          this.$auth.login()
-        }
+      }).catch(()=>{
+          setTimeout(this.loadData, 1000)
       });
     },
     startScan: /* istanbul ignore next */ function () {
