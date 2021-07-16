@@ -3,18 +3,16 @@
     <h3>Settings</h3>
     <hr />
     <b-row>
-      <b-col>
-        Enter Subnet to scan: <br />
-        (i.e. 192.168.0.0/24)
-      </b-col>
-      <b-col>
-        <b-input v-model="subnet" />
-      </b-col>
       <b-col class="text-left">
-        <b-button variant="primary" @click="startScan()">Start</b-button>
+        <b-button variant="success" @click="startScan()">Run Manual Scan</b-button>
       </b-col>
     </b-row>
     <hr />
+    <b-progress  :max="100" show-progress class="mb-2" height="2rem">
+    <b-progress-bar :value="(((data.match(/\./g) || []).length)/255)*100">
+    <span><strong>{{ ((data.match(/\./g) || []).length / 255 * 100).toFixed(1) }}%</strong></span>
+    </b-progress-bar>
+    </b-progress>
     <b-textarea ref="textarea_1" disabled v-model="data" />
   </b-container>
 </template>
