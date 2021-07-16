@@ -4,8 +4,8 @@
     <!-- Modals -->
     <CreateEditSubnet :inp_subnet="selected_subnet" @update="loadData()"/>
 
-    <CreateEditHost />
-    <HostMetric />
+    <CreateEditHost :inp_host = "selected_host" @update="loadData()"/>
+    <HostMetric @update="loadData()" />
 
     <div class="outer_left">
       <Connector
@@ -68,7 +68,10 @@
                   class="float-right p-1 mt-1 hover"
                   icon="plus"
                   size="2x"
-                  @click="$bvModal.show('create_edit_host')"
+                  @click="()=>{
+                      selected_host= ''
+                      $bvModal.show('create_edit_host')
+                      }"
                 />
               </div>
               <div class="flexed">
@@ -79,6 +82,7 @@
                   passed_class="main"
                   :icon="host.icon"
                   :services="host.services"
+                  @hostClicked="()=>selected_host = host"
                 />
               </div>
             </div>
@@ -103,7 +107,8 @@ export default {
       connector_count: 1,
       full_data: [],
 
-      selected_subnet: ""
+      selected_subnet: "",
+      selected_host: "",
     };
   },
   components: {

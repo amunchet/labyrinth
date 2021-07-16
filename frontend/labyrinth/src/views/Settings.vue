@@ -14,7 +14,7 @@
     <span><strong>
         {{subnet.split(".")[0].split("*")[0]}}.
         {{subnet.split(".")[1].split("*")[0]}}.
-        {{subnet.split(".")[2].split("*")[0]}} - {{ ((subnet.match(/\*/g) || []).length / 255 * 100).toFixed(1) }}%</strong></span>
+        {{subnet.split(".")[2].split("*")[0]}} | {{ ((subnet.match(/\*/g) || []).length / 255 * 100).toFixed(0) }}%</strong></span>
     </b-progress-bar>
     </b-progress>
     </div>

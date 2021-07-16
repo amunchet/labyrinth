@@ -36,6 +36,7 @@
           </div>
         </div>
         <b-button class="add_button" @click="()=>{
+            this.$emit('hostClicked')
             $bvModal.show('create_edit_host')
             }">
           <font-awesome-icon icon="cog" size="1x" />
