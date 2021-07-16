@@ -100,27 +100,27 @@ def main():
             update_redis("\nStarting {}".format(subnet))
             results = scan(subnet, update_redis)
 
-        # For each host, if it doesn't exist, create it.
-        update_redis("\nHosts Check...")
-        for result in results:
-            host = [x for x in result["scan"].values()]
-            if not host:
-                continue
-            host = host[0]
-            
-            try:
-                mac = host["addresses"]["mac"]
-                update_redis("\n" + str(mac) )
-                output = unwrap(list_host)(mac)[0]
-                if output == "null":
-                    update_redis("\nCreating new host: {}".format(mac))
-                    unwrap(create_edit_host)(convert_host(host))
+            # For each host, if it doesn't exist, create it.
+            update_redis("\nHosts Check...")
+            for result in results:
+                host = [x for x in result["scan"].values()]
+                if not host:
+                    continue
+                host = host[0]
+                
+                try:
+                    mac = host["addresses"]["mac"]
+                    update_redis("\n" + str(mac) )
+                    output = unwrap(list_host)(mac)[0]
+                    if output == "null":
+                        update_redis("\nCreating new host: {}".format(mac))
+                        unwrap(create_edit_host)(convert_host(host))
 
-                update_redis("\nInserting metrics...")
-                metric = unwrap(insert_metric)({"metrics" : [process_scan(host)]})
-                update_redis("\n" + str(metric))
-            except Exception as exc:
-                update_redis("\nException occurred: " + str(exc))
+                    update_redis("\nInserting metrics...")
+                    metric = unwrap(insert_metric)({"metrics" : [process_scan(host)]})
+                    update_redis("\n" + str(metric))
+                except Exception as exc:
+                    update_redis("\nException occurred: " + str(exc))
         
         update_redis("Finished.\n")
 
