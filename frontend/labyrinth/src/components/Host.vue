@@ -22,7 +22,7 @@
 
       <div class="table">
         <div class="host_row">
-          <div class="host_col">
+          <div class="host_col flexed">
             <div
               :class="determineClass(service)"
               v-for="(service, idx) in services"

@@ -18,6 +18,10 @@
             <b-nav-item href="/dashboard">
               <router-link to="/dashboard">Dashboard</router-link>
             </b-nav-item>
+            <b-nav-item href="/services">
+              <router-link to="/services">Services</router-link>
+            </b-nav-item>
+
             <b-nav-item href="/settings">
               <router-link to="/settings">Settings</router-link>
             </b-nav-item>
@@ -74,7 +78,7 @@ export default {
     return {};
   },
   methods: {
-checkErrorMessage: function () {
+    checkErrorMessage: function () {
       var msg = "";
       try {
         msg = JSON.stringify(this.$store.state.error);
@@ -99,7 +103,7 @@ checkErrorMessage: function () {
           if (parsed_val.indexOf("401") != -1) {
             parsed_val = "Error: Logged out.  Please login again.";
           }
-    
+
           if (this.$bvToast != undefined && prev.indexOf(val) == -1) {
             this.$bvToast.toast(
               parsed_val.charAt(0).toUpperCase() + parsed_val.slice(1),
@@ -115,16 +119,15 @@ checkErrorMessage: function () {
           this.countDown = 10;
         }
       }
-    }
+    },
   },
   created: function () {
     var auth = this.$auth;
 
     var current_page = this.$route.query.page;
-    auth.handleAuthentication()
+    auth.handleAuthentication();
     if (current_page == undefined || current_page.indexOf("callback") == -1) {
       try {
-        
         Helper.apiCall("secure", "", auth)
           .then((res) => {
             this.sandbox = ("" + res).toLowerCase() == "true";
@@ -139,14 +142,14 @@ checkErrorMessage: function () {
             ) {
               //this.$auth.login();
             } else {
-                this.$store.commit('updateError', e)
+              this.$store.commit("updateError", e);
             }
           });
       } catch (e) {
-        console.log(this.$auth)
-        console.log(e)
+        console.log(this.$auth);
+        console.log(e);
         //this.$auth.login();
-        this.$auth.handleAuthentication()
+        this.$auth.handleAuthentication();
       }
     }
   },
