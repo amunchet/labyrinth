@@ -197,26 +197,26 @@ def list_host(host=""):
     return json.dumps(mongo_client["labyrinth"]["hosts"].find_one({"mac" : host}), default=str), 200
 
 
-@app.route("/host/")
+@app.route("/host/", methods=["POST"])
 @requires_auth_read
-def create_edit_host(inp="", methods=["POST"]):
+def create_edit_host(inp=""):
     """Creates/Edits a host"""
     if inp != "":
         host = inp
     elif request.method == "POST":  # pragma: no cover
-        host = request.form.get("data")
+        host = json.loads(request.form.get("data"))
     else:
         return "Invalid data", 443
 
     if "mac" not in host:
         return "Invalid data", 407
 
-    if [x for x in mongo_client["labyrinth"]["hosts"].find({"mac": host["mac"]})]:
+    if mongo_client["labyrinth"]["hosts"].find_one({"mac": host["mac"]}):
         mongo_client["labyrinth"]["hosts"].delete_one({"mac": host["mac"]})
 
     subnet = host["subnet"]
 
-    if not [x for x in mongo_client["labyrinth"]["subnets"].find({"subnet": subnet})]:
+    if not mongo_client["labyrinth"]["subnets"].find_one({"subnet": subnet}):
         mongo_client["labyrinth"]["subnets"].insert_one({
             "subnet": subnet,
             "origin": {},
@@ -399,7 +399,16 @@ def dashboard():
 
     return json.dumps(subnets, default=str), 200
 
-# Metrics - this DOES NOT require a wrapper
+# Metrics
+
+@app.route("/metrics/<host>")
+@requires_auth_read
+def read_metrics(host):
+    """
+    Returns the latest metrics for a given host
+    """
+    return json.dumps([x for x in mongo_client["labyrinth"]["metrics"].find({"tags.host" : host})], default=str), 200
+
 @app.route("/metrics/", methods=["POST"])
 @requires_header
 def insert_metric(inp=""):
