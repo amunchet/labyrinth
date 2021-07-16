@@ -83,11 +83,23 @@ export default {
   props: ["inp_subnet"],
   data() {
     return {
-      subnet: "",
+      subnet: {
+          subnet: "",
+          origin: {
+            ip: "",
+            icon: "",
+          },
+          links: {
+            ref: "",
+            ip: "",
+            icon: "",
+            color: "",
+          },
+      },
       icons: [],
       colors: [],
       isNew: true,
-    };
+    }
   },
   methods: {
     saveSubnet: /* istanbul ignore next */ function () {
