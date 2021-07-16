@@ -32,9 +32,9 @@ export default {
     };
   },
   methods: {
-    loadData: /* istanbul ignore next */ function () {
+    loadData: /* istanbul ignore next */ async function () {
       var auth = this.$auth;
-      Helper.apiCall("redis", "", auth).then((res) => {
+      await Helper.apiCall("redis", "", auth).then((res) => {
         this.data = res;
         this.$forceUpdate();
         if (res.indexOf("Finished") == -1) {
