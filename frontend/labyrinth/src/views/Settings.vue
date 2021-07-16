@@ -44,6 +44,7 @@ export default {
           el = this.$refs.textarea_1.$el;
           el.scrollTop = el.scrollHeight + 500;
           this.$forceUpdate();
+          setTimeout(this.loadData, 1000)
         }
       }).catch(e=>{
         if(("" + e).indexOf("401") != -1){
@@ -57,6 +58,7 @@ export default {
       Helper.apiCall("scan", "", auth)
         .then((res) => {
           this.$store.commit("updateError", res);
+          this.loadData()
         })
         .catch((e) => {
           this.$store.commit("updateError", e);
@@ -65,7 +67,7 @@ export default {
   },
   mounted: function () {
     try {
-      setInterval(this.loadData, 1000);
+      this.loadData()
     } catch (e) {
       this.$store.commit("updateError", e);
     }
