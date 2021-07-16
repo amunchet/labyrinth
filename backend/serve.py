@@ -17,6 +17,11 @@ from common.test import unwrap
 from flask import Flask, request
 from flask_cors import CORS
 
+from concurrent.futures import ThreadPoolExecutor
+# DOCS https://docs.python.org/3/library/concurrent.futures.html#concurrent.futures.ThreadPoolExecutor
+executor = ThreadPoolExecutor(2)
+
+
 TELEGRAF_KEY=os.environ.get("TELEGRAF_KEY")
 
 def _requires_header(f, permission):
@@ -70,6 +75,7 @@ mongo_client = pymongo.MongoClient(
 @app.route("/insecure")
 @app.route("/insecure/")
 def insecure():
+
     return "Insecure route.", 200
 
 @app.route("/secure/")
@@ -90,11 +96,14 @@ def read_redis():
     return "[No output found]", 200
 
 # Scan handler
-@app.route("/scan/", methods=["POST"])
+@app.route("/scan/")
 @requires_auth_write
 def scan():
     """Runs NMAP Scan"""
-    return "Started.", 200
+
+    from finder import main
+    executor.submit(main)
+    return "Scan Started.", 200
 
 # CRUD for network structure
 
@@ -126,21 +135,21 @@ def list_subnet(subnet=""):
     return json.dumps(x[0], default=str), 200
 
 
-@app.route("/subnet/<subnet>", methods=["POST"])
+@app.route("/subnet/", methods=["POST"])
 @requires_auth_write
 def create_edit_subnet(inp=""):
     """Creates/Edits a Subnet"""
     if inp != "":
         subnet = inp
     elif request.method == "POST":  # pragma: no cover
-        subnet = request.form.get("data")
+        subnet = json.loads(request.form.get("data"))
     else:
         return "Invalid request", 443
 
     if "subnet" not in subnet:
         return "Invalid data", 407
 
-    if [x for x in mongo_client["labyrinth"]["subnets"].find({"subnet": subnet["subnet"]})]:
+    if mongo_client["labyrinth"]["subnets"].find_one({"subnet": subnet["subnet"]}):
         mongo_client["labyrinth"]["subnets"].delete_one(
             {"subnet": subnet["subnet"]})
 

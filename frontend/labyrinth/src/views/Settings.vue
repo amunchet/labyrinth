@@ -49,9 +49,7 @@ export default {
     },
     startScan: /* istanbul ignore next */ function () {
       var auth = this.$auth;
-      var formData = new FormData();
-      formData.append("data", this.subnet);
-      Helper.apiPost("scan", "", "", auth, formData)
+      Helper.apiCall("scan", "", auth)
         .then((res) => {
           this.$store.commit("updateError", res);
         })
