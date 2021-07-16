@@ -3,7 +3,7 @@
 
     <!-- Modals -->
 
-    <b-modal id="create_edit_subnet">
+    <b-modal id="create_edit_subnet" size="lg" title="Create/Edit Subnet">
       Color
       Links
       Delete
@@ -29,7 +29,9 @@
       I want to see the latest metrics for this host.
     </b-modal>
 
-
+    <b-modal id="service_detail">
+        This opens when you click on a service entry.
+    </b-modal>
 
 
 
@@ -48,7 +50,9 @@
       />
     </div>
     <div class="outer_right">
-      <b-button variant="link" class="add-button">
+      <b-button variant="link" class="add-button" @click="()=>{
+        $bvModal.show('create_edit_subnet')
+        }">
         <font-awesome-icon icon="plus" size="1x" /> New Subnet
       </b-button>
       <div
@@ -88,6 +92,7 @@
                   class="float-right p-1 mt-1"
                   icon="plus"
                   size="2x"
+                  @click="$bvModal.show('create_edit_host')"
                 />
               </div>
               <div class="flexed">
@@ -164,48 +169,9 @@ export default {
         setTimeout(this.findTop, 50);
       }
     },
-    checkErrorMessage: function () {
-      var msg = "";
-      try {
-        msg = JSON.stringify(this.$store.state.error);
-      } catch (e) {
-        /* istanbul ignore next */
-        msg = this.$store.state.error;
-      }
-      if (msg.indexOf("rror") != -1) {
-        return "danger";
-      } else {
-        /*istanbul ignore next */
-        return "success";
-      }
-    },
+    
   },
   watch: {
-    "$store.state.error": function (val, prev) {
-      //window.scrollTo(0, 0)
-      if (val != undefined) {
-        var parsed_val = ("" + val).replace(/\[.*\]/, "");
-        if (parsed_val != undefined && parsed_val != "" && parsed_val != " ") {
-          if (parsed_val.indexOf("401") != -1) {
-            parsed_val = "Error: Logged out.  Please login again.";
-          }
-
-          if (this.$bvToast != undefined && prev.indexOf(val) == -1) {
-            this.$bvToast.toast(
-              parsed_val.charAt(0).toUpperCase() + parsed_val.slice(1),
-              {
-                title: `Notice`,
-                variant: this.checkErrorMessage(),
-                solid: true,
-                toaster: "b-toaster-bottom-right",
-              }
-            );
-          }
-          this.$store.state.error = parsed_val;
-          this.countDown = 10;
-        }
-      }
-    },
     $refs: {
       start_1: function (val) {
         if (val.$el != undefined) {

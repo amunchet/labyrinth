@@ -73,6 +73,50 @@ export default {
   data() {
     return {};
   },
+  methods: {
+checkErrorMessage: function () {
+      var msg = "";
+      try {
+        msg = JSON.stringify(this.$store.state.error);
+      } catch (e) {
+        /* istanbul ignore next */
+        msg = this.$store.state.error;
+      }
+      if (msg.indexOf("rror") != -1) {
+        return "danger";
+      } else {
+        /*istanbul ignore next */
+        return "success";
+      }
+    },
+  },
+  watch: {
+    "$store.state.error": function (val, prev) {
+      //window.scrollTo(0, 0)
+      if (val != undefined) {
+        var parsed_val = ("" + val).replace(/\[.*\]/, "");
+        if (parsed_val != undefined && parsed_val != "" && parsed_val != " ") {
+          if (parsed_val.indexOf("401") != -1) {
+            parsed_val = "Error: Logged out.  Please login again.";
+          }
+    
+          if (this.$bvToast != undefined && prev.indexOf(val) == -1) {
+            this.$bvToast.toast(
+              parsed_val.charAt(0).toUpperCase() + parsed_val.slice(1),
+              {
+                title: `Notice`,
+                variant: this.checkErrorMessage(),
+                solid: true,
+                toaster: "b-toaster-bottom-right",
+              }
+            );
+          }
+          this.$store.state.error = parsed_val;
+          this.countDown = 10;
+        }
+      }
+    }
+  },
   created: function () {
     var auth = this.$auth;
 
@@ -95,11 +139,7 @@ export default {
             ) {
               //this.$auth.login();
             } else {
-              this.$bvToast.toast("" + e, {
-                title: "Error",
-                variant: "danger",
-                solid: true,
-              });
+                this.$store.commit('updateError', e)
             }
           });
       } catch (e) {
