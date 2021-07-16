@@ -48,7 +48,7 @@ services:
     environment:
         COMPOSE_CONVERT_WINDOWS_PATHS: 1
     healthcheck:
-        test: curl -k -f https://localhost || service nginx restart
+        test: curl -k -f https://localhost/insecure || service nginx restart
         interval: 20s
         timeout: 10s
         retries: 3
