@@ -57,6 +57,7 @@ export default {
   },
   mounted: function () {
     try {
+      this.loadData()
       setInterval(this.loadData, 2000);
     } catch (e) {
       this.$store.commit("updateError", e);
