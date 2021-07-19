@@ -13,3 +13,7 @@ pid
 pytest
 pytest-cov
 requests
+
+# TOML
+# Once (or if) PR #375 is merged, we will switch back to `uiri/toml`
+git+https://github.com/amunchet/toml.git

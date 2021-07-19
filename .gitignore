@@ -7,3 +7,4 @@ backend/common/__pycache__/auth.cpython-38.pyc
 backend/.coverage
 **artifacts**
 redis_data/**
+backend/uploads/**
