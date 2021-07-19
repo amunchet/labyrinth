@@ -8,3 +8,4 @@ backend/.coverage
 **artifacts**
 redis_data/**
 backend/uploads/**
+backend/output-labyrinth
