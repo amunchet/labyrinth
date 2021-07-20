@@ -2,10 +2,13 @@
 """
 Tests for the TOML work
 """
+import pytest
+
 import services
 import toml
 
-def test_prepare():
+@pytest.fixture
+def setup():
     lines = services.prepare("/src/backend/test/sample_telegraf.json")
     decoder = toml.TomlPreserveCommendDecoder(beforeComments = True)
 
@@ -14,29 +17,45 @@ def test_prepare():
     assert x["agent"]["interval"].val.val == "10s"
     assert [x for x in decoder.before_tags if "interval" in x["name"]][0]["comments"] == ['Default data collection interval for all inputs'] 
 
-    # TODO: Other tests - multiline comments, etc
 
-def test_put_parents():
+    # TODO: Test duplicate sections
+
+    # TODO: Test Duplicate keys
+
+    # TODO: Multiline Arrays
+    yield (x, decoder)
+
+# Redis
+
+
+def test_put_comments():
     """
-    Store tags without children (actually without a parent tag) into Redis
+    Store all comments into Redis
+        - Renamed - put the parent + . + name split before = and stripped
+        - Call these by their keys in `decoder.before_tags`
+
     """
 
-def test_put_children():
+def test_put_structure():
     """
-    Store all children by their parents into Redis
+    Push JSON of the actual structure to Redis
+        - Called "master.data"
+
     """
 
-def test_list_roots():
+# Get data
+
+def test_get_structure():
     """
-    List the root elements
-    E.g. ['global_tags', 'agent', 'outputs', 'processors', 'aggregators', 'inputs', 'client']
+    Gets stored Redis structure
     """
 
-def test_list_services():
+def test_get_comment():
     """
-    Lists available services for a root element
-    E.g. ['dc', 'rack', 'user'] for "global_tags"
+    Gets comment
     """
+
+# Compile
 
 def compile_snippets():
     """

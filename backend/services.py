@@ -8,30 +8,29 @@ import toml
 import re
 from typing import List
 
-decoder = toml.TomlPreserveCommentDecoder(beforeComments = True)
 
 def prepare(fname="/src/uploads/master.conf") -> List:
     """
-    Step 1 
-        - reads in the individual lines of the TOML file 
+    Step 1
+        - reads in the individual lines of the TOML file
         - remove comments as best we cannot
 
     :returns - Array of lines
     """
     lines = []
+    decoder = toml.TomlPreserveCommentDecoder(beforeComments=True)
+
     with open(fname) as f:
-        
+
         in_array = False
         seen_keys = []
         seen_sections = []
 
-
         for (line_no, line) in enumerate(f.readlines()):
-            parsed_line = re.sub(r'^(\s?#?)+', '',line).strip()
+            parsed_line = re.sub(r'^(\s?#?)+', '', line).strip()
 
             if parsed_line and parsed_line[-1] == "[":
                 in_array = True
-            
 
             # Duplicate sections
 
@@ -42,7 +41,6 @@ def prepare(fname="/src/uploads/master.conf") -> List:
 
                 seen_keys = []
                 seen_sections.append(parsed_line)
-            
 
             try:
                 # Duplicate keys
@@ -68,7 +66,6 @@ def prepare(fname="/src/uploads/master.conf") -> List:
                 if "=" in parsed_line:
                     seen_keys.append((found_key, line_no))
 
-
                 # Handle multiline arrays
                 if in_array and parsed_line and parsed_line[-1] != "]":
                     lines.append(parsed_line)
@@ -82,3 +79,34 @@ def prepare(fname="/src/uploads/master.conf") -> List:
                 lines.append(line)
 
     return lines
+
+
+def parse(item) -> dict:
+    """
+    Recursive parse of a CommentValue filled toml data structure.
+        - Removes comments
+        
+    :returns - Dictionary of object
+    """
+    if type(item) == toml.decoder.CommentValue:
+
+        retval = parse(item.val)
+
+        return retval
+    elif type(item) == type([]):
+
+        retval = []
+        for x in item:
+            retval.append(parse(x))
+
+        return retval
+    elif type(item) == type({}):
+
+        retval = {}
+        for x in item:
+            retval[x] = parse(item[x])
+
+        return retval
+    else:
+
+        return item
