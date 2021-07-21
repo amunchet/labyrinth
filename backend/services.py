@@ -23,14 +23,13 @@ def prepare(fname="/src/uploads/master.conf") -> List:
     with open(fname) as f:
 
         in_array = False
+        array_count = 0
+
         seen_keys = []
         seen_sections = []
 
         for (line_no, line) in enumerate(f.readlines()):
             parsed_line = re.sub(r'^(\s?#?)+', '', line).strip()
-
-            if parsed_line and parsed_line[-1] == "[":
-                in_array = True
 
             # Duplicate sections
 
@@ -67,14 +66,22 @@ def prepare(fname="/src/uploads/master.conf") -> List:
                     seen_keys.append((found_key, line_no))
 
                 # Handle multiline arrays
-                if in_array and parsed_line and parsed_line[-1] != "]":
-                    lines.append(parsed_line)
-                elif in_array and parsed_line and parsed_line[-1] == "]":
-                    lines.append(parsed_line)
-                    in_array = False
+                if in_array and parsed_line:
+                    if "[" not in parsed_line:
+                        lines[-1+array_count] = "{} {}".format(
+                            lines[-1+array_count], parsed_line)
+                    array_count -= 1
+                    lines.append("")
+                    if parsed_line[-1] == "]":
+                        in_array = False
+                        array_count = 0
                 else:
                     toml.loads(parsed_line, decoder=decoder)
                     lines.append(parsed_line)
+
+                    if parsed_line and parsed_line[-1] == "[":
+                        in_array = True
+
             except Exception as e:
                 lines.append(line)
 
@@ -85,7 +92,7 @@ def parse(item) -> dict:
     """
     Recursive parse of a CommentValue filled toml data structure.
         - Removes comments
-        
+
     :returns - Dictionary of object
     """
     if type(item) == toml.decoder.CommentValue:
@@ -110,3 +117,39 @@ def parse(item) -> dict:
     else:
 
         return item
+
+
+def find_comments(lines):
+    """
+    Searches through the uncommented (`prepare` was run on it) file and records comments
+
+        - ends in ], then that's a header - clear the parent
+        - if there's no #... and a `=` in it, then everything before it is a key
+        - If the line starts with a `#`, then it's a comment
+    """
+
+    retval = []
+    current_parent = ""
+    current_comments = []
+    current_key = ""
+
+    for line in [x.strip() for x in lines if x.strip() != ""]:
+        # Is this a comment?
+        if re.match("^(\s?#+)+", line):
+            current_comments.append(line)
+        else:
+            # Section or array of sections
+            if line[-1] == "]":
+                current_parent = line
+                retval.append({"name": current_parent, "comments": current_comments})
+                current_comments = []
+            # Key
+            elif "=" in line:
+                current_key = current_parent + "." + line.split("=")[0]
+
+                # Inline comments
+                if "#" in line:
+                    current_comments.append(line.split("#")[1])
+                retval.append({"name": current_key, "comments": current_comments, "parent": current_parent})
+                current_comments = []
+    return retval
