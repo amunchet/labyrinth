@@ -15,7 +15,6 @@
       <span v-for="(comment, i) in comment.comments" v-bind:key="i">
         {{ comment.replace(/#/g, "") }}&nbsp;
       </span>
-      <hr />
     </div>
 
       <div v-if="typeof data == 'object' && Array.isArray(data)">
@@ -161,6 +160,12 @@ export default {
 <style lang="scss" scoped>
 .comment:first-letter {
   text-transform: capitalize;
+}
+.comment{
+  padding: 1rem;
+  margin: 1rem;
+  background-color: #efefed;
+  border-radius: 0.5rem;
 }
 h2 {
   text-align: left;
