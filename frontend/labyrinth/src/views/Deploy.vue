@@ -15,6 +15,10 @@
         <b-row>
           <b-button>Upload</b-button>
         </b-row>
+        <b-row>
+          Telegraf deployment is interesting, because there are some non x64 machines here.
+          FreeBSD, old arm processors, etc.
+        </b-row>
               </b-col>
       <b-col>
         <h2>Deploy</h2>
