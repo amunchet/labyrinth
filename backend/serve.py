@@ -9,8 +9,10 @@ import json
 
 import pymongo
 import redis
+import toml
 
 import metrics as mc
+import services as svcs
 
 from common import auth
 from common.test import unwrap
@@ -303,6 +305,57 @@ def delete_service(name):
         os.remove("/src/snippets/{}".format(name))
 
     return "Success", 200
+
+# TOML manipulation utilities
+
+@app.route("/redis/put_structure/")
+@requires_auth_write
+def put_structure():
+    """
+    Run services generate and store in Redis
+    """
+    lines = svcs.prepare()
+    decoder = toml.TomlPreserveCommentDecoder(beforeComments = True)
+    parsed = toml.loads("\n".join(lines), decoder=decoder)
+    output = json.dumps(svcs.parse(parsed), default=str)
+    rc = redis.Redis(host="redis")
+    rc.set("master.data", output)
+
+    # Add in the comments
+    for item in decoder.before_tags:
+        if "parent" in item:
+            key = item["parent"].replace("]", "").replace("[", "")
+            rc.set("{}.{}".format(key, item["name"].split("=")[0].strip()),json.dumps(item, default=str))
+        else:
+            rc.set(item["name"].split("=")[0].strip().replace("]", "").replace("[", ""), json.dumps(item, default=str))
+    
+
+    return "Success", 200
+
+@app.route("/redis/get_structure/")
+@requires_auth_read
+def get_structure():
+    """
+    Retrieves structure from Redis
+    """
+    rc = redis.Redis(host="redis")
+    a = rc.get("master.data")
+    if a:
+        return a.decode("utf-8"), 200
+    return "Not found", 424
+
+@app.route("/redis/get_comments/<comment>")
+@requires_auth_read
+def get_comment(comment):
+    """
+    Gets a comment
+    """
+    rc = redis.Redis(host="redis")
+    a = rc.get(comment)
+    if a:
+        return a.decode("utf-8"), 200
+    return "Not found", 425
+
 
 # Utilities
 
