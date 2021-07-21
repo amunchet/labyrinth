@@ -1,5 +1,7 @@
 <template>
-  <b-container>Services
+  <b-container>
+      <h4>Services</h4>
+      <b-button variant="primary">Load Services Template</b-button>
   <b-row v-for="(section, idx) in data" v-bind:key="idx">
     <h2>{{section.name}}</h2>
     <b-select :options="list_children" />
