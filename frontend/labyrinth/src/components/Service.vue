@@ -1,5 +1,5 @@
 <template>
-  <div :class="determineClass()" v-if="name != '' && typeof data == 'object' || !minimized"> 
+  <div :class="determineClass()" v-if="(isParent || service_filter == '' || (parent + name).indexOf(service_filter) != -1) && (name != '' && typeof data == 'object' || !minimized)"> 
     <h2 v-if="name != '' && typeof data == 'object'">
       <b-button variant="link" @click="minimized = !minimized">
         <font-awesome-icon v-if="minimized" icon="caret-up" size="2x" />
@@ -31,6 +31,7 @@
           :arrayChild="true"
           :parent="parent + '.' + name"
           :start_minimized="minimized"
+          service_filter=""
         />
       </div>
       <div v-else-if="typeof data == 'object'">
@@ -41,6 +42,7 @@
           :data="item"
           :parent="parent + '.' + name"
           :start_minimized="minimized"
+          :service_filter="service_filter"
         />
       </div>
       <div v-else-if="typeof data == 'number'">
@@ -96,12 +98,12 @@
 import Helper from "@/helper";
 export default {
   name: "ServiceComponent",
-  props: ["name", "data", "arrayChild", "parent", "start_minimized", "isParent"],
+  props: ["name", "data", "arrayChild", "parent", "start_minimized", "isParent", "service_filter"],
   data() {
     return {
       comment_name: "",
       comment: " ",
-      col_size: 3,
+      col_size: 5,
       minimized: true,
     };
   },
@@ -122,7 +124,7 @@ export default {
     },
     determineClass: function () {
       if (typeof this.data == "object" && Array.isArray(this.data)) {
-        return "main array";
+        return "main array child";
       } else if(typeof this.data != "object"){
         return "child"
       } else {
@@ -140,9 +142,20 @@ export default {
   watch:{
     start_minimized: function(val){
       this.minimized = val
+    },
+    service_filter: function(val){
+      if(val != ""){
+        this.minimized = false
+      }else{
+        this.minimized = true
+      }
     }
   },
   mounted: function () {
+
+    console.log(this.name)
+    console.log(this.service_filter)
+
     if (this.parent != undefined) {
       this.comment_name = (this.parent + "." + this.name)
         .replace(".0", "")
@@ -174,6 +187,9 @@ h2 {
   line-height: 1;
   margin: 0.25rem;
 }
+.child h2{
+  font-size: 12pt;
+}
 .border {
   border: 1px solid grey;
   border-radius: 0.5rem;
@@ -187,7 +203,6 @@ h2 {
 .child{
   margin: 0.5rem;
   border-bottom: 1px solid #efefed;
-  padding-bottom: 0.5rem;
 }
 .row{
   margin-top: 0.25rem;
