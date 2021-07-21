@@ -3,8 +3,25 @@
     <b-row>
       <b-col cols="7">
         <h4>Services</h4>
-        <b-button variant="primary" class="m-2">Load Services Template</b-button>
-        <b-input v-model="temp_filter" @blur="service_filter = temp_filter" />
+        <b-button variant="primary" class="m-2"
+          >Load Services Template</b-button
+        >
+
+        <b-nav-form>
+          <b-form-input
+            size="sm"
+            class="mr-sm-2"
+            placeholder="Search"
+            v-model="temp_filter"
+            @blur="service_filter = temp_filter"
+          ></b-form-input>
+          <b-button
+            size="sm"
+            class="my-2 my-sm-0"
+            @click="service_filter = temp_filter"
+            >Search</b-button
+          >
+        </b-nav-form>
         <ServiceComponent
           v-for="(section, idx) in data"
           v-bind:key="idx"
@@ -26,7 +43,6 @@
         <textarea />
       </b-col>
     </b-row>
-
   </b-container>
 </template>
 
