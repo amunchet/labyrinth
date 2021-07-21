@@ -15,8 +15,8 @@ from common.test import unwrap
 
 @pytest.fixture
 def setup():
-    lines = services.prepare("/src/backend/test/sample_telegraf.json")
-    decoder = toml.TomlPreserveCommendDecoder(beforeComments = True)
+    lines = services.prepare("/src/test/sample_telegraf.conf")
+    decoder = toml.TomlPreserveCommentDecoder(beforeComments = True)
 
     x = toml.loads("\n".join(lines), decoder=decoder)
 
@@ -31,7 +31,7 @@ def setup():
     # TODO: Multiline Arrays
     yield (x, decoder)
 
-def test_generate_structure(setup):
+def test_generate(setup):
     """
     Tests generating an object from the TOML
     """
@@ -43,6 +43,25 @@ def test_generate_structure(setup):
 
 # Redis
 
+def test_redis_structure():
+    """
+    Push JSON of the actual structure to Redis
+        - Called "master.data"
+
+    """
+
+    b = unwrap(serve.put_structure)()
+    assert b[1] == 200
+
+    c = unwrap(serve.get_structure)()
+    assert c[1] == 200
+    lines = json.loads(c[0])
+    x = lines["inputs"]["postgresql_extensible"][0]
+    print(x)
+
+    assert x["address"] == "host=localhost user=postgres sslmode=disable"
+    assert x["query"] == [{'measurement': '', 'sqlquery': 'SELECT * FROM pg_stat_bgwriter', 'version': 901, 'withdbname': False, 'tagvalue': 'postgresql.stats'}]
+
 
 def test_redis_comments():
     """
@@ -51,7 +70,7 @@ def test_redis_comments():
         - Call these by their keys in `decoder.before_tags`
 
     """
-    a = unwrap(serve.put_comments)()
+    a = unwrap(serve.put_structure)()
     assert a[1] == 200
 
     name = "inputs.sysstat.device_tags.sda"
@@ -68,20 +87,6 @@ def test_redis_comments():
 
 
 
-def test_redis_structure():
-    """
-    Push JSON of the actual structure to Redis
-        - Called "master.data"
-
-    """
-    a = services.generate_structure()
-    
-    b = unwrap(serve.put_structure)()
-    assert b[1] == 200
-
-    c = unwrap(serve.get_structure)()
-    assert c[1] == 200
-    assert a == c[0]
 
 
 # Compile
