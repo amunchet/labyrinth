@@ -5,12 +5,11 @@
         <font-awesome-icon v-if="minimized" icon="caret-up" size="2x" />
         <font-awesome-icon v-if="!minimized" icon="caret-down" size="2x" />
       </b-button>
-      {{ format(name) }}
+      {{ format(name) }} 
       <b-button class="float-right" variant="link" @click="loadComment()">
         <font-awesome-icon icon="info-circle" size="1x" />
       </b-button>
     </h2>
-
     <div >
     <div class="text-left comment" v-if="comment.comments != undefined">
       <span v-for="(comment, i) in comment.comments" v-bind:key="i">
@@ -21,8 +20,8 @@
 
       <div v-if="typeof data == 'object' && Array.isArray(data)">
         <div class="overflow-hidden">
-          <b-button class="float-left" v-if="!minimized"
-            >Add New Item to Array {{ name }}</b-button
+          <b-button class="float-left" variant="link" v-if="!minimized"
+            >+ {{ name }}</b-button
           >
         </div>
         <ServiceComponent
@@ -32,7 +31,7 @@
           :data="item"
           :arrayChild="true"
           :parent="parent + '.' + name"
-          :start_minimized = "minimized"
+          :start_minimized="minimized"
         />
       </div>
       <div v-else-if="typeof data == 'object'">
@@ -42,10 +41,10 @@
           :name="idx"
           :data="item"
           :parent="parent + '.' + name"
-          :start_minimized = "minimized"
+          :start_minimized="minimized"
         />
       </div>
-      <div v-else-if="typeof data == 'number' && !minimized">
+      <div v-else-if="typeof data == 'number'">
         <b-row>
           <b-col>
             <div v-if="!arrayChild" class="float-left mt-1 text-capitalize">
@@ -61,7 +60,7 @@
           </b-col>
         </b-row>
       </div>
-      <div v-else-if="typeof data == 'boolean' && !minimized">
+      <div v-else-if="typeof data == 'boolean' ">
         <b-row>
           <b-col>
             <div v-if="!arrayChild" class="float-left mt-1 text-capitalize">
@@ -76,7 +75,7 @@
           </b-col>
         </b-row>
       </div>
-      <div v-else-if="!minimized">
+      <div v-else>
         <b-row>
           <b-col>
             <div v-if="!arrayChild" class="float-left mt-1 text-capitalize">
@@ -98,7 +97,7 @@
 import Helper from "@/helper";
 export default {
   name: "ServiceComponent",
-  props: ["name", "data", "arrayChild", "parent", "start_minimized"],
+  props: ["name", "data", "arrayChild", "parent", "start_minimized", "isParent"],
   data() {
     return {
       comment_name: "",
@@ -124,7 +123,9 @@ export default {
     },
     determineClass: function () {
       if (typeof this.data == "object" && Array.isArray(this.data)) {
-        return "main";
+        return "main array";
+      } else if(typeof this.data != "object"){
+        return "child"
       } else {
         return "main border";
       }
@@ -164,13 +165,28 @@ export default {
 h2 {
   text-align: left;
   text-transform: capitalize;
+  font-size: 1.5rem;
+  line-height: 1;
+  margin: 0.25rem;
 }
 .border {
   border: 1px solid grey;
   border-radius: 0.5rem;
 }
 .main {
-  padding: 0.5rem 1rem 0.5rem 1rem;
-  margin: 1rem;
+  margin: 0.5rem;
+}
+.array{
+  margin-bottom: 1rem;
+}
+.child{
+  margin: 0.5rem;
+  border-bottom: 1px solid #efefed;
+  padding-bottom: 0.5rem;
+}
+.row{
+  margin-top: 0.25rem;
+  padding-left: 1rem;
+  padding-right: 0.5rem;
 }
 </style>
