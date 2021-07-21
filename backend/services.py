@@ -141,17 +141,20 @@ def find_comments(lines):
             current_comments.append(line)
         else:
             # Section or array of sections
-            if line[-1] == "]":
-                current_parent = line
-                retval.append({"name": current_parent, "comments": current_comments})
+            if line[-1] == "]" and "=" not in line:
+                current_parent = line.strip()
+                if "]]" in line and "[[" in line:
+                    retval.append({"name": current_parent, "comments": current_comments, "multiple" : True})
+                else:
+                    retval.append({"name": current_parent, "comments": current_comments})
                 current_comments = []
             # Key
             elif "=" in line:
                 current_key = current_parent + "." + line.split("=")[0]
-
+                current_value = line.split("=")[1].strip()
                 # Inline comments
                 if "#" in line:
                     current_comments.append(line.split("#")[1])
-                retval.append({"name": current_key, "comments": current_comments, "parent": current_parent})
+                retval.append({"name": current_key.strip(), "comments": current_comments, "parent": current_parent, "value" : current_value})
                 current_comments = []
     return retval

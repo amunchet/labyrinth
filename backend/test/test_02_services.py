@@ -15,6 +15,11 @@ from common.test import unwrap
 
 @pytest.fixture
 def setup():
+    # Clear redis
+    rc = redis.Redis(host="redis")
+    for key in rc.keys("*"):
+        rc.delete(key)
+
     lines = services.prepare("/src/test/sample_telegraf.conf")
     decoder = toml.TomlPreserveCommentDecoder(beforeComments = True)
 
@@ -43,7 +48,7 @@ def test_generate(setup):
 
 # Redis
 
-def test_redis_structure():
+def test_redis_structure(setup):
     """
     Push JSON of the actual structure to Redis
         - Called "master.data"
@@ -63,7 +68,7 @@ def test_redis_structure():
     assert x["query"] == [{'measurement': '', 'sqlquery': 'SELECT * FROM pg_stat_bgwriter', 'version': 901, 'withdbname': False, 'tagvalue': 'postgresql.stats'}]
 
 
-def test_redis_comments():
+def test_redis_comments(setup):
     """
     Store all comments into Redis
         - Renamed - put the parent + . + name split before = and stripped
@@ -77,16 +82,22 @@ def test_redis_comments():
     b = unwrap(serve.get_comment)(name)
     assert b[1] == 200
     
-    assert json.loads(b[0])["comments"] == ['Currently supported formats:']
+    assert json.loads(b[0])["comments"] == ['#   ## Device tags can be used to add additional tags for devices.', '#   ## For example the configuration below adds a tag vg with value rootvg for', '#   ## all metrics with sda devices.']
+    assert json.loads(b[0])["multiple"] == True
 
     name = "inputs.execd.command"
     b = unwrap(serve.get_comment)(name)
     assert b[1] == 200
     
-    assert json.loads(b[0])["comments"] ==  ['- "EVENTHUB_NAME"']
+    assert json.loads(b[0])["comments"] ==  ['#   ## Program to run as daemon']
 
+    # Test the last entry too to check for comment drift
+    expected = {'name': '[[inputs.zipkin]].port', 'comments': [' Port on which Telegraf listens'], 'parent': '[[inputs.zipkin]]', 'value': '9411            # Port on which Telegraf listens'}
+    name = "inputs.zipkin.port"
+    b = unwrap(serve.get_comment)(name)
+    assert b[1] == 200
 
-
+    assert json.loads(b[0]) == expected
 
 
 # Compile

@@ -322,12 +322,9 @@ def put_structure():
     rc.set("master.data", output)
 
     # Add in the comments
-    for item in decoder.before_tags:
-        if "parent" in item:
-            key = item["parent"].replace("]", "").replace("[", "")
-            rc.set("{}.{}".format(key, item["name"].split("=")[0].strip()),json.dumps(item, default=str))
-        else:
-            rc.set(item["name"].split("=")[0].strip().replace("]", "").replace("[", ""), json.dumps(item, default=str))
+    full_structure = svcs.find_comments(lines)
+    for item in full_structure:
+        rc.set(item["name"].replace("]", "").replace("[", "").strip(), json.dumps(item, default=str))
     
 
     return "Success", 200
