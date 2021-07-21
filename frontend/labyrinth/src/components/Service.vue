@@ -1,8 +1,176 @@
 <template>
-    
+  <div :class="determineClass()" v-if="name != '' && typeof data == 'object' || !minimized"> 
+    <h2 v-if="name != '' && typeof data == 'object'">
+      <b-button variant="link" @click="minimized = !minimized">
+        <font-awesome-icon v-if="minimized" icon="caret-up" size="2x" />
+        <font-awesome-icon v-if="!minimized" icon="caret-down" size="2x" />
+      </b-button>
+      {{ format(name) }}
+      <b-button class="float-right" variant="link" @click="loadComment()">
+        <font-awesome-icon icon="info-circle" size="1x" />
+      </b-button>
+    </h2>
+
+    <div >
+    <div class="text-left comment" v-if="comment.comments != undefined">
+      <span v-for="(comment, i) in comment.comments" v-bind:key="i">
+        {{ comment.replace(/#/g, "") }}&nbsp;
+      </span>
+      <hr />
+    </div>
+
+      <div v-if="typeof data == 'object' && Array.isArray(data)">
+        <div class="overflow-hidden">
+          <b-button class="float-left" v-if="!minimized"
+            >Add New Item to Array {{ name }}</b-button
+          >
+        </div>
+        <ServiceComponent
+          v-for="(item, idx) in data"
+          v-bind:key="idx"
+          :name="idx"
+          :data="item"
+          :arrayChild="true"
+          :parent="parent + '.' + name"
+          :start_minimized = "minimized"
+        />
+      </div>
+      <div v-else-if="typeof data == 'object'">
+        <ServiceComponent
+          v-for="(item, idx) in data"
+          v-bind:key="idx"
+          :name="idx"
+          :data="item"
+          :parent="parent + '.' + name"
+          :start_minimized = "minimized"
+        />
+      </div>
+      <div v-else-if="typeof data == 'number' && !minimized">
+        <b-row>
+          <b-col>
+            <div v-if="!arrayChild" class="float-left mt-1 text-capitalize">
+              {{ format(name) }}
+            </div>
+
+            <b-button class="float-left" variant="link" @click="loadComment()">
+              <font-awesome-icon icon="info-circle" size="1x" />
+            </b-button>
+          </b-col>
+          <b-col :cols="col_size">
+            <b-input v-model="data" />
+          </b-col>
+        </b-row>
+      </div>
+      <div v-else-if="typeof data == 'boolean' && !minimized">
+        <b-row>
+          <b-col>
+            <div v-if="!arrayChild" class="float-left mt-1 text-capitalize">
+              {{ format(name) }}
+            </div>
+            <b-button class="float-left" variant="link" @click="loadComment()">
+              <font-awesome-icon icon="info-circle" size="1x" />
+            </b-button>
+          </b-col>
+          <b-col :cols="col_size">
+            <b-form-checkbox v-model="data" switch />
+          </b-col>
+        </b-row>
+      </div>
+      <div v-else-if="!minimized">
+        <b-row>
+          <b-col>
+            <div v-if="!arrayChild" class="float-left mt-1 text-capitalize">
+              {{ format(name) }}
+            </div>
+            <b-button class="float-left" variant="link" @click="loadComment()">
+              <font-awesome-icon icon="info-circle" size="1x" />
+            </b-button>
+          </b-col>
+          <b-col :cols="col_size">
+            <b-input v-model="data" />
+          </b-col>
+        </b-row>
+      </div>
+    </div>
+    </div>
 </template>
 <script>
+import Helper from "@/helper";
 export default {
-    name: "Service"
-}
+  name: "ServiceComponent",
+  props: ["name", "data", "arrayChild", "parent", "start_minimized"],
+  data() {
+    return {
+      comment_name: "",
+      comment: " ",
+      col_size: 3,
+      minimized: true,
+    };
+  },
+  methods: {
+    loadComment: /* istanbul ignore next */ function () {
+      if (this.comment != "") {
+        this.comment = "";
+        return;
+      }
+      var auth = this.$auth;
+      Helper.apiCall("redis", "get_comments/" + this.comment_name, auth)
+        .then((res) => {
+          this.comment = res;
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
+    },
+    determineClass: function () {
+      if (typeof this.data == "object" && Array.isArray(this.data)) {
+        return "main";
+      } else {
+        return "main border";
+      }
+    },
+    format(item) {
+      try {
+        return item.replace(/_/g, " ");
+      } catch (e) {
+        return item;
+      }
+    },
+  },
+  watch:{
+    start_minimized: function(val){
+      this.minimized = val
+    }
+  },
+  mounted: function () {
+    if (this.parent != undefined) {
+      this.comment_name = (this.parent + "." + this.name)
+        .replace(".0", "")
+        .replace("undefined.", "");
+    } else {
+      this.comment_name = this.name;
+    }
+
+    if (this.start_minimized != undefined){
+      this.minimized = this.start_minimized
+    }
+  },
+};
 </script>
+<style lang="scss" scoped>
+.comment:first-letter {
+  text-transform: capitalize;
+}
+h2 {
+  text-align: left;
+  text-transform: capitalize;
+}
+.border {
+  border: 1px solid grey;
+  border-radius: 0.5rem;
+}
+.main {
+  padding: 0.5rem 1rem 0.5rem 1rem;
+  margin: 1rem;
+}
+</style>

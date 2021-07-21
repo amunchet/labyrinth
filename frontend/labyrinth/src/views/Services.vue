@@ -2,20 +2,22 @@
   <b-container>
       <h4>Services</h4>
       <b-button variant="primary">Load Services Template</b-button>
-  <b-row v-for="(section, idx) in data" v-bind:key="idx">
-    <h2>{{section.name}}</h2>
-    <b-select :options="list_children" />
-    <b-button>Add Section</b-button>
 
-    {{details}}
+      <ServiceComponent v-for="(section, idx) in data" v-bind:key="idx" :name="idx" :data="section" :start_minimized="true" :isParent="true"/>
+
+  
     <hr />
-  </b-row>
 </b-container>
 </template>
 
 <script>
+import Helper from '@/helper'
+import ServiceComponent from '@/components/Service'
 export default {
   name: "Services",
+  components: {
+    ServiceComponent
+  },
   data() {
     return {
       data: [
@@ -52,6 +54,23 @@ export default {
       },
     };
   },
+  methods: {
+    loadStructure: /* istanbul ignore next */ function(){
+      var auth = this.$auth
+      Helper.apiCall("redis", "get_structure", auth).then(res=>{
+        this.data = res
+      }).catch(e=>{
+        this.$store.commit('updateError', e)
+      })
+    }
+  },
+  mounted: /* istanbul ignore next */ function(){
+    try{
+      this.loadStructure()
+    }catch(e){
+      this.$store.commit('updateError', e)
+    }
+  }
 };
 </script>
 

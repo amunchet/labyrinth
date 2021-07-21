@@ -329,7 +329,7 @@ def put_structure():
 
     return "Success", 200
 
-@app.route("/redis/get_structure/")
+@app.route("/redis/get_structure")
 @requires_auth_read
 def get_structure():
     """
