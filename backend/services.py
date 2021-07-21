@@ -72,10 +72,12 @@ def prepare(fname="/src/uploads/master.conf") -> List:
                             lines[-1+array_count], parsed_line)
                     array_count -= 1
                     lines.append("")
+                    
                     if parsed_line[-1] == "]":
                         in_array = False
                         array_count = 0
                 else:
+                    # Is this line valid toml?
                     toml.loads(parsed_line, decoder=decoder)
                     lines.append(parsed_line)
 
