@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+
+# TODO: I can delete most of this file
+
 """
 Tests for modifying Telegraf TOML
     - Going to save created sections in a `snippets` folder.

@@ -10,6 +10,13 @@ ansible_runner.run(\
 ```
 
 """
+
+def test_create_vault_password_file():
+    """Tests creating the vault password file"""
+
+def test_check_vault_password_file():
+    """If the vault password file is present when it shouldn't be, throw a fit"""
+
 def test_deploy():
     """
     Tests deploying a new telegraf installation
