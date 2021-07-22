@@ -22,6 +22,7 @@
             >Search</b-button
           >
         </b-nav-form>
+        <div v-if="loaded">
         <ServiceComponent
           v-for="(section, idx) in data"
           v-bind:key="idx"
@@ -31,6 +32,8 @@
           :isParent="true"
           :service_filter="service_filter"
         />
+        </div>
+        <b-spinner class="m-2" v-else />
       </b-col>
       <b-col>
         <h4>Created Configuration File</h4>
@@ -38,7 +41,7 @@
         <b-button class="m-2">Save</b-button>
         <hr />
         <h4>Test Configuration File</h4>
-        <b-button class="m-2">Run Test</b-button>
+        <b-button class="m-2 mt-4">Run Test</b-button>
         <br />
         <textarea />
       </b-col>
@@ -59,6 +62,7 @@ export default {
       service_filter: "",
       temp_filter: "",
       data: [],
+      loaded: false,
     };
   },
   methods: {
@@ -67,6 +71,7 @@ export default {
       Helper.apiCall("redis", "get_structure", auth)
         .then((res) => {
           this.data = res;
+          this.loaded = true
         })
         .catch((e) => {
           this.$store.commit("updateError", e);

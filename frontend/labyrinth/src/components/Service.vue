@@ -153,8 +153,6 @@ export default {
   },
   mounted: function () {
 
-    console.log(this.name)
-    console.log(this.service_filter)
 
     if (this.parent != undefined) {
       this.comment_name = (this.parent + "." + this.name)

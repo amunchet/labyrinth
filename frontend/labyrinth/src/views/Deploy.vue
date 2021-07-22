@@ -5,11 +5,12 @@
         <b-row>
           <h4>Files</h4> </b-row
         ><b-row>
-          <ul>
+          <ul class="text-left">
             <li>SSH Key</li>
             <li>TOTP Key</li>
             <li>Become Password</li>
             <li>Telegraf conf file</li>
+            <li>Ansible Files (optional)</li>
           </ul>
         </b-row>
         <b-row>
