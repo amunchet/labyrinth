@@ -9,3 +9,4 @@ backend/.coverage
 redis_data/**
 backend/uploads/**
 backend/output-labyrinth
+venv/**
