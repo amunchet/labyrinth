@@ -27,6 +27,7 @@ services:
       MONGO_USERNAME: root
       MONGO_PASSWORD: temp
       MONGO_HOST: mongo
+      REDIS_HOST: redis
   
 
   # NGINX Frontend server
@@ -76,6 +77,8 @@ services:
   # Mongo
   mongo:
     image: mongo
+    ports:
+      - 127.0.0.1:27017:27017
     networks:
       - labyrinth
     environment:
@@ -100,6 +103,8 @@ services:
     restart: always
     environment:
       ALLOW_EMPTY_PASSWORD: "yes"
+    ports:
+      - 127.0.0.1:6379:6379
     networks:
       - labyrinth
     volumes:
