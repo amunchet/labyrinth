@@ -4,6 +4,7 @@ Auto discovery finder
 """
 import time
 import json
+import os
 
 import redis
 
@@ -16,7 +17,7 @@ from nmap import PortScannerYield as ps
 from common.test import unwrap
 from serve import list_subnet, list_subnets, create_edit_host, list_host, insert_metric
 
-def scan(subnet: str, callback_fn) -> List: 
+def scan(subnet: str, callback_fn, verbose=False) -> List: 
     """Scans a given subnet"""
     search = subnet
     if len(subnet.split(".")) == 3:
@@ -25,6 +26,8 @@ def scan(subnet: str, callback_fn) -> List:
     scanner = ps()
     results = []
     for line in scanner.scan(hosts=search, arguments="-sV -O -A --script vulners"):
+        if verbose:
+            callback_fn(str(line))
         if line[1]["nmap"]["scanstats"]["uphosts"] != '0':
             callback_fn("\n" + str(line[0]) + ": " + str(line[1]["nmap"]["scanstats"]) + "\n")
             callback_fn("*")
@@ -48,7 +51,8 @@ def convert_host(input: Dict) -> Dict:
         "class" : ""
     }
     output["ip"] = input["addresses"]["ipv4"]
-    output["mac"] = input["addresses"]["mac"]
+    if "mac" in input["addresses"]:
+        output["mac"] = input["addresses"]["mac"]
     output["subnet"] = ".".join(output["ip"].split(".")[:3])
     print(input["osmatch"])
     if input["osmatch"]:
@@ -75,7 +79,8 @@ def process_scan(input: Dict) -> Dict:
         "timestamp" : 0
     }
     output["fields"]["ip"] = input["addresses"]["ipv4"]
-    output["tags"]["host"] = input["addresses"]["mac"]
+    if "mac" in input["addresses"]:
+        output["tags"]["host"] = input["addresses"]["mac"]
 
     if "tcp" in input:
         output["fields"]["ports"] = [int(x) for x in input["tcp"].keys()]
@@ -85,7 +90,7 @@ def process_scan(input: Dict) -> Dict:
 def main():
     """Runs scan and updates database"""
 
-    rclient = redis.Redis(host="redis")
+    rclient = redis.Redis(host=(os.environ.get("REDIS_HOST") or "redis"))
     def update_redis(msg):
         output = rclient.get("output").decode("utf-8")
         rclient.set("output", output + str(msg))
@@ -109,7 +114,11 @@ def main():
                 host = host[0]
                 
                 try:
-                    mac = host["addresses"]["mac"]
+                    update_redis("\n{}".format(host))
+                    if "mac" in host["addresses"]:
+                        mac = host["addresses"]["mac"]
+                    else:
+                        mac = host["addresses"]["ipv4"]
                     update_redis("\n" + str(mac) )
                     output = unwrap(list_host)(mac)[0]
                     if output == "null":
