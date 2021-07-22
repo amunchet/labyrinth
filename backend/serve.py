@@ -91,7 +91,7 @@ def secure():
 @requires_auth_read
 def read_redis():
     """Returns the output of the redis run"""
-    a = redis.Redis(host="redis")
+    a = redis.Redis(host=os.environ.get("REDIS_HOST"))
     b = a.get("output")
     if b:
         return b
@@ -318,7 +318,7 @@ def put_structure():
     decoder = toml.TomlPreserveCommentDecoder(beforeComments = True)
     parsed = toml.loads("\n".join(lines), decoder=decoder)
     output = json.dumps(svcs.parse(parsed), default=str)
-    rc = redis.Redis(host="redis")
+    rc = redis.Redis(host=os.environ.get("REDIS_HOST"))
     rc.set("master.data", output)
 
     # Add in the comments
@@ -335,7 +335,7 @@ def get_structure():
     """
     Retrieves structure from Redis
     """
-    rc = redis.Redis(host="redis")
+    rc = redis.Redis(host=os.environ.get("REDIS_HOST"))
     a = rc.get("master.data")
     if a:
         return a.decode("utf-8"), 200
@@ -347,7 +347,7 @@ def get_comment(comment):
     """
     Gets a comment
     """
-    rc = redis.Redis(host="redis")
+    rc = redis.Redis(host=os.environ.get("REDIS_HOST"))
     a = rc.get(comment)
     if a:
         return a.decode("utf-8"), 200
