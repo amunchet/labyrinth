@@ -12,12 +12,17 @@ import redis
 import toml
 
 import metrics as mc
+
+import shutil
 import services as svcs
 
 from common import auth
 from common.test import unwrap
 from flask import Flask, request
+from werkzeug.utils import secure_filename
 from flask_cors import CORS
+
+import ansible_helper
 
 from concurrent.futures import ThreadPoolExecutor
 # DOCS https://docs.python.org/3/library/concurrent.futures.html#concurrent.futures.ThreadPoolExecutor
@@ -85,6 +90,54 @@ def insecure():
 @requires_auth_read
 def secure():
     return "Secure route.", 200
+
+# File uploads
+
+
+valid_type = ["ssh", "totp", "become", "telegraf", "ansible", "other"]
+
+@app.route("/upload/<type>/<override_token>", methods=["POST"])
+@requires_auth_admin
+def upload(type, override_token):
+    """
+    Handles file upload
+    """
+    if type not in valid_type:
+        return "Invalid type", 412
+
+    if 'file' not in request.files:
+        return "No file included", 407
+    
+    file = request.files['file']
+    if file.filename == "":
+        return "No file selected", 409
+    
+    if not os.path.exists("/src/uploads"):
+        os.mkdir("/src/uploads")
+
+    if not os.path.exists("/src/uploads/{}".format(type)):
+        os.mkdir("/src/uploads/{}".format(type))
+
+    if file:
+        filename = secure_filename(file.filename)
+        file.save("/tmp/{}".format(filename))
+        if ansible_helper.check_file(filename, type):
+            shutil.move("/tmp/{}".format(filename), "/src/uploads/{}/{}".format(type, filename))
+        else:
+            return "File check failed", 521
+    
+    return "Success", 200
+        
+@app.route("/uploads/<type>", methods=["GET"])
+@requires_auth_admin
+def list_uploads(type):
+    """
+    Lists all entries in an upload folder
+    """
+    if type in valid_type and os.path.exists("/src/uploads/{}".format(type)):
+        return json.dumps(os.listdir("/src/uploads/{}".format(type)), default=str), 200
+    return "Not found", 409
+
 
 # Redis handler
 @app.route("/redis/")
