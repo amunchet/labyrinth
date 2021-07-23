@@ -53,6 +53,8 @@ def convert_host(input: Dict) -> Dict:
     output["ip"] = input["addresses"]["ipv4"]
     if "mac" in input["addresses"]:
         output["mac"] = input["addresses"]["mac"]
+    else:
+        output["mac"] = input["addresses"]["ipv4"]
     output["subnet"] = ".".join(output["ip"].split(".")[:3])
     print(input["osmatch"])
     if input["osmatch"]:
@@ -81,6 +83,8 @@ def process_scan(input: Dict) -> Dict:
     output["fields"]["ip"] = input["addresses"]["ipv4"]
     if "mac" in input["addresses"]:
         output["tags"]["host"] = input["addresses"]["mac"]
+    else:
+        output["tags"]["host"] = input["addresses"]["ipv4"]
 
     if "tcp" in input:
         output["fields"]["ports"] = [int(x) for x in input["tcp"].keys()]
@@ -114,7 +118,6 @@ def main():
                 host = host[0]
                 
                 try:
-                    update_redis("\n{}".format(host))
                     if "mac" in host["addresses"]:
                         mac = host["addresses"]["mac"]
                     else:
