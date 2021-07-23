@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const local_backend = "https://localhost:7210/api/"
+const local_backend = "https://" + window.location.host.split(":")[0] + ":7210/api/"
 const devel_port = "8101"
 
 export default {
@@ -56,6 +56,7 @@ export default {
         return full_url
     },
     apiCall(url, command, auth) {
+        
         var profile = auth["profile"]["email"];
         var full_url = ""
         if (window.location.host.indexOf(devel_port) != -1) {
