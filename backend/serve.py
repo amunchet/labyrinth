@@ -392,6 +392,14 @@ def get_structure():
     a = rc.get("master.data")
     if a:
         return a.decode("utf-8"), 200
+
+    # If no structure is loaded, load a structure
+    unwrap(put_structure)()
+    rc = redis.Redis(host=os.environ.get("REDIS_HOST"))
+    a = rc.get("master.data")
+    if a:
+        return a.decode("utf-8"), 200
+
     return "Not found", 424
 
 @app.route("/redis/get_comments/<comment>")

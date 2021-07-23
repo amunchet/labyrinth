@@ -4,6 +4,9 @@ Services functions
     - TOML parser - how to handle the master Telegraf conf file?
 """
 
+import os
+import shutil
+
 import toml
 import re
 from typing import List
@@ -19,6 +22,10 @@ def prepare(fname="/src/uploads/master.conf") -> List:
     """
     lines = []
     decoder = toml.TomlPreserveCommentDecoder(beforeComments=True)
+
+    if not os.path.exists(fname):
+        # Copy over the defaults
+        shutil.copy("/src/uploads/defaults/telegraf.conf", fname) 
 
     with open(fname) as f:
 
