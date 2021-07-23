@@ -8,6 +8,8 @@ python-nmap
 ansi2html
 redis
 pid
+ansible
+ansible-runner
 
 # Development tools
 pytest
