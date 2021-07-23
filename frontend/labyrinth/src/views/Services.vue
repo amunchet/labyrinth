@@ -3,9 +3,6 @@
     <b-row>
       <b-col cols="7">
         <h4>Services</h4>
-        <b-button variant="primary" class="m-2"
-          >Load Services Template</b-button
-        >
 
         <b-nav-form>
           <b-form-input
