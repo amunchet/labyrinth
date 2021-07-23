@@ -14,7 +14,7 @@
     raw: apt update && apt -y install python gnupg2 curl wget
 
 - hosts: all
-  become: no
+  become: yes
   gather_facts: yes
 
   vars_files:
