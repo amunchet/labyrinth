@@ -2,18 +2,13 @@
 """
 Tests for ansible functions
 
-```
-ansible_runner.run(\
-    private_data_dir="/src/test/ansible", \
-    playbook="install.yml", \
-    cmdline="--vault-password-file ../vault.pass")
-```
 
 """
 import socket
 import json
 import shutil
 import os
+
 
 import pytest
 
@@ -148,21 +143,38 @@ def test_run_ansible():
         - Vault password?
     """
 
-    output = """'<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">\n<html>\n<head>\n<meta http-equiv="Content-Type" content="text/html; charset=utf-8">\n<title></title>\n<style type="text/css">\n.ansi2html-content { display: inline; white-space: pre-wrap; word-wrap: break-word; }\n.body_foreground { color: #AAAAAA; }\n.body_background { background-color: #000000; }\n.body_foreground > .bold,.bold > .body_foreground, body.body_foreground > pre > .bold { color: #FFFFFF; font-weight: normal; }\n.inv_foreground { color: #000000; }\n.inv_background { background-color: #AAAAAA; }\n.ansi1 { font-weight: bold; }\n.ansi32 { color: #00aa00; }\n.ansi33 { color: #aa5500; }\n.ansi35 { color: #E850A8; }\n</style>\n</head>\n<body class="body_foreground body_background" style="font-size: normal;" >\n<pre class="ansi2html-content">\n\nPLAY [localhost] ***************************************************************\n\nTASK [Gathering Facts] *********************************************************\n<span class="ansi32">ok: [localhost]</span>\n<span class="ansi32">\x1b[\n\nTASK [Remove password file] ****************************************************\n</span><span class="ansi33">changed: [localhost]</span>\n<span class="ansi33">\x1b[\n\nPLAY [all] *********************************************************************\n\nTASK [Ensure python installed] *************************************************\n</span><span class="ansi33">changed: [sampleclient]</span>\n<span class="ansi33">\x1b[\n\nPLAY [all] *********************************************************************\n\nTASK [Gathering Facts] *********************************************************\n</span><span class="ansi1 ansi35">[WARNING]: Platform linux on host sampleclient is using the discovered Python</span>\n<span class="ansi1 ansi35">interpreter at /usr/bin/python, but future installation of another Python</span>\n<span class="ansi1 ansi35">interpreter could change this. See https://docs.ansible.com/ansible/2.9/referen</span>\n<span class="ansi1 ansi35">ce_appendices/interpreter_discovery.html for more information.</span>\n<span class="ansi1 ansi35">\x1b[\n</span><span class="ansi32">ok: [sampleclient]</span>\n<span class="ansi32">\x1b[\n\nTASK [Add Repo key] ************************************************************\n</span><span class="ansi33">changed: [sampleclient]</span>\n<span class="ansi33">\x1b[\n\nTASK [Add InfluxDB repo] *******************************************************\n</span><span class="ansi33">changed: [sampleclient]</span>\n<span class="ansi33">\x1b[\n\nTASK [Telegraf installation] ***************************************************\n</span><span class="ansi32">ok: [sampleclient]</span>\n<span class="ansi32">\x1b[\n\nTASK [Start Telegraf service] **************************************************\n</span><span class="ansi33">changed: [sampleclient]</span>\n<span class="ansi33">\x1b[\n\nPLAY RECAP *********************************************************************\n</span><span class="ansi33">localhost</span>                  : <span class="ansi32">ok=2   </span> <span class="ansi33">changed=1   </span> unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   \n<span class="ansi33">sampleclient</span>               : <span class="ansi32">ok=6   </span> <span class="ansi33">changed=4   </span> unreachable=0    failed=0  skipped=0    rescued=0    ignored=0   \n\n\n</pre>\n</body>\n\n</html>\n'"""
+    output = """<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">\n<html>\n<head>\n<meta http-equiv="Content-Type" content="text/html; charset=utf-8">\n<title></title>\n<style type="text/css">\n.ansi2html-content { display: inline; white-space: pre-wrap; word-wrap: break-word; }\n.body_foreground { color: #AAAAAA; }\n.body_background { background-color: #000000; }\n.body_foreground > .bold,.bold > .body_foreground, body.body_foreground > pre > .bold { color: #FFFFFF; font-weight: normal; }\n.inv_foreground { color: #000000; }\n.inv_background { background-color: #AAAAAA; }\n.ansi1 { font-weight: bold; }\n.ansi32 { color: #00aa00; }\n.ansi33 { color: #aa5500; }\n.ansi35 { color: #E850A8; }\n</style>\n</head>\n<body class="body_foreground body_background" style="font-size: normal;" >\n<pre class="ansi2html-content">\n\nPLAY [localhost] ***************************************************************\n\nTASK [Gathering Facts] *********************************************************\n<span class="ansi32">ok: [localhost]</span>\n<span class="ansi32">\x1b[\n\nTASK [Remove password file] ****************************************************\n</span><span class="ansi33">changed: [localhost]</span>\n<span class="ansi33">\x1b[\n\nPLAY [all] *********************************************************************\n\nTASK [Ensure python installed] *************************************************\n</span><span class="ansi33">changed: [sampleclient]</span>\n<span class="ansi33">\x1b[\n\nPLAY [all] *********************************************************************\n\nTASK [Gathering Facts] *********************************************************\n</span><span class="ansi1 ansi35">[WARNING]: Platform linux on host sampleclient is using the discovered Python</span>\n<span class="ansi1 ansi35">interpreter at /usr/bin/python, but future installation of another Python</span>\n<span class="ansi1 ansi35">interpreter could change this. See https://docs.ansible.com/ansible/2.9/referen</span>\n<span class="ansi1 ansi35">ce_appendices/interpreter_discovery.html for more information.</span>\n<span class="ansi1 ansi35">\x1b[\n</span><span class="ansi32">ok: [sampleclient]</span>\n<span class="ansi32">\x1b[\n\nTASK [Add Repo key] ************************************************************\n</span><span class="ansi33">changed: [sampleclient]</span>\n<span class="ansi33">\x1b[\n\nTASK [Add InfluxDB repo] *******************************************************\n</span><span class="ansi33">changed: [sampleclient]</span>\n<span class="ansi33">\x1b[\n\nTASK [Telegraf installation] ***************************************************\n</span><span class="ansi32">ok: [sampleclient]</span>\n<span class="ansi32">\x1b[\n\nTASK [Start Telegraf service] **************************************************\n</span><span class="ansi33">changed: [sampleclient]</span>\n<span class="ansi33">\x1b[\n\nPLAY RECAP *********************************************************************\n</span><span class="ansi33">localhost</span>                  : <span class="ansi32">ok=2   </span> <span class="ansi33">changed=1   </span> unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   \n<span class="ansi33">sampleclient</span>               : <span class="ansi32">ok=6   </span> <span class="ansi33">changed=4   </span> unreachable=0    failed=0  skipped=0    rescued=0    ignored=0   \n\n\n</pre>\n</body>\n\n</html>\n"""
 
 
+    # Copy over files
+    file_moves = [
+        ("/src/test/ansible/project/install.yml", "/src/uploads/ansible/install.yml"),
+        ("/src/test/ansible/vars/vault.yml", "/src/uploads/become/vault.yml")
+    ]
+
+    
+
+
+    for src,dest in file_moves:
+        if not os.path.exists(dest):
+            shutil.copy(src, dest)
     # Check a clean run
 
-    x = run_ansible(hosts="sampleclient", playbook="install.yml", vault_password="test")
-    assert x == output
+    x = run_ansible(hosts="sampleclient", playbook="install", become_file="vault", vault_password="test")
+    
+    def compare(old, newer):
+        old_parsed = [x.replace(" ", "") for x in old.split("\n") if x.strip() != ""]
+        new_parsed = [x.replace(" ", "") for x in newer.split("\n") if x.strip() != ""]
+
+        for i in range(0, len(old_parsed)):
+            assert old_parsed[i] == new_parsed[i]
+
+    compare(x, output)
     assert not os.path.exists("/vault.pass")
 
     # Check a second run
 
-    x = run_ansible(hosts="sampleclient", playbook="install.yml", vault_password="test")
+    x = run_ansible(hosts="sampleclient", playbook="install", become_file="vault", vault_password="test")
 
-    assert x == output
+    compare(x, output)
     assert not os.path.exists("/vault.pass")
-
-    # TODO: check for a broken file
-    assert False
