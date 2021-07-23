@@ -33,7 +33,9 @@
               <b-nav-item href="/deploy">
                 <router-link to="/deploy">Deploy</router-link>
               </b-nav-item>
-
+                <b-nav-item href="/deploy">
+                <router-link to="/deploy">Alerts</router-link>
+              </b-nav-item>
             </b-navbar-nav>
 
             <b-nav-item-dropdown right class="ml-3">
