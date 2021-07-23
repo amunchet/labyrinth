@@ -10,3 +10,4 @@ redis_data/**
 backend/uploads/**
 backend/output-labyrinth
 venv/**
+data/**
