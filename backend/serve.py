@@ -6,6 +6,7 @@ Sample Flask app
 import functools
 import os
 import json
+import socket
 
 import pymongo
 import redis
@@ -417,6 +418,53 @@ def get_comment(comment):
 
 # Utilities
 
+
+@app.route("/find_ip")
+@requires_auth_admin
+def find_ip():
+    """
+    Returns the IP for the docker container
+    """
+    return socket.gethostbyname(socket.gethostname()), 200
+
+@app.route("/list_directory/<type>")
+@requires_auth_admin
+def list_directory(type):
+    """
+    Lists directory
+    """
+
+    valid_type = ["ssh", "totp", "become", "telegraf", "ansible", "other"]
+    if type not in valid_type:
+        return "Invalid type", 446
+    
+    if not os.path.exists("/src/uploads/{}".format(type)):
+        return "No folder", 447
+    
+    return json.dumps(os.listdir("/src/uploads/{}".format(type))), 200
+
+
+@app.route("/get_ansible_file/<fname>")
+@requires_auth_admin
+def get_ansible_file(fname):
+    """
+    Returns the given ansible file
+    """
+    with open("/src/uploads/ansible/{}.yml".format(fname)) as f:
+        return f.read(), 200
+
+@app.route("/save_ansible_file/<fname>", methods=["POST"])
+@requires_auth_admin
+def save_ansible_file(fname, data):
+    """
+    Save Ansible File
+        - Have to check if it's a valid ansible file (from `ansible_helper`)
+    """
+    filename = "/src/uploads/ansible/{}.yml".format(fname)
+    if ansible_helper.check_file(filename=fname, raw=data, file_type="ansible"):
+        return "Success", 200
+    else:
+        return "Invalid ansible file", 471
 
 @app.route("/mac/<old_mac>/<new_mac>/")
 @requires_auth_write
