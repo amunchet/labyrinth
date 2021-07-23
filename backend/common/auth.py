@@ -18,11 +18,13 @@ AUTH0_DOMAIN = os.getenv("AUTH0DOMAIN")
 API_IDENTIFIER = os.getenv("APIURL")
 
 if AUTH0_DOMAIN == "" or AUTH0_DOMAIN == None:
-    raise Exception("No Auth0 Domain specified.  Please make sure your .env is correct")
+    raise Exception(
+        "No Auth0 Domain specified.  Please make sure your .env is correct")
 
 
 if API_IDENTIFIER == "" or API_IDENTIFIER == None:
-    raise Exception("No Auth0 API URL specified.  Please make sure your .env is correct")
+    raise Exception(
+        "No Auth0 API URL specified.  Please make sure your .env is correct")
 
 ALGORITHMS = ["RS256"]
 
@@ -98,8 +100,15 @@ def _requires_auth(f, permission="", error_func=""):
     @wraps(f)
     def decorated(*args, **kwargs):
         try:
-            token = get_token_auth_header()
-            jsonurl = urlopen("https://" + AUTH0_DOMAIN + "/.well-known/jwks.json")
+            if (
+                "override_token" in inspect.signature(f).parameters
+            ):  # If override token is present, will force it's use - this is used for Images
+                token = kwargs["override_token"]
+            else:
+                token = get_token_auth_header()
+
+            jsonurl = urlopen("https://" + AUTH0_DOMAIN +
+                              "/.well-known/jwks.json")
             jwks = json.loads(jsonurl.read())
             token_scopes = ""
             try:
@@ -170,7 +179,8 @@ def _requires_auth(f, permission="", error_func=""):
                     )
                 except jwt.ExpiredSignatureError:
                     raise AuthError(
-                        {"code": "token_expired", "description": "token is expired"}, 401
+                        {"code": "token_expired",
+                            "description": "token is expired"}, 401
                     )
                 except jwt.JWTClaimsError as exc:
                     print(exc)
@@ -199,7 +209,8 @@ def _requires_auth(f, permission="", error_func=""):
 
                 return f(*args, **kwargs)
             raise AuthError(
-                {"code": "invalid_header", "description": "Unable to find appropriate key"},
+                {"code": "invalid_header",
+                    "description": "Unable to find appropriate key"},
                 401,
             )
         except AuthError as exc:
