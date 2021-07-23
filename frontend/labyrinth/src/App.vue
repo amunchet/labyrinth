@@ -18,6 +18,10 @@
             <b-nav-item href="/dashboard">
               <router-link to="/dashboard">Dashboard</router-link>
             </b-nav-item>
+            
+            <b-nav-item href="/dashboard">
+              <router-link to="/dashboard">Checks</router-link>
+            </b-nav-item>
           </b-navbar-nav>
 
           <!-- Right aligned nav items -->
