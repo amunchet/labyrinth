@@ -13,6 +13,11 @@ RUN   apt-get update && apt-get -y install python3 \
         git
 
 
+RUN wget -qO- https://repos.influxdata.com/influxdb.key | apt-key add -
+RUN echo "deb https://repos.influxdata.com/debian focal stable" | tee /etc/apt/sources.list.d/influxdb.list
+
+RUN apt update && apt -y install telegraf
+
 COPY requirements.txt /requirements.txt
 RUN pip3 install -r /requirements.txt
 
