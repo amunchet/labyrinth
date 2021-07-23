@@ -3,41 +3,43 @@
     <b-row>
       <b-col>
         <h4>Deployment Files</h4>
-        All of these must be encrypted vault files.
+        These must be encrypted vault files.  Select the ones you need (for example, you might be deploying without SSH keys)
         <hr />
 
         <b-row>
-          <b-col> SSH Key </b-col>
+          <b-col > SSH Key </b-col>
           <b-col>
-            <b-select :options="ssh_key_files" />
+            <b-select disabled :options="ssh_key_files" />
           </b-col>
           <b-col cols="4">
             <b-form-file
+              disabled
               class="float-left"
               v-model="ssh_key_file"
               placeholder="..."
               drop-placeholder="Drop here..."
             ></b-form-file> </b-col
           ><b-col cols="1">
-            <b-button variant="link" class="m-0 mt-2 p-0 float-left">
+            <b-button disabled variant="link" class="m-0 mt-2 p-0 float-left">
               <font-awesome-icon icon="times" size="1x" />
             </b-button>
           </b-col>
         </b-row>
-        <b-row>
+        <b-row >
           <b-col> TOTP Key </b-col>
           <b-col>
-            <b-select />
+            <b-select disabled />
           </b-col>
           <b-col cols="4">
             <b-form-file
+              disabled
               v-model="file1"
               placeholder="..."
               drop-placeholder="Drop here..."
             ></b-form-file>
           </b-col>
           <b-col cols="1">
-            <b-button variant="link" class="m-0 mt-2 p-0 float-left">
+            <b-button disabled variant="link" class="m-0 mt-2 p-0 float-left">
               <font-awesome-icon icon="times" size="1x" />
             </b-button>
           </b-col>
@@ -60,6 +62,17 @@
             </b-button>
           </b-col>
         </b-row>
+        <b-row>
+          <b-col>
+          <hr />
+          Become password needs to be in the following format: <br />
+          <code class="text-left">
+            ---<br />
+            ansible_ssh_pass: "XXXXXXX"
+          </code>
+          </b-col>
+        </b-row>
+        <hr />
         <b-row>
           <b-col> Telegraf conf file </b-col>
           <b-col>
@@ -121,34 +134,55 @@
         </div>
         <hr />
         <div class="text-left">
-          To create ansible vault files, use the following command: 
-          ```
+          To create ansible vault files, use the following command:
+          <code>
           ansible-vault create [FILENAME]
-          ```
-          New Vault Password: XXXXXXX
+          </code><br />
+          <i>New Vault Password: XXXXXXX</i>
           
           [Edit file]
         </div>
       </b-col>
       <b-col>
-        <h2>Deploy</h2>
+        <div class="overflow-hidden">
+        <h2 v-if="!isTesting" class="float-left">Deploy
+        </h2>
+        <h2 class="float-left text-success" v-else>TESTING</h2>
+        <div class="float-right mt-1">
+          <b-button variant="success" v-if="!isTesting" @click="isTesting = !isTesting">Enter Test Mode</b-button>
+          <b-button variant="primary" v-else @click="isTesting = !isTesting">Enter Production Mode</b-button>
+        </div>
+        </div>
+        <div class="mb-4 mt-2" v-if='!isTesting'>
         Host: <b-select />
-        <h5 class="mt-2 mb-2">Ansible playbook</h5>
-        Validating playbook...
-        <textarea /><br />
-
+        </div>
+        <div v-else class='mb-4 mt-2'>
+          Host: <br /><b>sampleclient</b>
+        </div>
+        <h5 class="mt-2">Ansible playbook</h5>
+        <b-select class="mt-2 mb-2"/>
+        <textarea />
+        <div class="overflow-hidden">
+        <b-button variant="success" class="mb-2 float-right">
+          <font-awesome-icon icon="save" size="1x" />
+        </b-button>
+        </div>
+        <div>
         Password:
         <b-input type="password" />
+        </div>
         <hr />
-        <b-button variant="success">Deploy</b-button>
+
+        <b-button v-if="isTesting" variant="success">Deploy to sampleclient</b-button>
+        <b-button v-else variant="primary">Deploy to hosts</b-button>
         <br />
-        Test deployment in docker...
       </b-col>
     </b-row>
   </b-container>
 </template>
 <script>
 import Helper from "@/helper";
+import styles from "@/assets/variables.scss";
 export default {
   name: "Deploy",
   watch: {
@@ -183,6 +217,13 @@ export default {
     return {
       ssh_key_file: "",
       ssh_key_files: [],
+      isTesting: false,
+      options:[
+        {
+          text: "Test Mode",
+          value: styles.green,
+        }
+      ]
     };
   },
   mounted: /* istanbul ignore next */ function () {
@@ -195,6 +236,7 @@ export default {
 };
 </script>
 <style lang="scss" scoped>
+@import "@/assets/variables.scss";
 textarea {
   width: 100%;
   min-height: 400px;
@@ -207,4 +249,11 @@ textarea {
   text-align: left;
   margin-left: 2rem;
 }
+.cursor{
+  cursor: pointer;
+}
+.green{
+  color: $green;
+}
+
 </style>
