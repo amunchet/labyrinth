@@ -9,7 +9,8 @@ RUN apt update && apt -y install \
     openssh-server \
     dos2unix \
     curl \
-    gnupg
+    gnupg \
+    sudo
 
 RUN echo "root:test" | chpasswd
 
