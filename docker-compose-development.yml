@@ -65,15 +65,7 @@ services:
     env_file: 
       - nginx/.env
 
-  # Test Client
-  sampleclient:
-    build: "test_client"
-    networks:
-      - labyrinth
-    volumes:
-      - ./test_client:/src
-      - ./test_client/sshd_config:/etc/ssh/sshd_config
-  
+
   # Mongo
   mongo:
     image: mongo
@@ -117,7 +109,16 @@ services:
     image: vulnerables/web-dvwa
     networks:
       - labyrinth
-
+      
+  # Test Client
+  sampleclient:
+    build: "test_client"
+    networks:
+      - labyrinth
+    volumes:
+      - ./test_client:/src
+      - ./test_client/sshd_config:/etc/ssh/sshd_config
+  
 networks:
   labyrinth:
     external: true
