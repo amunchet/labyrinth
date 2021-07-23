@@ -13,11 +13,17 @@ ansible_runner.run(\
 
 from ansible_helper import check_file
 
-def test_list_keys():
+def test_list_files():
     """
-    Lists different types of keys
-        - SSH
+    Lists different types of key files
+        - SSH Keys
+        - Ansible
         - etc.
+    """
+
+def test_find_ip():
+    """
+    Tests finding the IP of the labyrinth network
     """
 
 def test_check_file():
@@ -59,27 +65,13 @@ def test_check_file():
     assert check_file("/src/test/sample_telegraf.json", "other")
 
 
-
-
-    
-
 def test_create_vault_password_file():
     """Tests creating the vault password file"""
 
 def test_check_vault_password_file():
     """If the vault password file is present when it shouldn't be, throw a fit"""
 
-def test_deploy():
+def test_run_ansible():
     """
-    Tests deploying a new telegraf installation
-        - An annoying problem is this will differ depending on host (ARM get a different deploy than Ubuntu, etc.)
+    Tests running a given ansible file and getting expected output
     """
-
-    # A major point will be hostname - this might be the MAC Address that we can see
-
-
-def test_deploy_update():
-    """Tests deploying an update"""
-
-def test_restart():
-    """Tests restarting a client that's failed for whatever reason"""
