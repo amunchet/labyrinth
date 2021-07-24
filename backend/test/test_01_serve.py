@@ -235,6 +235,16 @@ def test_create_edit_host(setup):
 
     assert c[1]["subnet"] == "192.168.10"
 
+def test_list_hosts(setup):
+    """Lists hosts"""
+    test_create_edit_host(setup)
+    a = unwrap(serve.list_hosts)()
+    assert a[1] == 200
+    b = json.loads(a[0])
+
+    assert b
+    assert b[0]["class"] == "health"
+    assert b[0]["ip"] == "192.168.10.176"
 
 def test_create_edit_link(setup):
     """Creates/Edits a link between two subnets"""
