@@ -1,7 +1,7 @@
 <template>
-  <div :class="determineClass()" v-if="(isParent || service_filter == '' || (parent + name).indexOf(service_filter) != -1) && (name != '' && typeof data == 'object' || !minimized)"> 
+  <div :class="determineClass()" :id="name" v-if="(isParent || service_filter == '' || (parent + name).indexOf(service_filter) != -1) && (name != '' && typeof data == 'object' || !minimized)"> 
     <h2 v-if="name != '' && typeof data == 'object'">
-      <b-button variant="link" @click="minimized = !minimized">
+      <b-button variant="link" class="mt-0 pt-0 pb-0 mb-0" @click="minimized = !minimized">
         <font-awesome-icon v-if="minimized" icon="caret-up" size="2x" />
         <font-awesome-icon v-if="!minimized" icon="caret-down" size="2x" />
       </b-button>
@@ -19,7 +19,7 @@
 
       <div v-if="typeof data == 'object' && Array.isArray(data)">
         <div class="overflow-hidden">
-          <b-button class="float-left" variant="link" v-if="!minimized"
+          <b-button class="float-left m-0 p-0" variant="link" v-if="!minimized"
             >+ {{ name }}</b-button
           >
         </div>
@@ -169,6 +169,23 @@ export default {
 };
 </script>
 <style lang="scss" scoped>
+
+// Specific styles
+#outputs{
+  max-height: 400px;
+  overflow-y: scroll;
+}
+
+#processors{
+  max-height: 400px;
+  overflow-y: scroll;
+}
+
+#inputs{
+  max-height: 400px;
+  overflow-y: scroll;
+}
+
 .comment:first-letter {
   text-transform: capitalize;
 }
@@ -194,6 +211,7 @@ h2 {
 }
 .main {
   margin: 0.5rem;
+
 }
 .array{
   margin-bottom: 1rem;

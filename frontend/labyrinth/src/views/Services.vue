@@ -4,21 +4,15 @@
       <b-col cols="7">
         <h4>Services</h4>
 
-        <b-nav-form>
+        <b-row>
           <b-form-input
-            size="sm"
-            class="mr-sm-2"
-            placeholder="Search"
+            placeholder="Search (press tab to filter)"
             v-model="temp_filter"
             @blur="service_filter = temp_filter"
           ></b-form-input>
-          <b-button
-            size="sm"
-            class="my-2 my-sm-0"
-            @click="service_filter = temp_filter"
-            >Search</b-button
-          >
-        </b-nav-form>
+          
+        </b-row>
+        <hr />
         <div v-if="loaded">
         <ServiceComponent
           v-for="(section, idx) in data"
@@ -34,13 +28,14 @@
       </b-col>
       <b-col>
         <h4>Created Configuration File</h4>
-        Hosts: <b-select />
+        <b-select />
         <b-button class="m-2">Save</b-button>
         <hr />
         <h4>Test Configuration File</h4>
-        <b-button class="m-2 mt-4">Run Test</b-button>
         <br />
         <textarea />
+
+        <b-button class="m-2 mt-4">Run Test</b-button>
       </b-col>
     </b-row>
   </b-container>
@@ -85,4 +80,9 @@ export default {
 };
 </script>
 
-<style scoped></style>
+<style scoped>
+textarea{
+  width: 100%;
+  min-height: 400px;
+}
+</style>
