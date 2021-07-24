@@ -224,10 +224,12 @@ export default {
       })
     },
     savePlaybook: /* istanbul ignore next */ function(){
+
+      this.loadings["save_playbook"] = 1
+      this.$forceUpdate()
       var auth = this.$auth
       var formData = new FormData()
       formData.append("data", this.playbook_contents)
-      this.loadings["save_playbook"] = 1
       Helper.apiPost("save_ansible_file/", this.selected_playbook, "", auth, formData).then(res=>{
         this.$store.commit('updateError', res)
         this.loadings["save_playbook"] = 0
