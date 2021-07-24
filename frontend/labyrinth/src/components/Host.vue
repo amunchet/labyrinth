@@ -3,7 +3,7 @@
     <div class="top">
       <span>{{ ip }}</span>
       <br />
-      <component :is="myComponent[icon]" />
+      <component :is="myComponent[icon.charAt(0).toUpperCase() + icon.slice(1)]" />
     </div>
     <div class="bottom" v-if="show_ports != 0">
       <div class="table mb-0">
@@ -59,11 +59,13 @@ export default {
         "Linux",
         "NAS",
         "Phone",
+        "Printer",
+        "CellPhone",
         "Router",
         "Speaker",
         "Tower",
         "VMWare",
-        "Windows",
+        "Microsoft",
         "Wireless",
       ],
       components: {},

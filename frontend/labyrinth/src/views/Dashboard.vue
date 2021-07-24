@@ -33,8 +33,8 @@
         v-for="(subnet, i) in full_data"
         v-bind:key="i"
       >
-        <div class="left">
-          <div class="corner" :ref="'end_' + i">
+        <div class="left" v-if="(subnet.origin.ip != undefined && subnet.origin.ip != '') || (subnet.links.ip != undefined && subnet.links.ip != '')">
+          <div class="corner" :ref="'end_' + i" >
             <Host
               :ip="subnet.origin.ip"
               :icon="subnet.origin.icon"
