@@ -8,10 +8,11 @@
 
         <b-row>
           <b-col > SSH Key </b-col>
+        </b-row><b-row>
           <b-col>
-            <b-select disabled :options="ssh_key_files" />
+            <b-select disabled v-if="files_list['ssh'] != undefined" :options="files_list['ssh']" />
           </b-col>
-          <b-col cols="4">
+          <b-col>
             <b-form-file
               disabled
               class="float-left"
@@ -27,10 +28,11 @@
         </b-row>
         <b-row >
           <b-col> TOTP Key </b-col>
+        </b-row><b-row>
           <b-col>
-            <b-select disabled />
+            <b-select  v-if="files_list['totp'] != undefined" :options="files_list['totp']" disabled />
           </b-col>
-          <b-col cols="4">
+          <b-col>
             <b-form-file
               disabled
               v-model="file1"
@@ -46,10 +48,11 @@
         </b-row>
         <b-row>
           <b-col> Become Password </b-col>
+        </b-row><b-row>
           <b-col>
-            <b-select />
+            <b-select  v-if="files_list['become'] != undefined" :options="files_list['become']" />
           </b-col>
-          <b-col cols="4">
+          <b-col >
             <b-form-file
               v-model="file1"
               placeholder="..."
@@ -75,10 +78,13 @@
         <hr />
         <b-row>
           <b-col> Telegraf conf file </b-col>
+        </b-row><b-row>
           <b-col>
-            <b-select />
+            <b-select
+              v-if="files_list['telegraf'] != undefined" :options="files_list['telegraf']"
+            />
           </b-col>
-          <b-col cols="4">
+          <b-col >
             <b-form-file
               v-model="file1"
               placeholder="..."
@@ -92,29 +98,15 @@
           </b-col>
         </b-row>
         <b-row>
-          <b-col> Ansible Files (optional) </b-col>
-          <b-col>
-            <b-select />
-          </b-col>
-          <b-col cols="4">
-            <b-form-file
-              v-model="file1"
-              placeholder="..."
-              drop-placeholder="Drop here..."
-            ></b-form-file>
-          </b-col>
-          <b-col cols="1">
-            <b-button variant="link" class="m-0 mt-2 p-0 float-left">
-              <font-awesome-icon icon="times" size="1x" />
-            </b-button>
-          </b-col>
-        </b-row>
-        <b-row>
+          
           <b-col> Other Ansible Files (optional) </b-col>
+        </b-row><b-row>
           <b-col>
-            <b-select />
+            <b-select 
+            v-if="files_list['other'] != undefined" :options="files_list['other']"
+            />
           </b-col>
-          <b-col cols="4">
+          <b-col>
             <b-form-file
               v-model="file1"
               placeholder="..."
@@ -154,18 +146,23 @@
         </div>
         </div>
         <div class="mb-4 mt-2" v-if='!isTesting'>
-        Host: <b-select />
+        Host: <b-select :options="hosts" />
         </div>
         <div v-else class='mb-4 mt-2'>
           Host: <br /><b>sampleclient</b>
         </div>
         <h5 class="mt-2">Ansible playbook</h5>
-        <b-select class="mt-2 mb-2"/>
-        <textarea />
+        <b-select class="mt-2 mb-2" v-if="files_list['ansible'] != undefined" :options="files_list['ansible']" v-model="selected_playbook" />
+        <textarea v-model="playbook_contents" v-if="loadings.playbook == undefined || loadings.playbook == 0"/>
+        <div v-else class="text-center">
+          <b-spinner class="ml-auto mr-auto mt-4" /></div>
         <div class="overflow-hidden">
-        <b-button variant="success" class="mb-2 float-right">
+        <b-button variant="success" class="mb-2 float-right" @click="savePlaybook()" v-if="loadings.save_playbook == undefined || loadings.save_playbook == 0">
           <font-awesome-icon icon="save" size="1x" />
         </b-button>
+        <div class="mb-2 float-right" v-else>
+          <b-spinner />
+        </div>
         </div>
         <div>
         Password:
@@ -199,24 +196,76 @@ export default {
             this.$store.commit("updateError", e);
           });
       }
+      
+
     },
+
+    //TODO: Finish other uploads
+    selected_playbook: function(val){
+      if(val != ""){
+        this.loadPlaybook(val)
+      }
+    }
+
+
   },
   methods: {
-    load_ssh_keys: /* istanbul ignore next */ function () {
+    loadPlaybook: function(){
+      var auth = this.$auth
+      var loadings = this.loadings
+      this.loadings["playbook"] = 1
+      Helper.apiCall("get_ansible_file", this.selected_playbook, auth).then(res=>{
+        this.playbook_contents = res
+        delete loadings.playbook 
+        this.$forceUpdate()
+        console.log("loadged")
+      }).catch(e=>{
+        this.$store.commit('updateError', e)
+      })
+    },
+    savePlaybook: /* istanbul ignore next */ function(){
+      var auth = this.$auth
+      var formData = new FormData()
+      formData.append("data", this.playbook_contents)
+      this.loadings["save_playbook"] = 1
+      Helper.apiPost("save_ansible_file/", this.selected_playbook, "", auth, formData).then(res=>{
+        this.$store.commit('updateError', res)
+        this.loadings["save_playbook"] = 0
+        this.loadPlaybook()
+      }).catch(e=>{
+        this.$store.commit('updateError', e)
+      })
+    },
+    loadFilesList: /* istanbul ignore next */ async function (type) {
       var auth = this.$auth;
-      Helper.apiCall("uploads", "ssh", auth)
+      Helper.apiCall("uploads", type, auth)
         .then((res) => {
-          this.ssh_key_files = res;
+          this.files_list[type]= res;
         })
         .catch((e) => {
           this.$store.commit("updateError", e);
         });
     },
+    loadHosts: /* istanbul ignore next */ function(){
+      var auth = this.$auth
+      Helper.apiCall("hosts", "", auth).then(res=>{
+        this.hosts = res
+      }).catch(e=>{
+        this.$store.commit('updateError', e)
+      })
+    }
   },
   data() {
     return {
+      file1: "",
       ssh_key_file: "",
-      ssh_key_files: [],
+      files_list: {},
+      hosts: [],
+      selected_playbook: "",
+      playbook_contents: "",
+
+      loadings: {},
+
       isTesting: false,
       options:[
         {
@@ -226,9 +275,18 @@ export default {
       ]
     };
   },
-  mounted: /* istanbul ignore next */ function () {
+  mounted: /* istanbul ignore next */ async function () {
     try {
-      this.load_ssh_keys();
+
+      await this.loadFilesList("ansible");
+      this.loadFilesList("ssh");
+      this.loadFilesList("become");
+      this.loadFilesList("other");
+      this.loadFilesList("telegraf");
+      this.loadFilesList("totp");
+      
+      
+      this.loadHosts()
     } catch (e) {
       this.$store.commit("updateError", e);
     }

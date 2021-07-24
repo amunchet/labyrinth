@@ -282,6 +282,12 @@ def create_edit_host(inp=""):
     mongo_client["labyrinth"]["hosts"].insert_one(host)
     return "Success", 200
 
+@app.route("/hosts/")
+@requires_auth_read
+def list_hosts():
+    """Lists all hosts"""
+    return json.dumps([x for x in mongo_client["labyrinth"]["hosts"].find({})], default=str), 200
+
 
 @app.route("/host/<host>", methods=["DELETE"])
 @requires_auth_write
@@ -450,17 +456,25 @@ def get_ansible_file(fname):
     """
     Returns the given ansible file
     """
-    with open("/src/uploads/ansible/{}.yml".format(fname)) as f:
+    parsed = fname.replace(".yml", "")
+    with open("/src/uploads/ansible/{}.yml".format(parsed)) as f:
         return f.read(), 200
 
-@app.route("/save_ansible_file/<fname>", methods=["POST"])
+@app.route("/save_ansible_file/<fname>/", methods=["POST"])
 @requires_auth_admin
-def save_ansible_file(fname, data):
+def save_ansible_file(fname, inp_data=""):
     """
     Save Ansible File
         - Have to check if it's a valid ansible file (from `ansible_helper`)
     """
-    filename = "/src/uploads/ansible/{}.yml".format(fname)
+    if inp_data != "":
+        data = inp_data
+    elif request.method == "POST": # pragma: no cover
+        data = request.form.get("data")
+    else:
+        return "Invalid request", 417
+
+    filename = "/src/uploads/ansible/{}.yml".format(fname.replace(".yml", ""))
     if ansible_helper.check_file(filename=fname, raw=data, file_type="ansible"):
         return "Success", 200
     else:
