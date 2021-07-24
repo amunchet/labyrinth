@@ -159,6 +159,8 @@ export default {
 </script>
 
 <style lang="scss">
+@import "@/assets/variables.scss";
+
 #app {
   font-family: Avenir, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -179,6 +181,12 @@ export default {
     }
   }
 }
+
+.router-link-active{
+    color: $darkblue;
+    font-weight: bold;
+}
+
 .top_logo {
   position: absolute;
   left: 20px;
