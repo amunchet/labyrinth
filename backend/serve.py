@@ -520,18 +520,27 @@ def dashboard():
     for host in [x for x in hosts if "services" in x]:
         service_results = {}
         for service in host["services"]:
-            latest_metric = mongo_client["labyrinth"]["metrics"].find_one(
-                {"name": service, "tags.host": host["mac"]},
-                sort=[("timestamp", pymongo.DESCENDING)]
-            )
 
-            found_service = mongo_client["labyrinth"]["services"].find_one({"name" : service})
-            
-            if latest_metric is None or found_service is None:
-                result = False
+            if service.strip() == "open_ports" or service.strip() == "closed_ports":
+              latest_metric = mongo_client["labyrinth"]["metrics"].find_one(
+                  {"name": "open_ports", "tags.host": host["mac"]},
+                  sort=[("timestamp", pymongo.DESCENDING)]
+              )
+              found_service = service
+
+              result = mc.judge_port(latest_metric, service, host)
             else:
-                result = mc.judge(latest_metric, found_service)
+              latest_metric = mongo_client["labyrinth"]["metrics"].find_one(
+                  {"name": service, "tags.host": host["mac"]},
+                  sort=[("timestamp", pymongo.DESCENDING)]
+              )
+              found_service = mongo_client["labyrinth"]["services"].find_one({"name" : service})
             
+              if latest_metric is None or found_service is None:
+                  result = False
+              else:
+                  result = mc.judge(latest_metric, found_service)
+              
             temp = {
                 "name" : service,
                 "state" : result

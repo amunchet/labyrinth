@@ -30,24 +30,20 @@ def judge(metric, service):
     logger.debug("Wrong service type")
     return False
 
-def judge_port(metric, service):
-    """Judge a port service"""
-    if "fields" not in metric or "ports" not in metric["fields"]:
-        return False
-    
-    if "state" not in service:
-        return False
-
-    if "port" not in service:
+def judge_port(metric, service, host):
+    """
+    Judge a port service
+      - Is this for open or closed ports?
+      - Will need to check with the host to see what it should be
+    """
+    if metric is None:
         return False
 
-    if service["state"] == "open" and service["port"] in metric["fields"]["ports"]:
-        return True
-    
-    if service["state"] == "closed" and service["port"] not in metric["fields"]["ports"]:
-        return True
-    
-    return False
+    if service == "open_ports":
+        return bool([1 for x in metric["fields"]["ports"] if x in host["open_ports"]])
+    else:
+        return host["open_ports"] == metric["fields"]["ports"]
+
 
 def judge_check(metric, service):
     """Judges a normal check"""
