@@ -50,7 +50,7 @@
           <b-col> Become Password </b-col>
         </b-row><b-row>
           <b-col>
-            <b-select  v-if="files_list['become'] != undefined" :options="files_list['become']" />
+            <b-select  v-if="files_list['become'] != undefined" :options="files_list['become']" v-model="selected_become" />
           </b-col>
           <b-col >
             <b-form-file
@@ -146,7 +146,7 @@
         </div>
         </div>
         <div class="mb-4 mt-2" v-if='!isTesting'>
-        Host: <b-select :options="hosts" />
+        Host: <b-select v-model="selected_host" :options="hosts" />
         </div>
         <div v-else class='mb-4 mt-2'>
           Host: <br /><b>sampleclient</b> <br />(Backend ip is {{ip}})
@@ -166,13 +166,15 @@
         </div>
         <div>
         Vault Password:
-        <b-input type="password" />
+        <b-input type="password" v-model="vault_password" />
         </div>
         <hr />
 
-        <b-button v-if="isTesting" variant="success">Deploy to sampleclient</b-button>
-        <b-button v-else variant="primary">Deploy to hosts</b-button>
+        <b-button v-if="isTesting" variant="success" @click="runPlaybook()">Deploy to sampleclient</b-button>
+        <b-button v-else variant="primary" @click="runPlaybook()">Deploy to hosts</b-button>
         <br />
+        <div class="playbook_result" v-html="playbook_result" v-if="playbook_result && playbook_loaded"></div>
+        <b-spinner class="m-2" v-if="!playbook_loaded" />
       </b-col>
     </b-row>
   </b-container>
@@ -182,6 +184,38 @@ import Helper from "@/helper";
 import styles from "@/assets/variables.scss";
 export default {
   name: "Deploy",
+  data() {
+    return {
+      file1: [],
+      ssh_key_file: [],
+
+      ip: "",
+
+      files_list: {},
+
+      hosts: [],
+      selected_host: "",
+
+      vault_password: "",
+
+      selected_playbook: "",
+      selected_become: "",
+      playbook_contents: "",
+      playbook_loaded: true,
+
+      playbook_result: "",
+
+      loadings: {},
+
+      isTesting: false,
+      options:[
+        {
+          text: "Test Mode",
+          value: styles.green,
+        }
+      ]
+    }
+  },
   watch: {
     ssh_key_file: function (val) {
       if (val != "") {
@@ -239,6 +273,35 @@ export default {
       })
     },
 
+    runPlaybook: /* istanbul ignore next */
+    function(){
+      var auth = this.$auth
+      var formData = new FormData()
+      let host
+      if(this.isTesting){
+        host = "sampleclient"
+      }else{
+        host = this.selected_host
+      }
+
+      this.playbook_loaded = false
+      var data = {
+        hosts: host,
+        playbook: this.selected_playbook.replace(".yml", ""),
+        vault_password: this.vault_password,
+        become_file: this.selected_become.replace(".yml", ""),
+      }
+      formData.append("data", JSON.stringify(data))
+
+      Helper.apiPost("ansible_runner", "", "", auth, formData).then(res=>{
+        this.playbook_result = res
+        this.playbook_loaded = true
+      }).catch(e=>{
+        this.$store.commit('updateError', e)
+        this.playbook_loaded = true
+      })
+    },
+
     loadIP: /* istanbul ignore next */ function(){
       var auth = this.$auth
       Helper.apiCall("find_ip", "", auth).then(res=>{
@@ -268,29 +331,7 @@ export default {
       })
     }
   },
-  data() {
-    return {
-      file1: [],
-      ssh_key_file: [],
-
-      ip: "",
-
-      files_list: {},
-      hosts: [],
-      selected_playbook: "",
-      playbook_contents: "",
-
-      loadings: {},
-
-      isTesting: false,
-      options:[
-        {
-          text: "Test Mode",
-          value: styles.green,
-        }
-      ]
-    };
-  },
+  
   mounted: /* istanbul ignore next */ async function () {
     try {
 
@@ -312,6 +353,16 @@ export default {
 </script>
 <style lang="scss" scoped>
 @import "@/assets/variables.scss";
+
+.playbook_result{
+  height: 400px;
+  overflow-y: scroll;
+  margin-top: 2rem;
+  background-color: lightgrey;
+  padding: 1rem;
+  
+}
+
 textarea {
   width: 100%;
   min-height: 400px;

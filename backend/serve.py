@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Sample Flask app
+Labyrinth Web backend
 """
 # Permissions scope names
 import functools
@@ -480,6 +480,28 @@ def save_ansible_file(fname, inp_data=""):
     else:
         return "Invalid ansible file", 471
 
+
+
+# Ansible runner
+@app.route("/ansible_runner/", methods=["POST"])
+@requires_auth_admin
+def run_ansible(inp_data=""):
+    if inp_data != "":
+        data = inp_data
+    elif request.method == "POST": #pragma: no cover
+        data = request.form.get("data")
+    else: #pragma: no cover
+        return "Invalid data", 481
+    
+    data = json.loads(data)
+    if "hosts" not in data or "playbook" not in data or "vault_password" not in data or "become_file" not in data:
+        return "Invalid data", 482
+
+
+    return ansible_helper.run_ansible(data["hosts"], data["playbook"], data["vault_password"], data["become_file"]), 200
+
+
+
 @app.route("/mac/<old_mac>/<new_mac>/")
 @requires_auth_write
 def update_mac(old_mac, new_mac):
@@ -615,19 +637,6 @@ def insert_metric(inp=""):
     return "Success", 200
 
 
-
-# Ansible
-"""
->>> a = ansible_runner.run(private_data_dir="/src/test/ansible", playbook="install.yml", cmdline="--vault-password-file ../vault.pass")
->>> b = "\n".join([x for x in a.stdout])
->>> c = aconv().convert(b).replace("\x1b[", "")
->>> with open('test.html', 'w') as f:
-...     f.write(c)
-...
-3398
->>> aconv
-<class 'ansi2html.converter.Ansi2HTMLConverter'>
-"""
 
 if __name__ == "__main__":  # Run the Flask server in development mode
     app.debug = True
