@@ -1,6 +1,17 @@
 #!/usr/bin/env python3
 """
 Ansible helper functions
+
+>>> a = ansible_runner.run(private_data_dir="/src/test/ansible", playbook="install.yml", cmdline="--vault-password-file ../vault.pass")
+>>> b = "\n".join([x for x in a.stdout])
+>>> c = aconv().convert(b).replace("\x1b[", "")
+>>> with open('test.html', 'w') as f:
+...     f.write(c)
+...
+3398
+>>> aconv
+<class 'ansi2html.converter.Ansi2HTMLConverter'>
+
 """
 import os
 import subprocess
@@ -135,7 +146,7 @@ def run_ansible(hosts: List, playbook: str, vault_password: str, become_file: st
     # Become file
     old_become = "{}/{}.yml".format(BECOME_DIR, become_file)
     if not os.path.exists(old_become):
-        raise Exception("Become file not found")
+        raise Exception("Become file not found" + str(old_become))
 
     shutil.copy(old_become, "{}/vars/{}.yml".format(RUN_DIR, become_file))
 
@@ -145,16 +156,17 @@ def run_ansible(hosts: List, playbook: str, vault_password: str, become_file: st
         f.write(vault_password)
 
     # Run ansible and return HTML
-    a = ansible_runner.run(\
-        private_data_dir=RUN_DIR, \
-        playbook="{}.yml".format(playbook), \
-        cmdline="--vault-password-file ../vault.pass")
-
-
-    # Delete Vault Password
-    if os.path.exists("{}/vault.pass".format(RUN_DIR)):
-        os.remove("{}/vault.pass".format(RUN_DIR))
-    
+    try:
+        a = ansible_runner.run(\
+            private_data_dir=RUN_DIR, \
+            playbook="{}.yml".format(playbook), \
+            cmdline="--vault-password-file ../vault.pass")
+        raise Exception("Done.")
+    except Exception:
+        # Delete Vault Password
+        if os.path.exists("{}/vault.pass".format(RUN_DIR)):
+            os.remove("{}/vault.pass".format(RUN_DIR))
+      
     if os.path.exists("/vault.pass"):
         os.remove("/vault.pass")
 
