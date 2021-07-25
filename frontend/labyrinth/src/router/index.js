@@ -52,6 +52,24 @@ const routes = [
     component: () =>
       import(/* webpackChunkName: "deploy" */ "../views/Deploy.vue"),
   },
+{
+    path: "/alerts",
+    name: "Alerts",
+    // route level code-splitting
+    // this generates a separate chunk (alerts.[hash].js) for this route
+    // which is lazy-loaded when the route is visited.
+    component: () =>
+      import(/* webpackChunkName: "alerts" */ "../views/Alerts.vue"),
+  },
+{
+    path: "/checks",
+    name: "Checks",
+    // route level code-splitting
+    // this generates a separate chunk (checks.[hash].js) for this route
+    // which is lazy-loaded when the route is visited.
+    component: () =>
+      import(/* webpackChunkName: "checks" */ "../views/Checks.vue"),
+  },
 ];
 
 const router = new VueRouter({
