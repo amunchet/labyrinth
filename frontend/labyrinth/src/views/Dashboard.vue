@@ -6,7 +6,7 @@
 
     <CreateEditHost :inp_host = "selected_host" @update="loadData()"/>
     <HostMetric @update="loadData()" />
-
+    <div v-if="!loading">
     <div class="outer_left">
       <Connector
         :verticals="connectorBottom[0]"
@@ -90,6 +90,8 @@
         </div>
       </div>
     </div>
+    </div>
+    <b-spinner v-else class="m-2" />
   </div>
 </template>
 <script>
@@ -102,6 +104,8 @@ import HostMetric from '@/components/HostMetric'
 export default {
   data() {
     return {
+      loading: false,
+
       offsetTop: [],
       connectorBottom: [],
       connector_count: 1,
@@ -121,10 +125,11 @@ export default {
   methods: {
     loadData: /* istanbul ignore next */ function () {
       var auth = this.$auth;
-
+      this.loading = true
       Helper.apiCall("dashboard", "", auth)
         .then((res) => {
           this.full_data = res;
+          this.loading = false
           this.findTop();
         })
         .catch((e) => {
