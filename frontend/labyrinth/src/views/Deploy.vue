@@ -149,7 +149,7 @@
         Host: <b-select :options="hosts" />
         </div>
         <div v-else class='mb-4 mt-2'>
-          Host: <br /><b>sampleclient</b>
+          Host: <br /><b>sampleclient</b> <br />(Backend ip is {{ip}})
         </div>
         <h5 class="mt-2">Ansible playbook</h5>
         <b-select class="mt-2 mb-2" v-if="files_list['ansible'] != undefined" :options="files_list['ansible']" v-model="selected_playbook" />
@@ -165,7 +165,7 @@
         </div>
         </div>
         <div>
-        Password:
+        Vault Password:
         <b-input type="password" />
         </div>
         <hr />
@@ -210,7 +210,7 @@ export default {
 
   },
   methods: {
-    loadPlaybook: function(){
+    loadPlaybook: /* istanbul ignore next */ function(){
       var auth = this.$auth
       var loadings = this.loadings
       this.loadings["playbook"] = 1
@@ -218,11 +218,11 @@ export default {
         this.playbook_contents = res
         delete loadings.playbook 
         this.$forceUpdate()
-        console.log("loadged")
       }).catch(e=>{
         this.$store.commit('updateError', e)
       })
     },
+
     savePlaybook: /* istanbul ignore next */ function(){
 
       this.loadings["save_playbook"] = 1
@@ -238,11 +238,22 @@ export default {
         this.$store.commit('updateError', e)
       })
     },
+
+    loadIP: /* istanbul ignore next */ function(){
+      var auth = this.$auth
+      Helper.apiCall("find_ip", "", auth).then(res=>{
+        this.ip = res
+      }).catch(e=>{
+        this.$store.commit('updateError', e)
+      })
+    },
+
     loadFilesList: /* istanbul ignore next */ async function (type) {
       var auth = this.$auth;
       Helper.apiCall("uploads", type, auth)
         .then((res) => {
           this.files_list[type]= res;
+          this.$forceUpdate()
         })
         .catch((e) => {
           this.$store.commit("updateError", e);
@@ -259,8 +270,11 @@ export default {
   },
   data() {
     return {
-      file1: "",
-      ssh_key_file: "",
+      file1: [],
+      ssh_key_file: [],
+
+      ip: "",
+
       files_list: {},
       hosts: [],
       selected_playbook: "",
@@ -287,6 +301,7 @@ export default {
       this.loadFilesList("telegraf");
       this.loadFilesList("totp");
       
+      this.loadIP()
       
       this.loadHosts()
     } catch (e) {

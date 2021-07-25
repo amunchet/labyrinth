@@ -425,7 +425,7 @@ def get_comment(comment):
 # Utilities
 
 
-@app.route("/find_ip")
+@app.route("/find_ip/")
 @requires_auth_admin
 def find_ip():
     """
