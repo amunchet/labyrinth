@@ -134,6 +134,9 @@ def _requires_auth(f, permission="", error_func=""):
 
             # Checks for correct permissions that are passed in
             unverified_claims = jwt.get_unverified_claims(token)
+            
+            client_id = unverified_claims.get("azp")
+
             if unverified_claims.get("permissions"):
                 token_scopes = unverified_claims["permissions"]
                 found = False
@@ -206,6 +209,9 @@ def _requires_auth(f, permission="", error_func=""):
                     "scopes" in inspect.signature(f).parameters
                 ):  # Passes out the scopes if the decorated function has it as an argument
                     kwargs["scopes"] = token_scopes
+
+                if ("auth_client_id" in inspect.signature(f).parameters):
+                    kwargs["auth_client_id"] = client_id
 
                 return f(*args, **kwargs)
             raise AuthError(

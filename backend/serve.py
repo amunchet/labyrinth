@@ -438,6 +438,34 @@ def get_comment(comment):
         return a.decode("utf-8"), 200
     return "Not found", 425
 
+@app.route("/redis/autosave", methods=["GET"])
+@requires_auth_admin
+def get_autosave(auth_client_id):
+    """
+    Gets the autosaved content from redis
+    """
+    rc = redis.Redis(host=os.environ.get("REDIS_HOST"))
+    a = rc.get(auth_client_id)
+    if a:
+        return a.decode("utf-8"), 200
+    return "Not found", 426
+
+@app.route("/redis/autosave", methods=["POST"])
+@requires_auth_admin
+def autosave(auth_client_id, data=""):
+    """
+    Autosaves current content
+    """
+    if data != "":
+        parsed_data = data
+    elif request.method == "POST": # pragma: no cover
+        parsed_data = request.form.get("data")
+    else: # pragma: no cover
+        return "Invalid", 496
+    
+    rc = redis.Redis(host=os.environ.get("REDIS_HOST"))
+    a = rc.set(auth_client_id, parsed_data)
+    return "Success", 200
 
 # Utilities
 

@@ -48,6 +48,7 @@
           depth="0"
           @update="(name,val)=>{
             output_data[name] = val
+            autoSave()
             $forceUpdate()
             }"
           @child_delete="(val)=>{
@@ -136,10 +137,26 @@ export default {
           this.$store.commit("updateError", e);
         });
     },
+
+    getAutosave: /* istanbul ignore next */ function(){
+      var auth = this.$auth
+      Helper.apiCall("redis", "autosave", auth).then(res=>{
+        this.output_data = res
+      }).catch(()=>{
+        this.output_data = {}
+      })
+    },
+    autoSave: /* istanbul ignore next */ function(){
+      var auth = this.$auth
+      var formData = new FormData()
+      formData.append("data", JSON.stringify(this.output_data))
+      Helper.apiPost("redis", "", "autosave", auth, formData).catch(e=>{this.$store.commit('updateError', e)})
+    }
   },
   mounted: /* istanbul ignore next */ function () {
     try {
       this.loadStructure();
+      this.getAutosave()
     } catch (e) {
       this.$store.commit("updateError", e);
     }
