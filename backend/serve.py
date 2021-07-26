@@ -30,14 +30,15 @@ from concurrent.futures import ThreadPoolExecutor
 executor = ThreadPoolExecutor(2)
 
 
-TELEGRAF_KEY=os.environ.get("TELEGRAF_KEY")
+TELEGRAF_KEY = os.environ.get("TELEGRAF_KEY")
+
 
 def _requires_header(f, permission):
     @functools.wraps(f)
     def decorated(*args, **kwargs):
         if request.headers.get("Authorization") != permission:
             raise Exception("Invalid Header")
-    
+
     return decorated
 
 
@@ -47,6 +48,7 @@ CORS(app)
 PERM_READ = "read"
 PERM_WRITE = "write"
 PERM_ADMIN = "admin"
+
 
 @app.route("/error/<int:code>")
 def error_func(code=401, msg="", command=""):  # pragma: no cover
@@ -65,7 +67,7 @@ requires_auth_admin = functools.partial(
     auth._requires_auth, permission=PERM_ADMIN, error_func=error_func
 )
 
-requires_header = functools.partial(_requires_header, permission = TELEGRAF_KEY)
+requires_header = functools.partial(_requires_header, permission=TELEGRAF_KEY)
 
 
 # Mongo Access
@@ -86,6 +88,7 @@ def insecure():
 
     return "Insecure route.", 200
 
+
 @app.route("/secure/")
 @app.route("/secure")
 @requires_auth_read
@@ -96,6 +99,7 @@ def secure():
 
 
 valid_type = ["ssh", "totp", "become", "telegraf", "ansible", "other"]
+
 
 @app.route("/upload/<type>/<override_token>", methods=["POST"])
 @requires_auth_admin
@@ -108,11 +112,11 @@ def upload(type, override_token):
 
     if 'file' not in request.files:
         return "No file included", 407
-    
+
     file = request.files['file']
     if file.filename == "":
         return "No file selected", 409
-    
+
     if not os.path.exists("/src/uploads"):
         os.mkdir("/src/uploads")
 
@@ -123,12 +127,14 @@ def upload(type, override_token):
         filename = secure_filename(file.filename)
         file.save("/tmp/{}".format(filename))
         if ansible_helper.check_file(filename, type):
-            shutil.move("/tmp/{}".format(filename), "/src/uploads/{}/{}".format(type, filename))
+            shutil.move("/tmp/{}".format(filename),
+                        "/src/uploads/{}/{}".format(type, filename))
         else:
             return "File check failed", 521
-    
+
     return "Success", 200
-        
+
+
 @app.route("/uploads/<type>", methods=["GET"])
 @requires_auth_admin
 def list_uploads(type):
@@ -152,6 +158,8 @@ def read_redis():
     return "[No output found]", 200
 
 # Scan handler
+
+
 @app.route("/scan/")
 @requires_auth_write
 def scan():
@@ -247,10 +255,11 @@ def create_edit_link(subnet="", link=""):
 
 # Hosts
 
+
 @app.route("/host/<host>", methods=["GET"])
 @requires_auth_read
 def list_host(host=""):
-    return json.dumps(mongo_client["labyrinth"]["hosts"].find_one({"mac" : host}), default=str), 200
+    return json.dumps(mongo_client["labyrinth"]["hosts"].find_one({"mac": host}), default=str), 200
 
 
 @app.route("/host/", methods=["POST"])
@@ -281,6 +290,7 @@ def create_edit_host(inp=""):
 
     mongo_client["labyrinth"]["hosts"].insert_one(host)
     return "Success", 200
+
 
 @app.route("/hosts/")
 @requires_auth_read
@@ -372,6 +382,7 @@ def delete_service(name):
 
 # TOML manipulation utilities
 
+
 @app.route("/redis/put_structure/")
 @requires_auth_write
 def put_structure():
@@ -379,7 +390,7 @@ def put_structure():
     Run services generate and store in Redis
     """
     lines = svcs.prepare()
-    decoder = toml.TomlPreserveCommentDecoder(beforeComments = True)
+    decoder = toml.TomlPreserveCommentDecoder(beforeComments=True)
     parsed = toml.loads("\n".join(lines), decoder=decoder)
     output = json.dumps(svcs.parse(parsed), default=str)
     rc = redis.Redis(host=os.environ.get("REDIS_HOST"))
@@ -388,10 +399,11 @@ def put_structure():
     # Add in the comments
     full_structure = svcs.find_comments(lines)
     for item in full_structure:
-        rc.set(item["name"].replace("]", "").replace("[", "").strip(), json.dumps(item, default=str))
-    
+        rc.set(item["name"].replace("]", "").replace("[",
+               "").strip(), json.dumps(item, default=str))
 
     return "Success", 200
+
 
 @app.route("/redis/get_structure")
 @requires_auth_read
@@ -412,6 +424,7 @@ def get_structure():
         return a.decode("utf-8"), 200
 
     return "Not found", 424
+
 
 @app.route("/redis/get_comments/<comment>")
 @requires_auth_read
@@ -437,6 +450,7 @@ def find_ip():
     """
     return socket.gethostbyname(socket.gethostname()), 200
 
+
 @app.route("/list_directory/<type>")
 @requires_auth_admin
 def list_directory(type):
@@ -447,10 +461,10 @@ def list_directory(type):
     valid_type = ["ssh", "totp", "become", "telegraf", "ansible", "other"]
     if type not in valid_type:
         return "Invalid type", 446
-    
+
     if not os.path.exists("/src/uploads/{}".format(type)):
         return "No folder", 447
-    
+
     return json.dumps(os.listdir("/src/uploads/{}".format(type))), 200
 
 
@@ -464,6 +478,7 @@ def get_ansible_file(fname):
     with open("/src/uploads/ansible/{}.yml".format(parsed)) as f:
         return f.read(), 200
 
+
 @app.route("/save_ansible_file/<fname>/", methods=["POST"])
 @requires_auth_admin
 def save_ansible_file(fname, inp_data=""):
@@ -473,7 +488,7 @@ def save_ansible_file(fname, inp_data=""):
     """
     if inp_data != "":
         data = inp_data
-    elif request.method == "POST": # pragma: no cover
+    elif request.method == "POST":  # pragma: no cover
         data = request.form.get("data")
     else:
         return "Invalid request", 417
@@ -485,25 +500,22 @@ def save_ansible_file(fname, inp_data=""):
         return "Invalid ansible file", 471
 
 
-
 # Ansible runner
 @app.route("/ansible_runner/", methods=["POST"])
 @requires_auth_admin
 def run_ansible(inp_data=""):
     if inp_data != "":
         data = inp_data
-    elif request.method == "POST": #pragma: no cover
+    elif request.method == "POST":  # pragma: no cover
         data = request.form.get("data")
-    else: #pragma: no cover
+    else:  # pragma: no cover
         return "Invalid data", 481
-    
+
     data = json.loads(data)
     if "hosts" not in data or "playbook" not in data or "vault_password" not in data or "become_file" not in data:
         return "Invalid data", 482
 
-
     return ansible_helper.run_ansible(data["hosts"], data["playbook"], data["vault_password"], data["become_file"]), 200
-
 
 
 @app.route("/mac/<old_mac>/<new_mac>/")
@@ -541,43 +553,42 @@ def dashboard():
     # Get all the hosts
     hosts = [x for x in mongo_client["labyrinth"]["hosts"].find({})]
 
-
     # Get the hosts latest metrics for states
     for host in [x for x in hosts if "services" in x]:
         service_results = {}
         for service in host["services"]:
 
             if service.strip() == "open_ports" or service.strip() == "closed_ports":
-              latest_metric = mongo_client["labyrinth"]["metrics"].find_one(
-                  {"name": "open_ports", "tags.host": host["mac"]},
-                  sort=[("timestamp", pymongo.DESCENDING)]
-              )
-              found_service = service
+                latest_metric = mongo_client["labyrinth"]["metrics"].find_one(
+                    {"name": "open_ports", "tags.host": host["mac"]},
+                    sort=[("timestamp", pymongo.DESCENDING)]
+                )
+                found_service = service
 
-              result = mc.judge_port(latest_metric, service, host)
+                result = mc.judge_port(latest_metric, service, host)
             else:
-              latest_metric = mongo_client["labyrinth"]["metrics"].find_one(
-                  {"name": service, "tags.host": host["mac"]},
-                  sort=[("timestamp", pymongo.DESCENDING)]
-              )
-              found_service = mongo_client["labyrinth"]["services"].find_one({"name" : service})
-            
-              if latest_metric is None or found_service is None:
-                  result = False
-              else:
-                  result = mc.judge(latest_metric, found_service)
-              
+                latest_metric = mongo_client["labyrinth"]["metrics"].find_one(
+                    {"name": service, "tags.host": host["mac"]},
+                    sort=[("timestamp", pymongo.DESCENDING)]
+                )
+                found_service = mongo_client["labyrinth"]["services"].find_one({
+                                                                               "name": service})
+
+                if latest_metric is None or found_service is None:
+                    result = False
+                else:
+                    result = mc.judge(latest_metric, found_service)
+
             temp = {
-                "name" : service,
-                "state" : result
+                "name": service,
+                "state": result
             }
             service_results[service] = {
                 "name": service,
-                "state" : result
+                "state": result
             }
         for item in service_results:
             host["services"] = [service_results[x] for x in service_results]
-        
 
     # Sort hosts into subnets
     for item in hosts:
@@ -600,8 +611,8 @@ def dashboard():
 
         for group in groups:
             subnet["groups"].append({
-                "name" : group,
-                "hosts" : groups[group]
+                "name": group,
+                "hosts": groups[group]
             })
         del subnet["hosts"]
 
@@ -609,13 +620,30 @@ def dashboard():
 
 # Metric
 
+
+@app.route("/metrics/<count>", methods=["GET"])
+@requires_auth_read
+def last_metrics(count):
+    """
+    Lists the last <count> of metrics
+    """
+    return json.dumps(
+        [x 
+        for x in 
+            mongo_client["labyrinth"]["metrics"].find({}).sort(
+                [("metrics.timestamp", pymongo.DESCENDING)]
+            )
+        ], default=str), 200
+
+
 @app.route("/metrics/<host>")
 @requires_auth_read
 def read_metrics(host):
     """
     Returns the latest metrics for a given host
     """
-    return json.dumps([x for x in mongo_client["labyrinth"]["metrics"].find({"tags.host" : host})], default=str), 200
+    return json.dumps([x for x in mongo_client["labyrinth"]["metrics"].find({"tags.host": host})], default=str), 200
+
 
 @app.route("/metrics/", methods=["POST"])
 @requires_header
@@ -625,21 +653,21 @@ def insert_metric(inp=""):
     """
     if inp != "":
         data = inp
-    elif request.method == "POST": # pragma: no cover
+    elif request.method == "POST":  # pragma: no cover
         data = request.form.get("data")
-    else: # pragma: no cover
+    else:  # pragma: no cover
         return "Invalid data", 419
-    
-    mongo_client["labyrinth"]["metrics"].create_index([ ("metrics.timestamp", -1) ])
-    
+
+    mongo_client["labyrinth"]["metrics"].create_index(
+        [("metrics.timestamp", -1)])
+
     if "metrics" not in data:
         return "Invalid data", 421
-    
+
     for item in data["metrics"]:
         mongo_client["labyrinth"]["metrics"].insert_one(item)
-    
-    return "Success", 200
 
+    return "Success", 200
 
 
 if __name__ == "__main__":  # Run the Flask server in development mode
