@@ -1,5 +1,5 @@
 <template>
-  <b-container style='min-width:90%;'>
+  <b-container style="min-width: 90%">
     <b-row>
       <b-col cols="7">
         <h4>Available Telegraf Services</h4>
@@ -27,38 +27,56 @@
         </div>
         <b-spinner class="m-2" v-else />
       </b-col>
-      <b-col>
-        <h4>Created Configuration File</h4>
-        {{output_data}}
-        <b-select />
-        <b-button class="m-2">Save</b-button>
-        <hr />
-        <br />
-        <div 
-          v-if="output_data"
+      <b-col class="ml-1">
+        <b-row>
+          <b-col class="text-left"><h4>Created Configuration File</h4></b-col>
+          <b-col ><b-select /></b-col>
+          <b-col
+            cols="1"
+            ><b-button variant="success" class="float-right">
+              <font-awesome-icon icon="save" size="1x" /> </b-button
+          ></b-col> </b-row
+        ><b-row class="mt-1">
+          <b-col 
+            ><b-button class="float-left" variant="primary">Test Configuration File</b-button></b-col
           >
-        <ServiceComponent
-          v-for="(section, idx) in output_data"
-          v-bind:key="idx"
-          :name="idx"
-          :data="section"
-          :start_minimized="true"
-          :isParent="true"
-          :isWrite="true"
-          depth="0"
-          @update="(name,val)=>{
-            output_data[name] = val
-            autoSave()
-            $forceUpdate()
-            }"
-          @child_delete="(val)=>{
-            delete output_data[val]
-            $forceUpdate()
-            }"
-        />
+        </b-row>
+        <div class="overflow-hidden">
+          <b-button
+            class="float-right m-0 p-0 shadow-none"
+            variant="link"
+            @click="output_data = {}"
+            >Clear All</b-button
+          >
         </div>
 
-        <b-button class="m-2 mt-4">Run Test</b-button>
+        <hr />
+
+        <div v-if="output_data">
+          <ServiceComponent
+            v-for="(section, idx) in output_data"
+            v-bind:key="idx"
+            :name="idx"
+            :data="section"
+            :start_minimized="true"
+            :isParent="true"
+            :isWrite="true"
+            depth="0"
+            @update="
+              (name, val) => {
+                output_data[name] = val;
+                autoSave();
+                $forceUpdate();
+              }
+            "
+            @child_delete="
+              (val) => {
+                delete output_data[val];
+                $forceUpdate();
+              }
+            "
+          />
+        </div>
       </b-col>
     </b-row>
   </b-container>
@@ -79,10 +97,10 @@ export default {
       temp_filter: "",
       data: [],
       loaded: false,
+      autoSaved: false,
     };
   },
   methods: {
-    
     add: function (data) {
       // Handle undefined at top
       this.$forceUpdate();
@@ -94,9 +112,9 @@ export default {
       var parent = output.parent.replace("undefined.", "") || "";
       var name = output.name;
 
-      var temp = JSON.parse(JSON.stringify(this.output_data))
-      this.output_data = ""
-      this.$forceUpdate()
+      var temp = JSON.parse(JSON.stringify(this.output_data));
+      this.output_data = "";
+      this.$forceUpdate();
 
       const set = (obj, path, val) => {
         const keys = path.split(".");
@@ -121,7 +139,7 @@ export default {
         delete temp[""];
       }
 
-      this.output_data = temp
+      this.output_data = temp;
 
       this.$forceUpdate();
     },
@@ -138,25 +156,29 @@ export default {
         });
     },
 
-    getAutosave: /* istanbul ignore next */ function(){
-      var auth = this.$auth
-      Helper.apiCall("redis", "autosave", auth).then(res=>{
-        this.output_data = res
-      }).catch(()=>{
-        this.output_data = {}
-      })
+    getAutosave: /* istanbul ignore next */ function () {
+      var auth = this.$auth;
+      Helper.apiCall("redis", "autosave", auth)
+        .then((res) => {
+          this.output_data = res;
+        })
+        .catch(() => {
+          this.output_data = {};
+        });
     },
-    autoSave: /* istanbul ignore next */ function(){
-      var auth = this.$auth
-      var formData = new FormData()
-      formData.append("data", JSON.stringify(this.output_data))
-      Helper.apiPost("redis", "", "autosave", auth, formData).catch(e=>{this.$store.commit('updateError', e)})
-    }
+    autoSave: /* istanbul ignore next */ function () {
+      var auth = this.$auth;
+      var formData = new FormData();
+      formData.append("data", JSON.stringify(this.output_data));
+      Helper.apiPost("redis", "", "autosave", auth, formData).catch(() => {
+        this.autoSaved = false;
+      });
+    },
   },
   mounted: /* istanbul ignore next */ function () {
     try {
       this.loadStructure();
-      this.getAutosave()
+      this.getAutosave();
     } catch (e) {
       this.$store.commit("updateError", e);
     }

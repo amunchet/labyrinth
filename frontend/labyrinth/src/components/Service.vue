@@ -122,16 +122,22 @@
           @child_delete="handle_child_delete"
           :isWrite="isWrite"
         />
-        <b-row v-if="isWrite">
+        <b-row v-if="isWrite && depth > 0">
           <b-col>
-            <b-input placeholder="Name" size="sm" />
+            <b-input placeholder="Name" v-model="new_field_name" size="sm" />
           </b-col>
           <b-col>
-            <b-input placeholder="Value" size="sm" />
+            <b-input placeholder="Value" v-model="new_field_value" size="sm" />
           </b-col>
           <b-col cols="2">
-            <b-button class="float-left" variant="success" size="sm">
-              <font-awesome-icon icon="plus" size="1x" /> Field
+            <b-button class="float-left" variant="success" size="sm" @click="()=>{
+                if(new_field_name != '' && new_field_value != ''){
+                  parsed_data[new_field_name] = new_field_value
+                  $emit('update', name, parsed_data)
+                  $forceUpdate()
+                }
+              }">
+              <font-awesome-icon icon="plus" size="1x" /> 
             </b-button>
           </b-col>
         </b-row>
@@ -258,6 +264,9 @@ export default {
       col_size: 5,
       minimized: true,
       parsed_data: {},
+
+      new_field_name: "",
+      new_field_value: "",
     };
   },
   methods: {
