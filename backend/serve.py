@@ -302,10 +302,14 @@ def delete_host(host):
 
 
 @app.route("/services/")
+@app.route("/services/<all>")
 @requires_auth_read
-def list_services():
+def list_services(all=""):
     """Lists all services"""
-    return json.dumps([x["name"] for x in mongo_client["labyrinth"]["services"].find({})], default=str), 200
+    if all == "":
+        return json.dumps([x["name"] for x in mongo_client["labyrinth"]["services"].find({})], default=str), 200
+    else:
+        return json.dumps([x for x in mongo_client["labyrinth"]["services"].find({})], default=str), 200
 
 
 @app.route("/service/<name>")
@@ -322,7 +326,7 @@ def create_edit_service(service=""):
     if service != "":
         data = service
     elif request.method == "POST":  # pragma: no cover
-        data = request.form.get("data")
+        data = json.loads(request.form.get("data"))
     else:
         return "Invalid", 427
 
@@ -603,7 +607,7 @@ def dashboard():
 
     return json.dumps(subnets, default=str), 200
 
-# Metrics
+# Metric
 
 @app.route("/metrics/<host>")
 @requires_auth_read

@@ -358,7 +358,7 @@ def test_read_services(setup):
     assert b == ["port_ssh", "check_hd"]
 
 
-def test_create_service(setup):
+def test_create_edit_service(setup):
     """
     Services are definitions of how to interpret the received metrics
         - For example, a service could be reading the metric of "mem" for a 
