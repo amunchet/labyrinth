@@ -3,7 +3,14 @@
     <div class="top">
       <span>{{ ip }}</span>
       <br />
-      <component :is="myComponent[icon.charAt(0).toUpperCase() + icon.slice(1)]" />
+      <div class="pt-1" style='height: 50px;'>
+      <component v-if="icons.indexOf(icon.charAt(0).toUpperCase() + icon.slice(1)) != -1" 
+      :is="myComponent[icon.charAt(0).toUpperCase() + icon.slice(1)]" />
+
+      <component 
+      v-else
+      :is="myComponent['Default']" />
+      </div>
     </div>
     <div class="bottom" v-if="show_ports != 0">
       <div class="table mb-0">
@@ -54,6 +61,7 @@ export default {
   data() {
     return {
       icons: [
+        "Default",
         "Camera",
         "Cloud",
         "Linux",

@@ -1,0 +1,144 @@
+<template>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    x="0px"
+    y="0px"
+    width="40"
+    height="40"
+    viewBox="0 0 172 172"
+    style="fill: #000000"
+  >
+    <defs>
+      <linearGradient
+        x1="37.68592"
+        y1="19.14217"
+        x2="130.9565"
+        y2="148.21025"
+        gradientUnits="userSpaceOnUse"
+        id="color-1_Zf6mA5BR1U2Z_gr1"
+      >
+        <stop offset="0" stop-color="#cccccc"></stop>
+        <stop offset="1" stop-color="#cccccc"></stop>
+      </linearGradient>
+      <radialGradient
+        cx="86"
+        cy="132.58333"
+        r="10.75"
+        gradientUnits="userSpaceOnUse"
+        id="color-2_Zf6mA5BR1U2Z_gr2"
+      >
+        <stop offset="0.582" stop-color="#000000" stop-opacity="0.2"></stop>
+        <stop offset="1" stop-color="#000000" stop-opacity="0"></stop>
+      </radialGradient>
+      <linearGradient
+        x1="50.16667"
+        y1="39.41667"
+        x2="121.83333"
+        y2="39.41667"
+        gradientUnits="userSpaceOnUse"
+        id="color-3_Zf6mA5BR1U2Z_gr3"
+      >
+        <stop offset="0" stop-color="#95a5a6"></stop>
+        <stop offset="1" stop-color="#95a5a6"></stop>
+      </linearGradient>
+      <linearGradient
+        x1="50.16667"
+        y1="68.08333"
+        x2="121.83333"
+        y2="68.08333"
+        gradientUnits="userSpaceOnUse"
+        id="color-4_Zf6mA5BR1U2Z_gr4"
+      >
+        <stop offset="0" stop-color="#95a5a6"></stop>
+        <stop offset="1" stop-color="#95a5a6"></stop>
+      </linearGradient>
+      <linearGradient
+        x1="50.16667"
+        y1="96.75"
+        x2="121.83333"
+        y2="96.75"
+        gradientUnits="userSpaceOnUse"
+        id="color-5_Zf6mA5BR1U2Z_gr5"
+      >
+        <stop offset="0" stop-color="#95a5a6"></stop>
+        <stop offset="1" stop-color="#95a5a6"></stop>
+      </linearGradient>
+    </defs>
+    <g
+      fill="none"
+      fill-rule="nonzero"
+      stroke="none"
+      stroke-width="1"
+      stroke-linecap="butt"
+      stroke-linejoin="miter"
+      stroke-miterlimit="10"
+      stroke-dasharray=""
+      stroke-dashoffset="0"
+      font-family="none"
+      font-weight="none"
+      font-size="none"
+      text-anchor="none"
+      style="mix-blend-mode: normal"
+    >
+      <path d="M0,172v-172h172v172z" fill="none"></path>
+      <g>
+        <path
+          d="M129,14.33333h-86c-3.95958,0 -7.16667,3.20708 -7.16667,7.16667v129c0,3.95958 3.20708,7.16667 7.16667,7.16667h86c3.95958,0 7.16667,-3.20708 7.16667,-7.16667v-129c0,-3.95958 -3.20708,-7.16667 -7.16667,-7.16667z"
+          fill="url(#color-1_Zf6mA5BR1U2Z_gr1)"
+        ></path>
+        <circle
+          cx="24"
+          cy="37"
+          transform="scale(3.58333,3.58333)"
+          r="3"
+          fill="url(#color-2_Zf6mA5BR1U2Z_gr2)"
+        ></circle>
+        <circle
+          cx="24"
+          cy="37"
+          transform="scale(3.58333,3.58333)"
+          r="2"
+          fill="#cccccc"
+        ></circle>
+        <path
+          d="M120.04167,50.16667h-68.08333c-0.989,0 -1.79167,-0.80267 -1.79167,-1.79167v-17.91667c0,-0.989 0.80267,-1.79167 1.79167,-1.79167h68.08333c0.989,0 1.79167,0.80267 1.79167,1.79167v17.91667c0,0.989 -0.80267,1.79167 -1.79167,1.79167z"
+          fill="url(#color-3_Zf6mA5BR1U2Z_gr3)"
+        ></path>
+        <circle
+          cx="31"
+          cy="11"
+          transform="scale(3.58333,3.58333)"
+          r="1"
+          fill="#50e6ff"
+        ></circle>
+        <path
+          d="M120.04167,78.83333h-68.08333c-0.989,0 -1.79167,-0.80267 -1.79167,-1.79167v-17.91667c0,-0.989 0.80267,-1.79167 1.79167,-1.79167h68.08333c0.989,0 1.79167,0.80267 1.79167,1.79167v17.91667c0,0.989 -0.80267,1.79167 -1.79167,1.79167z"
+          fill="url(#color-4_Zf6mA5BR1U2Z_gr4)"
+        ></path>
+        <circle
+          cx="31"
+          cy="19"
+          transform="scale(3.58333,3.58333)"
+          r="1"
+          fill="#50e6ff"
+        ></circle>
+        <path
+          d="M120.04167,107.5h-68.08333c-0.989,0 -1.79167,-0.80267 -1.79167,-1.79167v-17.91667c0,-0.989 0.80267,-1.79167 1.79167,-1.79167h68.08333c0.989,0 1.79167,0.80267 1.79167,1.79167v17.91667c0,0.989 -0.80267,1.79167 -1.79167,1.79167z"
+          fill="url(#color-5_Zf6mA5BR1U2Z_gr5)"
+        ></path>
+        <circle
+          cx="31"
+          cy="27"
+          transform="scale(3.58333,3.58333)"
+          r="1"
+          fill="#50e6ff"
+        ></circle>
+      </g>
+    </g>
+  </svg>
+</template>
+<script>
+export default {
+  name: "DefaultIcon",
+};
+</script>
