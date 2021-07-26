@@ -1,8 +1,8 @@
 <template>
-  <b-container>
+  <b-container style='min-width:90%;'>
     <b-row>
       <b-col cols="7">
-        <h4>Services</h4>
+        <h4>Available Telegraf Services</h4>
 
         <b-row>
           <b-form-input
@@ -29,6 +29,7 @@
       </b-col>
       <b-col>
         <h4>Created Configuration File</h4>
+        {{output_data}}
         <b-select />
         <b-button class="m-2">Save</b-button>
         <hr />
@@ -43,7 +44,16 @@
           :data="section"
           :start_minimized="true"
           :isParent="true"
+          :isWrite="true"
           depth="0"
+          @update="(name,val)=>{
+            output_data[name] = val
+            $forceUpdate()
+            }"
+          @child_delete="(val)=>{
+            delete output_data[val]
+            $forceUpdate()
+            }"
         />
         </div>
 
@@ -71,6 +81,7 @@ export default {
     };
   },
   methods: {
+    
     add: function (data) {
       // Handle undefined at top
       this.$forceUpdate();

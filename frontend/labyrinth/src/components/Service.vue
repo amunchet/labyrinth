@@ -6,24 +6,56 @@
       (isParent ||
         service_filter == '' ||
         (parent + name).indexOf(service_filter) != -1) &&
-      ((name != '' && typeof data == 'object') || !minimized)
+      ((name != '' && typeof parsed_data == 'object') || !minimized)
     "
   >
-    <h2 v-if="name != '' && typeof data == 'object'">
+    <h2 v-if="name != '' && typeof parsed_data == 'object'">
       <b-button
         variant="link"
         class="mt-0 pt-0 pb-0 mb-0 pr-1 shadow-none"
         @click="minimized = !minimized"
       >
-        <font-awesome-icon class="pt-1" v-if="minimized" icon="caret-right" size="2x" />
-        <font-awesome-icon class="pt-1"  v-if="!minimized" icon="caret-down" size="2x" />
+        <font-awesome-icon
+          class="pt-1"
+          v-if="minimized"
+          icon="caret-right"
+          size="2x"
+        />
+        <font-awesome-icon
+          class="pt-1"
+          v-if="!minimized"
+          icon="caret-down"
+          size="2x"
+        />
       </b-button>
       {{ format(name) }}
-      <b-button v-if="depth *1 < 2" class="mb-0 mt-1 p-0 pl-1 pr-1 mr-1 float-right" variant="success" @click="add(data, name, parent)">
+      <b-button
+        v-if="!isWrite && depth * 1 < 2"
+        class="mb-0 mt-1 p-0 pl-1 pr-1 mr-1 float-right"
+        variant="success"
+        @click="add(parsed_data, name, parent)"
+      >
         <font-awesome-icon class="pt-1" icon="plus" size="1x" />
       </b-button>
 
-      <b-button class="float-right shadow-none" variant="link" @click="loadComment()">
+      <b-button
+        v-if="isWrite"
+        class="mb-0 mt-1 p-0 pl-1 pr-1 mr-1 float-right"
+        variant="danger"
+        @click="
+          () => {
+            $emit('child_delete', name);
+          }
+        "
+      >
+        <font-awesome-icon class="pt-1" icon="times" size="1x" />
+      </b-button>
+
+      <b-button
+        class="float-right shadow-none"
+        variant="link"
+        @click="loadComment()"
+      >
         <font-awesome-icon icon="info-circle" size="1x" />
       </b-button>
     </h2>
@@ -34,14 +66,23 @@
         </span>
       </div>
 
-      <div v-if="typeof data == 'object' && Array.isArray(data)">
+      <div v-if="typeof parsed_data == 'object' && Array.isArray(parsed_data)">
         <div class="overflow-hidden">
-          <b-button class="float-left m-0 p-0" variant="link" v-if="!minimized"
+          <b-button
+            class="float-left m-0 p-0"
+            variant="link"
+            v-if="!minimized && isWrite"
+            @click="
+              () => {
+                parsed_data.push(JSON.parse(JSON.stringify(parsed_data[0])));
+                $forceUpdate();
+              }
+            "
             >+ {{ name }}</b-button
           >
         </div>
         <ServiceComponent
-          v-for="(item, idx) in data"
+          v-for="(item, idx) in parsed_data"
           v-bind:key="idx"
           :name="idx"
           :data="item"
@@ -51,11 +92,19 @@
           service_filter=""
           :depth="depth * 1 + 1"
           @add="parsed"
+          @update="
+            (update_name, val) => {
+              parsed_data[update_name] = val;
+              $emit('update', name, parsed_data);
+            }
+          "
+          @child_delete="handle_child_delete"
+          :isWrite="isWrite"
         />
       </div>
-      <div v-else-if="typeof data == 'object'">
+      <div v-else-if="typeof parsed_data == 'object'">
         <ServiceComponent
-          v-for="(item, idx) in data"
+          v-for="(item, idx) in parsed_data"
           v-bind:key="idx"
           :name="idx"
           :data="item"
@@ -64,36 +113,91 @@
           :service_filter="service_filter"
           :depth="depth * 1 + 1"
           @add="parsed"
+          @update="
+            (update_name, val) => {
+              parsed_data[update_name] = val;
+              $emit('update', name, parsed_data);
+            }
+          "
+          @child_delete="handle_child_delete"
+          :isWrite="isWrite"
         />
+        <b-row v-if="isWrite">
+          <b-col>
+            <b-input placeholder="Name" size="sm" />
+          </b-col>
+          <b-col>
+            <b-input placeholder="Value" size="sm" />
+          </b-col>
+          <b-col cols="2">
+            <b-button class="float-left" variant="success" size="sm">
+              <font-awesome-icon icon="plus" size="1x" /> Field
+            </b-button>
+          </b-col>
+        </b-row>
       </div>
-      <div v-else-if="typeof data == 'number'">
+      <div v-else-if="typeof parsed_data == 'number'">
         <b-row>
           <b-col>
             <div v-if="!arrayChild" class="float-left mt-1 text-capitalize">
               {{ format(name) }}
             </div>
 
-            <b-button class="float-left" variant="link" @click="loadComment()">
+            <b-button
+              class="float-left shadow-none"
+              variant="link"
+              @click="loadComment()"
+            >
               <font-awesome-icon icon="info-circle" size="1x" />
             </b-button>
           </b-col>
           <b-col :cols="col_size">
-            <b-input v-model="data" />
+            <b-input v-model="parsed_data" />
+          </b-col>
+          <b-col cols="0">
+            <b-button
+              @click="
+                () => {
+                  $emit('child_delete', name);
+                }
+              "
+              variant="link"
+              class="text-danger"
+            >
+              <font-awesome-icon icon="times" size="1x" />
+            </b-button>
           </b-col>
         </b-row>
       </div>
-      <div v-else-if="typeof data == 'boolean'">
+      <div v-else-if="typeof parsed_data == 'boolean'">
         <b-row>
           <b-col>
             <div v-if="!arrayChild" class="float-left mt-1 text-capitalize">
               {{ format(name) }}
             </div>
-            <b-button class="float-left" variant="link" @click="loadComment()">
+            <b-button
+              class="float-left shadow-none"
+              variant="link"
+              @click="loadComment()"
+            >
               <font-awesome-icon icon="info-circle" size="1x" />
             </b-button>
           </b-col>
           <b-col :cols="col_size">
-            <b-form-checkbox v-model="data" switch />
+            <b-form-checkbox v-model="parsed_data" switch />
+          </b-col>
+          <b-col cols="0">
+            <b-button
+              @click="
+                () => {
+                  $emit('child_delete', name);
+                }
+              "
+              variant="link"
+              class="text-danger"
+            >
+              <font-awesome-icon icon="times" size="1x" />
+            </b-button>
           </b-col>
         </b-row>
       </div>
@@ -103,12 +207,29 @@
             <div v-if="!arrayChild" class="float-left mt-1 text-capitalize">
               {{ format(name) }}
             </div>
-            <b-button class="float-left" variant="link" @click="loadComment()">
+            <b-button
+              class="float-left shadow-none"
+              variant="link"
+              @click="loadComment()"
+            >
               <font-awesome-icon icon="info-circle" size="1x" />
             </b-button>
           </b-col>
           <b-col :cols="col_size">
-            <b-input v-model="data" />
+            <b-input v-model="parsed_data" />
+          </b-col>
+          <b-col cols="0">
+            <b-button
+              @click="
+                () => {
+                  $emit('child_delete', name);
+                }
+              "
+              variant="link"
+              class="text-danger"
+            >
+              <font-awesome-icon icon="times" size="1x" />
+            </b-button>
           </b-col>
         </b-row>
       </div>
@@ -127,7 +248,8 @@ export default {
     "start_minimized",
     "isParent",
     "service_filter",
-    "depth"
+    "depth",
+    "isWrite", //This describes if we can delete items
   ],
   data() {
     return {
@@ -135,23 +257,36 @@ export default {
       comment: " ",
       col_size: 5,
       minimized: true,
+      parsed_data: {},
     };
   },
   methods: {
-    add: function(item, name, parent){
-
+    add: function (item, name, parent) {
       var structure = {
-        "item" : item,
-        "name" : name,
-        "parent" : parent || ""
-      }
+        item: item,
+        name: name,
+        parent: parent || "",
+      };
 
-      this.$emit("add", JSON.stringify(structure))
-      this.$forceUpdate()
+      this.$emit("add", JSON.stringify(structure));
+      this.$forceUpdate();
     },
-    parsed: function(item){
-      var structure = JSON.parse(item)
-      this.add(structure.item, structure.name, structure.parent)
+    handle_child_delete: function (val) {
+      if (Array.isArray(this.parsed_data)) {
+        this.parsed_data.splice(val, 1);
+      } else {
+        delete this.parsed_data[val];
+      }
+      this.$emit(
+        "update",
+        this.name,
+        JSON.parse(JSON.stringify(this.parsed_data))
+      );
+      this.$forceUpdate();
+    },
+    parsed: function (item) {
+      var structure = JSON.parse(item);
+      this.add(structure.item, structure.name, structure.parent);
     },
     loadComment: /* istanbul ignore next */ function () {
       if (this.comment != "") {
@@ -168,9 +303,12 @@ export default {
         });
     },
     determineClass: function () {
-      if (typeof this.data == "object" && Array.isArray(this.data)) {
+      if (
+        typeof this.parsed_data == "object" &&
+        Array.isArray(this.parsed_data)
+      ) {
         return "main array child";
-      } else if (typeof this.data != "object") {
+      } else if (typeof this.parsed_data != "object") {
         return "child";
       } else {
         return "main border";
@@ -185,6 +323,14 @@ export default {
     },
   },
   watch: {
+    data: function (val) {
+      if (val != "") {
+        this.parsed_data = val;
+      }
+    },
+    parsed_data: function (val) {
+      this.$emit("update", this.name, val);
+    },
     start_minimized: function (val) {
       this.minimized = val;
     },
@@ -197,6 +343,7 @@ export default {
     },
   },
   mounted: function () {
+    this.parsed_data = this.data;
     if (this.parent != undefined) {
       this.comment_name = (this.parent + "." + this.name)
         .replace(".0", "")
@@ -216,16 +363,19 @@ export default {
 #outputs {
   max-height: 400px;
   overflow-y: scroll;
+  overflow-x: hidden;
 }
 
 #processors {
   max-height: 400px;
   overflow-y: scroll;
+  overflow-x: hidden;
 }
 
 #inputs {
   max-height: 400px;
   overflow-y: scroll;
+  overflow-x: hidden;
 }
 
 .comment:first-letter {
@@ -259,11 +409,14 @@ h2 {
 }
 .child {
   margin: 0.5rem;
-  border-bottom: 1px solid #efefed;
+  border-bottom: 1px dotted #efefed;
 }
 .row {
   margin-top: 0.25rem;
   padding-left: 1rem;
   padding-right: 0.5rem;
+}
+input {
+  margin-bottom: 0.5rem;
 }
 </style>
