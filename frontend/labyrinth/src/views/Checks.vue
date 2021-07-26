@@ -73,8 +73,23 @@
       </template>
     </b-table>
     <hr />
-    <h2>Table of last Metrics received</h2>
-    <h4>Settings</h4>
+    <h2 class='mt-2 mb-2'>Latest Metrics</h2>
+    <div class="metrics-table mb-2">
+    <b-table  :items="metrics" striped :fields="['name', 'tags', 'fields', 'timestamp']">
+      <template v-slot:cell(fields)="row">
+        <div v-for="(item, idx) in row.item.fields" v-bind:key="idx">
+          {{idx}} : {{item}} <br />
+        </div>
+      </template>
+      <template v-slot:cell(tags)="row">
+        <div v-for="(item, idx) in row.item.tags" v-bind:key="idx">
+          {{item}} <br />
+        </div>
+      </template>
+    </b-table>
+    </div>
+    <hr />
+    <h3>Settings</h3>
     Frequency of scans
 
   </b-container>
@@ -89,7 +104,8 @@ export default {
       },
       services: [],
       comparison_types: ["greater", "less", "equal"],
-      service_fields: ["name", "type", "field", "metric", "comparison", "value"]
+      service_fields: ["name", "type", "field", "metric", "comparison", "value"],
+      metrics: [],
     }
   },
   methods: {
@@ -97,6 +113,14 @@ export default {
       var auth = this.$auth
       Helper.apiCall("services", "all", auth).then(res=>{
         this.services = res
+      }).catch(e=>{
+        this.$store.commit('updateError', e)
+      })
+    },
+    loadMetrics: /* istanbul ignore next */ function(){
+      var auth = this.$auth
+      Helper.apiCall("metrics", "25", auth).then(res=>{
+        this.metrics = res
       }).catch(e=>{
         this.$store.commit('updateError', e)
       })
@@ -118,6 +142,7 @@ export default {
   mounted: /* istanbul ignore next */ function(){
     try{
       this.loadServices()
+      this.loadMetrics()
     }catch(e){
       this.$store.commit('updateError', e)
     }
@@ -132,5 +157,10 @@ export default {
   font-size: 8pt;
   color: grey;
   font-family: Arial, sans-serif;
+}
+.metrics-table{
+  height: 400px;
+  overflow-y: scroll;
+  overflow-x: hidden;
 }
 </style>
