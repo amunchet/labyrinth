@@ -1,5 +1,8 @@
 <template>
   <b-modal id="create_edit_host" title="Create/Edit Host" size="lg">
+    <b-modal id="checks" size="xl" @hide="loadServices()">
+      <Checks />
+    </b-modal>
     <b-container>
       <b-row>
         <b-col> IP </b-col>
@@ -115,7 +118,7 @@
       </b-col>
       <b-col>
         <h5>
-          Services
+          <a href="#" @click="$bvModal.show('checks')">Services</a>
           <b-button
             variant="link"
             class="shadow-none float-right mt-0 pt-1"
@@ -199,8 +202,12 @@
 </template>
 <script>
 import Helper from "@/helper";
+import Checks from '@/views/Checks'
 export default {
   name: "CreateEditHost",
+  components: {
+    Checks
+  },
   props: ["inp_host"],
   data() {
     return {
