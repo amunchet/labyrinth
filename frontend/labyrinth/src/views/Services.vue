@@ -30,11 +30,16 @@
       <b-col class="ml-1">
         <b-row>
           <b-col class="text-left"><h4>Created Configuration File</h4></b-col>
-          <b-col ><b-select /></b-col>
+          <b-col >
+            <b-select 
+              v-model="selected_host"
+              :options="hosts"
+            />
+          </b-col>
           <b-col
             cols="1"
             ><b-button variant="success" class="float-right">
-              <font-awesome-icon icon="save" size="1x" /> </b-button
+              <font-awesome-icon icon="save" size="1x" @click="saveConf"/> </b-button
           ></b-col> </b-row
         ><b-row class="mt-1">
           <b-col 
@@ -98,6 +103,8 @@ export default {
       data: [],
       loaded: false,
       autoSaved: false,
+      selected_host: "",
+      hosts: [],
     };
   },
   methods: {
@@ -174,11 +181,35 @@ export default {
         this.autoSaved = false;
       });
     },
+    listHosts: /* istanbul ignore next */ function(){
+      var auth = this.$auth
+      Helper.apiCall("hosts", "", auth).then(res=>{
+        this.hosts = res.map(x=>{
+          return{
+            value: x.ip,
+            text: x.ip
+          } 
+        })
+      }).catch(e=>{
+        this.$store.commit('updateError', e)
+      })
+    },
+    saveConf: /* istanbul ignore next */ function(){
+      var auth = this.$auth;
+      var formData = new FormData();
+      formData.append("data", JSON.stringify(this.output_data));
+      Helper.apiPost("save_conf","", this.selected_host, auth, formData).then(res=>{
+        this.$store.commit('updateError', res)
+      }).catch(e=>{
+        this.$store.commit('updateError', e)
+      })
+    }
   },
   mounted: /* istanbul ignore next */ function () {
     try {
       this.loadStructure();
       this.getAutosave();
+      this.listHosts()
     } catch (e) {
       this.$store.commit("updateError", e);
     }
