@@ -82,6 +82,9 @@
                   :icon="host.icon"
                   :services="host.services"
                   @hostClicked="()=>selected_host = host"
+                  :cpu="host.cpu_check"
+                  :mem="host.mem_check"
+                  :hd="host.hd_check"
                 />
               </div>
             </div>

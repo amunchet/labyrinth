@@ -1,28 +1,63 @@
 <template>
   <div :class="passed_class">
     <div class="top">
-      <span>.{{ ip.split(".")[ip.split(".").length-1] }}</span>
+      <span>.{{ ip.split(".")[ip.split(".").length - 1] }}</span>
       <br />
-      <div class="pt-1" style='height: 50px;'>
-      <component v-if="icons.indexOf(icon.charAt(0).toUpperCase() + icon.slice(1)) != -1" 
-      :is="myComponent[icon.charAt(0).toUpperCase() + icon.slice(1)]" />
+      <div class="pt-1" style="height: 50px">
+        <component
+          v-if="
+            icons.indexOf(icon.charAt(0).toUpperCase() + icon.slice(1)) != -1
+          "
+          :is="myComponent[icon.charAt(0).toUpperCase() + icon.slice(1)]"
+        />
 
-      <component 
-      v-else
-      :is="myComponent['Default']" />
+        <component v-else :is="myComponent['Default']" />
       </div>
     </div>
     <div class="bottom" v-if="show_ports != 0">
       <div class="table mb-0">
         <div class="host_row">
-          <div class="host_col text-success">
-            <font-awesome-icon icon="chart-area" size="1x" />
+          <div
+            class="host_col text-success"
+            v-if="services.filter((x) => x.name == cpu).length"
+          >
+            <font-awesome-icon
+              :class="
+                services.filter((x) => x.name == cpu).map((x) => x.state)[0]
+                  ? 'text-success'
+                  : 'text-danger'
+              "
+              icon="chart-area"
+              size="1x"
+            />
           </div>
-          <div class="host_col text-warning">
-            <font-awesome-icon icon="memory" size="1x" />
+          <div
+            class="host_col text-warning"
+            v-if="services.filter((x) => x.name == mem).length"
+          >
+            <font-awesome-icon
+              :class="
+                services.filter((x) => x.name == mem).map((x) => x.state)[0]
+                  ? 'text-success'
+                  : 'text-danger'
+              "
+              icon="memory"
+              size="1x"
+            />
           </div>
-          <div class="host_col text-danger">
-            <font-awesome-icon icon="database" size="1x" />
+          <div
+            class="host_col"
+            v-if="services.filter((x) => x.name == hd).length"
+          >
+            <font-awesome-icon
+              :class="
+                services.filter((x) => x.name == hd).map((x) => x.state)[0]
+                  ? 'text-success'
+                  : 'text-danger'
+              "
+              icon="database"
+              size="1x"
+            />
           </div>
         </div>
       </div>
@@ -34,18 +69,25 @@
               :class="determineClass(service)"
               v-for="(service, idx) in services"
               v-bind:key="idx"
-              @click="()=>{
-                  $bvModal.show('service_detail')
-                  }"
+              @click="
+                () => {
+                  $bvModal.show('service_detail');
+                }
+              "
             >
               &nbsp;&nbsp;&nbsp;
             </div>
           </div>
         </div>
-        <b-button class="add_button" @click="()=>{
-            this.$emit('hostClicked')
-            $bvModal.show('create_edit_host')
-            }">
+        <b-button
+          class="add_button"
+          @click="
+            () => {
+              this.$emit('hostClicked');
+              $bvModal.show('create_edit_host');
+            }
+          "
+        >
           <font-awesome-icon icon="cog" size="1x" />
         </b-button>
       </div>
@@ -57,7 +99,16 @@
 //import { defineAsyncComponent } from "vue";
 export default {
   name: "Host",
-  props: ["icon", "passed_class", "show_ports", "ip", "services"],
+  props: [
+    "icon",
+    "passed_class",
+    "show_ports",
+    "ip",
+    "services",
+    "cpu",
+    "mem",
+    "hd",
+  ],
   data() {
     return {
       icons: [
@@ -121,8 +172,8 @@ export default {
   padding-top: 10px;
   display: block;
 }
-.hover{
-    cursor: pointer;
+.hover {
+  cursor: pointer;
 }
 .host_row {
   width: 100%;

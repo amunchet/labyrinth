@@ -25,16 +25,34 @@
       ></b-row>
     </b-container>
     <hr />
-    <span class="red">
-      TODO: Is this a host with standard health metrics? Services list - this is
-      going to be the painful one. Want to be able to create service [FUTURE] -
-      push the new metrics out I want to see the latest metrics for this host.
-    </span>
+    Service Icons:
+    <b-row >
+      <b-col style="display: flex;">
+        <font-awesome-icon class="mt-2 mr-3" icon="chart-area" size="1x"  /><br />
+        <b-select v-model="host.cpu_check" :options="[{text: '[No Service]', value: ''},...host.services.map(x=>{
+          return { text: x.name, value: x.name}
+          })]" size="sm" />
+      </b-col>
+
+      <b-col style="display: flex;">
+        <font-awesome-icon class="mt-2 mr-3" icon="memory" size="1x"  /><br />
+        <b-select v-model="host.mem_check" :options="[{text: '[No Service]', value: ''},...host.services.map(x=>{
+          return { text: x.name, value: x.name}
+          })]" size="sm" />
+      </b-col>
+
+      <b-col style="display: flex;">
+        <font-awesome-icon class="mt-2 mr-3" icon="database" size="1x"  /><br />
+        <b-select v-model="host.hd_check" :options="[{text: '[No Service]', value: ''},...host.services.map(x=>{
+          return { text: x.name, value: x.name}
+          })]" size="sm" />
+      </b-col>
+    </b-row>
+
     <hr />
     <b-row>
       <b-col>
-        <h4>
-          Expected Open Ports
+          <h5>Expected Open Ports
           <b-button
             variant="link"
             class="float-right mt-0 pt-1 shadow-none"
@@ -42,11 +60,11 @@
           >
             <font-awesome-icon icon="plus" size="1x" />
           </b-button>
-        </h4>
+          </h5>
         <b-table
           v-if="host.open_ports"
           :items="
-            host.open_ports.map((x) => {
+            ([...host.open_ports].sort()).map((x) => {
               return { port: x };
             })
           "
@@ -96,7 +114,7 @@
         </b-table>
       </b-col>
       <b-col>
-        <h4>
+        <h5>
           Services
           <b-button
             variant="link"
@@ -105,7 +123,7 @@
           >
             <font-awesome-icon icon="plus" size="1x" />
           </b-button>
-        </h4>
+        </h5>
         <b-table
           :items="host.services"
           striped
@@ -129,7 +147,7 @@
           </template>
           <template v-slot:top-row="" v-if="show_add_service">
             <td role="cell">
-              <b-input placeholder="Service:" v-model="new_services" />
+              <b-select placeholder="Service:" :options="services" v-model="new_services" />
             </td>
 
             <td>-</td>
@@ -202,6 +220,8 @@ export default {
       new_service: "",
       show_add_port: false,
       show_add_service: false,
+
+      services: [],
     };
   },
   watch: {
@@ -218,6 +238,19 @@ export default {
     },
   },
   methods: {
+    loadServices: /* istanbul ignore next */ function(){
+      var auth = this.$auth
+      Helper.apiCall("services", "all", auth).then(res=>{
+        this.services = res.map(x=>{
+          return{
+            text: x.name,
+            value: x.name
+          }
+        })
+      }).catch(e=>{
+        this.$store.commit('updateError', e)
+      })
+    },
     loadMetrics: /* istanbul ignore next */ function () {
       var auth = this.$auth;
       Helper.apiCall("metrics", this.host.mac, auth)
@@ -246,6 +279,13 @@ export default {
         });
     },
   },
+  mounted: /* istanbul ignore next */ function(){
+    try{
+      this.loadServices()
+    }catch(e){
+      this.$store.commit('updateError', e)
+    }
+  }
 };
 </script>
 <style lang="scss" scoped>
