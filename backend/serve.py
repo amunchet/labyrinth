@@ -211,9 +211,9 @@ def create_edit_subnet(inp=""):
     else:
         return "Invalid request", 443
 
-    if "subnet" not in subnet:
+    if "subnet" not in subnet or subnet["subnet"] == '':
         return "Invalid data", 407
-
+    
     if mongo_client["labyrinth"]["subnets"].find_one({"subnet": subnet["subnet"]}):
         mongo_client["labyrinth"]["subnets"].delete_one(
             {"subnet": subnet["subnet"]})
@@ -277,10 +277,13 @@ def create_edit_host(inp=""):
     if "mac" not in host:
         return "Invalid data", 407
 
+    subnet = host["subnet"]
+    if subnet == "":
+        return "No subnet", 418
+
     if mongo_client["labyrinth"]["hosts"].find_one({"mac": host["mac"]}):
         mongo_client["labyrinth"]["hosts"].delete_one({"mac": host["mac"]})
 
-    subnet = host["subnet"]
 
     if not mongo_client["labyrinth"]["subnets"].find_one({"subnet": subnet}):
         mongo_client["labyrinth"]["subnets"].insert_one({
@@ -304,7 +307,7 @@ def list_hosts():
 @requires_auth_write
 def delete_host(host):
     """Deletes a host"""
-    result = mongo_client["labyrinth"]["hosts"].delete_one({"mac": host})
+    result = mongo_client["labyrinth"]["hosts"].delete_one({"$or" : [{"mac": host}, {"ip" : host}]})
     if not result.deleted_count:
         return "Not found", 407
     return "Success", 200

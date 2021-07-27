@@ -285,6 +285,36 @@ export default {
           this.$store.commit("updateError", e);
         });
     },
+    deleteHost: /* istanbul ignore next */ function(){
+      var host = this.host
+      var auth = this.$auth
+      this.$bvModal
+        .msgBoxConfirm("Are you sure you want to delete this host?")
+        .then((res) => {
+          if (!res) {
+            return;
+          }
+
+          var url = host.mac
+          if (host.mac == ""){
+            url = host.ip
+          }
+          console.log(host)
+          Helper.apiDelete("host", url, auth).then(res=>{
+            this.$store.commit('updateError', res)
+            this.$bvModal.hide("create_edit_host")
+            this.$emit('update')
+          }).catch(e=>{
+            this.$store.commit('updateError', e)
+          })
+
+
+
+        }).catch(e=>{
+          this.$store.commit('updateError', e)
+        })
+
+    }
   },
   mounted: /* istanbul ignore next */ function(){
     try{
