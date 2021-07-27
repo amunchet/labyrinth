@@ -648,7 +648,7 @@ def dashboard():
     subnets = [subnets[x] for x in subnets]
     for subnet in [x for x in subnets if "hosts" in x]:
         groups = {}
-        for host in [x for x in subnet["hosts"] if "group" in x]:
+        for host in sorted([x for x in subnet["hosts"] if "group" in x], key=lambda x: x["ip"]):
             if host["group"] not in groups:
                 groups[host["group"]] = []
             groups[host["group"]].append(host)
@@ -668,7 +668,7 @@ def dashboard():
 # Metric
 
 
-@app.route("/metrics/<count>", methods=["GET"])
+@app.route("/metrics/<int:count>", methods=["GET"])
 @requires_auth_read
 def last_metrics(count):
     """

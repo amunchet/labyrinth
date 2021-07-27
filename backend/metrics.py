@@ -42,7 +42,7 @@ def judge_port(metric, service, host):
     if service == "open_ports":
         return bool([1 for x in metric["fields"]["ports"] if x in host["open_ports"]])
     else:
-        return host["open_ports"] == metric["fields"]["ports"]
+        return sorted([int(x) for x in host["open_ports"]]) == sorted([int(x) for x in metric["fields"]["ports"]])
 
 
 def judge_check(metric, service):
