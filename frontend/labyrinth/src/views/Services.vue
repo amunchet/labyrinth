@@ -107,6 +107,13 @@ export default {
       hosts: [],
     };
   },
+  watch: {
+    selected_host: function(val){
+      if(val != ""){
+        this.forceGlobalTag()
+      }
+    }
+  },
   methods: {
     add: function (data) {
       // Handle undefined at top
@@ -147,8 +154,18 @@ export default {
       }
 
       this.output_data = temp;
-
+      this.forceGlobalTag()
       this.$forceUpdate();
+    },
+
+    forceGlobalTag: function(){
+      // Any time we add, force global tags to be host
+      if(this.output_data["global_tags"] == undefined){
+        this.output_data["global_tags"] = {}
+      }
+      this.output_data["global_tags"]["id"] = this.selected_host
+
+
     },
 
     loadStructure: /* istanbul ignore next */ function () {
@@ -157,6 +174,9 @@ export default {
         .then((res) => {
           this.data = res;
           this.loaded = true;
+
+ 
+
         })
         .catch((e) => {
           this.$store.commit("updateError", e);
