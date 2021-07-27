@@ -160,7 +160,7 @@
           <b-col :cols="col_size">
             <b-input v-model="parsed_data" />
           </b-col>
-          <b-col cols="0">
+          <b-col cols="0" v-if="isWrite">
             <b-button
               @click="
                 () => {
@@ -192,7 +192,7 @@
           <b-col :cols="col_size">
             <b-form-checkbox v-model="parsed_data" switch />
           </b-col>
-          <b-col cols="0">
+          <b-col cols="0" v-if="isWrite">
             <b-button
               @click="
                 () => {
@@ -224,7 +224,7 @@
           <b-col :cols="col_size">
             <b-input v-model="parsed_data" />
           </b-col>
-          <b-col cols="0">
+          <b-col cols="0" v-if='isWrite'>
             <b-button
               @click="
                 () => {
