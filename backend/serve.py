@@ -37,8 +37,9 @@ def _requires_header(f, permission):
     @functools.wraps(f)
     def decorated(*args, **kwargs):
         if request.headers.get("Authorization") != permission:
+            print("Invalid header!")
             raise Exception("Invalid Header")
-
+        return f(*args, **kwargs)
     return decorated
 
 
@@ -467,6 +468,24 @@ def autosave(auth_client_id, data=""):
     a = rc.set(auth_client_id, parsed_data)
     return "Success", 200
 
+
+# Write host telegraf config file
+@app.route("/save_conf/<host>", methods=["POST"])
+@requires_auth_admin
+def save_conf(host, data=""):
+    """
+    Saves the Telegraf config file to the given host location
+    """
+    if data != "":
+        parsed_data = data
+    elif request.method == "POST": # pragma: no cover
+        parsed_data = json.loads(request.form.get("data"))
+    else: # pragma: no cover
+        return "Invalid", 498
+
+    svcs.output(host, parsed_data)
+    return "Success", 200    
+
 # Utilities
 
 
@@ -659,7 +678,7 @@ def last_metrics(count):
         [x 
         for x in 
             mongo_client["labyrinth"]["metrics"].find({}).sort(
-                [("metrics.timestamp", pymongo.DESCENDING)]
+                [("metrics.timestamp", pymongo.ASCENDING)]
             )
         ], default=str), 200
 
@@ -682,7 +701,7 @@ def insert_metric(inp=""):
     if inp != "":
         data = inp
     elif request.method == "POST":  # pragma: no cover
-        data = request.form.get("data")
+        data = json.loads(request.data.decode("utf-8"))
     else:  # pragma: no cover
         return "Invalid data", 419
 

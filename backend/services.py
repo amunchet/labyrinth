@@ -165,3 +165,11 @@ def find_comments(lines):
                 retval.append({"name": current_key.strip(), "comments": current_comments, "parent": current_parent, "value" : current_value})
                 current_comments = []
     return retval
+
+def output(hostname: str, data: List):
+    """
+    Takes in the datastructure and writes it out to the given hostname's telegraf.conf file
+    """
+    dir = "/src/uploads/telegraf/"
+    with open("{}{}.conf".format(dir, hostname), "w") as f:
+        f.write(toml.dumps(data))
