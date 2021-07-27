@@ -1,7 +1,7 @@
 <template>
   <div :class="passed_class">
     <div class="top">
-      <span>{{ ip }}</span>
+      <span>.{{ ip.split(".")[ip.split(".").length-1] }}</span>
       <br />
       <div class="pt-1" style='height: 50px;'>
       <component v-if="icons.indexOf(icon.charAt(0).toUpperCase() + icon.slice(1)) != -1" 

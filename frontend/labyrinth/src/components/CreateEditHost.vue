@@ -26,17 +26,20 @@
     </b-container>
     <hr />
     <span class="red">
-    TODO: Is this a host with standard health metrics? Services list - this is going
-    to be the painful one. Want to be able to create service 
-    [FUTURE] - push the
-    new metrics out I want to see the latest metrics for this host.
+      TODO: Is this a host with standard health metrics? Services list - this is
+      going to be the painful one. Want to be able to create service [FUTURE] -
+      push the new metrics out I want to see the latest metrics for this host.
     </span>
     <hr />
     <b-row>
       <b-col>
         <h4>
           Expected Open Ports
-          <b-button variant="link" class="float-right mt-0 pt-1">
+          <b-button
+            variant="link"
+            class="float-right mt-0 pt-1 shadow-none"
+            @click="show_add_port = !show_add_port"
+          >
             <font-awesome-icon icon="plus" size="1x" />
           </b-button>
         </h4>
@@ -48,23 +51,119 @@
             })
           "
           striped
-        />
+          :fields="['port', '_']"
+        >
+          <template v-slot:cell(_)="key">
+            <b-button
+              @click="
+                () => {
+                  host.open_ports = host.open_ports.filter(
+                    (x) => x != key.item.port
+                  );
+                  $forceUpdate();
+                }
+              "
+              variant="link"
+              class="shadow-none float-right text-danger"
+            >
+              <font-awesome-icon icon="times" size="1x" />
+            </b-button>
+          </template>
+
+          <template v-slot:top-row="" v-if="show_add_port">
+            <td role="cell">
+              <b-input placeholder="Port:" v-model="new_port" />
+            </td>
+            <td role="cell">
+              <b-button
+                variant="success"
+                class="float-right p-1 pl-2 pr-2"
+                @click="
+                  () => {
+                    if (new_port != '') {
+                      host.open_ports.push(new_port);
+                    }
+                    new_port = '';
+                    show_add_port = false;
+                    $forceUpdate();
+                  }
+                "
+              >
+                <font-awesome-icon icon="check" size="1x" />
+              </b-button>
+            </td>
+          </template>
+        </b-table>
       </b-col>
       <b-col>
         <h4>
           Services
-          <b-button variant="link" class="float-right mt-0 pt-1">
+          <b-button
+            variant="link"
+            class="shadow-none float-right mt-0 pt-1"
+            @click="show_add_service = !show_add_service"
+          >
             <font-awesome-icon icon="plus" size="1x" />
           </b-button>
         </h4>
-        <b-table :items="host.services" striped />
-        <b-button style="width:100%;">Compile Configuration Files</b-button>
-        <b-button style="width:100%;" class="mt-2">Push Updates to Host</b-button>
+        <b-table
+          :items="host.services"
+          striped
+          :fields="['name', 'state', '_']"
+        >
+          <template v-slot:cell(_)="key">
+            <b-button
+              @click="
+                () => {
+                  host.services = host.services.filter(
+                    (x) => x.name != key.item.name
+                  );
+                  $forceUpdate();
+                }
+              "
+              variant="link"
+              class="shadow-none float-right text-danger"
+            >
+              <font-awesome-icon icon="times" size="1x" />
+            </b-button>
+          </template>
+          <template v-slot:top-row="" v-if="show_add_service">
+            <td role="cell">
+              <b-input placeholder="Service:" v-model="new_services" />
+            </td>
+
+            <td>-</td>
+            <td role="cell">
+              <b-button
+                variant="success"
+                class="float-right p-1 pl-2 pr-2"
+                @click="
+                  () => {
+                    if (new_services && new_services != '') {
+                      host.services.push({
+                        name: new_services,
+                        state: '',
+                      });
+                    }
+                    new_services = '';
+                    show_add_service = false;
+                    $forceUpdate();
+                  }
+                "
+              >
+                <font-awesome-icon icon="check" size="1x" />
+              </b-button>
+            </td>
+
+          </template>
+        </b-table>
       </b-col>
     </b-row>
     <b-row class="overflow-scroll" v-if="metrics.length">
       <h4>Latest Host Metrics</h4>
-      <b-table :items="metrics" striped />
+      <div style="max-height: 400px; overflow-y: scroll; overflow-x: hidden">
+        <b-table :items="metrics" striped />
+      </div>
     </b-row>
 
     <template #modal-footer="{ cancel }">
@@ -99,6 +198,10 @@ export default {
         services: [],
         class: "",
       },
+      new_port: "",
+      new_service: "",
+      show_add_port: false,
+      show_add_service: false,
     };
   },
   watch: {

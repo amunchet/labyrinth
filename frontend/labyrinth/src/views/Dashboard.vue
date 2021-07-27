@@ -1,6 +1,5 @@
 <template>
   <div class="dashboard">
-
     <!-- Modals -->
     <CreateEditSubnet :inp_subnet="selected_subnet" @update="loadData()"/>
 
