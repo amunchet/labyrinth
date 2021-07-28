@@ -6,6 +6,8 @@ Services functions
 
 import os
 import shutil
+import json
+import subprocess
 
 import toml
 import re
@@ -166,10 +168,36 @@ def find_comments(lines):
                 current_comments = []
     return retval
 
-def output(hostname: str, data: List):
+def output(hostname: str, data: List, raw=""):
     """
     Takes in the datastructure and writes it out to the given hostname's telegraf.conf file
     """
     dir = "/src/uploads/telegraf/"
     with open("{}{}.conf".format(dir, hostname), "w") as f:
-        f.write(toml.dumps(data))
+        if raw == "" or raw is None:
+            f.write(toml.dumps(data))
+        else:
+            f.write(raw)
+
+def load(fname: str, format="json") -> dict:
+    """
+    Loads a written TOML file into datastructure and returns it
+    """
+    dir = "/src/uploads/telegraf/"
+    with open("{}{}.conf".format(dir, fname)) as f:
+        if format == "json":
+            return json.dumps(toml.load(f), default=str)
+        else:
+            return f.read()
+
+def run(fname: str, outputs=False):
+    """
+    Runs the telegraf file
+    """
+    dir = "/src/uploads/telegraf/"
+    testing = "--test"
+    if outputs:
+        testing = "--once"
+    cmd = "telegraf {} --config {}{}.conf".format(testing, dir, fname)
+    x = subprocess.run([cmd], shell=True, capture_output=True)
+    return "{}\n<b>{}</b>{}".format(cmd,x.stderr.decode("utf-8"), x.stdout.decode("utf-8"))

@@ -122,8 +122,8 @@ def test_check_file():
     helper("/src/test/sample_telegraf.json", "ssh", False)
 
     # Telegraf
-    helper("/src/test/sample_telegraf.conf", "telegraf")
-    helper("/src/test/sample_telegraf.json", "telegraf", False)
+    # helper("/src/test/sample_telegraf.conf", "telegraf")
+    # helper("/src/test/sample_telegraf.json", "telegraf", False)
 
     # Ansible 
     helper("/src/test/ansible/project/startup.yml", "ansible")

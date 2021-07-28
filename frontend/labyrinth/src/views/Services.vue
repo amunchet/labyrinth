@@ -1,5 +1,39 @@
 <template>
   <b-container style="min-width: 90%">
+    <b-modal id="test_configuration_file" title="Test Configuration File" size="lg">
+      <div class="ml-1 mr-1">
+        <b-row>
+          <b-col>
+            Selected Host: <b>{{ selected_host }}</b>
+          </b-col>
+        </b-row>
+        <b-row>
+          <b-col>
+            <div>
+              <b-button variant="warning" class="mb-2 float-right" @click="saveRaw()">
+                <font-awesome-icon icon="save" size="1x" />
+              </b-button>
+            </div>
+            <b-textarea v-model="loadedFile" />
+          </b-col>
+        </b-row>
+        <b-row class="mt-2">
+          <b-col class="text-center">
+            <b-button variant="success" @click="runTest(0)">Test with NO outputs</b-button>
+          </b-col>
+          <b-col class="text-center">
+            <b-button variant="warning" @click="runTest(1)">Test WITH outputs</b-button>
+          </b-col>
+        </b-row>
+        <hr />
+        <b-row class="mt-2">
+          <b-col>
+            <div class="testOutput" v-html="$sanitize(testOutput).replace('\n', '<br />')"></div>
+          </b-col>
+        </b-row>
+      </div>
+    </b-modal>
+
     <b-row>
       <b-col cols="7">
         <h4>Available Telegraf Services</h4>
@@ -30,20 +64,30 @@
       <b-col class="ml-1">
         <b-row>
           <b-col class="text-left"><h4>Created Configuration File</h4></b-col>
-          <b-col >
-            <b-select 
-              v-model="selected_host"
-              :options="hosts"
-            />
+          <b-col>
+            <b-select v-model="selected_host" :options="hosts" />
           </b-col>
-          <b-col
-            cols="1"
+          <b-col cols="1"
             ><b-button variant="success" class="float-right">
-              <font-awesome-icon icon="save" size="1x" @click="saveConf"/> </b-button
+              <font-awesome-icon
+                icon="save"
+                size="1x"
+                @click="saveConf"
+              /> </b-button
           ></b-col> </b-row
         ><b-row class="mt-1">
-          <b-col 
-            ><b-button class="float-left" variant="primary">Test Configuration File</b-button></b-col
+          <b-col
+            ><b-button
+              class="float-left"
+              variant="primary"
+              v-if="selected_host && hasBeenSaved"
+              @click="
+                () => {
+                  $bvModal.show('test_configuration_file');
+                }
+              "
+              >Test Configuration File</b-button
+            ></b-col
           >
         </b-row>
         <div class="overflow-hidden">
@@ -105,14 +149,39 @@ export default {
       autoSaved: false,
       selected_host: "",
       hosts: [],
+      hasBeenSaved: false,
+      loadedFile: "",
+      testOutput: "",
     };
   },
   watch: {
-    selected_host: function(val){
-      if(val != ""){
-        this.forceGlobalTag()
+    selected_host: async function (val) {
+      if (val != "") {
+        await this.$bvModal
+          .msgBoxConfirm(
+            "Do you want to overwrite working configuration from disk?"
+          )
+          .then(async (res) => {
+            if (!res) {
+              return;
+            }
+            var auth = this.$auth;
+            await Helper.apiCall("load_service", val, auth)
+              .then((res) => {
+                this.output_data = res;
+                this.forceGlobalTag();
+              })
+              .catch((e) => {
+                this.$store.commit("updateError", e);
+              });
+          })
+          .catch((e) => {
+            this.$store.commit("updateError", e);
+          });
+
+        this.forceGlobalTag();
       }
-    }
+    },
   },
   methods: {
     add: function (data) {
@@ -154,18 +223,16 @@ export default {
       }
 
       this.output_data = temp;
-      this.forceGlobalTag()
+      this.forceGlobalTag();
       this.$forceUpdate();
     },
 
-    forceGlobalTag: function(){
+    forceGlobalTag: function () {
       // Any time we add, force global tags to be host
-      if(this.output_data["global_tags"] == undefined){
-        this.output_data["global_tags"] = {}
+      if (this.output_data["global_tags"] == undefined) {
+        this.output_data["global_tags"] = {};
       }
-      this.output_data["global_tags"]["id"] = this.selected_host
-
-
+      this.output_data["global_tags"]["id"] = this.selected_host;
     },
 
     loadStructure: /* istanbul ignore next */ function () {
@@ -174,9 +241,6 @@ export default {
         .then((res) => {
           this.data = res;
           this.loaded = true;
-
- 
-
         })
         .catch((e) => {
           this.$store.commit("updateError", e);
@@ -201,35 +265,80 @@ export default {
         this.autoSaved = false;
       });
     },
-    listHosts: /* istanbul ignore next */ function(){
-      var auth = this.$auth
-      Helper.apiCall("hosts", "", auth).then(res=>{
-        this.hosts = res.map(x=>{
-          return{
-            value: x.ip,
-            text: x.ip
-          } 
+    listHosts: /* istanbul ignore next */ function () {
+      var auth = this.$auth;
+      Helper.apiCall("hosts", "", auth)
+        .then((res) => {
+          this.hosts = res.map((x) => {
+            return {
+              value: x.ip,
+              text: x.ip,
+            };
+          });
         })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
+    },
+    loadFile: /* istanbul ignore next */ function () {
+      var auth = this.$auth;
+      Helper.apiCall("load_service", this.selected_host + "/text", auth)
+        .then((res) => {
+          this.loadedFile = res;
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
+    },
+    runTest: /* istanbul ignore next */ function(outputs){
+      var auth = this.$auth
+      Helper.apiCall("run_conf", this.selected_host + "/" + outputs, auth).then(res=>{
+        this.testOutput = res
       }).catch(e=>{
         this.$store.commit('updateError', e)
       })
     },
-    saveConf: /* istanbul ignore next */ function(){
+    saveRaw: /* istanbul ignore next */ function () {
+      var auth = this.$auth;
+      var formData = new FormData();
+      formData.append("raw", this.loadedFile);
+      formData.append("data", "{}")
+      Helper.apiPost("save_conf", "", this.selected_host, auth, formData)
+        .then((res) => {
+          this.$store.commit("updateError", res);
+          Helper.apiCall("load_service",  this.selected_host, auth)
+            .then((res) => {
+              this.output_data = res;
+              this.forceGlobalTag();
+            })
+            .catch((e) => {
+              this.$store.commit("updateError", e);
+            });
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
+    },
+    saveConf: /* istanbul ignore next */ function () {
       var auth = this.$auth;
       var formData = new FormData();
       formData.append("data", JSON.stringify(this.output_data));
-      Helper.apiPost("save_conf","", this.selected_host, auth, formData).then(res=>{
-        this.$store.commit('updateError', res)
-      }).catch(e=>{
-        this.$store.commit('updateError', e)
-      })
-    }
+      Helper.apiPost("save_conf", "", this.selected_host, auth, formData)
+        .then((res) => {
+          this.hasBeenSaved = true;
+          this.loadFile();
+          this.$store.commit("updateError", res);
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
+    },
   },
   mounted: /* istanbul ignore next */ function () {
     try {
       this.loadStructure();
       this.getAutosave();
-      this.listHosts()
+      this.listHosts();
     } catch (e) {
       this.$store.commit("updateError", e);
     }
@@ -237,12 +346,24 @@ export default {
 };
 </script>
 
-<style scoped>
+<style lang="scss">
 textarea {
   width: 100%;
   min-height: 400px;
 }
-h2{
+h2 {
   width: 100%;
 }
+.testOutput b{
+  color: red !important;
+}
+
+.testOutput{
+  width: 100%;
+  max-height: 400px;
+  overflow: scroll;
+  background-color: #efefed;
+  padding: 1rem;
+}
+
 </style>

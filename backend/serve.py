@@ -384,6 +384,15 @@ def delete_service(name):
 
     return "Success", 200
 
+@app.route("/load_service/<name>")
+@app.route("/load_service/<name>/<format>")
+@requires_auth_admin
+def load_service(name, format="json"):
+    """
+    Loads in a TOML service file
+    """
+    return svcs.load(name, format), 200
+
 # TOML manipulation utilities
 
 
@@ -475,19 +484,30 @@ def autosave(auth_client_id, data=""):
 # Write host telegraf config file
 @app.route("/save_conf/<host>", methods=["POST"])
 @requires_auth_admin
-def save_conf(host, data=""):
+def save_conf(host, data="", raw=""):
     """
     Saves the Telegraf config file to the given host location
     """
-    if data != "":
+    if data != "" or raw != "":
         parsed_data = data
+        parsed_raw = raw
     elif request.method == "POST": # pragma: no cover
         parsed_data = json.loads(request.form.get("data"))
+        parsed_raw = request.form.get("raw")
     else: # pragma: no cover
         return "Invalid", 498
 
-    svcs.output(host, parsed_data)
+    svcs.output(host, parsed_data, parsed_raw)
     return "Success", 200    
+
+# Run Telegraf configuration test
+@app.route("/run_conf/<fname>/<int:testing>")
+@requires_auth_admin
+def run_telegraf(fname,testing):
+    """
+    Runs specified telegraf file
+    """
+    return svcs.run(fname, testing == 1), 200
 
 # Utilities
 
