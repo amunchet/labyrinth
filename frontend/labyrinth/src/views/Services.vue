@@ -149,6 +149,7 @@ export default {
       autoSaved: false,
       selected_host: "",
       hosts: [],
+      raw_hosts: [],
       hasBeenSaved: false,
       loadedFile: "",
       testOutput: "",
@@ -232,7 +233,16 @@ export default {
       if (this.output_data["global_tags"] == undefined) {
         this.output_data["global_tags"] = {};
       }
-      this.output_data["global_tags"]["id"] = this.selected_host;
+      var found_host = this.raw_hosts.filter(x=>x.ip == this.selected_host)[0]
+      var found_tags = {}
+      var tag_names = ["mac", "host", "ip"]
+      for (var i = 0; i<tag_names.length; i++){
+        if (found_host[tag_names[i]] != undefined && found_host[tag_names[i]] != ""){
+          found_tags[tag_names[i]]= found_host[tag_names[i]]
+        }
+      }
+      this.output_data["global_tags"] = found_tags
+
     },
 
     loadStructure: /* istanbul ignore next */ function () {
@@ -269,6 +279,7 @@ export default {
       var auth = this.$auth;
       Helper.apiCall("hosts", "", auth)
         .then((res) => {
+          this.raw_hosts = res
           this.hosts = res.map((x) => {
             return {
               value: x.ip,
