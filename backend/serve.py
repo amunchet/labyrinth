@@ -513,12 +513,16 @@ def run_telegraf(fname,testing):
 
 
 @app.route("/find_ip/")
+@app.route("/find_ip/<name>")
 @requires_auth_admin
-def find_ip():
+def find_ip(name=""):
     """
     Returns the IP for the docker container
     """
-    return socket.gethostbyname(socket.gethostname()), 200
+    if name is None or name == "":
+        return socket.gethostbyname(socket.gethostname()), 200
+    else:
+        return socket.gethostbyname(name), 200
 
 
 @app.route("/list_directory/<type>")
@@ -627,10 +631,19 @@ def dashboard():
     for host in [x for x in hosts if "services" in x]:
         service_results = {}
         for service in host["services"]:
+            or_clause = []
+            if "mac" in host:
+                or_clause.append({"tags.mac": host["mac"]})
+            if "ip" in host:
+                or_clause.append({"tags.ip" : host["ip"]})
+            if "host" in host:
+                or_clause.append({"tags.host" : host["host"]})
 
             if service.strip() == "open_ports" or service.strip() == "closed_ports":
                 latest_metric = mongo_client["labyrinth"]["metrics"].find_one(
-                    {"name": "open_ports", "tags.host": host["mac"]},
+                    {"name": "open_ports", 
+                    "$or" : or_clause,
+                    },
                     sort=[("timestamp", pymongo.DESCENDING)]
                 )
                 found_service = service
@@ -638,7 +651,10 @@ def dashboard():
                 result = mc.judge_port(latest_metric, service, host)
             else:
                 latest_metric = mongo_client["labyrinth"]["metrics"].find_one(
-                    {"name": service, "tags.host": host["mac"]},
+                    {
+                        "name": service, 
+                        "$or" : or_clause,
+                    },
                     sort=[("timestamp", pymongo.DESCENDING)]
                 )
                 found_service = mongo_client["labyrinth"]["services"].find_one({
@@ -712,7 +728,14 @@ def read_metrics(host):
     """
     Returns the latest metrics for a given host
     """
-    return json.dumps([x for x in mongo_client["labyrinth"]["metrics"].find({"tags.host": host})], default=str), 200
+    or_clause = [
+        {"tags.host" : host},
+        {"tags.ip" : host},
+        {"tags.mac" : host}
+    ]
+    return json.dumps([x for x in mongo_client["labyrinth"]["metrics"].find(
+        {"$or": or_clause}
+        )], default=str), 200
 
 
 @app.route("/metrics/", methods=["POST"])
