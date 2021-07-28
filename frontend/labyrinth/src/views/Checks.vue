@@ -83,8 +83,11 @@
       </template>
       <template v-slot:cell(tags)="row">
         <div v-for="(item, idx) in row.item.tags" v-bind:key="idx">
-          {{item}} <br />
+          {{idx}} : {{item}} <br />
         </div>
+      </template>
+      <template v-slot:cell(timestamp)="row">
+        {{new Date(row.item.timestamp * 1000)}}
       </template>
     </b-table>
     </div>
