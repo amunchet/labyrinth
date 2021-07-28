@@ -352,7 +352,7 @@ textarea {
   min-height: 400px;
 }
 h2 {
-  width: 100%;
+  width: 99%;
 }
 .testOutput b{
   color: red !important;
