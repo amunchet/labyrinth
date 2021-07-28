@@ -153,7 +153,7 @@
         </div>
         <h5 class="mt-2">Ansible playbook</h5>
         <b-select class="mt-2 mb-2" v-if="files_list['ansible'] != undefined" :options="files_list['ansible']" v-model="selected_playbook" />
-        <textarea v-model="playbook_contents" v-if="loadings.playbook == undefined || loadings.playbook == 0"/>
+        <b-textarea v-model="playbook_contents" v-if="loadings.playbook == undefined || loadings.playbook == 0"/>
         <div v-else class="text-center">
           <b-spinner class="ml-auto mr-auto mt-4" /></div>
         <div class="overflow-hidden">
@@ -173,7 +173,7 @@
         <b-button v-if="isTesting" variant="success" @click="runPlaybook()">Deploy to sampleclient</b-button>
         <b-button v-else variant="primary" @click="runPlaybook()">Deploy to hosts</b-button>
         <br />
-        <div class="playbook_result" v-html="playbook_result" v-if="playbook_result && playbook_loaded"></div>
+        <div class="playbook_result" v-html="$sanitize(playbook_result)" v-if="playbook_result && playbook_loaded"></div>
         <b-spinner class="m-2" v-if="!playbook_loaded" />
       </b-col>
     </b-row>

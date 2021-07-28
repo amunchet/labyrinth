@@ -10,6 +10,10 @@ import store from "./store";
 
 Vue.config.productionTip = false;
 
+//Sanitize
+
+import sanitizeHTML from 'sanitize-html';
+Vue.prototype.$sanitize = sanitizeHTML
 
 //Auth
 import AuthPlugin from './plugins/auth'
