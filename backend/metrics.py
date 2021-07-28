@@ -47,7 +47,6 @@ def judge_port(metric, service, host):
 
 def judge_check(metric, service):
     """Judges a normal check"""
-
     valid_operations = ["less", "greater", "equals"]
 
     # Right name?
@@ -94,8 +93,28 @@ def judge_check(metric, service):
 
     if service["comparison"] == "equals":
         logger.debug("In equals comparison")
-        return found == service["value"]
+        try:
+            return found == service["value"]
+        except TypeError:
+            try:
+                return float(found) == float(service["value"])
+            except TypeError:
+                return str(found) == str(service["value"])
+
     elif service["comparison"] == "greater":
-        return found > service["value"]
+        try:
+            return found > service["value"]
+        except TypeError:
+            try:
+                return float(found) > float(service["value"])
+            except TypeError:
+                return str(found) > str(service["value"])
+
     elif service["comparison"] == "less":
-        return found < service["value"]
+        try:
+            return found < service["value"]
+        except TypeError:
+            try:
+                return float(found) < float(service["value"])
+            except TypeError:
+                return str(found) < str(service["value"])
