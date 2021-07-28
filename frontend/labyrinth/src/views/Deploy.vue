@@ -26,26 +26,7 @@
             </b-button>
           </b-col>
         </b-row>
-        <b-row >
-          <b-col> TOTP Key </b-col>
-        </b-row><b-row>
-          <b-col>
-            <b-select  v-if="files_list['totp'] != undefined" :options="files_list['totp']" disabled />
-          </b-col>
-          <b-col>
-            <b-form-file
-              disabled
-              v-model="file1"
-              placeholder="..."
-              drop-placeholder="Drop here..."
-            ></b-form-file>
-          </b-col>
-          <b-col cols="1">
-            <b-button disabled variant="link" class="m-0 mt-2 p-0 float-left">
-              <font-awesome-icon icon="times" size="1x" />
-            </b-button>
-          </b-col>
-        </b-row>
+        
         <b-row>
           <b-col> Become Password </b-col>
         </b-row><b-row>
@@ -76,27 +57,7 @@
           </b-col>
         </b-row>
         <hr />
-        <b-row>
-          <b-col> Telegraf conf file </b-col>
-        </b-row><b-row>
-          <b-col>
-            <b-select
-              v-if="files_list['telegraf'] != undefined" :options="files_list['telegraf']"
-            />
-          </b-col>
-          <b-col >
-            <b-form-file
-              v-model="file1"
-              placeholder="..."
-              drop-placeholder="Drop here..."
-            ></b-form-file>
-          </b-col>
-          <b-col cols="1">
-            <b-button variant="link" class="m-0 mt-2 p-0 float-left">
-              <font-awesome-icon icon="times" size="1x" />
-            </b-button>
-          </b-col>
-        </b-row>
+        
         <b-row>
           
           <b-col> Other Ansible Files (optional) </b-col>
