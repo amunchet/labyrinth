@@ -32,6 +32,10 @@ def check_file(filename, file_type, raw=""):
     temp_file = "/tmp/{}".format(str(uuid.uuid1()))
     
     look_file = "/src/uploads/{}/{}".format(file_type,filename)
+
+    if not os.path.exists(look_file):
+        look_file = "/tmp/{}".format(filename)
+
     if raw == ""  and not os.path.exists(look_file):
         return False
 
@@ -50,8 +54,7 @@ def check_file(filename, file_type, raw=""):
             if not os.path.exists("/src/uploads/ansible"):
                 os.mkdir("/src/uploads/ansible")
             shutil.move(temp_file, "/src/uploads/ansible/{}".format(filename))
-        
-        return retval
+        return [retval, x.stdout, x.stderr]
 
     elif file_type == "ansible":
         x = subprocess.run(["ansible-playbook {} --check".format(look_file)], shell=True, capture_output=True)
@@ -59,7 +62,7 @@ def check_file(filename, file_type, raw=""):
             retval = False
         else:
             retval = True
-        return retval
+        return [retval, x.stdout, x.stderr]
 
     elif file_type == "telegraf":
 
@@ -75,7 +78,7 @@ def check_file(filename, file_type, raw=""):
             retval = True
 
         os.remove("/etc/telegraf/telegraf.conf")
-        return retval
+        return [retval, x.stdout, x.stderr]
 
     elif file_type == "other":
         return True
@@ -90,7 +93,7 @@ def check_file(filename, file_type, raw=""):
                 break
         return False
 
-def run_ansible(hosts: List, playbook: str, vault_password: str, become_file: str):
+def run_ansible(hosts: List, playbook: str, vault_password: str, become_file: str, ssh_key_file=""):
     """
     Runs ansible playbook
         - Key is to first remove the directory
@@ -100,7 +103,7 @@ def run_ansible(hosts: List, playbook: str, vault_password: str, become_file: st
     :param vault_password - this is the temporary vault password to store 
     :param become_file - Encrypted vault file that contains the become password
 
-    :param ssh_keys - SSH keys to use for hosts
+    :param ssh_key_file - SSH key to use for hosts
 
     ```
     ansible_runner.run(\
@@ -113,6 +116,7 @@ def run_ansible(hosts: List, playbook: str, vault_password: str, become_file: st
     RUN_DIR = "/run/{}".format(uuid.uuid1())
     SRC_DIR = "/src/uploads/ansible"
     BECOME_DIR= "/src/uploads/become"
+    SSH_DIR = "/src/uploads/ssh"
 
 
     if not os.path.exists("/run"):
@@ -120,7 +124,7 @@ def run_ansible(hosts: List, playbook: str, vault_password: str, become_file: st
 
     os.mkdir(RUN_DIR)
 
-    folders = ["inventory", "project", "vars"]
+    folders = ["inventory", "project", "vars", "env"]
     for folder in folders:
         os.mkdir("{}/{}".format(RUN_DIR, folder))
 
@@ -150,7 +154,32 @@ def run_ansible(hosts: List, playbook: str, vault_password: str, become_file: st
 
     shutil.copy(old_become, "{}/vars/{}.yml".format(RUN_DIR, become_file))
 
+    # Write password
+    with open("{}/vault.pass".format(RUN_DIR), "w") as f:
+        f.write(vault_password)
 
+    # SSH Key File - Optional
+    if ssh_key_file != "":
+        # Copy it over
+        ssh_key = "{}/{}".format(SSH_DIR, ssh_key_file)
+        if not os.path.exists(ssh_key):
+            raise Exception("SSH Key not found:" + str(ssh_key))
+
+        shutil.copy(ssh_key, "{}/env/ssh_key".format(RUN_DIR))
+
+        # Decrypt it - if that fails, then die
+        try:
+            os.system(
+                "ansible-vault decrypt {}/env/ssh_key --vault-password-file {}/vault.pass".format(RUN_DIR, RUN_DIR)
+                )
+            if not os.path.exists("{}/env/ssh_key".format(RUN_DIR)):
+                raise Exception("No file found from SSH decrypt")
+        except Exception:
+            if os.path.exists("{}/vault.pass".format(RUN_DIR)):
+                os.remove("{}/vault.pass".format(RUN_DIR))
+            raise Exception("SSH key decrypt failed")
+
+        
     # Write password
     with open("{}/vault.pass".format(RUN_DIR), "w") as f:
         f.write(vault_password)
@@ -166,7 +195,7 @@ def run_ansible(hosts: List, playbook: str, vault_password: str, become_file: st
         # Delete Vault Password
         if os.path.exists("{}/vault.pass".format(RUN_DIR)):
             os.remove("{}/vault.pass".format(RUN_DIR))
-      
+
     if os.path.exists("/vault.pass"):
         os.remove("/vault.pass")
 
