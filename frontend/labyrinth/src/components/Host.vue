@@ -1,8 +1,7 @@
 <template>
   <div :class="passed_class">
     <div class="top">
-      <span>.{{ ip.split(".")[ip.split(".").length - 1] }}</span>
-      <br />
+      <div class="number">.{{ ip.split(".")[ip.split(".").length - 1] }}</div>
       <div class="pt-1" style="height: 50px">
         <component
           v-if="
@@ -71,7 +70,7 @@
               v-bind:key="idx"
               @click="
                 () => {
-                  $emit('service', service)
+                  $emit('service', service);
                   $bvModal.show('service_detail');
                 }
               "
@@ -172,6 +171,21 @@ export default {
 .top {
   padding-top: 10px;
   display: block;
+}
+.number {
+  /* border: 1px solid white; */
+  width: 50px;
+  margin: auto;
+  border-radius: 0 0 5px 5px;
+  margin-top: -20px;
+  background-color: #fbfbfe;
+  color: #34343e;
+  font-weight: bold;
+  /* box-shadow: 0 3px #cfcfce; */
+  height: 25px;
+  /* position: relative; */
+  /* top: 0; */
+  margin-bottom: 0.5rem;
 }
 .hover {
   cursor: pointer;
