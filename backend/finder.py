@@ -48,8 +48,11 @@ def convert_host(input: Dict) -> Dict:
         "icon" : "",
         "services" : ["open_ports", "closed_ports"],
         "open_ports": [],
-        "class" : ""
+        "class" : "",
+        "host" : ""
     }
+    if "hostnames" in input and input["hostnames"] and "name" in input["hostnames"][0]:
+        output["host"] = input["hostnames"][0]["name"]
     output["ip"] = input["addresses"]["ipv4"]
     if "mac" in input["addresses"]:
         output["mac"] = input["addresses"]["mac"]
@@ -77,14 +80,20 @@ def process_scan(input: Dict) -> Dict:
         "name" : "open_ports",
         "tags" : {
             "host" : "",
+            "mac" : "",
+            "ip" : "",
         },
         "timestamp" : 0
     }
     output["fields"]["ip"] = input["addresses"]["ipv4"]
     if "mac" in input["addresses"]:
-        output["tags"]["host"] = input["addresses"]["mac"]
+        output["tags"]["mac"] = input["addresses"]["mac"]
     else:
-        output["tags"]["host"] = input["addresses"]["ipv4"]
+        output["tags"]["ip"] = input["addresses"]["ipv4"]
+
+    if "hostnames" in input and input["hostnames"] and "name" in input["hostnames"][0]:
+        output["tags"]["host"] = input["hostnames"][0]["name"]
+
 
     if "tcp" in input:
         output["fields"]["ports"] = [int(x) for x in input["tcp"].keys()]
