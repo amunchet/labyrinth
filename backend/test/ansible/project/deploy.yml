@@ -31,6 +31,24 @@
       name: telegraf
       update_cache: yes
       state: present
+  - name: Cron installation
+    apt:
+      name: cron
+      update_cache: yes
+      state: present
+
+  - name: Telegraf Configuration Copy
+    copy:
+      src: "/src/uploads/telegraf/{{inventory_hostname}}.conf"
+      dest: /etc/telegraf/telegraf.conf
   
-  - name: Start Telegraf service
-    raw: service telegraf start
+  - name: Stop Telegraf service
+    raw: service telegraf stop
+
+  - name: Start Cron
+    raw: service cron start
+
+  - name: Set up Telegraf Cron
+    ansible.builtin.cron:
+      name: "Telegraf"
+      job: "/usr/bin/telegraf --once"
