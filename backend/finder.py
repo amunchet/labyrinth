@@ -86,10 +86,10 @@ def process_scan(input: Dict) -> Dict:
         "timestamp" : 0
     }
     output["fields"]["ip"] = input["addresses"]["ipv4"]
+    output["tags"]["ip"] = input["addresses"]["ipv4"]
+
     if "mac" in input["addresses"]:
         output["tags"]["mac"] = input["addresses"]["mac"]
-    else:
-        output["tags"]["ip"] = input["addresses"]["ipv4"]
 
     if "hostnames" in input and input["hostnames"] and "name" in input["hostnames"][0]:
         output["tags"]["host"] = input["hostnames"][0]["name"]
@@ -97,6 +97,13 @@ def process_scan(input: Dict) -> Dict:
 
     if "tcp" in input:
         output["fields"]["ports"] = [int(x) for x in input["tcp"].keys()]
+        output["fields"]["vulners"] = {}
+        # Vulners
+        for port in input["tcp"].keys():
+            current_port = input["tcp"][port]
+            if "script" in current_port and "vulners" in current_port["script"]:
+                output["fields"]["vulners"][str(port)] = current_port["script"]["vulners"].split("\t")[0].strip()
+
     output["timestamp"] = time.time()
     return output
 
