@@ -133,7 +133,7 @@ def upload(type, override_token):
         else:
             return "File check failed", 521
 
-    return "Success", 200
+    return file.filename, 200
 
 
 @app.route("/uploads/<type>", methods=["GET"])
@@ -568,10 +568,16 @@ def save_ansible_file(fname, inp_data=""):
         return "Invalid request", 417
 
     filename = "/src/uploads/ansible/{}.yml".format(fname.replace(".yml", ""))
-    if ansible_helper.check_file(filename=fname, raw=data, file_type="ansible"):
+    x = ansible_helper.check_file(filename=fname, raw=data, file_type="ansible")
+    if type(x) == type([]) and x[0]:
+        return "Success", 200
+    elif type(x) == type(True) and x:
         return "Success", 200
     else:
-        return "Invalid ansible file", 471
+        if type(x) == type([]):
+            return json.dumps(x, default=str), 471
+        else:
+            return "Invalid ansible file", 471
 
 
 # Ansible runner
@@ -589,7 +595,16 @@ def run_ansible(inp_data=""):
     if "hosts" not in data or "playbook" not in data or "vault_password" not in data or "become_file" not in data:
         return "Invalid data", 482
 
-    return ansible_helper.run_ansible(data["hosts"], data["playbook"], data["vault_password"], data["become_file"]), 200
+    if "ssh_key" not in data:
+        data["ssh_key"] = ""
+
+    return ansible_helper.run_ansible(
+        data["hosts"], 
+        data["playbook"], 
+        data["vault_password"], 
+        data["become_file"], 
+        ssh_key_file=data["ssh_key"],
+        ), 200
 
 
 @app.route("/mac/<old_mac>/<new_mac>/")
@@ -657,8 +672,9 @@ def dashboard():
                     },
                     sort=[("timestamp", pymongo.DESCENDING)]
                 )
-                found_service = mongo_client["labyrinth"]["services"].find_one({
-                                                                               "name": service})
+                found_service = mongo_client["labyrinth"]["services"].find_one(
+                    {"name": service}
+                    )
 
                 if latest_metric is None or found_service is None:
                     result = False

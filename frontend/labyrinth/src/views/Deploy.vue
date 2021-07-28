@@ -13,6 +13,7 @@
           <b-col>
             <b-select
               v-if="files_list['ssh'] != undefined"
+              v-model="selected['ssh']"
               :options="files_list['ssh']"
             />
           </b-col>
@@ -24,7 +25,10 @@
               drop-placeholder="Drop here..."
             ></b-form-file> </b-col
           ><b-col cols="1">
-            <b-button disabled variant="link" class="m-0 mt-2 p-0 float-left">
+            <b-button variant="link" class="m-0 mt-2 p-0 float-left" @click="()=>{
+              files_list['ssh'] = ''
+              ssh_key_file = []
+              }">
               <font-awesome-icon icon="times" size="1x" />
             </b-button>
           </b-col>
@@ -37,18 +41,21 @@
             <b-select
               v-if="files_list['become'] != undefined"
               :options="files_list['become']"
-              v-model="selected_become"
+              v-model="selected['become']"
             />
           </b-col>
           <b-col>
             <b-form-file
-              v-model="file1"
+              v-model="become_file"
               placeholder="..."
               drop-placeholder="Drop here..."
             ></b-form-file>
           </b-col>
           <b-col cols="1">
-            <b-button variant="link" class="m-0 mt-2 p-0 float-left">
+            <b-button variant="link" class="m-0 mt-2 p-0 float-left" @click="()=>{
+                files_list['become'] = ''
+                become_file = []
+              }">
               <font-awesome-icon icon="times" size="1x" />
             </b-button>
           </b-col>
@@ -59,7 +66,8 @@
             Become password needs to be in the following format: <br />
             <code class="text-left">
               ---<br />
-              ansible_ssh_pass: "XXXXXXX"
+              ansible_user: "XXXXXX" <br />
+              ansible_ssh_pass: "XXXXXXX"<br />
             </code>
           </b-col>
         </b-row>
@@ -70,28 +78,31 @@
         ><b-row>
           <b-col>
             <b-select
+              disabled
               v-if="files_list['other'] != undefined"
               :options="files_list['other']"
+              v-model="selected['other']"
             />
           </b-col>
           <b-col>
             <b-form-file
-              v-model="file1"
+              disabled
+              v-model="other_file"
               placeholder="..."
               drop-placeholder="Drop here..."
             ></b-form-file>
           </b-col>
           <b-col cols="1">
-            <b-button variant="link" class="m-0 mt-2 p-0 float-left">
+            <b-button variant="link" class="m-0 mt-2 p-0 float-left" @click="()=>{
+                files_list['other'] = ''
+                other_file = []
+              }"
+              disabled
+              >
               <font-awesome-icon icon="times" size="1x" />
             </b-button>
           </b-col>
         </b-row>
-        <hr />
-        <div class="text-left">
-          Telegraf deployment is interesting, because there are some non x64
-          machines here. FreeBSD, old arm processors, etc.
-        </div>
         <hr />
         <div class="text-left">
           To create ansible vault files, use the following command:
@@ -134,10 +145,10 @@
           v-model="playbook_contents"
           v-if="loadings.playbook == undefined || loadings.playbook == 0"
         />
-        <div v-else class="text-center">
+        <div v-else class="mt-2 text-center">
           <b-spinner class="ml-auto mr-auto mt-4" />
         </div>
-        <div class="overflow-hidden">
+        <div class="overflow-hidden mt-2">
           <b-button
             variant="success"
             class="mb-2 float-right"
@@ -148,13 +159,9 @@
           >
             <font-awesome-icon icon="save" size="1x" />
           </b-button>
-          <div class="mb-2 float-right" v-else>
+          <div class="mb-2 mt-2 float-right" v-else>
             <b-spinner />
           </div>
-        </div>
-        <div>
-          Ansible username:
-          <b-input v-model="ansible_user" />
         </div>
 
         <div>
@@ -187,8 +194,14 @@ export default {
   name: "Deploy",
   data() {
     return {
-      file1: [],
       ssh_key_file: [],
+      become_file: [],
+      other_file: [],
+      selected: {
+        "ssh" : "",
+        "become" : "",
+        "other" : "",
+      },
 
       ip: "",
       sample_ip: "",
@@ -202,7 +215,6 @@ export default {
       ansible_user: "",
 
       selected_playbook: "",
-      selected_become: "",
       playbook_contents: "",
       playbook_loaded: true,
 
@@ -221,18 +233,14 @@ export default {
   },
   watch: {
     ssh_key_file: function (val) {
-      if (val != "") {
-        var auth = this.$auth;
-        var formData = new FormData();
-        formData.append("file", this.ssh_key_file);
-        Helper.apiPost("upload", "/ssh", auth.accessToken, auth, formData, true)
-          .then((res) => {
-            this.$store.commit("updateError", res);
-          })
-          .catch((e) => {
-            this.$store.commit("updateError", e);
-          });
-      }
+      this.uploadHelper(val, "ssh")
+    },
+
+    become_file: function(val){
+      this.uploadHelper(val, "become")
+    },
+    other_file: function(val){
+      this.uploadHelper(val, "other")
     },
 
     //TODO: Finish other uploads
@@ -243,6 +251,26 @@ export default {
     },
   },
   methods: {
+    uploadHelper: /* istanbul ignore next */ function(val, type){
+      if (val) {
+        var auth = this.$auth;
+        var formData = new FormData();
+        formData.append("file", val)
+        Helper.apiPost("upload", "/" + type, auth.accessToken, auth, formData, true)
+          .then((res) => {
+            //this.$store.commit("updateError", res);
+            this.selected[type] = res
+            this.loadFilesList(type)
+          })
+          .catch((e) => {
+            if(("" + e).indexOf("521") != -1){
+              this.$store.commit('updateError', "Error: Invalid file type uploaded.  Make sure your file is the correct type (Encrypted Ansible, Telegraf Conf, etc.)")
+            }else{
+              this.$store.commit("updateError", e);
+            }
+          });
+      }
+    },
     loadPlaybook: /* istanbul ignore next */ function () {
       var auth = this.$auth;
       var loadings = this.loadings;
@@ -277,7 +305,13 @@ export default {
           this.loadPlaybook();
         })
         .catch((e) => {
-          this.$store.commit("updateError", e);
+          this.loadings["save_playbook"] = 0
+          this.$forceUpdate()
+          if (("" + e).indexOf("471") != -1){
+            this.$store.commit("updateError", "Error: Invalid Ansible File.  Correct the file and save again." + e);
+          }else{
+            this.$store.commit("updateError", e);
+          }
         });
     },
 
@@ -297,7 +331,8 @@ export default {
         hosts: host,
         playbook: this.selected_playbook.replace(".yml", ""),
         vault_password: this.vault_password,
-        become_file: this.selected_become.replace(".yml", ""),
+        become_file: this.selected['become'].replace(".yml", ""),
+        ssh_key: this.selected["ssh"]
       };
       formData.append("data", JSON.stringify(data));
 
@@ -379,8 +414,24 @@ export default {
 <style lang="scss" scoped>
 @import "@/assets/variables.scss";
 
+*::-webkit-scrollbar{
+  height: 8px;
+  width: 8px;
+}
+*::-webkit-scrollbar-track-piece{
+  background: lightgrey;
+}
+*::-webkit-scrollbar-thumb{
+  background: darkgrey;
+}
+
+
+
+
+
 .playbook_result {
   height: 400px;
+  max-width: 500px;
   overflow-y: scroll;
   margin-top: 2rem;
   background-color: lightgrey;
