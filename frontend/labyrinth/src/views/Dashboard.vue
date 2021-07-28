@@ -4,7 +4,7 @@
     <CreateEditSubnet :inp_subnet="selected_subnet" @update="loadData()"/>
 
     <CreateEditHost :inp_host = "selected_host" @update="loadData()"/>
-    <HostMetric @update="loadData()" />
+    <HostMetric @update="loadData()" :data="selected_metric" />
     <div v-if="!loading">
     <div class="outer_left">
       <Connector
@@ -85,6 +85,10 @@
                   :cpu="host.cpu_check"
                   :mem="host.mem_check"
                   :hd="host.hd_check"
+                  @service="(val)=>{
+                    selected_metric = val
+                    $forceUpdate()
+                    }"
                 />
               </div>
             </div>
@@ -115,6 +119,7 @@ export default {
 
       selected_subnet: "",
       selected_host: "",
+      selected_metric: {},
     };
   },
   components: {

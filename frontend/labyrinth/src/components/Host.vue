@@ -71,6 +71,7 @@
               v-bind:key="idx"
               @click="
                 () => {
+                  $emit('service', service)
                   $bvModal.show('service_detail');
                 }
               "

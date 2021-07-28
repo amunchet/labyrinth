@@ -1,7 +1,13 @@
 <template>
     <b-modal id="service_detail">
-        This opens when you click on a service entry.
+        {{data}}
     </b-modal>
 
 
 </template>
+<script>
+export default {
+  name: "HostMetric",
+  props: ["data"]
+}
+</script>
