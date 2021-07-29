@@ -105,11 +105,25 @@ services:
     #  - ./redis_data:/bitnami/redis/data
 
   # Vulnerable server running on the network 
-  dva:
+  sampledva:
     image: vulnerables/web-dvwa
     networks:
       - labyrinth
       
+  # Sample Finder Cron
+  samplecron:
+    build: "cron"
+    volumes:
+      - ./backend/:/src
+      - ./cron:/cron
+    networks:
+      - labyrinth
+    environment: 
+      MONGO_USERNAME: root
+      MONGO_PASSWORD: temp
+      MONGO_HOST: mongo
+      REDIS_HOST: redis
+
   # Test Client
   sampleclient:
     build: "test_client"

@@ -1,0 +1,3 @@
+* * * * * /bin/bash /cron/run.sh > /var/log/finder
+
+# Must have Blank line before EOF
