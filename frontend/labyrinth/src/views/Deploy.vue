@@ -120,7 +120,11 @@
             <b-button
               variant="success"
               v-if="!isTesting"
-              @click="isTesting = !isTesting"
+              @click="()=>{
+                
+                isTesting = !isTesting
+                selected_host = sample_ip
+                }"
               >Enter Test Mode</b-button
             >
             <b-button variant="primary" v-else @click="isTesting = !isTesting"
@@ -129,7 +133,7 @@
           </div>
         </div>
         <div class="mb-4 mt-2" v-if="!isTesting">
-          Host: <b-select v-model="selected_host" :options="hosts" />
+          Host: <b-select v-model="selected_host" :options="hosts" :enabled="isTesting"/>
         </div>
         <div v-else class="mb-4 mt-2">
           Host: <br /><b>sampleclient - ({{sample_ip}})</b> <br />Backend ip is {{ ip }}
@@ -319,12 +323,7 @@ export default {
     runPlaybook: function () {
       var auth = this.$auth;
       var formData = new FormData();
-      let host;
-      if (this.isTesting) {
-        host = "sampleclient";
-      } else {
-        host = this.selected_host;
-      }
+      var host = this.selected_host;
 
       this.playbook_loaded = false;
       var data = {
