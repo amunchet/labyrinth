@@ -104,6 +104,11 @@ services:
     # volumes:
     #  - ./redis_data:/bitnami/redis/data
 
+  alertmanager:
+    image: quay.io/prometheus/alertmanager
+    networks:
+      - labyrinth
+
   # Vulnerable server running on the network 
   sampledva:
     image: vulnerables/web-dvwa
