@@ -11,6 +11,7 @@ import socket
 import pymongo
 import redis
 import toml
+import requests
 
 import metrics as mc
 
@@ -19,7 +20,7 @@ import services as svcs
 
 from common import auth
 from common.test import unwrap
-from flask import Flask, request
+from flask import Flask, request, Response
 from werkzeug.utils import secure_filename
 from flask_cors import CORS
 
@@ -777,6 +778,7 @@ def insert_metric(inp=""):
         mongo_client["labyrinth"]["metrics"].insert_one(item)
 
     return "Success", 200
+
 
 
 if __name__ == "__main__":  # Run the Flask server in development mode

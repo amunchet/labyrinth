@@ -21,6 +21,7 @@ services:
       - "7200:7000"
     volumes:
       - ./backend/:/src
+      - ./alertmanager:/alertmanager
     networks:
       - labyrinth
     environment: 
@@ -105,9 +106,11 @@ services:
     #  - ./redis_data:/bitnami/redis/data
 
   alertmanager:
-    image: quay.io/prometheus/alertmanager
+    build: alertmanager
     networks:
       - labyrinth
+    volumes:
+      - ./alertmanager:/src
 
   # Vulnerable server running on the network 
   sampledva:
