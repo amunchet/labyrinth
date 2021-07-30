@@ -84,35 +84,34 @@ export default {
   data() {
     return {
       subnet: {
-          subnet: "",
-          origin: {
-            ip: "",
-            icon: "",
-          },
-          links: {
-            ref: "",
-            ip: "",
-            icon: "",
-            color: "",
-          },
+        subnet: "",
+        origin: {
+          ip: "",
+          icon: "",
+        },
+        links: {
+          ref: "",
+          ip: "",
+          icon: "",
+          color: "",
+        },
       },
       icons: [],
       colors: [],
       isNew: true,
-    }
+    };
   },
   methods: {
     saveSubnet: /* istanbul ignore next */ function () {
-      if(this.subnet.subnet == ""){
-        this.$store.commit('updateError', "Error: Please enter subnet name")
-        return -1
+      if (this.subnet.subnet == "") {
+        this.$store.commit("updateError", "Error: Please enter subnet name");
+        return -1;
       }
       var auth = this.$auth;
       var formData = new FormData();
       formData.append("data", JSON.stringify(this.subnet));
       Helper.apiPost("subnet", "", "", auth, formData)
         .then((res) => {
-          
           this.$store.commit("updateError", res);
           this.$emit("update");
           this.$bvModal.hide("create_edit_subnet");

@@ -12,13 +12,13 @@ Vue.config.productionTip = false;
 
 //Sanitize
 
-import sanitizeHTML from 'sanitize-html';
-Vue.prototype.$sanitize = sanitizeHTML
+import sanitizeHTML from "sanitize-html";
+Vue.prototype.$sanitize = sanitizeHTML;
 
 //Auth
-import AuthPlugin from './plugins/auth'
+import AuthPlugin from "./plugins/auth";
 // Install the authentication plugin here
-Vue.use(AuthPlugin)
+Vue.use(AuthPlugin);
 
 new Vue({
   router,

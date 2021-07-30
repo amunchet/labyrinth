@@ -29,33 +29,59 @@
     </b-container>
     <hr />
     Service Icons:
-    <b-row >
-      <b-col style="display: flex;">
-        <font-awesome-icon class="mt-2 mr-3" icon="chart-area" size="1x"  /><br />
-        <b-select v-model="host.cpu_check" :options="[{text: '[No Service]', value: ''},...host.services.map(x=>{
-          return { text: x.name, value: x.name}
-          })]" size="sm" />
+    <b-row>
+      <b-col style="display: flex">
+        <font-awesome-icon
+          class="mt-2 mr-3"
+          icon="chart-area"
+          size="1x"
+        /><br />
+        <b-select
+          v-model="host.cpu_check"
+          :options="[
+            { text: '[No Service]', value: '' },
+            ...host.services.map((x) => {
+              return { text: x.name, value: x.name };
+            }),
+          ]"
+          size="sm"
+        />
       </b-col>
 
-      <b-col style="display: flex;">
-        <font-awesome-icon class="mt-2 mr-3" icon="memory" size="1x"  /><br />
-        <b-select v-model="host.mem_check" :options="[{text: '[No Service]', value: ''},...host.services.map(x=>{
-          return { text: x.name, value: x.name}
-          })]" size="sm" />
+      <b-col style="display: flex">
+        <font-awesome-icon class="mt-2 mr-3" icon="memory" size="1x" /><br />
+        <b-select
+          v-model="host.mem_check"
+          :options="[
+            { text: '[No Service]', value: '' },
+            ...host.services.map((x) => {
+              return { text: x.name, value: x.name };
+            }),
+          ]"
+          size="sm"
+        />
       </b-col>
 
-      <b-col style="display: flex;">
-        <font-awesome-icon class="mt-2 mr-3" icon="database" size="1x"  /><br />
-        <b-select v-model="host.hd_check" :options="[{text: '[No Service]', value: ''},...host.services.map(x=>{
-          return { text: x.name, value: x.name}
-          })]" size="sm" />
+      <b-col style="display: flex">
+        <font-awesome-icon class="mt-2 mr-3" icon="database" size="1x" /><br />
+        <b-select
+          v-model="host.hd_check"
+          :options="[
+            { text: '[No Service]', value: '' },
+            ...host.services.map((x) => {
+              return { text: x.name, value: x.name };
+            }),
+          ]"
+          size="sm"
+        />
       </b-col>
     </b-row>
 
     <hr />
     <b-row>
       <b-col>
-          <h5>Expected Open Ports
+        <h5>
+          Expected Open Ports
           <b-button
             variant="link"
             class="float-right mt-0 pt-1 shadow-none"
@@ -63,11 +89,11 @@
           >
             <font-awesome-icon icon="plus" size="1x" />
           </b-button>
-          </h5>
+        </h5>
         <b-table
           v-if="host.open_ports"
           :items="
-            ([...host.open_ports].sort()).map((x) => {
+            [...host.open_ports].sort().map((x) => {
               return { port: x };
             })
           "
@@ -150,7 +176,11 @@
           </template>
           <template v-slot:top-row="" v-if="show_add_service">
             <td role="cell">
-              <b-select placeholder="Service:" :options="services" v-model="new_services" />
+              <b-select
+                placeholder="Service:"
+                :options="services"
+                v-model="new_services"
+              />
             </td>
 
             <td>-</td>
@@ -175,7 +205,6 @@
                 <font-awesome-icon icon="check" size="1x" />
               </b-button>
             </td>
-
           </template>
         </b-table>
       </b-col>
@@ -202,11 +231,11 @@
 </template>
 <script>
 import Helper from "@/helper";
-import Checks from '@/views/Checks'
+import Checks from "@/views/Checks";
 export default {
   name: "CreateEditHost",
   components: {
-    Checks
+    Checks,
   },
   props: ["inp_host"],
   data() {
@@ -245,18 +274,20 @@ export default {
     },
   },
   methods: {
-    loadServices: /* istanbul ignore next */ function(){
-      var auth = this.$auth
-      Helper.apiCall("services", "all", auth).then(res=>{
-        this.services = res.map(x=>{
-          return{
-            text: x.name,
-            value: x.name
-          }
+    loadServices: /* istanbul ignore next */ function () {
+      var auth = this.$auth;
+      Helper.apiCall("services", "all", auth)
+        .then((res) => {
+          this.services = res.map((x) => {
+            return {
+              text: x.name,
+              value: x.name,
+            };
+          });
         })
-      }).catch(e=>{
-        this.$store.commit('updateError', e)
-      })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
     },
     loadMetrics: /* istanbul ignore next */ function () {
       var auth = this.$auth;
@@ -285,9 +316,9 @@ export default {
           this.$store.commit("updateError", e);
         });
     },
-    deleteHost: /* istanbul ignore next */ function(){
-      var host = this.host
-      var auth = this.$auth
+    deleteHost: /* istanbul ignore next */ function () {
+      var host = this.host;
+      var auth = this.$auth;
       this.$bvModal
         .msgBoxConfirm("Are you sure you want to delete this host?")
         .then((res) => {
@@ -295,34 +326,33 @@ export default {
             return;
           }
 
-          var url = host.mac
-          if (host.mac == ""){
-            url = host.ip
+          var url = host.mac;
+          if (host.mac == "") {
+            url = host.ip;
           }
-          console.log(host)
-          Helper.apiDelete("host", url, auth).then(res=>{
-            this.$store.commit('updateError', res)
-            this.$bvModal.hide("create_edit_host")
-            this.$emit('update')
-          }).catch(e=>{
-            this.$store.commit('updateError', e)
-          })
-
-
-
-        }).catch(e=>{
-          this.$store.commit('updateError', e)
+          console.log(host);
+          Helper.apiDelete("host", url, auth)
+            .then((res) => {
+              this.$store.commit("updateError", res);
+              this.$bvModal.hide("create_edit_host");
+              this.$emit("update");
+            })
+            .catch((e) => {
+              this.$store.commit("updateError", e);
+            });
         })
-
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
+    },
+  },
+  mounted: /* istanbul ignore next */ function () {
+    try {
+      this.loadServices();
+    } catch (e) {
+      this.$store.commit("updateError", e);
     }
   },
-  mounted: /* istanbul ignore next */ function(){
-    try{
-      this.loadServices()
-    }catch(e){
-      this.$store.commit('updateError', e)
-    }
-  }
 };
 </script>
 <style lang="scss" scoped>

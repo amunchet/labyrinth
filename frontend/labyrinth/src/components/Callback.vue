@@ -18,8 +18,8 @@ export default {
   created() {
     try {
       this.$auth.handleAuthentication();
-      this.$store.commit("setLogin")
-      this.$forceUpdate()
+      this.$store.commit("setLogin");
+      this.$forceUpdate();
     } catch (e) {
       this.$store.commit("updateError", e);
     }

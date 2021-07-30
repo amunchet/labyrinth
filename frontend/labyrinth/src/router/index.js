@@ -1,7 +1,7 @@
 import Vue from "vue";
 import VueRouter from "vue-router";
 import Home from "../views/Home.vue";
-import Callback from '@/components/Callback'
+import Callback from "@/components/Callback";
 
 Vue.use(VueRouter);
 
@@ -11,7 +11,7 @@ const routes = [
     name: "Home",
     component: Home,
   },
-{
+  {
     path: "/callback",
     name: "Callback",
     component: Callback,
@@ -25,7 +25,7 @@ const routes = [
     component: () =>
       import(/* webpackChunkName: "dashboard" */ "../views/Dashboard.vue"),
   },
-{
+  {
     path: "/settings",
     name: "Settings",
     // route level code-splitting
@@ -34,7 +34,7 @@ const routes = [
     component: () =>
       import(/* webpackChunkName: "settings" */ "../views/Settings.vue"),
   },
-{
+  {
     path: "/services",
     name: "Services",
     // route level code-splitting
@@ -43,7 +43,7 @@ const routes = [
     component: () =>
       import(/* webpackChunkName: "services" */ "../views/Services.vue"),
   },
-{
+  {
     path: "/deploy",
     name: "Deploy",
     // route level code-splitting
@@ -52,7 +52,7 @@ const routes = [
     component: () =>
       import(/* webpackChunkName: "deploy" */ "../views/Deploy.vue"),
   },
-{
+  {
     path: "/alerts",
     name: "Alerts",
     // route level code-splitting
@@ -61,7 +61,7 @@ const routes = [
     component: () =>
       import(/* webpackChunkName: "alerts" */ "../views/Alerts.vue"),
   },
-{
+  {
     path: "/checks",
     name: "Checks",
     // route level code-splitting

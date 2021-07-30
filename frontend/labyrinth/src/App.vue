@@ -18,7 +18,7 @@
             <b-nav-item href="/dashboard">
               <router-link to="/dashboard">Dashboard</router-link>
             </b-nav-item>
-            
+
             <b-nav-item href="/checks">
               <router-link to="/checks">Checks</router-link>
             </b-nav-item>
@@ -27,7 +27,6 @@
           <!-- Right aligned nav items -->
           <b-navbar-nav class="ml-auto">
             <b-navbar-nav>
-
               <b-nav-item href="/settings">
                 <router-link to="/settings">Scan</router-link>
               </b-nav-item>
@@ -37,7 +36,7 @@
               <b-nav-item href="/deploy">
                 <router-link to="/deploy">Deploy</router-link>
               </b-nav-item>
-                <b-nav-item href="/alerts">
+              <b-nav-item href="/alerts">
                 <router-link to="/alerts">Alerts</router-link>
               </b-nav-item>
             </b-navbar-nav>
@@ -182,9 +181,9 @@ export default {
   }
 }
 
-.router-link-active{
-    color: $darkblue;
-    font-weight: bold;
+.router-link-active {
+  color: $darkblue;
+  font-weight: bold;
 }
 
 .top_logo {

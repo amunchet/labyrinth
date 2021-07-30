@@ -130,14 +130,21 @@
             <b-input placeholder="Value" v-model="new_field_value" size="sm" />
           </b-col>
           <b-col cols="2">
-            <b-button class="float-left" variant="success" size="sm" @click="()=>{
-                if(new_field_name != '' && new_field_value != ''){
-                  parsed_data[new_field_name] = new_field_value
-                  $emit('update', name, parsed_data)
-                  $forceUpdate()
+            <b-button
+              class="float-left"
+              variant="success"
+              size="sm"
+              @click="
+                () => {
+                  if (new_field_name != '' && new_field_value != '') {
+                    parsed_data[new_field_name] = new_field_value;
+                    $emit('update', name, parsed_data);
+                    $forceUpdate();
+                  }
                 }
-              }">
-              <font-awesome-icon icon="plus" size="1x" /> 
+              "
+            >
+              <font-awesome-icon icon="plus" size="1x" />
             </b-button>
           </b-col>
         </b-row>
@@ -224,7 +231,7 @@
           <b-col :cols="col_size">
             <b-input v-model="parsed_data" />
           </b-col>
-          <b-col cols="0" v-if='isWrite'>
+          <b-col cols="0" v-if="isWrite">
             <b-button
               @click="
                 () => {

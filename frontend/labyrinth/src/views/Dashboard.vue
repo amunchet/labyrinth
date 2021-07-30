@@ -1,101 +1,124 @@
 <template>
   <div class="dashboard">
     <!-- Modals -->
-    <CreateEditSubnet :inp_subnet="selected_subnet" @update="loadData()"/>
+    <CreateEditSubnet :inp_subnet="selected_subnet" @update="loadData()" />
 
-    <CreateEditHost :inp_host = "selected_host" @update="loadData()"/>
+    <CreateEditHost :inp_host="selected_host" @update="loadData()" />
     <HostMetric @update="loadData()" :data="selected_metric" />
     <div v-if="!loading">
-    <div class="outer_left">
-      <Connector
-        :verticals="connectorBottom[0]"
-        horizontals="1"
-        color="orange"
-        :style="
-          'top: ' +
-          offsetTop[0] +
-          'px; left: ' +
-          32 +
-          'px; position: absolute; float: left;'
-        "
-      />
-    </div>
-    <div class="outer_right">
-      <b-button variant="link" class="add-button" @click="()=>{
-          selected_subnet = ''
-        $bvModal.show('create_edit_subnet')
-        }">
-        <font-awesome-icon icon="plus" size="1x" /> New Subnet
-      </b-button>
-      <div
-        :class="findClass(subnet)"
-        v-for="(subnet, i) in full_data"
-        v-bind:key="i"
-      >
-        <div class="left" v-if="(subnet.origin.ip != undefined && subnet.origin.ip != '') || (subnet.links.ip != undefined && subnet.links.ip != '')">
-          <div class="corner" :ref="'end_' + i" >
-            <Host
-              :ip="subnet.origin.ip"
-              :icon="subnet.origin.icon"
-              show_ports="0"
-            />
+      <div class="outer_left">
+        <Connector
+          :verticals="connectorBottom[0]"
+          horizontals="1"
+          color="orange"
+          :style="
+            'top: ' +
+            offsetTop[0] +
+            'px; left: ' +
+            32 +
+            'px; position: absolute; float: left;'
+          "
+        />
+      </div>
+      <div class="outer_right">
+        <b-button
+          variant="link"
+          class="add-button"
+          @click="
+            () => {
+              selected_subnet = '';
+              $bvModal.show('create_edit_subnet');
+            }
+          "
+        >
+          <font-awesome-icon icon="plus" size="1x" /> New Subnet
+        </b-button>
+        <div
+          :class="findClass(subnet)"
+          v-for="(subnet, i) in full_data"
+          v-bind:key="i"
+        >
+          <div
+            class="left"
+            v-if="
+              (subnet.origin.ip != undefined && subnet.origin.ip != '') ||
+              (subnet.links.ip != undefined && subnet.links.ip != '')
+            "
+          >
+            <div class="corner" :ref="'end_' + i">
+              <Host
+                :ip="subnet.origin.ip"
+                :icon="subnet.origin.icon"
+                show_ports="0"
+              />
+            </div>
+            <div class="routes">
+              <Host
+                :ip="subnet.links.ip"
+                show_ports="0"
+                passed_class="main"
+                :ref="'start_' + i"
+                :icon="subnet.links.icon"
+              />
+            </div>
           </div>
-          <div class="routes">
-            <Host
-              :ip="subnet.links.ip"
-              show_ports="0"
-              passed_class="main"
-              :ref="'start_' + i"
-              :icon="subnet.links.icon"
-            />
-          </div>
-        </div>
-        <div class="right">
-          <h2 @click="()=>{
-              $bvModal.show('create_edit_subnet')
-              selected_subnet = subnet
-              }" :class="findTitleClass(subnet)">{{ subnet.subnet }}</h2>
-          <div class="flexed">
-            <div
-              class="grouped"
-              v-for="(group, j) in subnet.groups"
-              v-bind:key="j"
+          <div class="right">
+            <h2
+              @click="
+                () => {
+                  $bvModal.show('create_edit_subnet');
+                  selected_subnet = subnet;
+                }
+              "
+              :class="findTitleClass(subnet)"
             >
-              <div class="overflow-hidden light p-0">
-                <h2 class="float-left">{{ group.name }}</h2>
-                <font-awesome-icon
-                  class="float-right p-1 mt-1 hover"
-                  icon="plus"
-                  size="2x"
-                  @click="()=>{
-                      selected_host= ''
-                      $bvModal.show('create_edit_host')
-                      }"
-                />
-              </div>
-              <div class="flexed">
-                <Host
-                  v-for="(host, k) in group.hosts"
-                  v-bind:key="k"
-                  :ip="host.ip"
-                  passed_class="main"
-                  :icon="host.icon"
-                  :services="host.services"
-                  @hostClicked="()=>selected_host = host"
-                  :cpu="host.cpu_check"
-                  :mem="host.mem_check"
-                  :hd="host.hd_check"
-                  @service="(val)=>{
-                    selected_metric = val
-                    $forceUpdate()
-                    }"
-                />
+              {{ subnet.subnet }}
+            </h2>
+            <div class="flexed">
+              <div
+                class="grouped"
+                v-for="(group, j) in subnet.groups"
+                v-bind:key="j"
+              >
+                <div class="overflow-hidden light p-0">
+                  <h2 class="float-left">{{ group.name }}</h2>
+                  <font-awesome-icon
+                    class="float-right p-1 mt-1 hover"
+                    icon="plus"
+                    size="2x"
+                    @click="
+                      () => {
+                        selected_host = '';
+                        $bvModal.show('create_edit_host');
+                      }
+                    "
+                  />
+                </div>
+                <div class="flexed">
+                  <Host
+                    v-for="(host, k) in group.hosts"
+                    v-bind:key="k"
+                    :ip="host.ip"
+                    passed_class="main"
+                    :icon="host.icon"
+                    :services="host.services"
+                    @hostClicked="() => (selected_host = host)"
+                    :cpu="host.cpu_check"
+                    :mem="host.mem_check"
+                    :hd="host.hd_check"
+                    @service="
+                      (val) => {
+                        selected_metric = val;
+                        $forceUpdate();
+                      }
+                    "
+                  />
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
     </div>
     <b-spinner v-else class="m-2" />
   </div>
@@ -104,9 +127,9 @@
 import Helper from "@/helper";
 import Connector from "@/components/Connector";
 import Host from "@/components/Host";
-import CreateEditSubnet from '@/components/CreateEditSubnet'
-import CreateEditHost from '@/components/CreateEditHost'
-import HostMetric from '@/components/HostMetric'
+import CreateEditSubnet from "@/components/CreateEditSubnet";
+import CreateEditHost from "@/components/CreateEditHost";
+import HostMetric from "@/components/HostMetric";
 export default {
   data() {
     return {
@@ -127,16 +150,16 @@ export default {
     Host,
     CreateEditSubnet,
     CreateEditHost,
-    HostMetric
+    HostMetric,
   },
   methods: {
     loadData: /* istanbul ignore next */ function () {
       var auth = this.$auth;
-      this.loading = true
+      this.loading = true;
       Helper.apiCall("dashboard", "", auth)
         .then((res) => {
           this.full_data = res;
-          this.loading = false
+          this.loading = false;
           this.findTop();
         })
         .catch((e) => {
@@ -160,11 +183,11 @@ export default {
     findTop: function () {
       try {
         for (var i = 0; i < this.connector_count; i++) {
+          var height = this.$refs["start_" + i][0].$el.offsetHeight;
+          console.log(height);
 
-          var height = this.$refs["start_" + i][0].$el.offsetHeight
-          console.log(height)
-
-          this.offsetTop[i] = this.$refs["start_" + i][0].$el.offsetTop - (0.25 * height);
+          this.offsetTop[i] =
+            this.$refs["start_" + i][0].$el.offsetTop - 0.25 * height;
           var bottom = this.$refs["end_" + (i + 1)][0].offsetTop * 1;
           this.connectorBottom[i] =
             Math.ceil((bottom - this.offsetTop[i]) / 50) * 1;
@@ -174,7 +197,6 @@ export default {
         setTimeout(this.findTop, 50);
       }
     },
-    
   },
   watch: {
     $refs: {
@@ -207,12 +229,12 @@ html {
   background-color: #fffeff;
 }
 
-.hover{
-    cursor: pointer;
+.hover {
+  cursor: pointer;
 }
 
-.hover:hover{
-    color: darkgrey;
+.hover:hover {
+  color: darkgrey;
 }
 
 .dashboard {

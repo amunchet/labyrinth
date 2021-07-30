@@ -1,6 +1,10 @@
 <template>
   <b-container style="min-width: 90%">
-    <b-modal id="test_configuration_file" title="Test Configuration File" size="lg">
+    <b-modal
+      id="test_configuration_file"
+      title="Test Configuration File"
+      size="lg"
+    >
       <div class="ml-1 mr-1">
         <b-row>
           <b-col>
@@ -10,7 +14,11 @@
         <b-row>
           <b-col>
             <div>
-              <b-button variant="warning" class="mb-2 float-right" @click="saveRaw()">
+              <b-button
+                variant="warning"
+                class="mb-2 float-right"
+                @click="saveRaw()"
+              >
                 <font-awesome-icon icon="save" size="1x" />
               </b-button>
             </div>
@@ -19,16 +27,23 @@
         </b-row>
         <b-row class="mt-2">
           <b-col class="text-center">
-            <b-button variant="success" @click="runTest(0)">Test with NO outputs</b-button>
+            <b-button variant="success" @click="runTest(0)"
+              >Test with NO outputs</b-button
+            >
           </b-col>
           <b-col class="text-center">
-            <b-button variant="warning" @click="runTest(1)">Test WITH outputs</b-button>
+            <b-button variant="warning" @click="runTest(1)"
+              >Test WITH outputs</b-button
+            >
           </b-col>
         </b-row>
         <hr />
         <b-row class="mt-2">
           <b-col>
-            <div class="testOutput" v-html="$sanitize(testOutput).replace('\n', '<br />')"></div>
+            <div
+              class="testOutput"
+              v-html="$sanitize(testOutput).replace('\n', '<br />')"
+            ></div>
           </b-col>
         </b-row>
       </div>
@@ -233,16 +248,20 @@ export default {
       if (this.output_data["global_tags"] == undefined) {
         this.output_data["global_tags"] = {};
       }
-      var found_host = this.raw_hosts.filter(x=>x.ip == this.selected_host)[0]
-      var found_tags = {}
-      var tag_names = ["mac", "host", "ip"]
-      for (var i = 0; i<tag_names.length; i++){
-        if (found_host[tag_names[i]] != undefined && found_host[tag_names[i]] != ""){
-          found_tags[tag_names[i]]= found_host[tag_names[i]]
+      var found_host = this.raw_hosts.filter(
+        (x) => x.ip == this.selected_host
+      )[0];
+      var found_tags = {};
+      var tag_names = ["mac", "host", "ip"];
+      for (var i = 0; i < tag_names.length; i++) {
+        if (
+          found_host[tag_names[i]] != undefined &&
+          found_host[tag_names[i]] != ""
+        ) {
+          found_tags[tag_names[i]] = found_host[tag_names[i]];
         }
       }
-      this.output_data["global_tags"] = found_tags
-
+      this.output_data["global_tags"] = found_tags;
     },
 
     loadStructure: /* istanbul ignore next */ function () {
@@ -279,7 +298,7 @@ export default {
       var auth = this.$auth;
       Helper.apiCall("hosts", "", auth)
         .then((res) => {
-          this.raw_hosts = res
+          this.raw_hosts = res;
           this.hosts = res.map((x) => {
             return {
               value: x.ip,
@@ -301,23 +320,25 @@ export default {
           this.$store.commit("updateError", e);
         });
     },
-    runTest: /* istanbul ignore next */ function(outputs){
-      var auth = this.$auth
-      Helper.apiCall("run_conf", this.selected_host + "/" + outputs, auth).then(res=>{
-        this.testOutput = res
-      }).catch(e=>{
-        this.$store.commit('updateError', e)
-      })
+    runTest: /* istanbul ignore next */ function (outputs) {
+      var auth = this.$auth;
+      Helper.apiCall("run_conf", this.selected_host + "/" + outputs, auth)
+        .then((res) => {
+          this.testOutput = res;
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
     },
     saveRaw: /* istanbul ignore next */ function () {
       var auth = this.$auth;
       var formData = new FormData();
       formData.append("raw", this.loadedFile);
-      formData.append("data", "{}")
+      formData.append("data", "{}");
       Helper.apiPost("save_conf", "", this.selected_host, auth, formData)
         .then((res) => {
           this.$store.commit("updateError", res);
-          Helper.apiCall("load_service",  this.selected_host, auth)
+          Helper.apiCall("load_service", this.selected_host, auth)
             .then((res) => {
               this.output_data = res;
               this.forceGlobalTag();
@@ -365,16 +386,15 @@ textarea {
 h2 {
   width: 99%;
 }
-.testOutput b{
+.testOutput b {
   color: red !important;
 }
 
-.testOutput{
+.testOutput {
   width: 100%;
   max-height: 400px;
   overflow: scroll;
   background-color: #efefed;
   padding: 1rem;
 }
-
 </style>

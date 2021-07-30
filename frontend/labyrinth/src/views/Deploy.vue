@@ -7,8 +7,7 @@
         example, you might be deploying without SSH keys)
         <hr />
 
-        <b-row>
-          <b-col> SSH Key </b-col> </b-row
+        <b-row> <b-col> SSH Key </b-col> </b-row
         ><b-row>
           <b-col>
             <b-select
@@ -25,17 +24,22 @@
               drop-placeholder="Drop here..."
             ></b-form-file> </b-col
           ><b-col cols="1">
-            <b-button variant="link" class="m-0 mt-2 p-0 float-left" @click="()=>{
-              files_list['ssh'] = ''
-              ssh_key_file = []
-              }">
+            <b-button
+              variant="link"
+              class="m-0 mt-2 p-0 float-left"
+              @click="
+                () => {
+                  files_list['ssh'] = '';
+                  ssh_key_file = [];
+                }
+              "
+            >
               <font-awesome-icon icon="times" size="1x" />
             </b-button>
           </b-col>
         </b-row>
 
-        <b-row>
-          <b-col> Become Password </b-col> </b-row
+        <b-row> <b-col> Become Password </b-col> </b-row
         ><b-row>
           <b-col>
             <b-select
@@ -52,10 +56,16 @@
             ></b-form-file>
           </b-col>
           <b-col cols="1">
-            <b-button variant="link" class="m-0 mt-2 p-0 float-left" @click="()=>{
-                files_list['become'] = ''
-                become_file = []
-              }">
+            <b-button
+              variant="link"
+              class="m-0 mt-2 p-0 float-left"
+              @click="
+                () => {
+                  files_list['become'] = '';
+                  become_file = [];
+                }
+              "
+            >
               <font-awesome-icon icon="times" size="1x" />
             </b-button>
           </b-col>
@@ -73,8 +83,7 @@
         </b-row>
         <hr />
 
-        <b-row>
-          <b-col> Other Ansible Files (optional) </b-col> </b-row
+        <b-row> <b-col> Other Ansible Files (optional) </b-col> </b-row
         ><b-row>
           <b-col>
             <b-select
@@ -93,12 +102,17 @@
             ></b-form-file>
           </b-col>
           <b-col cols="1">
-            <b-button variant="link" class="m-0 mt-2 p-0 float-left" @click="()=>{
-                files_list['other'] = ''
-                other_file = []
-              }"
+            <b-button
+              variant="link"
+              class="m-0 mt-2 p-0 float-left"
+              @click="
+                () => {
+                  files_list['other'] = '';
+                  other_file = [];
+                }
+              "
               disabled
-              >
+            >
               <font-awesome-icon icon="times" size="1x" />
             </b-button>
           </b-col>
@@ -120,11 +134,12 @@
             <b-button
               variant="success"
               v-if="!isTesting"
-              @click="()=>{
-                
-                isTesting = !isTesting
-                selected_host = sample_ip
-                }"
+              @click="
+                () => {
+                  isTesting = !isTesting;
+                  selected_host = sample_ip;
+                }
+              "
               >Enter Test Mode</b-button
             >
             <b-button variant="primary" v-else @click="isTesting = !isTesting"
@@ -133,10 +148,16 @@
           </div>
         </div>
         <div class="mb-4 mt-2" v-if="!isTesting">
-          Host: <b-select v-model="selected_host" :options="hosts" :enabled="isTesting"/>
+          Host:
+          <b-select
+            v-model="selected_host"
+            :options="hosts"
+            :enabled="isTesting"
+          />
         </div>
         <div v-else class="mb-4 mt-2">
-          Host: <br /><b>sampleclient - ({{sample_ip}})</b> <br />Backend ip is {{ ip }}
+          Host: <br /><b>sampleclient - ({{ sample_ip }})</b> <br />Backend ip
+          is {{ ip }}
         </div>
         <h5 class="mt-2">Ansible playbook</h5>
         <b-select
@@ -202,9 +223,9 @@ export default {
       become_file: [],
       other_file: [],
       selected: {
-        "ssh" : "",
-        "become" : "",
-        "other" : "",
+        ssh: "",
+        become: "",
+        other: "",
       },
 
       ip: "",
@@ -237,14 +258,14 @@ export default {
   },
   watch: {
     ssh_key_file: function (val) {
-      this.uploadHelper(val, "ssh")
+      this.uploadHelper(val, "ssh");
     },
 
-    become_file: function(val){
-      this.uploadHelper(val, "become")
+    become_file: function (val) {
+      this.uploadHelper(val, "become");
     },
-    other_file: function(val){
-      this.uploadHelper(val, "other")
+    other_file: function (val) {
+      this.uploadHelper(val, "other");
     },
 
     //TODO: Finish other uploads
@@ -255,21 +276,31 @@ export default {
     },
   },
   methods: {
-    uploadHelper: /* istanbul ignore next */ function(val, type){
+    uploadHelper: /* istanbul ignore next */ function (val, type) {
       if (val) {
         var auth = this.$auth;
         var formData = new FormData();
-        formData.append("file", val)
-        Helper.apiPost("upload", "/" + type, auth.accessToken, auth, formData, true)
+        formData.append("file", val);
+        Helper.apiPost(
+          "upload",
+          "/" + type,
+          auth.accessToken,
+          auth,
+          formData,
+          true
+        )
           .then((res) => {
             //this.$store.commit("updateError", res);
-            this.selected[type] = res
-            this.loadFilesList(type)
+            this.selected[type] = res;
+            this.loadFilesList(type);
           })
           .catch((e) => {
-            if(("" + e).indexOf("521") != -1){
-              this.$store.commit('updateError', "Error: Invalid file type uploaded.  Make sure your file is the correct type (Encrypted Ansible, Telegraf Conf, etc.)")
-            }else{
+            if (("" + e).indexOf("521") != -1) {
+              this.$store.commit(
+                "updateError",
+                "Error: Invalid file type uploaded.  Make sure your file is the correct type (Encrypted Ansible, Telegraf Conf, etc.)"
+              );
+            } else {
               this.$store.commit("updateError", e);
             }
           });
@@ -309,11 +340,15 @@ export default {
           this.loadPlaybook();
         })
         .catch((e) => {
-          this.loadings["save_playbook"] = 0
-          this.$forceUpdate()
-          if (("" + e).indexOf("471") != -1){
-            this.$store.commit("updateError", "Error: Invalid Ansible File.  Correct the file and save again." + e);
-          }else{
+          this.loadings["save_playbook"] = 0;
+          this.$forceUpdate();
+          if (("" + e).indexOf("471") != -1) {
+            this.$store.commit(
+              "updateError",
+              "Error: Invalid Ansible File.  Correct the file and save again." +
+                e
+            );
+          } else {
             this.$store.commit("updateError", e);
           }
         });
@@ -330,8 +365,8 @@ export default {
         hosts: host,
         playbook: this.selected_playbook.replace(".yml", ""),
         vault_password: this.vault_password,
-        become_file: this.selected['become'].replace(".yml", ""),
-        ssh_key: this.selected["ssh"]
+        become_file: this.selected["become"].replace(".yml", ""),
+        ssh_key: this.selected["ssh"],
       };
       formData.append("data", JSON.stringify(data));
 
@@ -379,11 +414,11 @@ export default {
       var auth = this.$auth;
       Helper.apiCall("hosts", "", auth)
         .then((res) => {
-          this.hosts = res.map(x=>{
-            return{
+          this.hosts = res.map((x) => {
+            return {
               text: x.ip,
-              value: x.ip
-            }
+              value: x.ip,
+            };
           });
         })
         .catch((e) => {
@@ -413,20 +448,16 @@ export default {
 <style lang="scss" scoped>
 @import "@/assets/variables.scss";
 
-*::-webkit-scrollbar{
+*::-webkit-scrollbar {
   height: 8px;
   width: 8px;
 }
-*::-webkit-scrollbar-track-piece{
+*::-webkit-scrollbar-track-piece {
   background: lightgrey;
 }
-*::-webkit-scrollbar-thumb{
+*::-webkit-scrollbar-thumb {
   background: darkgrey;
 }
-
-
-
-
 
 .playbook_result {
   height: 400px;
