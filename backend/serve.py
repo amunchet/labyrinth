@@ -512,6 +512,35 @@ def run_telegraf(fname,testing):
 
 # Utilities
 
+@app.route("/alertmanager/pass")
+@requires_auth_admin
+def alertmanager_pass():
+    """Returns contents of the password file"""
+    return open("/alertmanager/pass").read(), 200
+
+@app.route("/alertmanager/", methods=["GET"])
+@requires_auth_admin
+def alertmanager_load():
+    """Return contents of configuration file"""
+    if not os.path.exists("/alertmanager/alertmanager.yml"):
+        return "", 200
+    return open("/alertmanager/alertmanager.yml").read(), 200
+
+@app.route("/alertmanager/", methods=["POST"])
+@requires_auth_admin
+def alertmanager_save(data=""):
+    """Saves alertmanager file"""
+    if data != "":
+        parsed_data = data
+    elif request.method == "POST": #pragma: no cover
+        parsed_data = request.form.get("data")
+    else: # pragma: no cover
+        return "Invalid", 483
+    
+    with open("/alertmanager/alertmanager.yml", "w") as f:
+        f.write(parsed_data)
+    
+    return "Success", 200
 
 @app.route("/find_ip/")
 @app.route("/find_ip/<name>")

@@ -122,15 +122,6 @@
       </b-table>
     </div>
     <hr />
-    <h3>Settings</h3>
-    <b-row>
-      <b-col>Frequency of scans</b-col>
-      <b-col><b-input /></b-col>
-    </b-row>
-    <b-row>
-      <b-col>Time until a metric is considered stale </b-col>
-      <b-col><b-input /></b-col>
-    </b-row>
   </b-container>
 </template>
 <script>
