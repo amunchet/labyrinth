@@ -105,6 +105,7 @@
         :items="metrics"
         striped
         :fields="['name', 'tags', 'fields', 'timestamp']"
+        v-if="checksLoaded"
       >
         <template v-slot:cell(fields)="row">
           <div v-for="(item, idx) in row.item.fields" v-bind:key="idx">
@@ -120,6 +121,7 @@
           {{ new Date(row.item.timestamp * 1000) }}
         </template>
       </b-table>
+      <b-spinner v-else class="m-2" />
     </div>
     <hr />
   </b-container>
@@ -143,6 +145,7 @@ export default {
         "value",
       ],
       metrics: [],
+      checksLoaded: true,
     };
   },
   methods: {
@@ -158,12 +161,15 @@ export default {
     },
     loadMetrics: /* istanbul ignore next */ function () {
       var auth = this.$auth;
+      this.checksLoaded = false
       Helper.apiCall("metrics", "25", auth)
         .then((res) => {
           this.metrics = res;
+          this.checksLoaded = true
         })
         .catch((e) => {
           this.$store.commit("updateError", e);
+          this.checksLoaded = true
         });
     },
     saveCheck: /* istanbul ignore next */ function (e) {
