@@ -11,3 +11,4 @@ redis_data/**
 backend/output-labyrinth
 venv/**
 data/**
+**/.coverage.**
