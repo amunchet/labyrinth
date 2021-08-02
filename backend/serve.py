@@ -34,7 +34,7 @@ executor = ThreadPoolExecutor(2)
 TELEGRAF_KEY = os.environ.get("TELEGRAF_KEY")
 
 
-def _requires_header(f, permission):
+def _requires_header(f, permission): # pragma: no cover
     @functools.wraps(f)
     def decorated(*args, **kwargs):
         if request.headers.get("Authorization") != permission:
@@ -86,8 +86,7 @@ mongo_client = pymongo.MongoClient(
 
 @app.route("/insecure")
 @app.route("/insecure/")
-def insecure():
-
+def insecure(): 
     return "Insecure route.", 200
 
 
@@ -105,7 +104,7 @@ valid_type = ["ssh", "totp", "become", "telegraf", "ansible", "other"]
 
 @app.route("/upload/<type>/<override_token>", methods=["POST"])
 @requires_auth_admin
-def upload(type, override_token):
+def upload(type, override_token): # pragma: no cover
     """
     Handles file upload
     """
@@ -164,7 +163,7 @@ def read_redis():
 
 @app.route("/scan/")
 @requires_auth_write
-def scan():
+def scan(): # pragma: no cover
     """Runs NMAP Scan"""
 
     from finder import main
@@ -209,10 +208,10 @@ def create_edit_subnet(inp=""):
         subnet = inp
     elif request.method == "POST":  # pragma: no cover
         subnet = json.loads(request.form.get("data"))
-    else:
+    else: # pragma: no cover
         return "Invalid request", 443
 
-    if "subnet" not in subnet or subnet["subnet"] == '':
+    if "subnet" not in subnet or subnet["subnet"] == '': # pragma: no cover
         return "Invalid data", 407
     
     if mongo_client["labyrinth"]["subnets"].find_one({"subnet": subnet["subnet"]}):
@@ -246,7 +245,7 @@ def create_edit_link(subnet="", link=""):
     elif request.method == "POST":  # pragma: no cover
         data["subnet"] = subnet
         data["link"] = request.form.get("link")
-    else:
+    else: # pragma: no cover
         return "Invalid", 417
 
     mongo_client["labyrinth"]["subnets"].update_one(
@@ -272,14 +271,14 @@ def create_edit_host(inp=""):
         host = inp
     elif request.method == "POST":  # pragma: no cover
         host = json.loads(request.form.get("data"))
-    else:
+    else: # pragma: no cover
         return "Invalid data", 443
 
-    if "mac" not in host:
+    if "mac" not in host: # pragma: no cover
         return "Invalid data", 407
 
     subnet = host["subnet"]
-    if subnet == "":
+    if subnet == "": # pragma: no cover
         return "No subnet", 418
 
     if mongo_client["labyrinth"]["hosts"].find_one({"mac": host["mac"]}):
@@ -342,10 +341,10 @@ def create_edit_service(service=""):
         data = service
     elif request.method == "POST":  # pragma: no cover
         data = json.loads(request.form.get("data"))
-    else:
+    else: # pragma: no cover
         return "Invalid", 427
 
-    if "name" not in data:
+    if "name" not in data: # pragma: no cover
         return "Invalid data", 439
 
     if [x for x in mongo_client["labyrinth"]["services"].find({"name": data["name"]})]:
@@ -563,10 +562,10 @@ def list_directory(type):
     """
 
     valid_type = ["ssh", "totp", "become", "telegraf", "ansible", "other"]
-    if type not in valid_type:
+    if type not in valid_type: # pragma: no cover
         return "Invalid type", 446
 
-    if not os.path.exists("/src/uploads/{}".format(type)):
+    if not os.path.exists("/src/uploads/{}".format(type)): # pragma: no cover
         return "No folder", 447
 
     return json.dumps(os.listdir("/src/uploads/{}".format(type))), 200
@@ -594,7 +593,7 @@ def save_ansible_file(fname, inp_data=""):
         data = inp_data
     elif request.method == "POST":  # pragma: no cover
         data = request.form.get("data")
-    else:
+    else: # pragma: no cover
         return "Invalid request", 417
 
     filename = "/src/uploads/ansible/{}.yml".format(fname.replace(".yml", ""))
@@ -800,7 +799,7 @@ def insert_metric(inp=""):
     mongo_client["labyrinth"]["metrics"].create_index(
         [("metrics.timestamp", -1)])
 
-    if "metrics" not in data:
+    if "metrics" not in data: # pragma: no cover
         return "Invalid data", 421
 
     for item in data["metrics"]:
@@ -810,7 +809,7 @@ def insert_metric(inp=""):
 
 
 
-if __name__ == "__main__":  # Run the Flask server in development mode
+if __name__ == "__main__":  # pragma: no cover
     app.debug = True
     app.config["ENV"] = "development"
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 7000)))

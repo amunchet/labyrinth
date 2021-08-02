@@ -53,7 +53,8 @@ def check_file(filename, file_type, raw=""):
         if retval:
             if not os.path.exists("/src/uploads/ansible"):
                 os.mkdir("/src/uploads/ansible")
-            shutil.move(temp_file, "/src/uploads/ansible/{}".format(filename))
+            shutil.move(temp_file, "/src/uploads/ansible/{}.yml".format(filename))
+            
         return [retval, x.stdout, x.stderr]
 
     elif file_type == "ansible":

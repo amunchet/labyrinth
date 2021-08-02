@@ -37,7 +37,7 @@ class AuthError(Exception):
         self.solution = "Please login again."
 
 
-def get_token_auth_header():
+def get_token_auth_header(): # pragma: no cover
     """Obtains the access token from the Authorization Header
     """
     auth = request.headers.get("Authorization", None)
@@ -93,7 +93,7 @@ def requires_scope(required_scope):
     return False
 
 
-def _requires_auth(f, permission="", error_func=""):
+def _requires_auth(f, permission="", error_func=""): # pragma: no cover
     """Determines if the access token is valid
     """
 

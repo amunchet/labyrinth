@@ -12,12 +12,12 @@ class NotFoundException(Exception):
     def __init__(self, msg):
         self.msg = msg
     
-def judge(metric, service):
+def judge(metric, service, host=""):
     """
     Judges a metric based on service
     """
     # Right kind?
-    if "type" not in service:
+    if "type" not in service: # pragma: no cover
         logger.debug("Type not in service")
         return False
     
@@ -25,7 +25,7 @@ def judge(metric, service):
         return judge_check(metric, service)
     
     if service["type"] == "port":
-        return judge_port(metric, service)
+        return judge_port(metric, service, host)
     
     logger.debug("Wrong service type")
     return False
@@ -33,8 +33,8 @@ def judge(metric, service):
 def judge_port(metric, service, host):
     """
     Judge a port service
-      - Is this for open or closed ports?
-      - Will need to check with the host to see what it should be
+        - Is this for open or closed ports?
+        - Will need to check with the host to see what it should be
     """
     if metric is None:
         return False

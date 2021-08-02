@@ -22,12 +22,6 @@ def test_metric_judge(setup):
     """
     Tests Judging a metric against a service
     """
-    port_service = {
-        "name": "port_ssh",
-        "type": "port",
-        "port": 22,
-        "state": "open"
-    }
     check_service = {
         "name": "check_hd",
         "type": "check",
@@ -35,6 +29,10 @@ def test_metric_judge(setup):
         "field": "read_time",
         "comparison": "greater",
         "value": 1000
+    }
+
+    host = {
+        "open_ports" : [ 22, 23 ]
     }
 
     port_scan = {
@@ -111,10 +109,6 @@ def test_metric_judge(setup):
     output = metrics.judge(metric=telegraf, service=check_service)
     assert output
 
-    # Check mismatched types - port and check
-
-    output = metrics.judge(metric=telegraf, service=port_service)
-    assert not output
 
 
     # Compound metrics (deep meterics)
@@ -139,16 +133,24 @@ def test_metric_judge(setup):
 
     ## Port scan checks
 
-    output = metrics.judge(metric=port_scan, service=port_service)
+    # Open Ports - Passing
+    output = metrics.judge_port(metric=port_scan, service="open_ports", host=host)
     assert output
 
-    port_service["port"] = 25
+    # Closed Ports - Passing
 
-    output = metrics.judge(metric=port_scan, service=port_service)
+    output = metrics.judge_port(metric=port_scan, service="closed_ports", host=host)
+    assert output
+
+    # Open Ports - Failing
+    port_scan["fields"]["ports"] = []
+
+    output = metrics.judge_port(metric=port_scan, service="open_ports", host=host)
     assert not output
-    
-    port_service["port"] = 22
-    port_service["state"] = "closed"
-    output = metrics.judge(metric=port_scan, service=port_service)
+
+    # Closed Ports - Failing
+    host["open_ports"] = [22,23,27,28]
+    output = metrics.judge_port(metric=port_scan, service="open_ports", host=host)
     assert not output
+
 

@@ -99,16 +99,3 @@ def test_redis_comments(setup):
 
     assert json.loads(b[0]) == expected
 
-
-# Compile
-
-def compile_snippets():
-    """
-    Compile selected snippets into working TOML files
-    """
-    assert False
-def test_telegraf_conf():
-    """
-    Tests that the resultant conf is valid for telegraf
-    """
-    assert False

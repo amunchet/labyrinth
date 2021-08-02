@@ -431,7 +431,7 @@ def test_delete_service(setup):
         - Implications for hosts that have this service enabled
     """
     test_create_edit_host(setup)
-    test_create_service(setup)
+    test_create_edit_service(setup)
 
     # Create snippet if not exists
     filename = "/src/snippets/check_hd"
@@ -575,7 +575,7 @@ def test_list_dashboard(setup):
     test_create_edit_subnet("")
     test_list_subnet("")
     test_create_edit_host("")
-    test_create_service("")
+    test_create_edit_service("")
     test_insert_metric("")
     expected = [{
         'subnet': '192.168.0',
@@ -609,7 +609,7 @@ def test_list_dashboard(setup):
                     'state': False
                 }, {
                     'name': 'check_hd',
-                    'state': True
+                    'state': False
                 }],
                 'class': 'health'
             }]

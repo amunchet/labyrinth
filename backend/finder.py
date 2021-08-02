@@ -17,7 +17,7 @@ from nmap import PortScannerYield as ps
 from common.test import unwrap
 from serve import list_subnet, list_subnets, create_edit_host, list_host, insert_metric
 
-def scan(subnet: str, callback_fn, verbose=False) -> List: 
+def scan(subnet: str, callback_fn, verbose=False) -> List:  # pragma: no cover
     """Scans a given subnet"""
     search = subnet
     if len(subnet.split(".")) == 3:
@@ -107,7 +107,7 @@ def process_scan(input: Dict) -> Dict:
     output["timestamp"] = time.time()
     return output
 
-def main():
+def main(): # pragma: no cover
     """Runs scan and updates database"""
 
     rclient = redis.Redis(host=(os.environ.get("REDIS_HOST") or "redis"))
