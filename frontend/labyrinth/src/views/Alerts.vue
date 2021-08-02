@@ -1,7 +1,10 @@
 <template>
   <b-container>
     <b-tabs content-class="mt-3" lazy>
-      <b-tab title="Settings" active class="text-left">
+      <b-tab title="Active Alerts" active class="text-left">
+        <p>List of active alerts.</p>
+      </b-tab>
+      <b-tab title="Settings" class="text-left">
         <h4>Settings</h4>
         <ul>
           <li>Frequency of scans</li>

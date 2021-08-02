@@ -3,8 +3,13 @@
 Alert manager
 """
 import os
+import json
+
 import pytest
+import requests
+
 import serve
+import watcher
 from common.test import unwrap
 
 @pytest.fixture
@@ -79,9 +84,47 @@ def test_alertmanager_save():
     
 
 # Action items
-
 def test_send_alert():
     """
     Tests sending an alert to alertmanager
         - Will just print out URL and payload
     """
+    a = unwrap(serve.list_alerts)()
+    assert a[1] == 200
+    b = json.loads(a[0])
+    assert b == []
+
+    assert watcher.send_alert(
+        "test-alert",
+        "test-service",
+        "test-host",
+    )
+    a = unwrap(serve.list_alerts)()
+    assert a[1] == 200
+    b = json.loads(a[0])
+
+    assert b[0]["labels"]["alertname"] == "test-alert"
+    assert b[0]["labels"]["instance"] == "test-host"
+    assert b[0]["labels"]["service"] == "test-service"
+
+
+def test_resolve_alert():
+    """
+    Resolves a given alert
+    """
+
+    test_send_alert()
+    a = unwrap(serve.list_alerts)()
+    assert a[1] == 200
+    b = json.loads(a[0])
+
+    data = b[0]
+    a = unwrap(serve.resolve_alert)(data)
+    assert a[1] == 200
+
+    a = unwrap(serve.list_alerts)()
+    assert a[1] == 200
+    b = json.loads(a[0])
+    assert b == []
+
+

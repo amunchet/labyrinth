@@ -5,22 +5,11 @@ Tests for Watcher
     - Email functionality
     - [FUTURE] Slack, Discord, etc.
 """
+import json
 import pytest
+import serve
+from common.test import unwrap
 
-@pytest.fixture
-def setup():
-    """
-    Sets up the Watcher
-        
-    """
-
-
-def test_get_latest_metrics():
-    """
-    Pull latest metrics from REDIS?
-
-    May just do Mongo for the time being
-    """
 def test_watcher():
     """
     - Walk over subnets

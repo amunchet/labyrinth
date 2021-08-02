@@ -17,3 +17,5 @@ Various additional functions from `serve.py`
 - run_ansible - may or may not do this
 
 """
+def test_insecure():
+    assert False

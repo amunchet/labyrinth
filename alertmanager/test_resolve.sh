@@ -12,8 +12,5 @@ curl --user admin:$PASS -XPOST $url -d "[{
 		\"severity\":\"error\",
 		\"instance\": \"$name.example.net\"
 	},
-	\"annotations\": {
-		\"summary\": \"High latency is low!\"
-	},
-	\"generatorURL\": \"http://prometheus.int.example.net/<generating_expression>\"
+    \"endsAt\" : \"`date --iso-8601=seconds`\"
 }]"

@@ -2,30 +2,61 @@
 """
 Tests for services and metrics
 """
-import pytest
 import time
-from serve import mongo_client
+import json
+
+import pytest
+
 import metrics
+import serve
+from common.test import unwrap
 
 
 @pytest.fixture
 def setup():
     """
-    Sets up and tearsdown
+    Sets up the Watcher
     """
-
+    serve.mongo_client["labyrinth"]["metrics"].delete_many({})
+    serve.mongo_client["labyrinth"]["metrics"].insert_one(
+        {
+            "timestamp" : 1
+        }
+    )
+    serve.mongo_client["labyrinth"]["metrics"].insert_one(
+        {
+            "timestamp" : 2,
+            "tags" : {
+                "host" : 1234,
+                "ip" : 1234,
+                "mac" : "test",
+            }
+        }
+    )
     yield "Setting up..."
     return "Finished"
 
-def test_last_metrics(setup):
+def test_get_latest_metrics(setup):
     """
-    Tests last metrics
+    Pull latest metrics from REDIS?
+
+    May just do Mongo for the time being
     """
+    a = unwrap(serve.last_metrics)(1)
+    assert a[1] == 200
+    b = json.loads(a[0])
+    print(b)
+    assert b[0]['timestamp'] == 2
 
 def test_read_metrics(setup):
     """
     Tests reading in the metrics
     """
+    a = unwrap(serve.read_metrics)("test")
+    assert a[1] == 200
+    b = json.loads(a[0])
+    print(b)
+    assert b[0]['timestamp'] == 2
 
 def test_metric_judge(setup):
     """

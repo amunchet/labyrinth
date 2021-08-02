@@ -6,3 +6,5 @@ Redis tests:
     - Test redis get_comment
     - Test redis autosave (get_autosave)
 """
+def test_redis():
+    assert False
