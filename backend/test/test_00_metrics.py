@@ -17,6 +17,15 @@ def setup():
     yield "Setting up..."
     return "Finished"
 
+def test_last_metrics(setup):
+    """
+    Tests last metrics
+    """
+
+def test_read_metrics(setup):
+    """
+    Tests reading in the metrics
+    """
 
 def test_metric_judge(setup):
     """
@@ -30,6 +39,16 @@ def test_metric_judge(setup):
         "comparison": "greater",
         "value": 1000
     }
+    odd_service = {
+        "name": "check_hd",
+        "type": "check",
+        "metric": "diskio",
+        "field": "random_field",
+        "comparison": "greater",
+        "value": 5,
+    }
+
+
 
     host = {
         "open_ports" : [ 22, 23 ]
@@ -55,7 +74,8 @@ def test_metric_judge(setup):
             "context_switches": 4143261228,
             "entropy_avail": 3760,
             "interrupts": 1578002983,
-            "processes_forked": 884284
+            "processes_forked": 884284,
+            "random_field" : "AAAA"
         },
         "name": "check_hd",
         "tags": {
@@ -75,7 +95,50 @@ def test_metric_judge(setup):
     output = metrics.judge(metric=telegraf, service=check_service)
     assert not output
     
+    del telegraf["name"] 
+    output = metrics.judge(metric=telegraf, service=check_service)
+    assert not output
+
     telegraf["name"] = "check_hd"
+    temp = telegraf["fields"]
+    del telegraf["fields"]
+
+    output = metrics.judge(metric=telegraf, service=check_service)
+    assert not output
+    telegraf["fields"] = temp
+
+    telegraf["name"] = "check_hd"
+
+    # Check Odd Service
+    telegraf["fields"] = {
+        "diskio" : "AAAAAA"
+    }
+    output = metrics.judge(metric=telegraf, service=odd_service)
+    assert output
+
+    odd_service["comparison"] = "equals"
+    output = metrics.judge(metric=telegraf, service=odd_service)
+    assert not output
+    
+    odd_service["comparison"] = "less"
+    output = metrics.judge(metric=telegraf, service=odd_service)
+    assert not output
+
+    telegraf["fields"] = {
+        "diskio" : "5.32"
+    }
+    odd_service["comparison"] = "greater"
+    output = metrics.judge(metric=telegraf, service=odd_service)
+    assert output
+
+    odd_service["comparison"] = "equals"
+    output = metrics.judge(metric=telegraf, service=odd_service)
+    assert not output
+    
+    odd_service["comparison"] = "less"
+    output = metrics.judge(metric=telegraf, service=odd_service)
+    assert not output
+
 
 
     # Check simple metric
@@ -87,6 +150,10 @@ def test_metric_judge(setup):
     assert output
     
     # Check changing comparison
+    check_service["comparison"] = "INVALID"
+    output = metrics.judge(metric=telegraf, service=check_service)
+    assert not output
+
     check_service["comparison"] = "less"
     output = metrics.judge(metric=telegraf, service=check_service)
     assert not output

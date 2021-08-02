@@ -278,7 +278,7 @@ def test_after_initial():
 def test_vuln_scanner():
     """[FUTURE] Tests vuln scanner integration"""
 
-def scan_test():
+def scan_test(): # pragma: no cover
     """
     [DEPRECATED] Tests running a scan
         - This was removed from unit tests, because it's basically just testing integration of the NMap package

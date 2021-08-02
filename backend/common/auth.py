@@ -30,7 +30,7 @@ ALGORITHMS = ["RS256"]
 
 
 # Format error response and append status code.
-class AuthError(Exception):
+class AuthError(Exception): # pragma: no cover
     def __init__(self, error, status_code):
         self.error = error
         self.status_code = status_code
@@ -77,7 +77,7 @@ def get_token_auth_header(): # pragma: no cover
     return token
 
 
-def requires_scope(required_scope):
+def requires_scope(required_scope): # pragma: no cover
     """Determines if the required scope is present in the access token
     Args:
         required_scope (str): The scope required to access the resource

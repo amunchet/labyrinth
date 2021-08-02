@@ -99,3 +99,14 @@ def test_redis_comments(setup):
 
     assert json.loads(b[0]) == expected
 
+def test_output():
+    """
+    Missing from `services.py` coverage
+    """
+    assert False
+
+def test_load():
+    assert False
+
+def test_run():
+    assert False

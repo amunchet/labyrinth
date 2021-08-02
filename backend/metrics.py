@@ -49,7 +49,6 @@ def judge_check(metric, service):
     """Judges a normal check"""
     valid_operations = ["less", "greater", "equals"]
 
-    # Right name?
     if "name" not in service or "name" not in metric:
         logger.debug("No name.")
         return False
@@ -95,26 +94,26 @@ def judge_check(metric, service):
         logger.debug("In equals comparison")
         try:
             return found == service["value"]
-        except TypeError:
+        except TypeError: 
             try:
                 return float(found) == float(service["value"])
-            except TypeError:
+            except ValueError:
                 return str(found) == str(service["value"])
 
     elif service["comparison"] == "greater":
         try:
             return found > service["value"]
-        except TypeError:
+        except TypeError: 
             try:
                 return float(found) > float(service["value"])
-            except TypeError:
+            except ValueError:
                 return str(found) > str(service["value"])
 
     elif service["comparison"] == "less":
         try:
             return found < service["value"]
-        except TypeError:
+        except TypeError: 
             try:
                 return float(found) < float(service["value"])
-            except TypeError:
+            except ValueError:
                 return str(found) < str(service["value"])
