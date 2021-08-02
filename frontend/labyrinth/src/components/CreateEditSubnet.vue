@@ -120,7 +120,7 @@ export default {
           this.$store.commit("updateError", e);
         });
     },
-    deleteSubnet: /* istnabul ignore next */ function () {
+    deleteSubnet: /* istanbul ignore next */ function () {
       var auth = this.$auth;
       this.$bvModal
         .msgBoxConfirm("Are you sure you want to delete this subnet?")
