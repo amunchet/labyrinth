@@ -7,6 +7,7 @@ import functools
 import os
 import json
 import socket
+import datetime
 
 import pymongo
 import redis
@@ -509,7 +510,8 @@ def run_telegraf(fname,testing):
     """
     return svcs.run(fname, testing == 1), 200
 
-# Utilities
+
+# Alertmanager
 
 @app.route("/alertmanager/pass")
 @requires_auth_admin
@@ -540,6 +542,42 @@ def alertmanager_save(data=""):
         f.write(parsed_data)
     
     return "Success", 200
+
+@app.route("/alertmanager/alerts")
+@requires_auth_admin
+def list_alerts():
+    """
+    List all active alerts
+    """
+    url = "http://alertmanager:9093/api/v2/alerts"
+    password = open("/alertmanager/pass").read()
+
+    return json.dumps(requests.get(url, auth=("admin", password)).json()), 200
+
+@app.route("/alertmanager/alert", methods=["POST"])
+@requires_auth_admin
+def resolve_alert(data=""):
+    """
+    Resolves a given alert
+    """
+    if data != "":
+        parsed_data = data
+    elif request.method == "POST": #pragma: no cover
+        parsed_data = json.loads(request.form.get("data"))
+    else: #pragma: no cover
+        return "Invalid data", 419
+
+    url = "http://alertmanager:9093/api/v1/alerts"
+    password = open("/alertmanager/pass").read()
+
+    parsed_data["status"] = "resolved"
+    parsed_data["endsAt"] = "2021-08-03T14:34:41-05:00"
+
+    retval = requests.post(url, data=json.dumps([data]), auth=("admin", password))
+
+    return retval.text, retval.status_code
+
+# Utilities
 
 @app.route("/find_ip/")
 @app.route("/find_ip/<name>")

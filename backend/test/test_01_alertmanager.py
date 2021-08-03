@@ -92,7 +92,6 @@ def test_send_alert():
     a = unwrap(serve.list_alerts)()
     assert a[1] == 200
     b = json.loads(a[0])
-    assert b == []
 
     assert watcher.send_alert(
         "test-alert",
@@ -101,11 +100,14 @@ def test_send_alert():
     )
     a = unwrap(serve.list_alerts)()
     assert a[1] == 200
+
+
     b = json.loads(a[0])
 
-    assert b[0]["labels"]["alertname"] == "test-alert"
-    assert b[0]["labels"]["instance"] == "test-host"
-    assert b[0]["labels"]["service"] == "test-service"
+
+    assert b[-1]["labels"]["alertname"] == "test-alert"
+    assert b[-1]["labels"]["instance"] == "test-host"
+    assert b[-1]["labels"]["service"] == "test-service"
 
 
 def test_resolve_alert():
@@ -113,13 +115,21 @@ def test_resolve_alert():
     Resolves a given alert
     """
 
-    test_send_alert()
+    a = unwrap(serve.list_alerts)()
+    assert a[1] == 200
+    if a[0] == "[]":
+        test_send_alert()
+
     a = unwrap(serve.list_alerts)()
     assert a[1] == 200
     b = json.loads(a[0])
 
     data = b[0]
+
     a = unwrap(serve.resolve_alert)(data)
+
+    print(a[0])
+
     assert a[1] == 200
 
     a = unwrap(serve.list_alerts)()
