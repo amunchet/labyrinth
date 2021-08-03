@@ -54,11 +54,18 @@
         <h4>Available Telegraf Services</h4>
 
         <b-row>
+          <b-col cols="0">
+            <b-button variant="primary" @click="putStructure()">
+              <font-awesome-icon icon="sync-alt" size="1x" />
+            </b-button>
+          </b-col>
+          <b-col>
           <b-form-input
             placeholder="Search (press tab to filter)"
             v-model="temp_filter"
             @blur="service_filter = temp_filter"
           ></b-form-input>
+          </b-col>
         </b-row>
         <hr />
         <div v-if="loaded">
@@ -66,7 +73,7 @@
             v-for="(section, idx) in data"
             v-bind:key="idx"
             :name="idx"
-            :data="section"
+            :inp_data="section"
             :start_minimized="true"
             :isParent="true"
             :service_filter="service_filter"
@@ -121,7 +128,7 @@
             v-for="(section, idx) in output_data"
             v-bind:key="idx"
             :name="idx"
-            :data="section"
+            :inp_data="section"
             :start_minimized="true"
             :isParent="true"
             :isWrite="true"
@@ -172,7 +179,7 @@ export default {
   },
   watch: {
     selected_host: /* istanbul ignore next */ async function (val) {
-      if (val != "") {
+      if (val != "" && val != "TEST") {
         await this.$bvModal
           .msgBoxConfirm(
             "Do you want to overwrite working configuration from disk?"
@@ -239,8 +246,10 @@ export default {
       }
 
       this.output_data = temp;
+
       this.forceGlobalTag();
       this.$forceUpdate();
+
     },
 
     forceGlobalTag: function () {
@@ -275,7 +284,14 @@ export default {
           this.$store.commit("updateError", e);
         });
     },
-
+    putStructure: /* istanbul ignore next */ function(){
+      var auth = this.$auth
+      Helper.apiCall("redis", "put_structure", auth).then(res=>{
+        this.$store.commit('updateError', res)
+      }).catch(e=>{
+        this.$store.commit('updateError', e)
+      })
+    },
     getAutosave: /* istanbul ignore next */ function () {
       var auth = this.$auth;
       Helper.apiCall("redis", "autosave", auth)

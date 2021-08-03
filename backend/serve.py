@@ -396,7 +396,7 @@ def load_service(name, format="json"):
 # TOML manipulation utilities
 
 
-@app.route("/redis/put_structure/")
+@app.route("/redis/put_structure")
 @requires_auth_write
 def put_structure():
     """
