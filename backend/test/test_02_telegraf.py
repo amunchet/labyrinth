@@ -2,7 +2,9 @@
 """
 Tests for the TOML work
 """
+import os
 import json
+import shutil
 
 import redis
 import pytest
@@ -36,6 +38,54 @@ def setup():
     # TODO: Multiline Arrays
     yield (x, decoder)
 
+
+def test_output():
+    """Tests writing to TOML file"""
+    a = unwrap(serve.save_conf)("TESTING", raw="# Test comment\n[Test]\n")
+    assert a[1] == 200
+
+    assert os.path.exists("/src/uploads/telegraf/TESTING.conf")
+
+    if os.path.exists("/src/uploads/telegraf/TESTING.conf"):
+        os.remove("/src/uploads/telegraf/TESTING.conf")
+    
+    assert not os.path.exists("/src/uploads/telegraf/TESTING.conf")
+
+def test_load():
+    """
+    Reads in a TOML file from disk
+    """
+    with open("/src/uploads/telegraf/TESTING.conf", "w") as f:
+        f.write("# Test Comment\n[Test]\n")
+
+    a = unwrap(serve.load_service)("TESTING", "json")
+    assert a[1] == 200
+
+    assert json.loads(a[0]) == {"Test" : {}} 
+
+    if os.path.exists("/src/uploads/telegraf/TESTING.conf"):
+        os.remove("/src/uploads/telegraf/TESTING.conf")
+    
+    assert not os.path.exists("/src/uploads/telegraf/TESTING.conf")
+
+
+def test_run():
+    """
+    Test runs telegraf
+    """
+    shutil.copy("/src/test/sample_telegraf.conf", "/src/uploads/telegraf/TESTING.conf")
+    a = unwrap(serve.run_telegraf)("TESTING", 1)
+    assert a[1] == 200
+
+    assert "Telegraf" in a[0]
+
+    if os.path.exists("/src/uploads/telegraf/TESTING.conf"):
+        os.remove("/src/uploads/telegraf/TESTING.conf")
+    
+    assert not os.path.exists("/src/uploads/telegraf/TESTING.conf")
+
+
+
 def test_generate(setup):
     """
     Tests generating an object from the TOML
@@ -66,6 +116,21 @@ def test_redis_structure(setup):
 
     assert x["address"] == "host=localhost user=postgres sslmode=disable"
     assert x["query"] == [{'measurement': '', 'sqlquery': 'SELECT * FROM pg_stat_bgwriter', 'version': 901, 'withdbname': False, 'tagvalue': 'postgresql.stats'}]
+
+    # Try with clearing redis data
+    a = redis.Redis(host="redis")
+    a.set("master.data", "")
+
+    c = unwrap(serve.get_structure)()
+    assert c[1] == 200
+    lines = json.loads(c[0])
+    x = lines["inputs"]["postgresql_extensible"][0]
+    print(x)
+
+    assert x["address"] == "host=localhost user=postgres sslmode=disable"
+    assert x["query"] == [{'measurement': '', 'sqlquery': 'SELECT * FROM pg_stat_bgwriter', 'version': 901, 'withdbname': False, 'tagvalue': 'postgresql.stats'}]
+
+
 
 
 def test_redis_comments(setup):
@@ -99,14 +164,3 @@ def test_redis_comments(setup):
 
     assert json.loads(b[0]) == expected
 
-def test_output():
-    """
-    Missing from `services.py` coverage
-    """
-    assert False
-
-def test_load():
-    assert False
-
-def test_run():
-    assert False

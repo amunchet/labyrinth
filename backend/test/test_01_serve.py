@@ -246,6 +246,10 @@ def test_list_hosts(setup):
     assert b[0]["class"] == "health"
     assert b[0]["ip"] == "192.168.10.176"
 
+
+    # Listing a single host
+    a = unwrap(serve.list_host)()
+
 def test_create_edit_link(setup):
     """Creates/Edits a link between two subnets"""
     test_create_edit_subnet(setup)
@@ -356,6 +360,13 @@ def test_read_services(setup):
     b = json.loads(a[0])
 
     assert b == ["port_ssh", "check_hd"]
+
+    # List all services
+    a = unwrap(serve.list_services)("all")
+    assert a[1] == 200
+    b = json.loads(a[0])
+
+    assert [x["name"] for x in b] == ["port_ssh", "check_hd"]
 
 
 def test_create_edit_service(setup):

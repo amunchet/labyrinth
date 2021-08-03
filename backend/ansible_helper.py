@@ -51,7 +51,7 @@ def check_file(filename, file_type, raw=""):
             retval = True
         
         if retval:
-            if not os.path.exists("/src/uploads/ansible"):
+            if not os.path.exists("/src/uploads/ansible"): # pragma: no cover
                 os.mkdir("/src/uploads/ansible")
             shutil.move(temp_file, "/src/uploads/ansible/{}.yml".format(filename))
             
@@ -66,8 +66,7 @@ def check_file(filename, file_type, raw=""):
         return [retval, x.stdout, x.stderr]
 
     elif file_type == "telegraf":
-
-        if os.path.exists("/etc/telegraf/telegraf.conf"):
+        if os.path.exists("/etc/telegraf/telegraf.conf"): # pragma: no cover
             os.remove("/etc/telegraf/telegraf.conf")
         
         shutil.copy(look_file, "/etc/telegraf/telegraf.conf")
@@ -120,7 +119,7 @@ def run_ansible(hosts: List, playbook: str, vault_password: str, become_file: st
     SSH_DIR = "/src/uploads/ssh"
 
 
-    if not os.path.exists("/run"):
+    if not os.path.exists("/run"): # pragma: no cover
         os.mkdir("/run")
 
     os.mkdir(RUN_DIR)

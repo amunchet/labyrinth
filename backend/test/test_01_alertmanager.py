@@ -12,15 +12,6 @@ import serve
 import watcher
 from common.test import unwrap
 
-@pytest.fixture
-def setup():
-    """
-    Setup
-    """
-
-    yield "Setting up..."
-
-    return "Finished"
 
 # Serve items
 def test_alertmanager_pass():
@@ -28,7 +19,7 @@ def test_alertmanager_pass():
     Tests alertmanager_pass - reads in the file `pass`
     """
     fname = "/alertmanager/pass"
-    if not os.path.exists(fname):
+    if not os.path.exists(fname): # pragma: no cover
         with open(fname, "w") as f:
             f.write("test")
     
@@ -44,7 +35,7 @@ def test_alertmanager_load():
     Tests alertmanager_load
     """
     fname = "/alertmanager/alertmanager.yml"
-    if not os.path.exists(fname):
+    if not os.path.exists(fname): # pragma: no cover
         with open(fname, "w") as f:
             f.write("test")
     
@@ -60,7 +51,7 @@ def test_alertmanager_save():
     Tests alertmanager_save
     """
     fname = "/alertmanager/alertmanager.yml"
-    if not os.path.exists(fname):
+    if not os.path.exists(fname): # pragma: no cover
         with open(fname, "w") as f:
             f.write("test")
     
@@ -117,7 +108,7 @@ def test_resolve_alert():
 
     a = unwrap(serve.list_alerts)()
     assert a[1] == 200
-    if a[0] == "[]":
+    if a[0] == "[]": # pragma: no cover
         test_send_alert()
 
     a = unwrap(serve.list_alerts)()

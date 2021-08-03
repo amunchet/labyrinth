@@ -375,14 +375,6 @@ def delete_service(name):
 
     return "Success", 200
 
-@app.route("/load_service/<name>")
-@app.route("/load_service/<name>/<format>")
-@requires_auth_admin
-def load_service(name, format="json"):
-    """
-    Loads in a TOML service file
-    """
-    return svcs.load(name, format), 200
 
 
 # Redis 
@@ -438,7 +430,7 @@ def get_structure():
     if a:
         return a.decode("utf-8"), 200
 
-    return "Not found", 424
+    return "Not found", 424 # pragma: no cover
 
 
 @app.route("/redis/get_comments/<comment>")
@@ -451,7 +443,7 @@ def get_comment(comment):
     a = rc.get(comment)
     if a:
         return a.decode("utf-8"), 200
-    return "Not found", 425
+    return "Not found", 425 # pragma: no cover
 
 @app.route("/redis/autosave", methods=["GET"])
 @requires_auth_admin
@@ -463,7 +455,7 @@ def get_autosave(auth_client_id):
     a = rc.get(auth_client_id)
     if a:
         return a.decode("utf-8"), 200
-    return "Not found", 426
+    return "Not found", 426 # pragma: no cover
 
 @app.route("/redis/autosave", methods=["POST"])
 @requires_auth_admin
@@ -510,6 +502,16 @@ def run_telegraf(fname,testing):
     Runs specified telegraf file
     """
     return svcs.run(fname, testing == 1), 200
+
+# Load TOML file
+@app.route("/load_service/<name>")
+@app.route("/load_service/<name>/<format>")
+@requires_auth_admin
+def load_service(name, format="json"):
+    """
+    Loads in a TOML service file
+    """
+    return svcs.load(name, format), 200
 
 
 # Alertmanager
@@ -601,7 +603,6 @@ def list_directory(type):
     Lists directory
     """
 
-    valid_type = ["ssh", "totp", "become", "telegraf", "ansible", "other"]
     if type not in valid_type: # pragma: no cover
         return "Invalid type", 446
 

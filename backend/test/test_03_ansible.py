@@ -20,7 +20,7 @@ valid_type = ["ssh", "totp", "become", "telegraf", "ansible", "other"]
 
 
 @pytest.fixture
-def setup():
+def setup(): # pragma: no cover
     if not os.path.exists("/src/uploads/ansible"):
         os.mkdir("/src/uploads/ansible")
     if not os.path.exists("/src/uploads/ansible/deploy.yml"):
@@ -66,11 +66,11 @@ def test_list_files():
         - etc.
     """
     for fname in valid_type:
-        if not os.path.exists("/src/uploads/{}".format(fname)):
+        if not os.path.exists("/src/uploads/{}".format(fname)): # pragma: no cover
             os.mkdir("/src/uploads/{}".format(fname))
         
         output = os.listdir("/src/uploads/{}".format(fname))
-        if not output:
+        if not output: # pragma: no cover
             with open("/src/uploads/{}/_test".format(fname), "w") as f:
                 f.write("\n")
 
@@ -108,7 +108,7 @@ def test_check_file():
     def helper(src, type, expected=True):
         last = src.split("/")[-1]
         output = "/src/uploads/{}/{}".format(type, last)
-        if not os.path.exists(output):
+        if not os.path.exists(output): # pragma: no cover
             shutil.copy(src, output)
         
         assert check_file(last, type) == expected or check_file(last, type)[0] == expected
@@ -123,8 +123,13 @@ def test_check_file():
     helper("/src/test/sample_telegraf.json", "ssh", False)
 
     # Telegraf
-    # helper("/src/test/sample_telegraf.conf", "telegraf")
-    # helper("/src/test/sample_telegraf.json", "telegraf", False)
+    src = "/src/test/sample_telegraf.json"
+    b = check_file(src.split("/")[-1], "telegraf")
+    assert not b[0]
+
+    src = "/src/test/sample_telegraf.conf"
+    b = check_file(src.split("/")[-1], "telegraf")
+    assert b[0]
 
     # Ansible 
     helper("/src/test/ansible/project/startup.yml", "ansible")
@@ -175,6 +180,16 @@ def test_run_ansible():
     assert "<style" in x
     assert "ok:[localhost]" in x.replace(" ", "")
     assert "body" in x
+
+
+    assert not os.path.exists("/vault.pass")
+
+    # Check failing SSH key
+    try:
+        x = run_ansible(hosts="sampleclient", playbook="install", become_file="vault", vault_password="test", ssh_key_file="asdfsadfasdf")
+        assert False
+    except Exception:
+        assert True
 
 
     assert not os.path.exists("/vault.pass")

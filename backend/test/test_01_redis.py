@@ -20,8 +20,8 @@ def test_read_redis():
     b = unwrap(serve.read_redis)()
     assert b[1] == 200
     assert b[0] == b"test"
-
-    a.set("output", temp)
+    if temp is not None:
+        a.set("output", temp)
 
 
 def test_redis_autosave():
@@ -36,4 +36,10 @@ def test_redis_autosave():
     assert b[1] == 200
     assert a.get(client_id) == b"TEST"
 
-    a.set(client_id, temp)
+    c = unwrap(serve.get_autosave)(client_id)
+    assert c[1] == 200
+    assert c[0] == "TEST"
+
+    if temp is not None:
+        a.set(client_id, temp)
+
