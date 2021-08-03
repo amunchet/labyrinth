@@ -158,6 +158,7 @@ export default {
 </script>
 
 <style lang="scss">
+@import "~@/assets/scss/vendors/bootstrap-vue/index";
 @import "@/assets/variables.scss";
 
 #app {

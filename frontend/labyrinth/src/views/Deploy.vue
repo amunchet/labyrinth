@@ -354,7 +354,6 @@ export default {
         });
     },
 
-    
     runPlaybook: /* istanbul ignore next */ function () {
       var auth = this.$auth;
       var formData = new FormData();

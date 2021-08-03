@@ -161,15 +161,15 @@ export default {
     },
     loadMetrics: /* istanbul ignore next */ function () {
       var auth = this.$auth;
-      this.checksLoaded = false
+      this.checksLoaded = false;
       Helper.apiCall("metrics", "25", auth)
         .then((res) => {
           this.metrics = res;
-          this.checksLoaded = true
+          this.checksLoaded = true;
         })
         .catch((e) => {
           this.$store.commit("updateError", e);
-          this.checksLoaded = true
+          this.checksLoaded = true;
         });
     },
     saveCheck: /* istanbul ignore next */ function (e) {

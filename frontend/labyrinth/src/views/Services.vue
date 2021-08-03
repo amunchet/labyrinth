@@ -63,11 +63,11 @@
             <b-select />
           </b-col>
           <b-col>
-          <b-form-input
-            placeholder="Search (press tab to filter)"
-            v-model="temp_filter"
-            @blur="service_filter = temp_filter"
-          ></b-form-input>
+            <b-form-input
+              placeholder="Search (press tab to filter)"
+              v-model="temp_filter"
+              @blur="service_filter = temp_filter"
+            ></b-form-input>
           </b-col>
         </b-row>
         <hr />
@@ -252,7 +252,6 @@ export default {
 
       this.forceGlobalTag();
       this.$forceUpdate();
-
     },
 
     forceGlobalTag: function () {
@@ -287,13 +286,15 @@ export default {
           this.$store.commit("updateError", e);
         });
     },
-    putStructure: /* istanbul ignore next */ function(){
-      var auth = this.$auth
-      Helper.apiCall("redis", "put_structure", auth).then(res=>{
-        this.$store.commit('updateError', res)
-      }).catch(e=>{
-        this.$store.commit('updateError', e)
-      })
+    putStructure: /* istanbul ignore next */ function () {
+      var auth = this.$auth;
+      Helper.apiCall("redis", "put_structure", auth)
+        .then((res) => {
+          this.$store.commit("updateError", res);
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
     },
     getAutosave: /* istanbul ignore next */ function () {
       var auth = this.$auth;

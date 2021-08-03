@@ -3,7 +3,12 @@
     <b-tabs content-class="mt-3" lazy>
       <b-tab title="Active Alerts" active class="text-left">
         <p>List of active alerts.</p>
-        <b-table striped style="max-width: 100%;" :items="active_alerts" :fields="['resolve', 'labels', 'annotations', 'receivers', 'time']">
+        <b-table
+          striped
+          style="max-width: 100%"
+          :items="active_alerts"
+          :fields="['resolve', 'labels', 'annotations', 'receivers', 'time']"
+        >
           <template v-slot:cell(resolve)="item">
             <b-button variant="primary" @click="resolveAlert(item.item)">
               <font-awesome-icon icon="check" size="1x" />
@@ -12,17 +17,17 @@
           <template v-slot:cell(labels)="item">
             <b-row v-for="(j, idx) in item.item.labels" v-bind:key="idx">
               <b-col class="text-left border">
-                {{idx}}
+                {{ idx }}
               </b-col>
               <b-col class="text-left border">
-                {{j}}
+                {{ j }}
               </b-col>
             </b-row>
           </template>
           <template v-slot:cell(time)="item">
-            Started: {{item.item.startsAt}} <br />
-            Ends at: {{item.item.endsAt}} <br />
-            Updated: {{item.item.updatedAt}}
+            Started: {{ item.item.startsAt }} <br />
+            Ends at: {{ item.item.endsAt }} <br />
+            Updated: {{ item.item.updatedAt }}
           </template>
         </b-table>
       </b-tab>
@@ -61,7 +66,12 @@
         </b-button>
         <b-textarea v-if="file" class="shadow-none" v-model="file" />
         <b-spinner class="m-2 float-right" v-if="loading" />
-        <b-button v-else-if="file" @click="save()" variant="success" class="mt-2 float-right">
+        <b-button
+          v-else-if="file"
+          @click="save()"
+          variant="success"
+          class="mt-2 float-right"
+        >
           <font-awesome-icon icon="save" size="1x" />
         </b-button>
       </b-tab>
@@ -78,52 +88,60 @@ export default {
       navigator: "",
       file: "",
       loading: false,
-      active_alerts: []
+      active_alerts: [],
     };
   },
   methods: {
-    resolveAlert: /* istanbul ignore next */ function(val){
-      var auth = this.$auth
-      var formData = new FormData()
-      formData.append("data", JSON.stringify(val))
-      Helper.apiPost("alertmanager", "", "alert", auth, formData).then(res=>{
-        this.$store.commit('updateError', res)
-        this.loadAlerts()
-      }).catch(e=>{
-        this.$store.commit('updateError', e)
-      })
+    resolveAlert: /* istanbul ignore next */ function (val) {
+      var auth = this.$auth;
+      var formData = new FormData();
+      formData.append("data", JSON.stringify(val));
+      Helper.apiPost("alertmanager", "", "alert", auth, formData)
+        .then((res) => {
+          this.$store.commit("updateError", res);
+          this.loadAlerts();
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
     },
-    loadAlerts: /* istanbul ignore next */ function(){
-      var auth = this.$auth
-      Helper.apiCall("alertmanager", "alerts", auth).then(res=>{
-        this.active_alerts = res
-      }).catch(e=>{
-        this.$store.commit('updateError', e)
-      })
+    loadAlerts: /* istanbul ignore next */ function () {
+      var auth = this.$auth;
+      Helper.apiCall("alertmanager", "alerts", auth)
+        .then((res) => {
+          this.active_alerts = res;
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
     },
-    load: /* istanbul ignore next */ function(){
-      var auth = this.$auth
-      this.loading = true
-      Helper.apiCall("alertmanager", "", auth).then(res=>{
-        this.file = res
-        this.loading = false
-      }).catch(e=>{
-        this.loading = false
-        this.$store.commit('updateError', e)
-      })
+    load: /* istanbul ignore next */ function () {
+      var auth = this.$auth;
+      this.loading = true;
+      Helper.apiCall("alertmanager", "", auth)
+        .then((res) => {
+          this.file = res;
+          this.loading = false;
+        })
+        .catch((e) => {
+          this.loading = false;
+          this.$store.commit("updateError", e);
+        });
     },
-    save: /* istanbul ignore next */ function(){
-      var auth = this.$auth
-      var formData = new FormData()
-      formData.append("data", this.file)
-      this.loading = true
-      Helper.apiPost("alertmanager", "", "", auth, formData).then(res=>{
-        this.load()
-        this.$store.commit('updateError', res)
-      }).catch(e=>{
-        this.loading = false
-        this.$store.commit('updateError', e)
-      })
+    save: /* istanbul ignore next */ function () {
+      var auth = this.$auth;
+      var formData = new FormData();
+      formData.append("data", this.file);
+      this.loading = true;
+      Helper.apiPost("alertmanager", "", "", auth, formData)
+        .then((res) => {
+          this.load();
+          this.$store.commit("updateError", res);
+        })
+        .catch((e) => {
+          this.loading = false;
+          this.$store.commit("updateError", e);
+        });
     },
 
     copyToClipboard: /* istanbul ignore next */ function (textToCopy) {
@@ -153,23 +171,22 @@ export default {
       var auth = this.$auth;
       Helper.apiCall("alertmanager", "pass", auth)
         .then((res) => {
-              this.copyToClipboard(res)
-              this.$store.commit("updateError", "Password copied to clipboard");
-              this.frame_url = Helper.getURL().replace("api", "alertmanager");
-              this.$forceUpdate();
-            })
+          this.copyToClipboard(res);
+          this.$store.commit("updateError", "Password copied to clipboard");
+          this.frame_url = Helper.getURL().replace("api", "alertmanager");
+          this.$forceUpdate();
+        })
         .catch((e) => {
           this.$store.commit("updateError", e);
         });
     },
   },
   mounted: /* istanbul ignore next */ function () {
-
     this.navigator = navigator;
-    try{
-    this.loadAlerts()
-    }catch(e){
-      this.$store.commit('updateError', e)
+    try {
+      this.loadAlerts();
+    } catch (e) {
+      this.$store.commit("updateError", e);
     }
   },
 };
@@ -180,11 +197,11 @@ iframe {
   min-height: 500px;
   overflow-y: scroll;
 }
-textarea{
+textarea {
   height: 400px;
   overflow-y: scroll;
 }
-.col.border{
+.col.border {
   width: 50%;
   overflow: hidden;
   text-transform: capitalize;
