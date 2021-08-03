@@ -148,16 +148,6 @@ def list_uploads(type):
     return "Not found", 409
 
 
-# Redis handler
-@app.route("/redis/")
-@requires_auth_read
-def read_redis():
-    """Returns the output of the redis run"""
-    a = redis.Redis(host=os.environ.get("REDIS_HOST"))
-    b = a.get("output")
-    if b:
-        return b
-    return "[No output found]", 200
 
 # Scan handler
 
@@ -394,8 +384,19 @@ def load_service(name, format="json"):
     """
     return svcs.load(name, format), 200
 
-# TOML manipulation utilities
 
+# Redis 
+@app.route("/redis/")
+@requires_auth_read
+def read_redis():
+    """Returns the output of the redis run"""
+    a = redis.Redis(host=os.environ.get("REDIS_HOST"))
+    b = a.get("output")
+    if b:
+        return b, 200
+    return "[No output found]", 200
+
+# Redis - TOML
 
 @app.route("/redis/put_structure")
 @requires_auth_write

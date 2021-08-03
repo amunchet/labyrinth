@@ -8,4 +8,4 @@ echo "Running Pytest..."
 
 
 echo "Running tests in local"
-docker exec $DOCKER_PROD_NAME sh -c "cd /src && PYTHONPATH=/src pytest --cov=/src --cov-report term-missing -vvvv --cov-fail-under=95 -x ."
+docker exec $DOCKER_PROD_NAME sh -c "cd /src && PYTHONPATH=/src pytest --cov=/src --cov-report term-missing -vvvv --cov-fail-under=95 --cov-report=html . "
