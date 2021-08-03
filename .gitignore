@@ -9,6 +9,7 @@ backend/.coverage
 redis_data/**
 
 backend/output-labyrinth
+backend/htmlcov
 venv/**
 data/**
 **/.coverage.**
