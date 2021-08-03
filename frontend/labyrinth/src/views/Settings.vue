@@ -80,7 +80,7 @@ export default {
         });
     },
   },
-  mounted: function () {
+  mounted: /* istanbul ignore next */ function () {
     try {
       this.loadData();
     } catch (e) {

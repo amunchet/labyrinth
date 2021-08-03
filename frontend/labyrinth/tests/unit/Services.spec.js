@@ -53,7 +53,8 @@ beforeEach(() => {
             'b-container',
             'b-textarea',
             'b-avatar',
-            'b-form-file'
+            'b-form-file',
+            'b-form-input'
         ]
     })
 })
@@ -67,10 +68,55 @@ describe('Services.vue', () => {
         expect(wrapper.isVueInstance).toBeTruthy()
     })
 
-    test("forceGlobalTag - ensures global settings present in all configuration files", ()=>{
+    test("forceGlobalTag - ensures global settings present in all configuration files", () => {
+        wrapper.vm.$data.raw_hosts = [
+            {
+                "ip" : "TEST",
+                "mac" : "Test"
+            }
+        ]
+
+        wrapper.vm.$data.selected_host = "TEST"
+
+        wrapper.vm.forceGlobalTag()
+        expect(wrapper.vm.$data.output_data["global_tags"]).toStrictEqual({"ip" : "TEST", "mac" : "Test"})
 
     })
-    test("add - transfers a template data structure over to output file", ()=>{
-        
+    test("add - transfers a template data structure over to output file", () => {
+        var data = {
+            "item": [
+                {
+                    "server_key": "my-server-key",
+                    "amon_instance": "https://youramoninstance",
+                    "timeout": "5s"
+                }],
+            "name": "amon",
+            "parent": "undefined.outputs"
+        }
+
+        var expected = {
+            "outputs": {
+                "amon": [{
+                    "server_key": "my-server-key",
+                    "amon_instance": "https://youramoninstance",
+                    "timeout": "5s"
+                }]
+            },
+            "global_tags": {
+                "ip" : "TEST",
+                "mac" : "Test"
+            }
+        }
+        wrapper.vm.$data.raw_hosts = [
+            {
+                "ip" : "TEST",
+                "mac" : "Test"
+            }
+        ]
+
+        wrapper.vm.$data.selected_host = "TEST"
+
+        wrapper.vm.add(JSON.stringify(data))
+        expect(wrapper.vm.$data.output_data).toStrictEqual(expected)
     })
 })
