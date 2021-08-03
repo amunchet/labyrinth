@@ -570,10 +570,11 @@ def resolve_alert(data=""):
     url = "http://alertmanager:9093/api/v1/alerts"
     password = open("/alertmanager/pass").read()
 
+    del parsed_data["startsAt"]
     parsed_data["status"] = "resolved"
     parsed_data["endsAt"] = "2021-08-03T14:34:41-05:00"
 
-    retval = requests.post(url, data=json.dumps([data]), auth=("admin", password))
+    retval = requests.post(url, data=json.dumps([parsed_data]), auth=("admin", password))
 
     return retval.text, retval.status_code
 
