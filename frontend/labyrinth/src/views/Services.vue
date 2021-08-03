@@ -171,7 +171,7 @@ export default {
     };
   },
   watch: {
-    selected_host: async function (val) {
+    selected_host: /* istanbul ignore next */ async function (val) {
       if (val != "") {
         await this.$bvModal
           .msgBoxConfirm(

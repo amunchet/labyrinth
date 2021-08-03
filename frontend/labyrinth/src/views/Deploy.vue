@@ -257,19 +257,19 @@ export default {
     };
   },
   watch: {
-    ssh_key_file: function (val) {
+    ssh_key_file: /* istanbul ignore next */ function (val) {
       this.uploadHelper(val, "ssh");
     },
 
-    become_file: function (val) {
+    become_file: /* istanbul ignore next */ function (val) {
       this.uploadHelper(val, "become");
     },
-    other_file: function (val) {
+    other_file: /* istanbul ignore next */ function (val) {
       this.uploadHelper(val, "other");
     },
 
     //TODO: Finish other uploads
-    selected_playbook: function (val) {
+    selected_playbook: /* istanbul ignore next */ function (val) {
       if (val != "") {
         this.loadPlaybook(val);
       }
@@ -354,8 +354,8 @@ export default {
         });
     },
 
-    /* istanbul ignore next */
-    runPlaybook: function () {
+    
+    runPlaybook: /* istanbul ignore next */ function () {
       var auth = this.$auth;
       var formData = new FormData();
       var host = this.selected_host;

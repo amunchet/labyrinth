@@ -19,6 +19,8 @@ config.mocks['$auth'] = {
     getAccessToken: function () { },
 }
 
+config.mocks['$sanitize'] = (x) => x
+
 config.mocks['loaded'] = true
 
 let state
@@ -30,16 +32,6 @@ let created
 beforeEach(() => {
     wrapper = shallowMount(Instance, {
         propsData: {
-            options: [
-                'All',
-                'utopiany',
-                'rousingr',
-                'cunningh',
-                'papayawi',
-                'elegantc',
-                'tidyseri',
-                'quirkyco',
-            ],
             onChange() {
                 //console.log('select changed')
             },
@@ -73,5 +65,12 @@ afterEach(() => {
 describe('Services.vue', () => {
     test('is a Vue instance', () => {
         expect(wrapper.isVueInstance).toBeTruthy()
+    })
+
+    test("forceGlobalTag - ensures global settings present in all configuration files", ()=>{
+
+    })
+    test("add - transfers a template data structure over to output file", ()=>{
+        
     })
 })

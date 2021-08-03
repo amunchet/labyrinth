@@ -85,7 +85,7 @@
           v-for="(item, idx) in parsed_data"
           v-bind:key="idx"
           :name="idx"
-          :data="item"
+          :inp_data="item"
           :arrayChild="true"
           :parent="parent + '.' + name"
           :start_minimized="minimized"
@@ -107,7 +107,7 @@
           v-for="(item, idx) in parsed_data"
           v-bind:key="idx"
           :name="idx"
-          :data="item"
+          :inp_data="item"
           :parent="parent + '.' + name"
           :start_minimized="minimized"
           :service_filter="service_filter"
@@ -255,7 +255,7 @@ export default {
   name: "ServiceComponent",
   props: [
     "name",
-    "data",
+    "inp_data",
     "arrayChild",
     "parent",
     "start_minimized",
@@ -339,7 +339,7 @@ export default {
     },
   },
   watch: {
-    data: function (val) {
+    inp_data: function (val) {
       if (val != "") {
         this.parsed_data = val;
       }
@@ -359,7 +359,7 @@ export default {
     },
   },
   mounted: function () {
-    this.parsed_data = this.data;
+    this.parsed_data = this.inp_data;
     if (this.parent != undefined) {
       this.comment_name = (this.parent + "." + this.name)
         .replace(".0", "")

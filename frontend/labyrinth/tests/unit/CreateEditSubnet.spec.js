@@ -74,4 +74,25 @@ describe('CreateEditSubnet.vue', () => {
     test('is a Vue instance', () => {
         expect(wrapper.isVueInstance).toBeTruthy()
     })
+
+    test("Changing input subnet", async ()=>{
+        wrapper.setProps({
+            "inp_subnet" : "TEST"
+        })
+        await wrapper.vm.$forceUpdate()
+
+        expect(wrapper.vm.$data.subnet.indexOf("hosts")).toBe(-1)
+        expect(wrapper.vm.$data.subnet.indexOf("groups")).toBe(-1)
+        expect(wrapper.vm.$data.isNew).toBe(false)
+
+        wrapper.setProps({
+            "inp_subnet" : ""
+        })
+        await wrapper.vm.$forceUpdate()
+        expect(wrapper.vm.$data.isNew).toBe(true)
+        expect(wrapper.vm.$data.subnet.subnet).toBe("")
+
+
+    })
+
 })

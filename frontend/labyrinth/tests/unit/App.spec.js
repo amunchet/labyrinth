@@ -5,7 +5,7 @@ import { config, shallowMount } from '@vue/test-utils'
 
 import Vue from "vue";
 import store from '@/store'
-import Instance from "@/components/CreateEditHost.vue";
+import Instance from "@/App.vue"
 
 Vue.use(store)
 
@@ -17,6 +17,15 @@ config.mocks['$auth'] = {
     idToken: 1,
     login: function () { },
     getAccessToken: function () { },
+    handleAuthentication() { }
+}
+
+
+
+config.mocks['$route'] = {
+    "query": {
+        "page": "Home"
+    }
 }
 
 config.mocks['loaded'] = true
@@ -30,8 +39,6 @@ let created
 beforeEach(() => {
     wrapper = shallowMount(Instance, {
         propsData: {
-            inpHost: "",
-            
             options: [
                 'All',
                 'utopiany',
@@ -63,35 +70,44 @@ beforeEach(() => {
             'b-container',
             'b-textarea',
             'b-avatar',
-            'b-form-file'
+            'b-form-file',
+            'b-navbar-toggle',
+            'b-collapse',
+            'b-nav-item',
+            'router-link',
+            'b-navbar-nav',
+            'b-dropdown-item',
+            'b-navbar-brand',
+            'b-nav-item-dropdown',
+            'router-view',
+            'b-navbar'
         ]
     })
+
+
+
 })
 
 afterEach(() => {
     wrapper.destroy()
 })
 
-describe('CreateEditHost.vue', () => {
+describe('App.vue', () => {
     test('is a Vue instance', () => {
         expect(wrapper.isVueInstance).toBeTruthy()
     })
-    test('inp_host', async ()=>{
-        wrapper.vm.loadMetrics = ()=>{}
-        wrapper.setProps({
-            inp_host: "TEST"
-        })
-        await wrapper.vm.$forceUpdate()
-        expect(wrapper.vm.$data.isNew).toBe(false)
-        expect(wrapper.vm.$data.host).toBe("TEST")
+    test("Change Error message", async ()=>{
+        wrapper.vm.$store.state.error = "TEST"
+        expect(wrapper.vm.$store.state.error).toBe("TEST")
 
-        // Creates a new host
-        wrapper.setProps({
-            inp_host: ""
-        })
+        wrapper.vm.$store.state.error = "401"
         await wrapper.vm.$forceUpdate()
-        expect(wrapper.vm.$data.isNew).toBe(true)
-        expect(wrapper.vm.$data.host).toStrictEqual(wrapper.vm.$data.safe_host)
-        expect(wrapper.vm.$data.metrics).toStrictEqual([])
+        expect(wrapper.vm.$store.state.error).toBe("Error: Logged out.  Please login again.")
+    })
+    test("checkErrorMessage", ()=>{
+        wrapper.vm.$store.state.error = "Error!"
+        expect(wrapper.vm.checkErrorMessage()).toBe("danger")
+        wrapper.vm.$store.state.error = "Meow!"
+        expect(wrapper.vm.checkErrorMessage()).toBe("success")
     })
 })

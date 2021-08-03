@@ -122,7 +122,7 @@ export default {
       }
     },
   },
-  created: function () {
+  created: /* istanbul ignore next */ function () {
     var auth = this.$auth;
 
     var current_page = this.$route.query.page;

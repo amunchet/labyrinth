@@ -184,11 +184,11 @@ export default {
       try {
         for (var i = 0; i < this.connector_count; i++) {
           var height = this.$refs["start_" + i][0].$el.offsetHeight;
-          console.log(height);
 
           this.offsetTop[i] =
             this.$refs["start_" + i][0].$el.offsetTop - 0.25 * height;
           var bottom = this.$refs["end_" + (i + 1)][0].offsetTop * 1;
+
           this.connectorBottom[i] =
             Math.ceil((bottom - this.offsetTop[i]) / 50) * 1;
         }

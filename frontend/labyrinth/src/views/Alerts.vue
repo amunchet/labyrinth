@@ -84,7 +84,7 @@ export default {
       })
     },
 
-    copyToClipboard: function (textToCopy) {
+    copyToClipboard: /* istanbul ignore next */ function (textToCopy) {
       // navigator clipboard api needs a secure context (https)
       if (navigator.clipboard && window.isSecureContext) {
         // navigator clipboard api method'

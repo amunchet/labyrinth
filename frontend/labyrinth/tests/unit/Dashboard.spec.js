@@ -19,6 +19,9 @@ config.mocks['$auth'] = {
     getAccessToken: function () { },
 }
 
+
+
+
 config.mocks['loaded'] = true
 
 let state
@@ -30,16 +33,6 @@ let created
 beforeEach(() => {
     wrapper = shallowMount(Instance, {
         propsData: {
-            options: [
-                'All',
-                'utopiany',
-                'rousingr',
-                'cunningh',
-                'papayawi',
-                'elegantc',
-                'tidyseri',
-                'quirkyco',
-            ],
             onChange() {
                 //console.log('select changed')
             },
@@ -73,5 +66,37 @@ afterEach(() => {
 describe('Dashboard.vue', () => {
     test('is a Vue instance', () => {
         expect(wrapper.isVueInstance).toBeTruthy()
+    })
+    test("findClass", () => {
+        expect(wrapper.vm.findClass("")).toBe("outer")
+        expect(wrapper.vm.findClass({ "color": "blue" })).toBe("outer blue-bg")
+    })
+    test("findTitleClass", () => {
+        expect(wrapper.vm.findTitleClass("")).toBe("text-right subnet")
+        expect(wrapper.vm.findTitleClass({ "color": "blue" })).toBe("text-right subnet blue")
+    })
+    test("findTop - connector calculations", async () => {
+        wrapper.vm.$data.connector_count = 1
+        wrapper.vm.$refs = {
+            "start_0": [
+                {
+                    "$el": {
+                        "offsetTop": 5,
+                        "offsetHeight" : 10,
+                    },
+
+                }
+            ],
+            "end_1": [{
+                "offsetTop": 20
+            }]
+        }
+
+        wrapper.vm.findTop()
+        await wrapper.vm.$forceUpdate()
+        expect(wrapper.vm.$data.connectorBottom).toStrictEqual([1])
+    })
+    test("$refs", () => {
+
     })
 })

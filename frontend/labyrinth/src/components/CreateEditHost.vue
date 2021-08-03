@@ -38,6 +38,7 @@
         /><br />
         <b-select
           v-model="host.cpu_check"
+          v-if="host.services != undefined"
           :options="[
             { text: '[No Service]', value: '' },
             ...host.services.map((x) => {
@@ -52,6 +53,7 @@
         <font-awesome-icon class="mt-2 mr-3" icon="memory" size="1x" /><br />
         <b-select
           v-model="host.mem_check"
+          v-if="host.services != undefined"
           :options="[
             { text: '[No Service]', value: '' },
             ...host.services.map((x) => {
@@ -66,6 +68,7 @@
         <font-awesome-icon class="mt-2 mr-3" icon="database" size="1x" /><br />
         <b-select
           v-model="host.hd_check"
+          v-if="host.services != undefined"
           :options="[
             { text: '[No Service]', value: '' },
             ...host.services.map((x) => {

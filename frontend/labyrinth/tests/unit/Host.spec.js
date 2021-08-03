@@ -30,6 +30,16 @@ let created
 beforeEach(() => {
     wrapper = shallowMount(Instance, {
         propsData: {
+            "icon": "test",
+            "passed_class": "test",
+            "show_ports": "test",
+            "ip": "test",
+            "services": [{
+                name: "test"
+            }],
+            "cpu": "test",
+            "mem": "test",
+            "hd": "test",
             options: [
                 'All',
                 'utopiany',

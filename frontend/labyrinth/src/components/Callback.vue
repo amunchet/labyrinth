@@ -9,13 +9,12 @@
 <script>
 export default {
   methods: {
-    handleLoginEvent() {
+    handleLoginEvent() /* istanbul ignore next */ {
       //console.log(data);
-      /* istanbul ignore next */
       this.$router.push("/");
     },
   },
-  created() {
+  created() /* istanbul ignore next */ {
     try {
       this.$auth.handleAuthentication();
       this.$store.commit("setLogin");

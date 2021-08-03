@@ -30,16 +30,9 @@ let created
 beforeEach(() => {
     wrapper = shallowMount(Instance, {
         propsData: {
-            options: [
-                'All',
-                'utopiany',
-                'rousingr',
-                'cunningh',
-                'papayawi',
-                'elegantc',
-                'tidyseri',
-                'quirkyco',
-            ],
+            verticals: 5,
+            horizontal: 7,
+            color: "green",
             onChange() {
                 //console.log('select changed')
             },
