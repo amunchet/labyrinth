@@ -60,6 +60,9 @@
             </b-button>
           </b-col>
           <b-col>
+            <b-select />
+          </b-col>
+          <b-col>
           <b-form-input
             placeholder="Search (press tab to filter)"
             v-model="temp_filter"
