@@ -41,7 +41,3 @@ def send_alert(alert_name, service, instance, severity="error", summary="A Servi
     retval = requests.post(url, data=json.dumps([data]), auth=("admin", password))
     return retval
 
-def resolve_alert(data):
-    """
-    Resolves alert
-    """

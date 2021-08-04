@@ -19,6 +19,15 @@ def test_watcher():
     
     Redis server integration here somehow? - May just do Mongo for the time being
     """
+
+    subnets = {}
+
+    hosts = {}
+    
+    services = {}
+
+    metrics = {}
+
 def test_stale_metrics():
     """
     Tests stale metrics

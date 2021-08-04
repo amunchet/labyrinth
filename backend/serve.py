@@ -751,10 +751,7 @@ def dashboard():
                 else:
                     result = mc.judge(latest_metric, found_service)
 
-            temp = {
-                "name": service,
-                "state": result
-            }
+            
             service_results[service] = {
                 "name": service,
                 "state": result
