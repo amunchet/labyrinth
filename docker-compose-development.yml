@@ -124,6 +124,7 @@ services:
     volumes:
       - ./backend/:/src
       - ./cron:/cron
+      - ./alertmanager:/alertmanager
     networks:
       - labyrinth
     environment: 

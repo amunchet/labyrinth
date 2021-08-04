@@ -1,3 +1,4 @@
 * * * * * /bin/bash /cron/run.sh > /var/log/finder
+*/10 * * * * /bin/bash /cron/watcher.sh > /var/log/watcher
 
 # Must have Blank line before EOF

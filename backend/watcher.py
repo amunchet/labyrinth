@@ -10,7 +10,6 @@ IMPORTANT:
 import json
 import requests
 
-
 def send_alert(alert_name, service, instance, severity="error", summary="A Service is failing.", url=""):
     """
     Sends an alert

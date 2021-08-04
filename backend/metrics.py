@@ -45,7 +45,8 @@ def judge_port(metric, service, host, stale_time=600):
     if metric is None:
         return False
 
-    if "timestamp" not in metric or (time.time() - float(metric["timestamp"])) > stale_time:
+    delta = time.time() - float(metric["timestamp"])
+    if "timestamp" not in metric or delta > stale_time:
         return -1
 
 

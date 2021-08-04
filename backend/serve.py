@@ -5,6 +5,7 @@ Labyrinth Web backend
 # Permissions scope names
 import functools
 import os
+import sys
 import json
 import socket
 import datetime
@@ -15,6 +16,7 @@ import toml
 import requests
 
 import metrics as mc
+import watcher
 
 import shutil
 import services as svcs
@@ -699,7 +701,7 @@ def update_ip(mac, new_ip):
 
 @app.route("/dashboard/")
 @requires_auth_read
-def dashboard():
+def dashboard(report=False):
     """Dashboard"""
     # Get all the subnets
     subnets = {}
@@ -751,7 +753,23 @@ def dashboard():
                 else:
                     result = mc.judge(latest_metric, found_service)
 
-            
+            # Alerting section
+            if report and (not result or result == -1):
+                alert_name = "PROBLEM"
+                metric_name = "None"
+                if latest_metric is not None and "name" in latest_metric:
+                    metric_name = latest_metric["name"]
+                else:
+                    metric_name = service
+
+                host_name = host["host"] or host["ip"] or host["mac"]
+
+                if result == -1:
+                    summary = "No metric received in the window expected."
+                else:
+                    summary = "A service failed the metric check. | {} | {}".format(json.dumps(latest_metric, default=str) or "", json.dumps(found_service, default=str) or "")
+                watcher.send_alert(alert_name, metric_name, host_name, summary=summary)
+
             service_results[service] = {
                 "name": service,
                 "state": result
@@ -848,6 +866,10 @@ def insert_metric(inp=""):
 
 
 if __name__ == "__main__":  # pragma: no cover
+
+    if len(sys.argv) > 1 and sys.argv[1] == "watcher":
+        unwrap(dashboard)(report=True)
+
     app.debug = True
     app.config["ENV"] = "development"
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 7000)))
