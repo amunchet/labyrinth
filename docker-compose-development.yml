@@ -1,6 +1,7 @@
 version: "3.2"
 services:
   devel:
+    container_name: "labyrinth_devel"
     environment:
       COMPOSE_CONVERT_WINDOWS_PATHS: 1
       CHOKIDAR_USEPOLLING: "true"
