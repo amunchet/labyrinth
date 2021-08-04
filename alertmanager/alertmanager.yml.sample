@@ -1,16 +1,29 @@
-route:
-  group_by: ['alertname']
-  group_wait: 30s
-  group_interval: 5m
-  repeat_interval: 1h
-  receiver: 'web.hook'
-receivers:
-- name: 'web.hook'
-  webhook_configs:
-  - url: 'http://127.0.0.1:5001/'
+global:
+  smtp_smarthost: 'SMARTHOST'
+  smtp_from: 'MAILFROM'
+  smtp_auth_username: 'SMTPUSER'
+  smtp_auth_password: 'SMTPPASSWORD'
+
 inhibit_rules:
-  - source_match:
-      severity: 'critical'
-    target_match:
-      severity: 'warning'
-    equal: ['alertname', 'dev', 'instance']
+- equal:
+  - alertname
+  - dev
+  - instance
+  source_match:
+    severity: critical
+  target_match:
+    severity: warning
+
+receivers:
+- name: dev.mails
+  email_configs:
+  - to: 'MAILTO'
+
+
+route:
+  group_by:
+  - alertname
+  group_interval: 5m
+  group_wait: 30s
+  receiver: dev.mails
+  repeat_interval: 1h
