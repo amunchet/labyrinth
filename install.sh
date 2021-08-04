@@ -66,7 +66,7 @@ ALERTMANAGER_FOLDER="alertmanager"
 if [ -f $ALERTMANAGER_FOLDER/alertmanager.yml ]; then
 	echo "Alertmanager configuration already found.  Continuing..."
 else
-	echo "What is your email server (Press Enter to skip)"
+	echo "What is your email server? e.g. localhost:25 (Press Enter to skip)"
 	read;
 	if [ -z "$REPLY" ]; then
 		echo "Skipping alertmanager configuration..."
@@ -74,25 +74,69 @@ else
 
 		cp $ALERTMANAGER_FOLDER/alertmanager.yml.sample $ALERTMANAGER_FOLDER/alertmanager.yml
 
-		sed -i "s|EMAILSERVER|$REPLY|" $ALERTMANAGER_FOLDER/alertmanager.yml
+		sed -i "s|SMARTHOST|$REPLY|" $ALERTMANAGER_FOLDER/alertmanager.yml
+
 		echo "What is your Email from?"
+		read;
+		sed -i "s|MAILFROM|$REPLY|" $ALERTMANAGER_FOLDER/alertmanager.yml
+
 		echo "What is your email username?"
+		read;
+		sed -i "s|SMTPUSER|$REPLY|" $ALERTMANAGER_FOLDER/alertmanager.yml
+
 		echo "What is your email password?"
+		read;
+		sed -i "s|SMTPPASSWORD|$REPLY|" $ALERTMANAGER_FOLDER/alertmanager.yml
+
+		echo "What email should alerts go to by default?"
+		read;
+		sed -i "s|MAILTO|$REPLY|" $ALERTMANAGER_FOLDER/alertmanager.yml
 	fi
 
 fi
-exit 1
-clear || cls
 
+clear || cls
 # Lego - setup defaults to cloudflare
-echo "Set up Lego Cloudflare integration? (Press Enter to generate self signed)"
+LEGODIR="nginx/.lego"
 
-echo "Cloudflare Email?"
-echo "Cloudflare API Key?"
-echo "Domain?"
+echo "Domain name of this server?"
+read;
+DOMAINNAME=$REPLY
+
+# Regardless, creating file structure
+mkdir $LEGODIR || true
+mkdir $LEGODIR/certificates || true
+
+echo "Set up LetsEncrypt/Cloudflare integration? (Y to continue, press Enter to generate self signed)"
+read;
+
+if [ -z "$REPLY" ]; then
+	echo "Setting up self signed certificate..."
+
+	# Create certificates
+	openssl req -new -newkey rsa:2048 -days 365 -nodes -x509 -keyout $LEGODIR/certificates/$DOMAINNAME.key -out $LEGODIR/certificates/$DOMAINNAME.crt
+
+	# Adjust nginx.conf
+	cp $LEGODIR/../nginx.conf.sample $LEGODIR/../nginx.conf
+	sed -i "s|DOMAIN|$DOMAINNAME|g" $LEGODIR/../nginx.conf
+else
+	echo "Setting up LetsEncrypt/Cloudflare integration..."
+
+	cp $LEGODIR/.env.sample $LEGODIR/.env
+
+	echo "Cloudflare Email?"
+	read;
+
+
+	echo "Cloudflare API Key?"
+
+	# Adjust nginx.conf
+fi
+
 
 clear || cls
 
+exit 1;
 # Compile frontend
 echo "Compiling frontend..."
 

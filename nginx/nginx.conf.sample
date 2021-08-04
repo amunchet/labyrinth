@@ -5,8 +5,8 @@ http{
 	server {
 		listen	443 ssl;
 		server_name labyrinth;
-		ssl_certificate /nginx/.lego/certificates/labyrinth.north.altamontco.com.crt;
-		ssl_certificate_key /nginx/.lego/certificates/labyrinth.north.altamontco.com.key;
+		ssl_certificate /nginx/.lego/certificates/DOMAIN.crt;
+		ssl_certificate_key /nginx/.lego/certificates/DOMAIN.key;
 
         error_page 497 https://$host:7000$request_uri;
 
