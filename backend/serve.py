@@ -788,7 +788,7 @@ def dashboard(report=False):
     subnets = [subnets[x] for x in subnets]
     for subnet in [x for x in subnets if "hosts" in x]:
         groups = {}
-        for host in sorted([x for x in subnet["hosts"] if "group" in x], key=lambda x: x["ip"]):
+        for host in sorted([x for x in subnet["hosts"] if "group" in x], key=lambda x: int(x["ip"].split(".")[-1])):
             if host["group"] not in groups:
                 groups[host["group"]] = []
             groups[host["group"]].append(host)
