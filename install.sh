@@ -1,4 +1,10 @@
 #!/bin/bash
+
+if [[ $EUID -ne 0 ]]; then
+	echo "This script must be run as root" 
+	exit 1
+fi
+
 echo "Starting production installation."
 
 echo "Initializing submodules..."
@@ -17,7 +23,7 @@ if [ -f "$ENV_FOLDER/.env" ]; then
 else
 	cp $ENV_FOLDER/.env.sample $ENV_FOLDER/.env
 
-	echo "What is your Auth0 API Url Identifier? (e.g. http://labyrinth/laybrinth)" # APIURL
+	echo "What is your Auth0 API Url Identifier? (e.g. http://labyrinth/labyrinth)" # APIURL
 	read;
 	sed -i "s|=API_URL|=$REPLY|" $ENV_FOLDER/.env
 
@@ -34,7 +40,7 @@ clear || cls
 
 # auth_config.json - check if exists
 # AUTH0DOMAIN -> "domain"
-# What is your Auth0 Audience?  This must match exactly.  E.g. http://labyrinth/laybrinth" # audience - this might be the same
+# What is your Auth0 Audience?  This must match exactly.  E.g. http://labyrinth/labyrinth" # audience - this might be the same
 
 # Get these from the existing file
 AUTH0JSON_FOLDER="frontend/labyrinth/src/"
@@ -107,40 +113,67 @@ DOMAINNAME=$REPLY
 mkdir $LEGODIR || true
 mkdir $LEGODIR/certificates || true
 
-echo "Set up LetsEncrypt/Cloudflare integration? (Y to continue, press Enter to generate self signed)"
-read;
 
-if [ -z "$REPLY" ]; then
-	echo "Setting up self signed certificate..."
-
-	# Create certificates
-	openssl req -new -newkey rsa:2048 -days 365 -nodes -x509 -keyout $LEGODIR/certificates/$DOMAINNAME.key -out $LEGODIR/certificates/$DOMAINNAME.crt
-
-	# Adjust nginx.conf
-	cp $LEGODIR/../nginx.conf.sample $LEGODIR/../nginx.conf
-	sed -i "s|DOMAIN|$DOMAINNAME|g" $LEGODIR/../nginx.conf
+if [ -f $LEGODIR/../.env ]; then
+	echo ""
 else
-	echo "Setting up LetsEncrypt/Cloudflare integration..."
+	cp $LEGODIR/../.env.sample $LEGODIR/../.env
+fi
 
-	cp $LEGODIR/.env.sample $LEGODIR/.env
+if [ -d $LEGODIR ]; then
+	echo "Certificates already setup.  Continuing..."
+else
 
-	echo "Cloudflare Email?"
+	echo "Set up LetsEncrypt/Cloudflare integration? (Y to continue, press Enter to generate self signed)"
 	read;
 
+	if [ -z "$REPLY" ]; then
+		echo "Setting up self signed certificate..."
 
-	echo "Cloudflare API Key?"
+		# Create certificates
+		openssl req -new -newkey rsa:2048 -days 365 -nodes -x509 -keyout $LEGODIR/certificates/$DOMAINNAME.key -out $LEGODIR/certificates/$DOMAINNAME.crt
 
-	# Adjust nginx.conf
+	else
+		echo "Setting up LetsEncrypt/Cloudflare integration..."
+
+		echo "Cloudflare Email?"
+		read;
+		sed -i "s|CLOUDFLAREEMAIL|$REPLY|" $LEGODIR/.env 
+
+		echo "Cloudflare API Key?"
+		read;
+		sed -i "s|CLOUDFLAREDNS|$REPLY|" $LEGODIR/.env
+
+		sed -i "s|DOMAIN|$DOMAINNAME|" $LEGODIR/.env
+
+	fi
+	echo "Adjusting nginx.conf..."
+	cp $LEGODIR/../nginx.conf.sample $LEGODIR/../nginx.conf
+	sed -i "s|DOMAIN|$DOMAINNAME|g" $LEGODIR/../nginx.conf
 fi
 
 
 clear || cls
 
-exit 1;
+# Create docker network
+docker network create labyrinth || true
+
 # Compile frontend
 echo "Compiling frontend..."
 
+DOCKER_DEVEL_NAME="labyrinth_devel"
+echo "Building docker..."
+docker-compose -f docker-compose-development.yml up --build -d devel
+
+echo "Building project..."
+docker exec $DOCKER_DEVEL_NAME sh -c "cd /src/labyrinth && npm update"
+docker exec $DOCKER_DEVEL_NAME sh -c "cd /src/labyrinth && node_modules/*vue/cli-service/bin/vue-cli-service.js build"
+
+echo "Removing dev docker"
+docker stop $DOCKER_DEVEL_NAME && docker rm $DOCKER_DEVEL_NAME
+
 # Start up with correct docker files
 echo "Starting up docker-compose stack..."
+docker-compose -f docker-compose-production.yml up --build -d
 
 echo "Done."

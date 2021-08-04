@@ -1,5 +1,5 @@
 {
     "domain" : DOMAIN, 
     "clientId" : CLIENTID,
-    "audience" : AUDIENCE,
+    "audience" : AUDIENCE
 }
