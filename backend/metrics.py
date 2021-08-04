@@ -2,6 +2,7 @@
 """
 Metrics helper functions
 """
+import time
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
@@ -12,7 +13,7 @@ class NotFoundException(Exception):
     def __init__(self, msg):
         self.msg = msg
     
-def judge(metric, service, host=""):
+def judge(metric, service, host="", stale_time=600):
     """
     Judges a metric based on service
     """
@@ -20,6 +21,11 @@ def judge(metric, service, host=""):
     if "type" not in service: # pragma: no cover
         logger.debug("Type not in service")
         return False
+
+    # Timestamp check
+    if "timestamp" not in metric or (time.time() - float(metric["timestamp"])) > stale_time:
+        return -1
+
     
     if service["type"] == "check":
         return judge_check(metric, service)
@@ -30,7 +36,7 @@ def judge(metric, service, host=""):
     logger.debug("Wrong service type")
     return False
 
-def judge_port(metric, service, host):
+def judge_port(metric, service, host, stale_time=600):
     """
     Judge a port service
         - Is this for open or closed ports?
@@ -38,6 +44,10 @@ def judge_port(metric, service, host):
     """
     if metric is None:
         return False
+
+    if "timestamp" not in metric or (time.time() - float(metric["timestamp"])) > stale_time:
+        return -1
+
 
     if service == "open_ports":
         return bool([1 for x in metric["fields"]["ports"] if x in host["open_ports"]])
