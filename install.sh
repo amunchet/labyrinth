@@ -160,7 +160,7 @@ docker network create labyrinth || true
 
 # Compile frontend
 echo "Compiling frontend..."
-frontend/publish.sh
+cd frontend && ./publish.sh
 
 # Start up with correct docker files
 echo "Starting up docker-compose stack..."
