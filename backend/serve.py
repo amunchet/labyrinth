@@ -735,7 +735,7 @@ def dashboard(report=False):
                 )
                 found_service = service
 
-                result = mc.judge_port(latest_metric, service, host)
+                result = mc.judge_port(latest_metric, service, host, stale_time=10000)
             else:
                 latest_metric = mongo_client["labyrinth"]["metrics"].find_one(
                     {
