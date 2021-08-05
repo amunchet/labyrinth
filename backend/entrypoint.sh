@@ -10,4 +10,4 @@ else
 	echo "Starting production..."
 	cd /src
 	gunicorn --bind 0.0.0.0:7000 --workers 4 serve:app
-
+fi
