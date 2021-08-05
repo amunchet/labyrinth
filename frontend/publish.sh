@@ -8,6 +8,6 @@ fi
 # Publishes changes
 cd labyrinth
 echo "Starting build docker..."
-docker-compose up --build -d 
+docker-compose up --build 
 cd ..
 echo "Done."

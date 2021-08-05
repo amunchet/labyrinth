@@ -14,9 +14,7 @@ services:
       MONGO_HOST: mongo
       REDIS_HOST: redis
       PRODUCTION: 1
-  
-
-  # NGINX Frontend server
+ 
   frontend:
     image: nginx:latest
     restart: always
@@ -41,7 +39,9 @@ services:
         retries: 3
     ports:
         - "443:443"
-        - "80:443"
+
+ 
+
 
   lego:
     build: nginx

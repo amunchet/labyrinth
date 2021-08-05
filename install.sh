@@ -104,25 +104,26 @@ fi
 clear || cls
 # Lego - setup defaults to cloudflare
 LEGODIR="nginx/.lego"
+NGINXDIR="nginx"
 
 echo "Domain name of this server?"
 read;
 DOMAINNAME=$REPLY
 
-# Regardless, creating file structure
-mkdir $LEGODIR || true
-mkdir $LEGODIR/certificates || true
 
-
-if [ -f $LEGODIR/../.env ]; then
+if [ -f $NGINXDIR/.env ]; then
 	echo ""
 else
-	cp $LEGODIR/../.env.sample $LEGODIR/../.env
+	echo "Copying over nginx .env..."
+	cp $NGINXDIR/.env.sample $NGINXDIR/.env
 fi
 
 if [ -d $LEGODIR ]; then
 	echo "Certificates already setup.  Continuing..."
 else
+	mkdir $LEGODIR || true
+	mkdir $LEGODIR/certificates || true
+
 
 	echo "Set up LetsEncrypt/Cloudflare integration? (Y to continue, press Enter to generate self signed)"
 	read;
@@ -138,18 +139,22 @@ else
 
 		echo "Cloudflare Email?"
 		read;
-		sed -i "s|CLOUDFLAREEMAIL|$REPLY|" $LEGODIR/.env 
+		sed -i "s|CLOUDFLAREEMAIL|$REPLY|" $NGINXDIR/.env
 
 		echo "Cloudflare API Key?"
 		read;
-		sed -i "s|CLOUDFLAREDNS|$REPLY|" $LEGODIR/.env
+		sed -i "s|CLOUDFLAREDNS|$REPLY|" $NGINXDIR/.env
 
-		sed -i "s|DOMAIN|$DOMAINNAME|" $LEGODIR/.env
+		sed -i "s|NEWDOMAIN|$DOMAINNAME|" $NGINXDIR/.env
 
 	fi
+fi
+if [ -f $NGINXDIR/nginx.conf ]; then
+	echo "Leaving nginx.conf as it already exists..."
+else
 	echo "Adjusting nginx.conf..."
-	cp $LEGODIR/../nginx.conf.sample $LEGODIR/../nginx.conf
-	sed -i "s|DOMAIN|$DOMAINNAME|g" $LEGODIR/../nginx.conf
+	cp $NGINXDIR/nginx.conf.sample $NGINXDIR/nginx.conf
+	sed -i "s|DOMAIN|$DOMAINNAME|g" $NGINXDIR/nginx.conf
 fi
 
 
@@ -161,7 +166,7 @@ docker network create labyrinth || true
 # Compile frontend
 echo "Compiling frontend..."
 cd frontend && ./publish.sh
-
+cd ..
 # Start up with correct docker files
 echo "Starting up docker-compose stack..."
 docker-compose -f docker-compose-production.yml up --build -d
