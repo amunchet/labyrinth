@@ -1,25 +1,8 @@
 version: "3.2"
 services:
-  devel:
-    container_name: "labyrinth_devel"
-    environment:
-      COMPOSE_CONVERT_WINDOWS_PATHS: 1
-      CHOKIDAR_USEPOLLING: "true"
-
-    build: ./frontend
-    ports:
-      - "127.0.0.1:8100:8000"
-      - "127.0.0.1:8101:8080"
-    networks:
-      - labyrinth
-    volumes:
-      - ./frontend:/src
-      - /src/labyrinth/node_modules
-
   backend:
     build: "backend"
-    ports:
-      - "127.0.0.1:7200:7000"
+    restart: always
     volumes:
       - ./backend/:/src
       - ./alertmanager:/alertmanager
@@ -30,9 +13,8 @@ services:
       MONGO_PASSWORD: temp
       MONGO_HOST: mongo
       REDIS_HOST: redis
-  
-
-  # NGINX Frontend server
+      PRODUCTION: 1
+ 
   frontend:
     image: nginx:latest
     restart: always
@@ -56,7 +38,10 @@ services:
         timeout: 10s
         retries: 3
     ports:
-        - "7210:443"
+        - "443:443"
+
+ 
+
 
   lego:
     build: nginx
@@ -71,8 +56,7 @@ services:
   # Mongo
   mongo:
     image: mongo
-    ports:
-      - 127.0.0.1:27017:27017
+    restart: always
     networks:
       - labyrinth
     volumes:
@@ -81,26 +65,13 @@ services:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: temp
 
-  mongo-express:
-    image: mongo-express
-    restart: always
-    networks:
-      - labyrinth
-    ports:
-      - 127.0.0.1:8089:8081
-    environment:
-      ME_CONFIG_MONGODB_ADMINUSERNAME: root
-      ME_CONFIG_MONGODB_ADMINPASSWORD: temp
-
-
+  
   # Redis
   redis:
     image: bitnami/redis:latest
     restart: always
     environment:
       ALLOW_EMPTY_PASSWORD: "yes"
-    ports:
-      - 127.0.0.1:6379:6379
     networks:
       - labyrinth
     # volumes:
@@ -108,20 +79,17 @@ services:
 
   alertmanager:
     build: alertmanager
+    restart: always
     networks:
       - labyrinth
     volumes:
       - ./alertmanager:/src
 
-  # Vulnerable server running on the network 
-  sampledva:
-    image: vulnerables/web-dvwa
-    networks:
-      - labyrinth
       
-  # Sample Finder Cron
+  # Scanner and Watcher Cron
   samplecron:
     build: "cron"
+    restart: always
     volumes:
       - ./backend/:/src
       - ./cron:/cron
@@ -134,15 +102,6 @@ services:
       MONGO_HOST: mongo
       REDIS_HOST: redis
 
-  # Test Client
-  sampleclient:
-    build: "test_client"
-    networks:
-      - labyrinth
-    volumes:
-      - ./test_client:/src
-      - ./test_client/sshd_config:/etc/ssh/sshd_config
-  
 networks:
   labyrinth:
     external: true
