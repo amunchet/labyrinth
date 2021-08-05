@@ -160,17 +160,7 @@ docker network create labyrinth || true
 
 # Compile frontend
 echo "Compiling frontend..."
-
-DOCKER_DEVEL_NAME="labyrinth_devel"
-echo "Building docker..."
-docker-compose -f docker-compose-development.yml up --build -d devel
-
-echo "Building project..."
-docker exec $DOCKER_DEVEL_NAME sh -c "cd /src/labyrinth && npm update"
-docker exec $DOCKER_DEVEL_NAME sh -c "cd /src/labyrinth && node_modules/*vue/cli-service/bin/vue-cli-service.js build"
-
-echo "Removing dev docker"
-docker stop $DOCKER_DEVEL_NAME && docker rm $DOCKER_DEVEL_NAME
+frontend/publish.sh
 
 # Start up with correct docker files
 echo "Starting up docker-compose stack..."

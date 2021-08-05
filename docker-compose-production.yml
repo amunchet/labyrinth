@@ -13,7 +13,7 @@ services:
       MONGO_PASSWORD: temp
       MONGO_HOST: mongo
       REDIS_HOST: redis
-      PRODUCTION: true
+      PRODUCTION: 1
   
 
   # NGINX Frontend server
@@ -40,7 +40,8 @@ services:
         timeout: 10s
         retries: 3
     ports:
-        - "7210:443"
+        - "443:443"
+        - "80:443"
 
   lego:
     build: nginx
