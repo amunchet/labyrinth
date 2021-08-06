@@ -153,9 +153,11 @@ export default {
     HostMetric,
   },
   methods: {
-    loadData: /* istanbul ignore next */ function () {
+    loadData: /* istanbul ignore next */ function (showLoading) {
       var auth = this.$auth;
-      this.loading = true;
+      if(showLoading){
+      	this.loading = true;
+      }
       Helper.apiCall("dashboard", "", auth)
         .then((res) => {
           this.full_data = res;
@@ -212,7 +214,7 @@ export default {
   },
   mounted: function () {
     try {
-      this.loadData();
+      this.loadData(1);
     } catch (e) {
       this.$store.commit("updateError", e);
     }

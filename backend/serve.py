@@ -731,11 +731,11 @@ def dashboard(report=False):
         service_results = {}
         for service in host["services"]:
             or_clause = []
-            if "mac" in host:
+            if "mac" in host and host["mac"] != "":
                 or_clause.append({"tags.mac": host["mac"]})
-            if "ip" in host:
+            if "ip" in host and host["ip"] != "":
                 or_clause.append({"tags.ip" : host["ip"]})
-            if "host" in host:
+            if "host" in host and host["host"] != "":
                 or_clause.append({"tags.host" : host["host"]})
 
             if service.strip() == "open_ports" or service.strip() == "closed_ports":
@@ -747,7 +747,7 @@ def dashboard(report=False):
                 )
                 found_service = service
 
-                result = mc.judge_port(latest_metric, service, host)
+                result = mc.judge_port(latest_metric, service, host, stale_time=10000)
             else:
                 latest_metric = mongo_client["labyrinth"]["metrics"].find_one(
                     {

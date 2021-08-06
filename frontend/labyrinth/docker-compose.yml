@@ -4,3 +4,8 @@ services:
     build: .
     volumes:
       - ./:/src
+    networks:
+      - labyrinthpublish
+
+networks:
+  labyrinthpublish:
