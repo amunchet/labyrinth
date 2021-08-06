@@ -73,7 +73,14 @@ export default {
         })
         .then((response) => {
           return response.data;
+        }).catch(e=>{
+          if(e.response != undefined){
+            throw e.response
+          }
+          throw e
         });
+    }).catch(e=>{
+      throw e
     });
   },
   apiDelete(url, command, auth) /* istanbul ignore next */ {
