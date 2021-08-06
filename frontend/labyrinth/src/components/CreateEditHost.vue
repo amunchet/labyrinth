@@ -215,7 +215,7 @@
     <b-row class="overflow-scroll" v-if="metrics.length">
       <h4>Latest Host Metrics</h4>
       <div style="max-height: 400px; overflow-y: scroll; overflow-x: hidden">
-        <b-table :items="metrics" striped />
+        <b-table :fields="['name', 'fields', 'tags', 'timestamp']" :items="metrics" striped />
       </div>
     </b-row>
 
@@ -297,6 +297,7 @@ export default {
       Helper.apiCall("metrics", this.host.mac, auth)
         .then((res) => {
           this.metrics = res;
+	  this.metrics.reverse()
         })
         .catch((e) => {
           this.$store.commit("updateError", e);

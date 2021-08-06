@@ -735,8 +735,12 @@ def dashboard(report=False):
                 or_clause.append({"tags.mac": host["mac"]})
             if "ip" in host and host["ip"] != "":
                 or_clause.append({"tags.ip" : host["ip"]})
+
+            # Some networks have multiple hostnames that are the same...
+            """
             if "host" in host and host["host"] != "":
                 or_clause.append({"tags.host" : host["host"]})
+            """
 
             if service.strip() == "open_ports" or service.strip() == "closed_ports":
                 latest_metric = mongo_client["labyrinth"]["metrics"].find_one(
