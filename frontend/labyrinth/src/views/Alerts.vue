@@ -66,14 +66,12 @@
         </b-button>
         <b-textarea v-if="file" class="shadow-none" v-model="file" />
         <b-spinner class="m-2 float-right" v-if="loading" />
-        <b-button
-          v-else-if="file"
-          @click="save()"
-          variant="success"
-          class="mt-2 float-right"
-        >
-          <font-awesome-icon icon="save" size="1x" />
-        </b-button>
+        <div v-else-if="file">
+          <b-button @click="save()" variant="success" class="mt-2 float-right">
+            <font-awesome-icon icon="save" size="1x" />
+          </b-button>
+
+        </div>
       </b-tab>
     </b-tabs>
   </b-container>
@@ -115,6 +113,16 @@ export default {
           this.$store.commit("updateError", e);
         });
     },
+    restartAlertManager: /* istanbul ignore next */ function () {
+      var auth = this.$auth;
+      Helper.apiCall("alertmanager", "restart", auth)
+        .then((res) => {
+          this.$store.commit("updateError", res);
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", "Error: " + e.data);
+        });
+    },
     load: /* istanbul ignore next */ function () {
       var auth = this.$auth;
       this.loading = true;
@@ -136,6 +144,7 @@ export default {
       Helper.apiPost("alertmanager", "", "", auth, formData)
         .then((res) => {
           this.load();
+          this.restartAlertManager()
           this.$store.commit("updateError", res);
         })
         .catch((e) => {

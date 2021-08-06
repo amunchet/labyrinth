@@ -583,6 +583,18 @@ def resolve_alert(data=""):
 
     return retval.text, retval.status_code
 
+@app.route("/alertmanager/restart", methods=["GET"])
+@requires_auth_admin
+def restart_alertmanager():
+    """
+    Restarts the alertmanager
+    """
+    url = "http://alertmanager:9093/-/reload"
+    password = open("/alertmanager/pass").read()
+
+    retval = requests.post(url, auth=("admin", password))
+    return retval.text, retval.status_code
+
 # Utilities
 
 @app.route("/find_ip/")
