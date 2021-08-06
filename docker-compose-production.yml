@@ -1,7 +1,10 @@
 version: "3.2"
 services:
   backend:
-    build: "backend"
+    build: 
+      context: "backend"
+      args:
+        TZ: ${TZ}
     restart: always
     volumes:
       - ./backend/:/src
@@ -78,7 +81,10 @@ services:
     #  - ./redis_data:/bitnami/redis/data
 
   alertmanager:
-    build: alertmanager
+    build: 
+      context: alertmanager
+      args:
+        TZ: ${TZ}
     restart: always
     networks:
       - labyrinth
@@ -88,7 +94,10 @@ services:
       
   # Scanner and Watcher Cron
   samplecron:
-    build: "cron"
+    build: 
+      context: "cron"
+      args:
+        TZ: ${TZ}    
     restart: always
     volumes:
       - ./backend/:/src

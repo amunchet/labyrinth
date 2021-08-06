@@ -1,11 +1,18 @@
 FROM ubuntu:latest
 
+ENV DEBIAN_FRONTEND noninteractive
+
+ARG TZ
+ENV TZ=${TZ}
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
 RUN apt update && apt -y install \
     wget \
     python3 \
     python3-pip \
     dos2unix \
-    curl
+    curl \
+    tzdata
 
 ADD requirements.txt /
 RUN pip3 install -r /requirements.txt

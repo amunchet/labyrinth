@@ -2,6 +2,11 @@ FROM ubuntu:latest
 
 ENV DEBIAN_FRONTEND noninteractive
 
+ARG TZ
+ENV TZ=${TZ}
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+
 RUN   apt-get update && apt-get -y install python3 \
 		python3-pip \
 		dos2unix \
@@ -11,7 +16,8 @@ RUN   apt-get update && apt-get -y install python3 \
         ansible \
         sshpass \
         git \
-        cron
+        cron \
+	tzdata
 
 
 
