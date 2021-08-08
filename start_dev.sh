@@ -19,5 +19,17 @@ if [ -z "${GITHUB}" ]; then
     docker-compose -f docker-compose-development.yml up --build -d
 else
     echo "[CI] Starting only CI dockers..."
+
+    # .env file - check if exists
+    ENV_FOLDER="backend"
+
+    echo "Setting up .env..."
+
+    if [ -f "$ENV_FOLDER/.env" ]; then
+        echo ".env already exists.  Continuing."
+    else
+        cp $ENV_FOLDER/.env.sample $ENV_FOLDER/.env
+    fi
+
     docker-compose -f docker-compose-development.yml up --build -d mongo redis backend alertmanager
 fi
