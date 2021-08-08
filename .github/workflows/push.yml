@@ -9,8 +9,8 @@ jobs:
       - name: Start custom docker network
         run: docker network create labyrinth || true
         
-      - name: Bring up the database
-        run: docker-compose up --build -d frontend
+      - name: Bring up dockers
+        run: docker-compose -f docker-compose-development.yml up --build -d frontend
       
       - name: List Dockers
         run: docker ps
