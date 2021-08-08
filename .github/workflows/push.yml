@@ -15,5 +15,5 @@ jobs:
       - name: List Dockers
         run: docker ps
       
-        - name: Backend Tests
+      - name: Backend Tests
         run: bash backend/run_tests.sh
