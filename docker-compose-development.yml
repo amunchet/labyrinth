@@ -8,8 +8,8 @@ services:
 
     build: ./frontend
     ports:
-      - "127.0.0.1:8100:8000"
-      - "127.0.0.1:8101:8080"
+      - "8100:8000"
+      - "8101:8080"
     networks:
       - labyrinth
     volumes:
@@ -43,7 +43,7 @@ services:
     user: ${CURRENT_UID}
     command: /entrypoint.sh
     volumes:
-        - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+        - ./nginx/nginx.conf.development:/etc/nginx/nginx.conf:ro
         - ./nginx:/nginx
         - ./frontend/labyrinth/dist/:/dist
         - ./nginx/entrypoint.sh:/entrypoint.sh

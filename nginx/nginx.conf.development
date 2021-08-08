@@ -1,0 +1,38 @@
+events{
+
+}
+http{
+	server {
+		listen	443 ssl;
+		server_name labyrinth;
+		ssl_certificate /nginx/.lego/certificates/development.crt;
+		ssl_certificate_key /nginx/.lego/certificates/development.key;
+
+        error_page 497 https://$host:7000$request_uri;
+
+        client_max_body_size 8M;
+
+		location /{
+			root	/dist/;
+			index	index.html index.htm;
+			include /etc/nginx/mime.types;
+			try_files $uri $uri/ /index.html;
+		}
+        location /nginx_status {
+            # Turn on stats
+            stub_status on;
+            access_log   off;
+            allow all;
+        }
+		location /api/
+		{
+			rewrite ^/api/^ $1 break;
+			proxy_pass http://backend:7000/;
+		}
+        location /alertmanager/
+		{
+			rewrite ^/alertmanager/^ $1 break;
+			proxy_pass http://alertmanager:9093/;
+		}
+	}
+}
