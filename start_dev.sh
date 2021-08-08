@@ -19,5 +19,5 @@ if [ -z "${GITHUB}" ]; then
     docker-compose -f docker-compose-development.yml up --build -d
 else
     echo "[CI] Starting only CI dockers..."
-    docker-compose -f docker-compose-development.yml up --build -d frontend
+    docker-compose -f docker-compose-development.yml up --build -d frontend backend
 fi
