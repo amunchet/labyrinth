@@ -18,7 +18,7 @@ jobs:
         run: docker ps
       
       - name: List Docker logs
-        run: docker logs labyrinth_backend_1
+        run: docker logs labyrinth_alertmanager_1
       
       - name: Backend Tests
         run: bash backend/run_tests.sh
