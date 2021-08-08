@@ -16,6 +16,17 @@ import toml
 from common.test import unwrap
 
 @pytest.fixture
+def mkdir():
+    """
+    Ensures upload directory exists.
+    """
+    PATH="/src/uploads/telegraf"
+    if not os.path.exists(PATH):
+        os.mkdir(PATH)
+    yield "Started"
+    return "Done"
+
+@pytest.fixture
 def setup():
     # Clear redis
     rc = redis.Redis(host="redis")
@@ -39,7 +50,7 @@ def setup():
     yield (x, decoder)
 
 
-def test_output():
+def test_output(mkdir):
     """Tests writing to TOML file"""
     a = unwrap(serve.save_conf)("TESTING", raw="# Test comment\n[Test]\n")
     assert a[1] == 200
@@ -51,7 +62,7 @@ def test_output():
     
     assert not os.path.exists("/src/uploads/telegraf/TESTING.conf")
 
-def test_load():
+def test_load(mkdir):
     """
     Reads in a TOML file from disk
     """
@@ -69,7 +80,7 @@ def test_load():
     assert not os.path.exists("/src/uploads/telegraf/TESTING.conf")
 
 
-def test_run():
+def test_run(mkdir):
     """
     Test runs telegraf
     """
