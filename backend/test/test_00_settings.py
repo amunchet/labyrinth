@@ -40,7 +40,7 @@ def test_save_and_get_settings(setup):
 
     c = unwrap(serve.get_setting)()
     assert c[1] == 200
-    assert json.loads(c[0]) == {"test" : "test"}
+    assert json.loads(c[0]) == [{"test" : "test"}]
 
 
 def test_delete_setting(setup):
