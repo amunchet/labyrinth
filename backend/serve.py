@@ -145,7 +145,9 @@ def list_uploads(type):
     """
     Lists all entries in an upload folder
     """
-    if type in valid_type and os.path.exists("/src/uploads/{}".format(type)):
+    if type in valid_type:
+        if not os.path.exists("/src/uploads/{}".format(type)):
+            os.mkdir("/src/uploads/{}".format(type))
         return json.dumps(os.listdir("/src/uploads/{}".format(type)), default=str), 200
     return "Not found", 409
 
