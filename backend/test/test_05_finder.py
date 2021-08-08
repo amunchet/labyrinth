@@ -213,6 +213,7 @@ def test_create_initial():
         "services": [
             "open_ports",
             "closed_ports",
+            "new_host"
         ],
         "open_ports": [
             22

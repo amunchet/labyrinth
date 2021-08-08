@@ -24,7 +24,7 @@ def setup(): # pragma: no cover
     if not os.path.exists("/src/uploads/ansible"):
         os.mkdir("/src/uploads/ansible")
     if not os.path.exists("/src/uploads/ansible/deploy.yml"):
-        shutil.copy("/src/test/ansible/project/install.yml", "/src/uploads/ansible/deploy.yml")
+        shutil.copy("/src/test/ansible/project/deploy.yml", "/src/uploads/ansible/deploy.yml")
 
 def test_get_ansible_file(setup):
     """Returns an ansible file for edit"""
@@ -153,7 +153,7 @@ def test_run_ansible():
 
     # Copy over files
     file_moves = [
-        ("/src/test/ansible/project/install.yml", "/src/uploads/ansible/install.yml"),
+        ("/src/test/ansible/project/deploy.yml", "/src/uploads/ansible/install.yml"),
         ("/src/test/ansible/vars/vault.yml", "/src/uploads/become/vault.yml")
     ]
 
