@@ -1,6 +1,8 @@
 name: Labyrinth Backend Tests
 on: push
 jobs:
+  env:
+    GITHUB: 1
   backend-tests:
     runs-on: ubuntu-latest
     steps:
@@ -10,7 +12,7 @@ jobs:
         run: docker network create labyrinth || true
         
       - name: Bring up dockers
-        run: docker-compose -f docker-compose-development.yml up --build -d frontend
+        run: bash start_dev.sh
       
       - name: List Dockers
         run: docker ps
