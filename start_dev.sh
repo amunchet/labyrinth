@@ -36,6 +36,7 @@ else
         echo "alertmanager.yml already exists.  Continuing..."
     else
         cp alertmanager/alertmanager.yml.sample alertmanager/alertmanager.yml
+    fi
 
     docker-compose -f docker-compose-development.yml up --build -d mongo redis backend alertmanager
 fi
