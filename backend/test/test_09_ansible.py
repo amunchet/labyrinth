@@ -128,14 +128,20 @@ def test_check_file():
     if not os.path.exists("/src/uploads/telegraf"): # pragma: no cover
         os.mkdir("/src/uploads/telegraf")
 
-    if not os.path.exists("/src/uploads/telegraf/sample_telegraf.json"):
-        shutil.copy(src, "/src/uploads/telegraf/sample_telegraf.json")
+    if not os.path.exists("/src/uploads/telegraf/sample_telegraf.conf"):
+        print("Copying to sample telegraf...")
+        shutil.copy(src, "/src/uploads/telegraf/sample_telegraf.conf")
 
     b = check_file(src.split("/")[-1], "telegraf")
+
     assert not b[0]
 
     src = "/src/test/sample_telegraf.conf"
+    print("Copying to sample telegraf...")
+    shutil.copy(src, "/src/uploads/telegraf/sample_telegraf.conf")
+
     b = check_file(src.split("/")[-1], "telegraf")
+    print(b)
     assert b[0]
 
     # Ansible 
