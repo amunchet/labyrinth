@@ -124,6 +124,10 @@ def test_check_file():
 
     # Telegraf
     src = "/src/test/sample_telegraf.json"
+
+    if not os.path.exists("/src/uploads/telegraf"): # pragma: no cover
+        os.mkdir("/src/uploads/telegraf")
+
     b = check_file(src.split("/")[-1], "telegraf")
     assert not b[0]
 
