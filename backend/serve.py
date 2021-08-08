@@ -597,6 +597,56 @@ def restart_alertmanager():
     retval = requests.post(url, auth=("admin", password))
     return retval.text, retval.status_code
 
+# Settings
+@app.route("/settings")
+@app.route("/settings/<setting>", methods=["GET"])
+@requires_auth_read
+def get_setting(setting=""):
+    """
+    Returns given settings
+    """
+    if setting == "":
+        z = [{x["name"]: x["value"] } for x in mongo_client["labyrinth"]["settings"].find({})]
+        return json.dumps(z, default=str), 200
+    else:
+        a = mongo_client["labyrinth"]["settings"].find_one({"name" : setting})
+
+        if a:
+            return a["value"], 200
+        return "No results", 481
+
+@app.route("/settings", methods=["POST"])
+@requires_auth_admin
+def save_setting(name="", value=""):
+    if name != "" and value != "":
+        parsed_name, parsed_value = name, value
+    elif request.method == "POST": # pragma: no cover
+        parsed_name = request.form.get("name")
+        parsed_value = request.form.get("value")
+    else: # pragma: no cover
+        return "Invalid", 497
+    
+    if mongo_client["labyrinth"]["settings"].find_one({"name" : parsed_name}):
+        mongo_client.delete_one({"name" : parsed_name})
+
+    mongo_client["labyrinth"]["settings"].insert_one({
+        "name" : parsed_name,
+        "value" : parsed_value
+    })
+
+    return "Success", 200
+
+@app.route("/settings/<setting>", methods=["DELETE"])
+@requires_auth_admin
+def delete_setting(setting):
+    """
+    Deletes a setting
+    """
+    if mongo_client["labyrinth"]["settings"].find_one({"name" : setting}):
+        mongo_client["labyrinth"]["settings"].delete_one({"name" : setting})
+    
+    return "Success", 200
+
 # Utilities
 
 @app.route("/find_ip/")
