@@ -134,7 +134,8 @@ def test_check_file():
 
     b = check_file(src.split("/")[-1], "telegraf")
 
-    assert not b[0]
+    # No file found
+    assert not b
 
     src = "/src/test/sample_telegraf.conf"
     print("Copying to sample telegraf...")
