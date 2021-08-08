@@ -31,5 +31,11 @@ else
         cp $ENV_FOLDER/.env.sample $ENV_FOLDER/.env
     fi
 
+    echo "Copying over alertmanager.yml..."
+    if [ -f "alertmanager/alertmanager.yml" ]; then
+        echo "alertmanager.yml already exists.  Continuing..."
+    else
+        cp alertmanager/alertmanager.yml.sample alertmanager/alertmanager.yml
+
     docker-compose -f docker-compose-development.yml up --build -d mongo redis backend alertmanager
 fi
