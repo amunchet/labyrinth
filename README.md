@@ -1,3 +1,4 @@
+[![Labyrinth Backend Tests](https://github.com/amunchet/labyrinth/actions/workflows/push.yml/badge.svg)](https://github.com/amunchet/labyrinth/actions/workflows/push.yml)
 # Labyrinth
 The beautiful network analyzer and mapper.
 
