@@ -8,8 +8,6 @@ import os
 
 import redis
 
-from common.test import unwrap
-
 from pid import PidFile
 from typing import Dict, List
 from nmap import PortScannerYield as ps
