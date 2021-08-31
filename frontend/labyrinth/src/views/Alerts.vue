@@ -70,7 +70,6 @@
           <b-button @click="save()" variant="success" class="mt-2 float-right">
             <font-awesome-icon icon="save" size="1x" />
           </b-button>
-
         </div>
       </b-tab>
     </b-tabs>
@@ -144,7 +143,7 @@ export default {
       Helper.apiPost("alertmanager", "", "", auth, formData)
         .then((res) => {
           this.load();
-          this.restartAlertManager()
+          this.restartAlertManager();
           this.$store.commit("updateError", res);
         })
         .catch((e) => {

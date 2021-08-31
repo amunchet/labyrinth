@@ -11,6 +11,7 @@ from jose import jwt
 
 import os
 from dotenv import load_dotenv
+
 load_dotenv()
 
 # Auth specific - may abstract out, but no point currently
@@ -18,28 +19,27 @@ AUTH0_DOMAIN = os.getenv("AUTH0DOMAIN")
 API_IDENTIFIER = os.getenv("APIURL")
 
 if AUTH0_DOMAIN == "" or AUTH0_DOMAIN == None:
-    raise Exception(
-        "No Auth0 Domain specified.  Please make sure your .env is correct")
+    raise Exception("No Auth0 Domain specified.  Please make sure your .env is correct")
 
 
 if API_IDENTIFIER == "" or API_IDENTIFIER == None:
     raise Exception(
-        "No Auth0 API URL specified.  Please make sure your .env is correct")
+        "No Auth0 API URL specified.  Please make sure your .env is correct"
+    )
 
 ALGORITHMS = ["RS256"]
 
 
 # Format error response and append status code.
-class AuthError(Exception): # pragma: no cover
+class AuthError(Exception):  # pragma: no cover
     def __init__(self, error, status_code):
         self.error = error
         self.status_code = status_code
         self.solution = "Please login again."
 
 
-def get_token_auth_header(): # pragma: no cover
-    """Obtains the access token from the Authorization Header
-    """
+def get_token_auth_header():  # pragma: no cover
+    """Obtains the access token from the Authorization Header"""
     auth = request.headers.get("Authorization", None)
     if not auth:
         raise AuthError(
@@ -77,7 +77,7 @@ def get_token_auth_header(): # pragma: no cover
     return token
 
 
-def requires_scope(required_scope): # pragma: no cover
+def requires_scope(required_scope):  # pragma: no cover
     """Determines if the required scope is present in the access token
     Args:
         required_scope (str): The scope required to access the resource
@@ -93,9 +93,8 @@ def requires_scope(required_scope): # pragma: no cover
     return False
 
 
-def _requires_auth(f, permission="", error_func=""): # pragma: no cover
-    """Determines if the access token is valid
-    """
+def _requires_auth(f, permission="", error_func=""):  # pragma: no cover
+    """Determines if the access token is valid"""
 
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -107,8 +106,7 @@ def _requires_auth(f, permission="", error_func=""): # pragma: no cover
             else:
                 token = get_token_auth_header()
 
-            jsonurl = urlopen("https://" + AUTH0_DOMAIN +
-                              "/.well-known/jwks.json")
+            jsonurl = urlopen("https://" + AUTH0_DOMAIN + "/.well-known/jwks.json")
             jwks = json.loads(jsonurl.read())
             token_scopes = ""
             try:
@@ -134,7 +132,7 @@ def _requires_auth(f, permission="", error_func=""): # pragma: no cover
 
             # Checks for correct permissions that are passed in
             unverified_claims = jwt.get_unverified_claims(token)
-            
+
             client_id = unverified_claims.get("azp")
 
             if unverified_claims.get("permissions"):
@@ -147,7 +145,8 @@ def _requires_auth(f, permission="", error_func=""): # pragma: no cover
                     raise AuthError(
                         {
                             "code": "invalid_claims",
-                            "description": "Permissions denied (Not found) - " + permission,
+                            "description": "Permissions denied (Not found) - "
+                            + permission,
                         },
                         401,
                     )
@@ -182,8 +181,8 @@ def _requires_auth(f, permission="", error_func=""): # pragma: no cover
                     )
                 except jwt.ExpiredSignatureError:
                     raise AuthError(
-                        {"code": "token_expired",
-                            "description": "token is expired"}, 401
+                        {"code": "token_expired", "description": "token is expired"},
+                        401,
                     )
                 except jwt.JWTClaimsError as exc:
                     print(exc)
@@ -210,13 +209,15 @@ def _requires_auth(f, permission="", error_func=""): # pragma: no cover
                 ):  # Passes out the scopes if the decorated function has it as an argument
                     kwargs["scopes"] = token_scopes
 
-                if ("auth_client_id" in inspect.signature(f).parameters):
+                if "auth_client_id" in inspect.signature(f).parameters:
                     kwargs["auth_client_id"] = client_id
 
                 return f(*args, **kwargs)
             raise AuthError(
-                {"code": "invalid_header",
-                    "description": "Unable to find appropriate key"},
+                {
+                    "code": "invalid_header",
+                    "description": "Unable to find appropriate key",
+                },
                 401,
             )
         except AuthError as exc:

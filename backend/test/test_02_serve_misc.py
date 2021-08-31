@@ -19,12 +19,16 @@ import json
 import serve
 
 from common.test import unwrap
+
+
 def test_insecure():
     assert serve.insecure()[1] == 200
+
 
 def test_secure():
     """Tests secure route"""
     assert unwrap(serve.secure)()[1] == 200
+
 
 def test_list_uploads():
     """

@@ -63,25 +63,29 @@ export default {
       full_url = "/api/" + url;
     }
 
-    return auth.getAccessToken().then((accessToken) => {
-      return axios
-        .get(full_url + "/" + encodeURIComponent(command), {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            Email: profile,
-          },
-        })
-        .then((response) => {
-          return response.data;
-        }).catch(e=>{
-          if(e.response != undefined){
-            throw e.response
-          }
-          throw e
-        });
-    }).catch(e=>{
-      throw e
-    });
+    return auth
+      .getAccessToken()
+      .then((accessToken) => {
+        return axios
+          .get(full_url + "/" + encodeURIComponent(command), {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              Email: profile,
+            },
+          })
+          .then((response) => {
+            return response.data;
+          })
+          .catch((e) => {
+            if (e.response != undefined) {
+              throw e.response;
+            }
+            throw e;
+          });
+      })
+      .catch((e) => {
+        throw e;
+      });
   },
   apiDelete(url, command, auth) /* istanbul ignore next */ {
     var profile = auth["profile"]["email"];

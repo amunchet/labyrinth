@@ -133,8 +133,8 @@ export default {
   },
   methods: {
     determineClass: function (service) {
-      if(service.state == -1){
-        return "orange-bg host_col darkgrey hover"; 
+      if (service.state == -1) {
+        return "orange-bg host_col darkgrey hover";
       }
       if (service.state == false) {
         return "red-bg host_col darkgrey hover";

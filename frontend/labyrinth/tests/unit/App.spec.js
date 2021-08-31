@@ -28,10 +28,7 @@ config.mocks["$route"] = {
 
 config.mocks["loaded"] = true;
 
-let state;
-let auth;
 let wrapper;
-let created;
 
 beforeEach(() => {
   wrapper = shallowMount(Instance, {

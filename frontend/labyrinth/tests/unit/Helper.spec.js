@@ -1,5 +1,5 @@
 // TEMPLATE FILE - Copy this file
-import { config, shallowMount } from "@vue/test-utils";
+import { config } from "@vue/test-utils";
 
 //import { render } from '@vue/server-test-utils'
 
@@ -20,11 +20,6 @@ config.mocks["$auth"] = {
 };
 
 config.mocks["loaded"] = true;
-
-let state;
-let auth;
-let wrapper;
-let created;
 
 describe("Helper", () => {
   test("formatDate", () => {

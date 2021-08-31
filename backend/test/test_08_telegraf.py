@@ -15,16 +15,18 @@ import toml
 
 from common.test import unwrap
 
+
 @pytest.fixture
 def mkdir():
     """
     Ensures upload directory exists.
     """
-    PATH="/src/uploads/telegraf"
+    PATH = "/src/uploads/telegraf"
     if not os.path.exists(PATH):
         os.mkdir(PATH)
     yield "Started"
     return "Done"
+
 
 @pytest.fixture
 def setup():
@@ -34,13 +36,14 @@ def setup():
         rc.delete(key)
 
     lines = services.prepare("/src/test/sample_telegraf.conf")
-    decoder = toml.TomlPreserveCommentDecoder(beforeComments = True)
+    decoder = toml.TomlPreserveCommentDecoder(beforeComments=True)
 
     x = toml.loads("\n".join(lines), decoder=decoder)
 
     assert x["agent"]["interval"].val.val == "10s"
-    assert [x for x in decoder.before_tags if "interval" in x["name"]][0]["comments"] == ['Default data collection interval for all inputs'] 
-
+    assert [x for x in decoder.before_tags if "interval" in x["name"]][0][
+        "comments"
+    ] == ["Default data collection interval for all inputs"]
 
     # TODO: Test duplicate sections
 
@@ -59,8 +62,9 @@ def test_output(mkdir):
 
     if os.path.exists("/src/uploads/telegraf/TESTING.conf"):
         os.remove("/src/uploads/telegraf/TESTING.conf")
-    
+
     assert not os.path.exists("/src/uploads/telegraf/TESTING.conf")
+
 
 def test_load(mkdir):
     """
@@ -72,11 +76,11 @@ def test_load(mkdir):
     a = unwrap(serve.load_service)("TESTING", "json")
     assert a[1] == 200
 
-    assert json.loads(a[0]) == {"Test" : {}} 
+    assert json.loads(a[0]) == {"Test": {}}
 
     if os.path.exists("/src/uploads/telegraf/TESTING.conf"):
         os.remove("/src/uploads/telegraf/TESTING.conf")
-    
+
     assert not os.path.exists("/src/uploads/telegraf/TESTING.conf")
 
 
@@ -92,22 +96,31 @@ def test_run(mkdir):
 
     if os.path.exists("/src/uploads/telegraf/TESTING.conf"):
         os.remove("/src/uploads/telegraf/TESTING.conf")
-    
-    assert not os.path.exists("/src/uploads/telegraf/TESTING.conf")
 
+    assert not os.path.exists("/src/uploads/telegraf/TESTING.conf")
 
 
 def test_generate(setup):
     """
     Tests generating an object from the TOML
     """
-    lines,decoder = setup
+    lines, decoder = setup
     x = services.parse(lines["inputs"]["postgresql_extensible"][0])
 
     assert x["address"] == "host=localhost user=postgres sslmode=disable"
-    assert x["query"] == [{'measurement': '', 'sqlquery': 'SELECT * FROM pg_stat_bgwriter', 'version': 901, 'withdbname': False, 'tagvalue': 'postgresql.stats'}]
+    assert x["query"] == [
+        {
+            "measurement": "",
+            "sqlquery": "SELECT * FROM pg_stat_bgwriter",
+            "version": 901,
+            "withdbname": False,
+            "tagvalue": "postgresql.stats",
+        }
+    ]
+
 
 # Redis
+
 
 def test_redis_structure(setup):
     """
@@ -126,7 +139,15 @@ def test_redis_structure(setup):
     print(x)
 
     assert x["address"] == "host=localhost user=postgres sslmode=disable"
-    assert x["query"] == [{'measurement': '', 'sqlquery': 'SELECT * FROM pg_stat_bgwriter', 'version': 901, 'withdbname': False, 'tagvalue': 'postgresql.stats'}]
+    assert x["query"] == [
+        {
+            "measurement": "",
+            "sqlquery": "SELECT * FROM pg_stat_bgwriter",
+            "version": 901,
+            "withdbname": False,
+            "tagvalue": "postgresql.stats",
+        }
+    ]
 
     # Try with clearing redis data
     a = redis.Redis(host="redis")
@@ -139,9 +160,15 @@ def test_redis_structure(setup):
     print(x)
 
     assert x["address"] == "host=localhost user=postgres sslmode=disable"
-    assert x["query"] == [{'measurement': '', 'sqlquery': 'SELECT * FROM pg_stat_bgwriter', 'version': 901, 'withdbname': False, 'tagvalue': 'postgresql.stats'}]
-
-
+    assert x["query"] == [
+        {
+            "measurement": "",
+            "sqlquery": "SELECT * FROM pg_stat_bgwriter",
+            "version": 901,
+            "withdbname": False,
+            "tagvalue": "postgresql.stats",
+        }
+    ]
 
 
 def test_redis_comments(setup):
@@ -157,21 +184,29 @@ def test_redis_comments(setup):
     name = "inputs.sysstat.device_tags.sda"
     b = unwrap(serve.get_comment)(name)
     assert b[1] == 200
-    
-    assert json.loads(b[0])["comments"] == ['#   ## Device tags can be used to add additional tags for devices.', '#   ## For example the configuration below adds a tag vg with value rootvg for', '#   ## all metrics with sda devices.']
+
+    assert json.loads(b[0])["comments"] == [
+        "#   ## Device tags can be used to add additional tags for devices.",
+        "#   ## For example the configuration below adds a tag vg with value rootvg for",
+        "#   ## all metrics with sda devices.",
+    ]
     assert json.loads(b[0])["multiple"] == True
 
     name = "inputs.execd.command"
     b = unwrap(serve.get_comment)(name)
     assert b[1] == 200
-    
-    assert json.loads(b[0])["comments"] ==  ['#   ## Program to run as daemon']
+
+    assert json.loads(b[0])["comments"] == ["#   ## Program to run as daemon"]
 
     # Test the last entry too to check for comment drift
-    expected = {'name': '[[inputs.zipkin]].port', 'comments': [' Port on which Telegraf listens'], 'parent': '[[inputs.zipkin]]', 'value': '9411            # Port on which Telegraf listens'}
+    expected = {
+        "name": "[[inputs.zipkin]].port",
+        "comments": [" Port on which Telegraf listens"],
+        "parent": "[[inputs.zipkin]]",
+        "value": "9411            # Port on which Telegraf listens",
+    }
     name = "inputs.zipkin.port"
     b = unwrap(serve.get_comment)(name)
     assert b[1] == 200
 
     assert json.loads(b[0]) == expected
-
