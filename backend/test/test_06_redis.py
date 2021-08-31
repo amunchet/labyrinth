@@ -11,6 +11,7 @@ import serve
 
 from common.test import unwrap
 
+
 def test_read_redis():
 
     a = redis.Redis(host="redis")
@@ -42,4 +43,3 @@ def test_redis_autosave():
 
     if temp is not None:
         a.set(client_id, temp)
-
