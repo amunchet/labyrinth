@@ -64,7 +64,8 @@ jobs:
       - name: Install vue
         run: npm install -g @vue/cli
 
-      
+      - name: NPM install
+        run: cd frontend/labyrinth && npm install
 
       - name: Vue Linting
         run: cd frontend/labyrinth && npm run lint --fix
