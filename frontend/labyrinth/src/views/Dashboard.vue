@@ -112,6 +112,7 @@
                         $forceUpdate();
                       }
                     "
+                    :host="host.host"
                   />
                 </div>
               </div>

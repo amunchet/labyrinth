@@ -10,6 +10,12 @@
           <b-input v-model="host.ip" />
         </b-col>
       </b-row>
+      <b-row>
+        <b-col> Hostname </b-col>
+        <b-col>
+          <b-input v-model="host.host" />
+        </b-col>
+      </b-row>
 
       <b-row
         ><b-col>MAC </b-col><b-col><b-input v-model="host.mac" /></b-col
@@ -26,6 +32,14 @@
       <b-row
         ><b-col>Class</b-col><b-col><b-input v-model="host.class" /></b-col
       ></b-row>
+
+      <b-row>
+        <b-col>
+        Notes</b-col>
+        <b-col>
+        <b-textarea v-model="host.notes" />
+        </b-col>
+      </b-row>
     </b-container>
     <hr />
     Service Icons:

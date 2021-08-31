@@ -2,6 +2,10 @@
   <div :class="passed_class">
     <div class="top">
       <div class="number">.{{ ip.split(".")[ip.split(".").length - 1] }}</div>
+
+      <div v-if="host != '' && host.length > 15" class="title">{{host.substr(0,15)}}...</div>
+      <div v-else-if="host != ''" class="title">{{host}}</div>
+      <div class="title" v-else>-</div>
       <div class="pt-1" style="height: 50px">
         <component
           v-if="
@@ -9,7 +13,6 @@
           "
           :is="myComponent[icon.charAt(0).toUpperCase() + icon.slice(1)]"
         />
-
         <component v-else :is="myComponent['Default']" />
       </div>
     </div>
@@ -108,6 +111,7 @@ export default {
     "cpu",
     "mem",
     "hd",
+    "host"
   ],
   data() {
     return {
@@ -174,6 +178,13 @@ export default {
 .top {
   padding-top: 10px;
   display: block;
+}
+.title{
+  color: darkgrey;
+  font-family: Helvetica, Arial;
+  font-size: 12pt;
+  min-width: 120px;
+  width: 100%;
 }
 .number {
   /* border: 1px solid white; */
