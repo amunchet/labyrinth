@@ -24,7 +24,7 @@ def setup(): # pragma: no cover
     if not os.path.exists("/src/uploads/ansible"):
         os.mkdir("/src/uploads/ansible")
     if not os.path.exists("/src/uploads/ansible/deploy.yml"):
-        shutil.copy("/src/test/ansible/project/install.yml", "/src/uploads/ansible/deploy.yml")
+        shutil.copy("/src/test/ansible/project/deploy.yml", "/src/uploads/ansible/deploy.yml")
 
 def test_get_ansible_file(setup):
     """Returns an ansible file for edit"""
@@ -124,11 +124,25 @@ def test_check_file():
 
     # Telegraf
     src = "/src/test/sample_telegraf.json"
+
+    if not os.path.exists("/src/uploads/telegraf"): # pragma: no cover
+        os.mkdir("/src/uploads/telegraf")
+
+    if not os.path.exists("/src/uploads/telegraf/sample_telegraf.conf"):
+        print("Copying to sample telegraf...")
+        shutil.copy(src, "/src/uploads/telegraf/sample_telegraf.conf")
+
     b = check_file(src.split("/")[-1], "telegraf")
-    assert not b[0]
+
+    # No file found
+    assert not b
 
     src = "/src/test/sample_telegraf.conf"
+    print("Copying to sample telegraf...")
+    shutil.copy(src, "/src/uploads/telegraf/sample_telegraf.conf")
+
     b = check_file(src.split("/")[-1], "telegraf")
+    print(b)
     assert b[0]
 
     # Ansible 
@@ -153,7 +167,7 @@ def test_run_ansible():
 
     # Copy over files
     file_moves = [
-        ("/src/test/ansible/project/install.yml", "/src/uploads/ansible/install.yml"),
+        ("/src/test/ansible/project/deploy.yml", "/src/uploads/ansible/install.yml"),
         ("/src/test/ansible/vars/vault.yml", "/src/uploads/become/vault.yml")
     ]
 

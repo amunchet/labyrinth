@@ -101,10 +101,13 @@ def test_send_alert():
     assert b[-1]["labels"]["service"] == "test-service"
 
 
-def test_resolve_alert():
+def test_restart_and_resolve_alert():
     """
     Resolves a given alert
     """
+
+    a = unwrap(serve.restart_alertmanager)()
+    assert a[1] == 200
 
     a = unwrap(serve.list_alerts)()
     assert a[1] == 200

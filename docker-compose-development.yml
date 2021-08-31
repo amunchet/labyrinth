@@ -18,6 +18,9 @@ services:
 
   backend:
     build: "backend"
+    depends_on: 
+      - mongo
+      - redis
     ports:
       - "127.0.0.1:7200:7000"
     volumes:
@@ -38,6 +41,8 @@ services:
     restart: always
     depends_on:
       - lego
+      - backend
+      - alertmanager
     networks:
       - labyrinth
     user: ${CURRENT_UID}

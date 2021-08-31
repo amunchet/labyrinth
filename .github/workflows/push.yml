@@ -1,0 +1,24 @@
+name: Labyrinth Backend Tests
+on: push
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB: 1
+    steps:
+      - uses: actions/checkout@v2
+        
+      - name: Start custom docker network
+        run: docker network create labyrinth || true
+        
+      - name: Bring up dockers
+        run: bash start_dev.sh
+      
+      - name: List Dockers
+        run: docker ps
+      
+      - name: List Docker logs
+        run: docker logs labyrinth_alertmanager_1
+      
+      - name: Backend Tests
+        run: bash backend/run_tests.sh

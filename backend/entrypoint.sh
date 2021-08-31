@@ -5,7 +5,7 @@ echo "Starting entrypoint.sh..."
 
 if [ -z "$PRODUCTION"]; then
 	echo "Testbed mode"
-	/src/serve.py
+	/src/serve.py 2>&1
 else
 	echo "Starting production..."
 	cd /src

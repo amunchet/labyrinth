@@ -112,7 +112,7 @@ def test_metric_judge(setup):
         "tags": {
                 "host": "aacd4239ee68"
         },
-        "timestamp": 1625683390
+        "timestamp": time.time()
     }
 
     # Check metrics against service definition

@@ -186,6 +186,7 @@ def test_create_edit_host(setup):
         "ip": "192.168.0.172",
         "subnet": "192.168.0",
         "mac": "00-00-00-00-01",
+        "host" : "test",
         "group": "Linux Servers",
         "icon": "linux",
         "services": [
@@ -611,6 +612,7 @@ def test_list_dashboard(setup):
                 'subnet': '192.168.10',
                 'mac': '00-00-00-00-01',
                 'group': 'Windows Servers',
+                'host' : 'test',
                 'icon': 'linux',
                 'services': [{
                     'name': 'open_ports',
@@ -636,7 +638,7 @@ def test_list_dashboard(setup):
               x for x in serve.mongo_client["labyrinth"][category].find({})])
         print("---")
 
-    a = unwrap(serve.dashboard)()
+    a = unwrap(serve.dashboard)(True)
     assert a[1] == 200
 
     b = json.loads(a[0])
