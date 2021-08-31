@@ -1,5 +1,5 @@
-[![Labyrinth Backend Tests](https://github.com/amunchet/labyrinth/actions/workflows/push.yml/badge.svg)](https://github.com/amunchet/labyrinth/actions/workflows/push.yml)
-[![Labyrinth Frontend Tests](https://github.com/amunchet/labyrinth/actions/workflows/push-frontend.yml/badge.svg)](https://github.com/amunchet/labyrinth/actions/workflows/push-frontend.yml)
+[![Labyrinth Tests](https://github.com/amunchet/labyrinth/actions/workflows/push.yml/badge.svg)](https://github.com/amunchet/labyrinth/actions/workflows/push.yml)
+
 # Labyrinth
 The beautiful network analyzer and mapper.
 
