@@ -22,3 +22,20 @@ jobs:
       
       - name: Backend Tests
         run: bash backend/run_tests.sh
+      
+      - name: Lint - Run Black
+        run: docker exec labyrinth_backend_1 sh -c "cd /src && black ."
+        
+      - name: Git Config
+        run: git pull && git config --local user.email "chet.enright@gmail.com" && git config --local user.name "Automatic Linting"
+        
+      - name: Extract branch name
+        shell: bash
+        run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+        id: extract_branch
+      
+      - name: Commit updated files
+        run: git commit -m "Automatic linting fix" -a || true
+          
+      - name: Push changes
+        run: git push
