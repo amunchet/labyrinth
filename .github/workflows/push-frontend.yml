@@ -22,3 +22,6 @@ jobs:
 
       - name: Run NPM tests
         run: cd frontend/labyrinth && npm run test:unit
+
+      - name: Vue Linting
+        run: cd frontend/labyrinth && npm run lint --fix
