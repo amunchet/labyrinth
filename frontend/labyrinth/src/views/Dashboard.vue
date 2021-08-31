@@ -155,8 +155,8 @@ export default {
   methods: {
     loadData: /* istanbul ignore next */ function (showLoading) {
       var auth = this.$auth;
-      if(showLoading){
-      	this.loading = true;
+      if (showLoading) {
+        this.loading = true;
       }
       Helper.apiCall("dashboard", "", auth)
         .then((res) => {
