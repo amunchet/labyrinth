@@ -1,4 +1,4 @@
-name: Labyrinth Frontend Tests
+name: Labyrinth Tests
 on: push
 jobs:
   backend-tests:
@@ -64,8 +64,7 @@ jobs:
       - name: Install vue
         run: npm install -g @vue/cli
 
-      - name: NPM install
-        run: cd frontend/labyrinth && npm install
+      
 
       - name: Vue Linting
         run: cd frontend/labyrinth && npm run lint --fix
@@ -80,7 +79,7 @@ jobs:
         run: pip3 install black
 
       - name: Lint - Run Black
-        run: cd src && black .
+        run: cd backend && black .
         
       - name: Git Config
         run: git pull && git config --local user.email "chet.enright@gmail.com" && git config --local user.name "Automatic Linting"
