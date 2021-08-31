@@ -10,7 +10,15 @@ IMPORTANT:
 import json
 import requests
 
-def send_alert(alert_name, service, instance, severity="error", summary="A Service is failing.", url=""):
+
+def send_alert(
+    alert_name,
+    service,
+    instance,
+    severity="error",
+    summary="A Service is failing.",
+    url="",
+):
     """
     Sends an alert
 
@@ -27,7 +35,7 @@ def send_alert(alert_name, service, instance, severity="error", summary="A Servi
             "alertname": alert_name,
             "service": service,
             "severity": severity,
-            "instance": instance 
+            "instance": instance,
         },
         "annotations": {
             "summary": summary,
@@ -39,4 +47,3 @@ def send_alert(alert_name, service, instance, severity="error", summary="A Servi
 
     retval = requests.post(url, data=json.dumps([data]), auth=("admin", password))
     return retval
-

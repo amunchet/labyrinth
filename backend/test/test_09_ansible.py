@@ -20,11 +20,14 @@ valid_type = ["ssh", "totp", "become", "telegraf", "ansible", "other"]
 
 
 @pytest.fixture
-def setup(): # pragma: no cover
+def setup():  # pragma: no cover
     if not os.path.exists("/src/uploads/ansible"):
         os.mkdir("/src/uploads/ansible")
     if not os.path.exists("/src/uploads/ansible/deploy.yml"):
-        shutil.copy("/src/test/ansible/project/deploy.yml", "/src/uploads/ansible/deploy.yml")
+        shutil.copy(
+            "/src/test/ansible/project/deploy.yml", "/src/uploads/ansible/deploy.yml"
+        )
+
 
 def test_get_ansible_file(setup):
     """Returns an ansible file for edit"""
@@ -35,16 +38,16 @@ def test_get_ansible_file(setup):
     with open("/src/uploads/ansible/deploy.yml") as f:
         assert f.read() == a[0]
 
+
 def test_save_ansible_file(setup):
     """Saves an ansible file back to disk"""
 
     # Normal file
     with open("/src/uploads/ansible/deploy.yml") as f:
         lines = f.read()
-    
+
     a = unwrap(save_ansible_file)(inp_data=lines, fname="test")
     assert a[1] == 200
-    
 
     with open("/src/uploads/ansible/test.yml") as f:
         assert lines == f.read()
@@ -52,11 +55,12 @@ def test_save_ansible_file(setup):
     # Broken file - check if valid
     with open("/src/test/sample_dashboard.json") as f:
         lines = f.read()
-    
+
     a = unwrap(save_ansible_file)(inp_data=lines, fname="test2.yml")
-    assert a[1] == 471 
+    assert a[1] == 471
 
     assert not os.path.exists("/src/uploads/ansible/test2.yml")
+
 
 def test_list_files():
     """
@@ -66,11 +70,11 @@ def test_list_files():
         - etc.
     """
     for fname in valid_type:
-        if not os.path.exists("/src/uploads/{}".format(fname)): # pragma: no cover
+        if not os.path.exists("/src/uploads/{}".format(fname)):  # pragma: no cover
             os.mkdir("/src/uploads/{}".format(fname))
-        
+
         output = os.listdir("/src/uploads/{}".format(fname))
-        if not output: # pragma: no cover
+        if not output:  # pragma: no cover
             with open("/src/uploads/{}/_test".format(fname), "w") as f:
                 f.write("\n")
 
@@ -81,6 +85,7 @@ def test_list_files():
 
     os.system("rm /src/uploads/*/_test")
 
+
 def test_find_ip():
     """
     Tests finding the IP of the labyrinth network
@@ -89,6 +94,7 @@ def test_find_ip():
     a = unwrap(find_ip)()
     assert a[1] == 200
     assert a[0] == ip
+
 
 def test_check_file():
     """
@@ -108,15 +114,17 @@ def test_check_file():
     def helper(src, type, expected=True):
         last = src.split("/")[-1]
         output = "/src/uploads/{}/{}".format(type, last)
-        if not os.path.exists(output): # pragma: no cover
+        if not os.path.exists(output):  # pragma: no cover
             shutil.copy(src, output)
-        
-        assert check_file(last, type) == expected or check_file(last, type)[0] == expected
+
+        assert (
+            check_file(last, type) == expected or check_file(last, type)[0] == expected
+        )
 
     # Encrypted files
 
     helper("/src/test/sample_encrypted_file", "ssh")
-    helper("/src/test/sample_encrypted_file", "totp") 
+    helper("/src/test/sample_encrypted_file", "totp")
     helper("/src/test/sample_encrypted_file", "become")
     helper("/src/test/sample_telegraf.json", "become", False)
     helper("/src/test/sample_telegraf.json", "totp", False)
@@ -125,7 +133,7 @@ def test_check_file():
     # Telegraf
     src = "/src/test/sample_telegraf.json"
 
-    if not os.path.exists("/src/uploads/telegraf"): # pragma: no cover
+    if not os.path.exists("/src/uploads/telegraf"):  # pragma: no cover
         os.mkdir("/src/uploads/telegraf")
 
     if not os.path.exists("/src/uploads/telegraf/sample_telegraf.conf"):
@@ -145,17 +153,18 @@ def test_check_file():
     print(b)
     assert b[0]
 
-    # Ansible 
+    # Ansible
     helper("/src/test/ansible/project/startup.yml", "ansible")
     helper("/src/test/sample_telegraf.json", "ansible", False)
 
     # Other
     helper("/src/test/sample_telegraf.json", "other")
 
+
 def test_run_ansible():
     """
     Tests running a given ansible file and getting expected output
-    
+
     Basically we need to generate the runner directory.  Make sure it's cleared first.
 
         - Hosts?
@@ -163,24 +172,24 @@ def test_run_ansible():
         - Vault password?
     """
 
-
-
     # Copy over files
     file_moves = [
         ("/src/test/ansible/project/deploy.yml", "/src/uploads/ansible/install.yml"),
-        ("/src/test/ansible/vars/vault.yml", "/src/uploads/become/vault.yml")
+        ("/src/test/ansible/vars/vault.yml", "/src/uploads/become/vault.yml"),
     ]
 
-    
-
-
-    for src,dest in file_moves:
+    for src, dest in file_moves:
         if not os.path.exists(dest):
             shutil.copy(src, dest)
     # Check a clean run
 
-    x = run_ansible(hosts="sampleclient", playbook="install", become_file="vault", vault_password="test")
-    
+    x = run_ansible(
+        hosts="sampleclient",
+        playbook="install",
+        become_file="vault",
+        vault_password="test",
+    )
+
     assert "<style" in x
     assert "ok:[localhost]" in x.replace(" ", "")
     assert "body" in x
@@ -189,21 +198,30 @@ def test_run_ansible():
 
     # Check a second run
 
-    x = run_ansible(hosts="sampleclient", playbook="install", become_file="vault", vault_password="test")
+    x = run_ansible(
+        hosts="sampleclient",
+        playbook="install",
+        become_file="vault",
+        vault_password="test",
+    )
 
     assert "<style" in x
     assert "ok:[localhost]" in x.replace(" ", "")
     assert "body" in x
 
-
     assert not os.path.exists("/vault.pass")
 
     # Check failing SSH key
     try:
-        x = run_ansible(hosts="sampleclient", playbook="install", become_file="vault", vault_password="test", ssh_key_file="asdfsadfasdf")
+        x = run_ansible(
+            hosts="sampleclient",
+            playbook="install",
+            become_file="vault",
+            vault_password="test",
+            ssh_key_file="asdfsadfasdf",
+        )
         assert False
     except Exception:
         assert True
-
 
     assert not os.path.exists("/vault.pass")

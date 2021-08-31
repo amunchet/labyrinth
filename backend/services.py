@@ -27,7 +27,7 @@ def prepare(fname="/src/uploads/master.conf") -> List:
 
     if not os.path.exists(fname):
         # Copy over the defaults
-        shutil.copy("/src/uploads/defaults/telegraf.conf", fname) 
+        shutil.copy("/src/uploads/defaults/telegraf.conf", fname)
 
     with open(fname) as f:
 
@@ -38,7 +38,7 @@ def prepare(fname="/src/uploads/master.conf") -> List:
         seen_sections = []
 
         for (line_no, line) in enumerate(f.readlines()):
-            parsed_line = re.sub(r'^(\s?#?)+', '', line).strip()
+            parsed_line = re.sub(r"^(\s?#?)+", "", line).strip()
 
             # Duplicate sections
 
@@ -77,11 +77,12 @@ def prepare(fname="/src/uploads/master.conf") -> List:
                 # Handle multiline arrays
                 if in_array and parsed_line:
                     if "[" not in parsed_line:
-                        lines[-1+array_count] = "{} {}".format(
-                            lines[-1+array_count], parsed_line)
+                        lines[-1 + array_count] = "{} {}".format(
+                            lines[-1 + array_count], parsed_line
+                        )
                     array_count -= 1
                     lines.append("")
-                    
+
                     if parsed_line[-1] == "]":
                         in_array = False
                         array_count = 0
@@ -153,9 +154,17 @@ def find_comments(lines):
             if line[-1] == "]" and "=" not in line:
                 current_parent = line.strip()
                 if "]]" in line and "[[" in line:
-                    retval.append({"name": current_parent, "comments": current_comments, "multiple" : True})
+                    retval.append(
+                        {
+                            "name": current_parent,
+                            "comments": current_comments,
+                            "multiple": True,
+                        }
+                    )
                 else:
-                    retval.append({"name": current_parent, "comments": current_comments})
+                    retval.append(
+                        {"name": current_parent, "comments": current_comments}
+                    )
                 current_comments = []
             # Key
             elif "=" in line:
@@ -164,9 +173,17 @@ def find_comments(lines):
                 # Inline comments
                 if "#" in line:
                     current_comments.append(line.split("#")[1])
-                retval.append({"name": current_key.strip(), "comments": current_comments, "parent": current_parent, "value" : current_value})
+                retval.append(
+                    {
+                        "name": current_key.strip(),
+                        "comments": current_comments,
+                        "parent": current_parent,
+                        "value": current_value,
+                    }
+                )
                 current_comments = []
     return retval
+
 
 def output(hostname: str, data: List, raw=""):
     """
@@ -179,6 +196,7 @@ def output(hostname: str, data: List, raw=""):
         else:
             f.write(raw)
 
+
 def load(fname: str, format="json") -> dict:
     """
     Loads a written TOML file into datastructure and returns it
@@ -190,6 +208,7 @@ def load(fname: str, format="json") -> dict:
         else:
             return f.read()
 
+
 def run(fname: str, outputs=False):
     """
     Runs the telegraf file
@@ -200,4 +219,6 @@ def run(fname: str, outputs=False):
         testing = "--once"
     cmd = "telegraf {} --config {}{}.conf".format(testing, dir, fname)
     x = subprocess.run([cmd], shell=True, capture_output=True)
-    return "{}\n<b>{}</b>{}".format(cmd,x.stderr.decode("utf-8"), x.stdout.decode("utf-8"))
+    return "{}\n<b>{}</b>{}".format(
+        cmd, x.stderr.decode("utf-8"), x.stdout.decode("utf-8")
+    )

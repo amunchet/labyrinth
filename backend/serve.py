@@ -30,6 +30,7 @@ from flask_cors import CORS
 import ansible_helper
 
 from concurrent.futures import ThreadPoolExecutor
+
 # DOCS https://docs.python.org/3/library/concurrent.futures.html#concurrent.futures.ThreadPoolExecutor
 executor = ThreadPoolExecutor(2)
 
@@ -37,13 +38,14 @@ executor = ThreadPoolExecutor(2)
 TELEGRAF_KEY = os.environ.get("TELEGRAF_KEY")
 
 
-def _requires_header(f, permission): # pragma: no cover
+def _requires_header(f, permission):  # pragma: no cover
     @functools.wraps(f)
     def decorated(*args, **kwargs):
         if request.headers.get("Authorization") != permission:
             print("Invalid header!")
             raise Exception("Invalid Header")
         return f(*args, **kwargs)
+
     return decorated
 
 
@@ -89,7 +91,7 @@ mongo_client = pymongo.MongoClient(
 
 @app.route("/insecure")
 @app.route("/insecure/")
-def insecure(): 
+def insecure():
     return "Insecure route.", 200
 
 
@@ -99,6 +101,7 @@ def insecure():
 def secure():
     return "Secure route.", 200
 
+
 # File uploads
 
 
@@ -107,17 +110,17 @@ valid_type = ["ssh", "totp", "become", "telegraf", "ansible", "other"]
 
 @app.route("/upload/<type>/<override_token>", methods=["POST"])
 @requires_auth_admin
-def upload(type, override_token): # pragma: no cover
+def upload(type, override_token):  # pragma: no cover
     """
     Handles file upload
     """
     if type not in valid_type:
         return "Invalid type", 412
 
-    if 'file' not in request.files:
+    if "file" not in request.files:
         return "No file included", 407
 
-    file = request.files['file']
+    file = request.files["file"]
     if file.filename == "":
         return "No file selected", 409
 
@@ -131,8 +134,9 @@ def upload(type, override_token): # pragma: no cover
         filename = secure_filename(file.filename)
         file.save("/tmp/{}".format(filename))
         if ansible_helper.check_file(filename, type):
-            shutil.move("/tmp/{}".format(filename),
-                        "/src/uploads/{}/{}".format(type, filename))
+            shutil.move(
+                "/tmp/{}".format(filename), "/src/uploads/{}/{}".format(type, filename)
+            )
         else:
             return "File check failed", 521
 
@@ -152,18 +156,19 @@ def list_uploads(type):
     return "Not found", 409
 
 
-
 # Scan handler
 
 
 @app.route("/scan/")
 @requires_auth_write
-def scan(): # pragma: no cover
+def scan():  # pragma: no cover
     """Runs NMAP Scan"""
 
     from finder import main
+
     executor.submit(main)
     return "Scan Started.", 200
+
 
 # CRUD for network structure
 
@@ -174,19 +179,20 @@ def list_subnets():
     """
     Lists all the subnets
     """
-    return json.dumps(
-        [
-            x["subnet"]
-            for x in mongo_client["labyrinth"]["subnets"].find({})
-        ], default=str), 200
+    return (
+        json.dumps(
+            [x["subnet"] for x in mongo_client["labyrinth"]["subnets"].find({})],
+            default=str,
+        ),
+        200,
+    )
 
 
 @app.route("/subnet/<subnet>")
 @requires_auth_read
 def list_subnet(subnet=""):
     """List contents of a given subnet"""
-    x = [x for x in mongo_client["labyrinth"]
-         ["subnets"].find({"subnet": subnet})]
+    x = [x for x in mongo_client["labyrinth"]["subnets"].find({"subnet": subnet})]
     if not x:
         return "No subnet found", 404
     if len(x) > 1:  # pragma: no cover
@@ -203,15 +209,14 @@ def create_edit_subnet(inp=""):
         subnet = inp
     elif request.method == "POST":  # pragma: no cover
         subnet = json.loads(request.form.get("data"))
-    else: # pragma: no cover
+    else:  # pragma: no cover
         return "Invalid request", 443
 
-    if "subnet" not in subnet or subnet["subnet"] == '': # pragma: no cover
+    if "subnet" not in subnet or subnet["subnet"] == "":  # pragma: no cover
         return "Invalid data", 407
-    
+
     if mongo_client["labyrinth"]["subnets"].find_one({"subnet": subnet["subnet"]}):
-        mongo_client["labyrinth"]["subnets"].delete_one(
-            {"subnet": subnet["subnet"]})
+        mongo_client["labyrinth"]["subnets"].delete_one({"subnet": subnet["subnet"]})
 
     mongo_client["labyrinth"]["subnets"].insert_one(subnet)
     return "Success", 200
@@ -221,11 +226,11 @@ def create_edit_subnet(inp=""):
 @requires_auth_write
 def delete_subnet(subnet):
     """Deletes a subnet"""
-    result = mongo_client["labyrinth"]["subnets"].delete_one(
-        {"subnet": subnet})
+    result = mongo_client["labyrinth"]["subnets"].delete_one({"subnet": subnet})
     if not result.deleted_count:
         return "Not found", 407
     return "Success", 200
+
 
 # Links
 
@@ -240,14 +245,14 @@ def create_edit_link(subnet="", link=""):
     elif request.method == "POST":  # pragma: no cover
         data["subnet"] = subnet
         data["link"] = request.form.get("link")
-    else: # pragma: no cover
+    else:  # pragma: no cover
         return "Invalid", 417
 
     mongo_client["labyrinth"]["subnets"].update_one(
-        {"subnet": data["subnet"]},
-        {"$set": {"links": data["link"]}}
+        {"subnet": data["subnet"]}, {"$set": {"links": data["link"]}}
     )
     return "Success", 200
+
 
 # Hosts
 
@@ -255,7 +260,12 @@ def create_edit_link(subnet="", link=""):
 @app.route("/host/<host>", methods=["GET"])
 @requires_auth_read
 def list_host(host=""):
-    return json.dumps(mongo_client["labyrinth"]["hosts"].find_one({"mac": host}), default=str), 200
+    return (
+        json.dumps(
+            mongo_client["labyrinth"]["hosts"].find_one({"mac": host}), default=str
+        ),
+        200,
+    )
 
 
 @app.route("/host/", methods=["POST"])
@@ -266,26 +276,23 @@ def create_edit_host(inp=""):
         host = inp
     elif request.method == "POST":  # pragma: no cover
         host = json.loads(request.form.get("data"))
-    else: # pragma: no cover
+    else:  # pragma: no cover
         return "Invalid data", 443
 
-    if "mac" not in host: # pragma: no cover
+    if "mac" not in host:  # pragma: no cover
         return "Invalid data", 407
 
     subnet = host["subnet"]
-    if subnet == "": # pragma: no cover
+    if subnet == "":  # pragma: no cover
         return "No subnet", 418
 
     if mongo_client["labyrinth"]["hosts"].find_one({"mac": host["mac"]}):
         mongo_client["labyrinth"]["hosts"].delete_one({"mac": host["mac"]})
 
-
     if not mongo_client["labyrinth"]["subnets"].find_one({"subnet": subnet}):
-        mongo_client["labyrinth"]["subnets"].insert_one({
-            "subnet": subnet,
-            "origin": {},
-            "links": {}
-        })
+        mongo_client["labyrinth"]["subnets"].insert_one(
+            {"subnet": subnet, "origin": {}, "links": {}}
+        )
 
     mongo_client["labyrinth"]["hosts"].insert_one(host)
     return "Success", 200
@@ -295,17 +302,25 @@ def create_edit_host(inp=""):
 @requires_auth_read
 def list_hosts():
     """Lists all hosts"""
-    return json.dumps([x for x in mongo_client["labyrinth"]["hosts"].find({})], default=str), 200
+    return (
+        json.dumps(
+            [x for x in mongo_client["labyrinth"]["hosts"].find({})], default=str
+        ),
+        200,
+    )
 
 
 @app.route("/host/<host>", methods=["DELETE"])
 @requires_auth_write
 def delete_host(host):
     """Deletes a host"""
-    result = mongo_client["labyrinth"]["hosts"].delete_one({"$or" : [{"mac": host}, {"ip" : host}]})
+    result = mongo_client["labyrinth"]["hosts"].delete_one(
+        {"$or": [{"mac": host}, {"ip": host}]}
+    )
     if not result.deleted_count:
         return "Not found", 407
     return "Success", 200
+
 
 # Services
 
@@ -316,16 +331,33 @@ def delete_host(host):
 def list_services(all=""):
     """Lists all services"""
     if all == "":
-        return json.dumps([x["name"] for x in mongo_client["labyrinth"]["services"].find({})], default=str), 200
+        return (
+            json.dumps(
+                [x["name"] for x in mongo_client["labyrinth"]["services"].find({})],
+                default=str,
+            ),
+            200,
+        )
     else:
-        return json.dumps([x for x in mongo_client["labyrinth"]["services"].find({})], default=str), 200
+        return (
+            json.dumps(
+                [x for x in mongo_client["labyrinth"]["services"].find({})], default=str
+            ),
+            200,
+        )
 
 
 @app.route("/service/<name>")
 @requires_auth_read
 def read_service(name):
     """Reads a given service"""
-    return json.dumps([x for x in mongo_client["labyrinth"]["services"].find({"name": name})], default=str), 200
+    return (
+        json.dumps(
+            [x for x in mongo_client["labyrinth"]["services"].find({"name": name})],
+            default=str,
+        ),
+        200,
+    )
 
 
 @app.route("/service/", methods=["POST"])
@@ -336,15 +368,14 @@ def create_edit_service(service=""):
         data = service
     elif request.method == "POST":  # pragma: no cover
         data = json.loads(request.form.get("data"))
-    else: # pragma: no cover
+    else:  # pragma: no cover
         return "Invalid", 427
 
-    if "name" not in data: # pragma: no cover
+    if "name" not in data:  # pragma: no cover
         return "Invalid data", 439
 
     if [x for x in mongo_client["labyrinth"]["services"].find({"name": data["name"]})]:
-        mongo_client["labyrinth"]["services"].delete_one(
-            {"name": data["name"]})
+        mongo_client["labyrinth"]["services"].delete_one({"name": data["name"]})
 
     mongo_client["labyrinth"]["services"].insert_one(data)
 
@@ -364,14 +395,7 @@ def delete_service(name):
 
     # Check for hosts that had the service
     mongo_client["labyrinth"]["hosts"].update_many(
-        {"services": {
-            "$in": [name]
-        }},
-        {
-            "$pull": {
-                "services": name
-            }
-        }
+        {"services": {"$in": [name]}}, {"$pull": {"services": name}}
     )
     # Check if snippet exists
     if os.path.exists("/src/snippets/{}".format(name)):
@@ -380,8 +404,7 @@ def delete_service(name):
     return "Success", 200
 
 
-
-# Redis 
+# Redis
 @app.route("/redis/")
 @requires_auth_read
 def read_redis():
@@ -392,7 +415,9 @@ def read_redis():
         return b, 200
     return "[No output found]", 200
 
+
 # Redis - TOML
+
 
 @app.route("/redis/put_structure")
 @requires_auth_write
@@ -410,8 +435,10 @@ def put_structure():
     # Add in the comments
     full_structure = svcs.find_comments(lines)
     for item in full_structure:
-        rc.set(item["name"].replace("]", "").replace("[",
-               "").strip(), json.dumps(item, default=str))
+        rc.set(
+            item["name"].replace("]", "").replace("[", "").strip(),
+            json.dumps(item, default=str),
+        )
 
     return "Success", 200
 
@@ -434,7 +461,7 @@ def get_structure():
     if a:
         return a.decode("utf-8"), 200
 
-    return "Not found", 424 # pragma: no cover
+    return "Not found", 424  # pragma: no cover
 
 
 @app.route("/redis/get_comments/<comment>")
@@ -447,7 +474,8 @@ def get_comment(comment):
     a = rc.get(comment)
     if a:
         return a.decode("utf-8"), 200
-    return "Not found", 425 # pragma: no cover
+    return "Not found", 425  # pragma: no cover
+
 
 @app.route("/redis/autosave", methods=["GET"])
 @requires_auth_admin
@@ -459,7 +487,8 @@ def get_autosave(auth_client_id):
     a = rc.get(auth_client_id)
     if a:
         return a.decode("utf-8"), 200
-    return "Not found", 426 # pragma: no cover
+    return "Not found", 426  # pragma: no cover
+
 
 @app.route("/redis/autosave", methods=["POST"])
 @requires_auth_admin
@@ -469,11 +498,11 @@ def autosave(auth_client_id, data=""):
     """
     if data != "":
         parsed_data = data
-    elif request.method == "POST": # pragma: no cover
+    elif request.method == "POST":  # pragma: no cover
         parsed_data = request.form.get("data")
-    else: # pragma: no cover
+    else:  # pragma: no cover
         return "Invalid", 496
-    
+
     rc = redis.Redis(host=os.environ.get("REDIS_HOST"))
     a = rc.set(auth_client_id, parsed_data)
     return "Success", 200
@@ -489,23 +518,25 @@ def save_conf(host, data="", raw=""):
     if data != "" or raw != "":
         parsed_data = data
         parsed_raw = raw
-    elif request.method == "POST": # pragma: no cover
+    elif request.method == "POST":  # pragma: no cover
         parsed_data = json.loads(request.form.get("data"))
         parsed_raw = request.form.get("raw")
-    else: # pragma: no cover
+    else:  # pragma: no cover
         return "Invalid", 498
 
     svcs.output(host, parsed_data, parsed_raw)
-    return "Success", 200    
+    return "Success", 200
+
 
 # Run Telegraf configuration test
 @app.route("/run_conf/<fname>/<int:testing>")
 @requires_auth_admin
-def run_telegraf(fname,testing):
+def run_telegraf(fname, testing):
     """
     Runs specified telegraf file
     """
     return svcs.run(fname, testing == 1), 200
+
 
 # Load TOML file
 @app.route("/load_service/<name>")
@@ -520,11 +551,13 @@ def load_service(name, format="json"):
 
 # Alertmanager
 
+
 @app.route("/alertmanager/pass")
 @requires_auth_admin
 def alertmanager_pass():
     """Returns contents of the password file"""
     return open("/alertmanager/pass").read(), 200
+
 
 @app.route("/alertmanager/", methods=["GET"])
 @requires_auth_admin
@@ -534,21 +567,23 @@ def alertmanager_load():
         return "", 200
     return open("/alertmanager/alertmanager.yml").read(), 200
 
+
 @app.route("/alertmanager/", methods=["POST"])
 @requires_auth_admin
 def alertmanager_save(data=""):
     """Saves alertmanager file"""
     if data != "":
         parsed_data = data
-    elif request.method == "POST": #pragma: no cover
+    elif request.method == "POST":  # pragma: no cover
         parsed_data = request.form.get("data")
-    else: # pragma: no cover
+    else:  # pragma: no cover
         return "Invalid", 483
-    
+
     with open("/alertmanager/alertmanager.yml", "w") as f:
         f.write(parsed_data)
-    
+
     return "Success", 200
+
 
 @app.route("/alertmanager/alerts")
 @requires_auth_admin
@@ -561,6 +596,7 @@ def list_alerts():
 
     return json.dumps(requests.get(url, auth=("admin", password)).json()), 200
 
+
 @app.route("/alertmanager/alert", methods=["POST"])
 @requires_auth_admin
 def resolve_alert(data=""):
@@ -569,9 +605,9 @@ def resolve_alert(data=""):
     """
     if data != "":
         parsed_data = data
-    elif request.method == "POST": #pragma: no cover
+    elif request.method == "POST":  # pragma: no cover
         parsed_data = json.loads(request.form.get("data"))
-    else: #pragma: no cover
+    else:  # pragma: no cover
         return "Invalid data", 419
 
     url = "http://alertmanager:9093/api/v1/alerts"
@@ -581,9 +617,12 @@ def resolve_alert(data=""):
     parsed_data["status"] = "resolved"
     parsed_data["endsAt"] = "2021-08-03T14:34:41-05:00"
 
-    retval = requests.post(url, data=json.dumps([parsed_data]), auth=("admin", password))
+    retval = requests.post(
+        url, data=json.dumps([parsed_data]), auth=("admin", password)
+    )
 
     return retval.text, retval.status_code
+
 
 @app.route("/alertmanager/restart", methods=["GET"])
 @requires_auth_admin
@@ -597,6 +636,7 @@ def restart_alertmanager():
     retval = requests.post(url, auth=("admin", password))
     return retval.text, retval.status_code
 
+
 # Settings
 @app.route("/settings")
 @app.route("/settings/<setting>", methods=["GET"])
@@ -606,35 +646,39 @@ def get_setting(setting=""):
     Returns given settings
     """
     if setting == "":
-        z = [{x["name"]: x["value"] } for x in mongo_client["labyrinth"]["settings"].find({})]
+        z = [
+            {x["name"]: x["value"]}
+            for x in mongo_client["labyrinth"]["settings"].find({})
+        ]
         return json.dumps(z, default=str), 200
     else:
-        a = mongo_client["labyrinth"]["settings"].find_one({"name" : setting})
+        a = mongo_client["labyrinth"]["settings"].find_one({"name": setting})
 
         if a:
             return a["value"], 200
         return "No results", 481
+
 
 @app.route("/settings", methods=["POST"])
 @requires_auth_admin
 def save_setting(name="", value=""):
     if name != "" and value != "":
         parsed_name, parsed_value = name, value
-    elif request.method == "POST": # pragma: no cover
+    elif request.method == "POST":  # pragma: no cover
         parsed_name = request.form.get("name")
         parsed_value = request.form.get("value")
-    else: # pragma: no cover
+    else:  # pragma: no cover
         return "Invalid", 497
-    
-    if mongo_client["labyrinth"]["settings"].find_one({"name" : parsed_name}):
-        mongo_client.delete_one({"name" : parsed_name})
 
-    mongo_client["labyrinth"]["settings"].insert_one({
-        "name" : parsed_name,
-        "value" : parsed_value
-    })
+    if mongo_client["labyrinth"]["settings"].find_one({"name": parsed_name}):
+        mongo_client.delete_one({"name": parsed_name})
+
+    mongo_client["labyrinth"]["settings"].insert_one(
+        {"name": parsed_name, "value": parsed_value}
+    )
 
     return "Success", 200
+
 
 @app.route("/settings/<setting>", methods=["DELETE"])
 @requires_auth_admin
@@ -642,12 +686,14 @@ def delete_setting(setting):
     """
     Deletes a setting
     """
-    if mongo_client["labyrinth"]["settings"].find_one({"name" : setting}):
-        mongo_client["labyrinth"]["settings"].delete_one({"name" : setting})
-    
+    if mongo_client["labyrinth"]["settings"].find_one({"name": setting}):
+        mongo_client["labyrinth"]["settings"].delete_one({"name": setting})
+
     return "Success", 200
 
+
 # Utilities
+
 
 @app.route("/find_ip/")
 @app.route("/find_ip/<name>")
@@ -669,10 +715,10 @@ def list_directory(type):
     Lists directory
     """
 
-    if type not in valid_type: # pragma: no cover
+    if type not in valid_type:  # pragma: no cover
         return "Invalid type", 446
 
-    if not os.path.exists("/src/uploads/{}".format(type)): # pragma: no cover
+    if not os.path.exists("/src/uploads/{}".format(type)):  # pragma: no cover
         return "No folder", 447
 
     return json.dumps(os.listdir("/src/uploads/{}".format(type))), 200
@@ -700,7 +746,7 @@ def save_ansible_file(fname, inp_data=""):
         data = inp_data
     elif request.method == "POST":  # pragma: no cover
         data = request.form.get("data")
-    else: # pragma: no cover
+    else:  # pragma: no cover
         return "Invalid request", 417
 
     filename = "/src/uploads/ansible/{}.yml".format(fname.replace(".yml", ""))
@@ -728,19 +774,27 @@ def run_ansible(inp_data=""):
         return "Invalid data", 481
 
     data = json.loads(data)
-    if "hosts" not in data or "playbook" not in data or "vault_password" not in data or "become_file" not in data:
+    if (
+        "hosts" not in data
+        or "playbook" not in data
+        or "vault_password" not in data
+        or "become_file" not in data
+    ):
         return "Invalid data", 482
 
     if "ssh_key" not in data:
         data["ssh_key"] = ""
 
-    return ansible_helper.run_ansible(
-        data["hosts"], 
-        data["playbook"], 
-        data["vault_password"], 
-        data["become_file"], 
-        ssh_key_file=data["ssh_key"],
-        ), 200
+    return (
+        ansible_helper.run_ansible(
+            data["hosts"],
+            data["playbook"],
+            data["vault_password"],
+            data["become_file"],
+            ssh_key_file=data["ssh_key"],
+        ),
+        200,
+    )
 
 
 @app.route("/mac/<old_mac>/<new_mac>/")
@@ -748,7 +802,8 @@ def run_ansible(inp_data=""):
 def update_mac(old_mac, new_mac):
     """Updates the old mac to the new mac"""
     mongo_client["labyrinth"]["hosts"].update_one(
-        {"mac": old_mac}, {"$set": {"mac": new_mac}})
+        {"mac": old_mac}, {"$set": {"mac": new_mac}}
+    )
     return "Success", 200
 
 
@@ -757,8 +812,10 @@ def update_mac(old_mac, new_mac):
 def update_ip(mac, new_ip):
     """Updates an IP for a given MAC address"""
     mongo_client["labyrinth"]["hosts"].update_one(
-        {"mac": mac}, {"$set": {"ip": new_ip}})
+        {"mac": mac}, {"$set": {"ip": new_ip}}
+    )
     return "Success", 200
+
 
 # Dashboard
 
@@ -786,7 +843,7 @@ def dashboard(report=False):
             if "mac" in host and host["mac"] != "":
                 or_clause.append({"tags.mac": host["mac"]})
             if "ip" in host and host["ip"] != "":
-                or_clause.append({"tags.ip" : host["ip"]})
+                or_clause.append({"tags.ip": host["ip"]})
 
             # Some networks have multiple hostnames that are the same...
             """
@@ -796,10 +853,11 @@ def dashboard(report=False):
 
             if service.strip() == "open_ports" or service.strip() == "closed_ports":
                 latest_metric = mongo_client["labyrinth"]["metrics"].find_one(
-                    {"name": "open_ports", 
-                    "$or" : or_clause,
+                    {
+                        "name": "open_ports",
+                        "$or": or_clause,
                     },
-                    sort=[("timestamp", pymongo.DESCENDING)]
+                    sort=[("timestamp", pymongo.DESCENDING)],
                 )
                 found_service = service
 
@@ -807,14 +865,14 @@ def dashboard(report=False):
             else:
                 latest_metric = mongo_client["labyrinth"]["metrics"].find_one(
                     {
-                        "name": service, 
-                        "$or" : or_clause,
+                        "name": service,
+                        "$or": or_clause,
                     },
-                    sort=[("timestamp", pymongo.DESCENDING)]
+                    sort=[("timestamp", pymongo.DESCENDING)],
                 )
                 found_service = mongo_client["labyrinth"]["services"].find_one(
                     {"name": service}
-                    )
+                )
 
                 if latest_metric is None or found_service is None:
                     result = False
@@ -835,13 +893,13 @@ def dashboard(report=False):
                 if result == -1:
                     summary = "No metric received in the window expected."
                 else:
-                    summary = "A service failed the metric check. | {} | {}".format(json.dumps(latest_metric, default=str) or "", json.dumps(found_service, default=str) or "")
+                    summary = "A service failed the metric check. | {} | {}".format(
+                        json.dumps(latest_metric, default=str) or "",
+                        json.dumps(found_service, default=str) or "",
+                    )
                 watcher.send_alert(alert_name, metric_name, host_name, summary=summary)
 
-            service_results[service] = {
-                "name": service,
-                "state": result
-            }
+            service_results[service] = {"name": service, "state": result}
         for item in service_results:
             host["services"] = [service_results[x] for x in service_results]
 
@@ -856,7 +914,10 @@ def dashboard(report=False):
     subnets = [subnets[x] for x in subnets]
     for subnet in [x for x in subnets if "hosts" in x]:
         groups = {}
-        for host in sorted([x for x in subnet["hosts"] if "group" in x], key=lambda x: int(x["ip"].split(".")[-1])):
+        for host in sorted(
+            [x for x in subnet["hosts"] if "group" in x],
+            key=lambda x: int(x["ip"].split(".")[-1]),
+        ):
             if host["group"] not in groups:
                 groups[host["group"]] = []
             groups[host["group"]].append(host)
@@ -865,13 +926,11 @@ def dashboard(report=False):
             subnet["groups"] = []
 
         for group in groups:
-            subnet["groups"].append({
-                "name": group,
-                "hosts": groups[group]
-            })
+            subnet["groups"].append({"name": group, "hosts": groups[group]})
         del subnet["hosts"]
 
     return json.dumps(subnets, default=str), 200
+
 
 # Metric
 
@@ -882,13 +941,18 @@ def last_metrics(count):
     """
     Lists the last <count> of metrics
     """
-    return json.dumps(
-        [x 
-        for x in 
-            mongo_client["labyrinth"]["metrics"].find({}).sort(
-                [("metrics.timestamp", pymongo.ASCENDING)]
-            )
-        ], default=str), 200
+    return (
+        json.dumps(
+            [
+                x
+                for x in mongo_client["labyrinth"]["metrics"]
+                .find({})
+                .sort([("metrics.timestamp", pymongo.ASCENDING)])
+            ],
+            default=str,
+        ),
+        200,
+    )
 
 
 @app.route("/metrics/<host>")
@@ -897,14 +961,14 @@ def read_metrics(host):
     """
     Returns the latest metrics for a given host
     """
-    or_clause = [
-        {"tags.host" : host},
-        {"tags.ip" : host},
-        {"tags.mac" : host}
-    ]
-    return json.dumps([x for x in mongo_client["labyrinth"]["metrics"].find(
-        {"$or": or_clause}
-        )], default=str), 200
+    or_clause = [{"tags.host": host}, {"tags.ip": host}, {"tags.mac": host}]
+    return (
+        json.dumps(
+            [x for x in mongo_client["labyrinth"]["metrics"].find({"$or": or_clause})],
+            default=str,
+        ),
+        200,
+    )
 
 
 @app.route("/metrics/", methods=["POST"])
@@ -920,17 +984,15 @@ def insert_metric(inp=""):
     else:  # pragma: no cover
         return "Invalid data", 419
 
-    mongo_client["labyrinth"]["metrics"].create_index(
-        [("metrics.timestamp", -1)])
+    mongo_client["labyrinth"]["metrics"].create_index([("metrics.timestamp", -1)])
 
-    if "metrics" not in data: # pragma: no cover
+    if "metrics" not in data:  # pragma: no cover
         return "Invalid data", 421
 
     for item in data["metrics"]:
         mongo_client["labyrinth"]["metrics"].insert_one(item)
 
     return "Success", 200
-
 
 
 if __name__ == "__main__":  # pragma: no cover

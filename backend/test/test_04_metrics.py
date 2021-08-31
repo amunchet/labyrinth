@@ -18,23 +18,20 @@ def setup():
     Sets up the Watcher
     """
     serve.mongo_client["labyrinth"]["metrics"].delete_many({})
+    serve.mongo_client["labyrinth"]["metrics"].insert_one({"timestamp": 1})
     serve.mongo_client["labyrinth"]["metrics"].insert_one(
         {
-            "timestamp" : 1
-        }
-    )
-    serve.mongo_client["labyrinth"]["metrics"].insert_one(
-        {
-            "timestamp" : 2,
-            "tags" : {
-                "host" : 1234,
-                "ip" : 1234,
-                "mac" : "test",
-            }
+            "timestamp": 2,
+            "tags": {
+                "host": 1234,
+                "ip": 1234,
+                "mac": "test",
+            },
         }
     )
     yield "Setting up..."
     return "Finished"
+
 
 def test_get_latest_metrics(setup):
     """
@@ -46,7 +43,8 @@ def test_get_latest_metrics(setup):
     assert a[1] == 200
     b = json.loads(a[0])
     print(b)
-    assert b[0]['timestamp'] == 2
+    assert b[0]["timestamp"] == 2
+
 
 def test_read_metrics(setup):
     """
@@ -56,7 +54,8 @@ def test_read_metrics(setup):
     assert a[1] == 200
     b = json.loads(a[0])
     print(b)
-    assert b[0]['timestamp'] == 2
+    assert b[0]["timestamp"] == 2
+
 
 def test_metric_judge(setup):
     """
@@ -68,7 +67,7 @@ def test_metric_judge(setup):
         "metric": "diskio",
         "field": "read_time",
         "comparison": "greater",
-        "value": 1000
+        "value": 1000,
     }
     odd_service = {
         "name": "check_hd",
@@ -79,25 +78,15 @@ def test_metric_judge(setup):
         "value": 5,
     }
 
-
-
-    host = {
-        "open_ports" : [ 22, 23 ]
-    }
+    host = {"open_ports": [22, 23]}
 
     port_scan = {
-        "fields": {
-            "ports": [
-                22,
-                23
-            ],
-            "ip": "192.168.0.6"
-        },
+        "fields": {"ports": [22, 23], "ip": "192.168.0.6"},
         "name": "open_ports",
         "tags": {
-            "host": '02:42:C0:A8:00:02',
+            "host": "02:42:C0:A8:00:02",
         },
-        "timestamp": time.time()
+        "timestamp": time.time(),
     }
     telegraf = {
         "fields": {
@@ -106,13 +95,11 @@ def test_metric_judge(setup):
             "entropy_avail": 3760,
             "interrupts": 1578002983,
             "processes_forked": 884284,
-            "random_field" : "AAAA"
+            "random_field": "AAAA",
         },
         "name": "check_hd",
-        "tags": {
-                "host": "aacd4239ee68"
-        },
-        "timestamp": time.time()
+        "tags": {"host": "aacd4239ee68"},
+        "timestamp": time.time(),
     }
 
     # Check metrics against service definition
@@ -125,8 +112,8 @@ def test_metric_judge(setup):
     telegraf["name"] = "notright"
     output = metrics.judge(metric=telegraf, service=check_service)
     assert not output
-    
-    del telegraf["name"] 
+
+    del telegraf["name"]
     output = metrics.judge(metric=telegraf, service=check_service)
     assert not output
 
@@ -141,23 +128,19 @@ def test_metric_judge(setup):
     telegraf["name"] = "check_hd"
 
     # Check Odd Service
-    telegraf["fields"] = {
-        "diskio" : "AAAAAA"
-    }
+    telegraf["fields"] = {"diskio": "AAAAAA"}
     output = metrics.judge(metric=telegraf, service=odd_service)
     assert output
 
     odd_service["comparison"] = "equals"
     output = metrics.judge(metric=telegraf, service=odd_service)
     assert not output
-    
+
     odd_service["comparison"] = "less"
     output = metrics.judge(metric=telegraf, service=odd_service)
     assert not output
 
-    telegraf["fields"] = {
-        "diskio" : "5.32"
-    }
+    telegraf["fields"] = {"diskio": "5.32"}
     odd_service["comparison"] = "greater"
     output = metrics.judge(metric=telegraf, service=odd_service)
     assert output
@@ -165,21 +148,17 @@ def test_metric_judge(setup):
     odd_service["comparison"] = "equals"
     output = metrics.judge(metric=telegraf, service=odd_service)
     assert not output
-    
+
     odd_service["comparison"] = "less"
     output = metrics.judge(metric=telegraf, service=odd_service)
     assert not output
 
-
-
     # Check simple metric
-    telegraf["fields"] = {
-        "diskio" : 5000
-    }
+    telegraf["fields"] = {"diskio": 5000}
 
     output = metrics.judge(metric=telegraf, service=check_service)
     assert output
-    
+
     # Check changing comparison
     check_service["comparison"] = "INVALID"
     output = metrics.judge(metric=telegraf, service=check_service)
@@ -189,9 +168,7 @@ def test_metric_judge(setup):
     output = metrics.judge(metric=telegraf, service=check_service)
     assert not output
 
-    telegraf["fields"] = {
-        "diskio" : 5
-    }
+    telegraf["fields"] = {"diskio": 5}
 
     output = metrics.judge(metric=telegraf, service=check_service)
     assert output
@@ -200,34 +177,21 @@ def test_metric_judge(setup):
     output = metrics.judge(metric=telegraf, service=check_service)
     assert not output
 
-    telegraf["fields"] = {
-        "diskio" : 1000
-    }
+    telegraf["fields"] = {"diskio": 1000}
 
     output = metrics.judge(metric=telegraf, service=check_service)
     assert output
 
-
-
     # Compound metrics (deep meterics)
-    telegraf["fields"] = {
-        "diskio" : {
-            "second": 1000
-        }
-    }
+    telegraf["fields"] = {"diskio": {"second": 1000}}
     check_service["metric"] = "diskio.second"
     output = metrics.judge(metric=telegraf, service=check_service)
     assert output
 
-    telegraf["fields"] = {
-        "diskio" : {
-            "second": 5000
-        }
-    }
+    telegraf["fields"] = {"diskio": {"second": 5000}}
 
     output = metrics.judge(metric=telegraf, service=check_service)
     assert not output
-
 
     ## Port scan checks
 
@@ -247,8 +211,6 @@ def test_metric_judge(setup):
     assert not output
 
     # Closed Ports - Failing
-    host["open_ports"] = [22,23,27,28]
+    host["open_ports"] = [22, 23, 27, 28]
     output = metrics.judge_port(metric=port_scan, service="open_ports", host=host)
     assert not output
-
-

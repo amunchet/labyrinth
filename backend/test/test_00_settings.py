@@ -12,6 +12,7 @@ import serve
 
 from common.test import unwrap
 
+
 def teardown():
     """
     Removes all stored settings
@@ -27,6 +28,7 @@ def setup():
     yield "Setting up"
     return "Done"
 
+
 def test_save_and_get_settings(setup):
     a = unwrap(serve.save_setting)("test", "test")
     assert a[1] == 200
@@ -40,7 +42,7 @@ def test_save_and_get_settings(setup):
 
     c = unwrap(serve.get_setting)()
     assert c[1] == 200
-    assert json.loads(c[0]) == [{"test" : "test"}]
+    assert json.loads(c[0]) == [{"test": "test"}]
 
 
 def test_delete_setting(setup):
