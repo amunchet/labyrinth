@@ -26,6 +26,14 @@
       <b-row
         ><b-col>Class</b-col><b-col><b-input v-model="host.class" /></b-col
       ></b-row>
+
+      <b-row>
+        <b-col> Monitor </b-col>
+        <b-col>
+          <b-form-checkbox size="lg" v-model="host.monitor" name="check-button" switch>
+          </b-form-checkbox>
+        </b-col>
+      </b-row>
     </b-container>
     <hr />
     Service Icons:
