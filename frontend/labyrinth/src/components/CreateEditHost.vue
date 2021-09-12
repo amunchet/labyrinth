@@ -48,7 +48,7 @@
       <b-row>
         <b-col> Notes</b-col>
         <b-col>
-          <b-textarea v-model="host.notes" />
+          <b-textarea style="min-height: 100px;" v-model="host.notes" />
         </b-col>
       </b-row>
     </b-container>
