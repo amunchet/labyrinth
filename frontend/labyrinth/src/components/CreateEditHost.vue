@@ -244,7 +244,12 @@
           :fields="['name', 'fields', 'tags', 'timestamp']"
           :items="metrics"
           striped
-        />
+        >
+        <template v-slot:cell(timestamp)="cell">
+          {{new Date(cell.item.timestamp * 1000).toLocaleDateString()}}
+          {{new Date(cell.item.timestamp * 1000).toLocaleTimeString()}}
+        </template>
+        </b-table>
       </div>
     </b-row>
 
