@@ -79,6 +79,10 @@
                 class="grouped"
                 v-for="(group, j) in subnet.groups"
                 v-bind:key="j"
+                @drop="onDrop(group.name)"
+                @dragover.prevent
+                @dragenter.prevent
+
               >
                 <div class="overflow-hidden light p-0">
                   <h2 class="group_headers float-left">
@@ -108,6 +112,10 @@
                     :cpu="host.cpu_check"
                     :mem="host.mem_check"
                     :hd="host.hd_check"
+
+                    @dragStart="(ip)=>dragged_ip=ip"
+                    @dragEnd="dragged_ip = ''"
+
                     @service="
                       (val) => {
                         selected_metric = val;
@@ -146,6 +154,8 @@ export default {
       selected_subnet: "",
       selected_host: "",
       selected_metric: {},
+
+      dragged_ip: ""
     };
   },
   components: {
@@ -156,6 +166,10 @@ export default {
     HostMetric,
   },
   methods: {
+    onDrop: function(name){
+      console.log(name)
+      console.log(this.dragged_ip)
+    },
     loadData: /* istanbul ignore next */ function (showLoading) {
       var auth = this.$auth;
       if (showLoading) {

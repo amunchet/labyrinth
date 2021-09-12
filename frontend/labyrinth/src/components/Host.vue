@@ -1,5 +1,10 @@
 <template>
-  <div :class="passed_class">
+  <div 
+    draggable 
+    :class="'noselect ' + passed_class + ' ' + drag_class"
+    @dragstart="drag_start(ip)"
+    @dragend="drag_end"
+  >
     <div class="top">
       <div class="number">.{{ ip.split(".")[ip.split(".").length - 1] }}</div>
 
@@ -133,11 +138,24 @@ export default {
         "Microsoft",
         "Wireless",
       ],
+      drag_class: "",
+      dragging_ip: "",
       components: {},
       myComponent: {},
     };
   },
   methods: {
+    drag_start: function(ip){
+      this.drag_class = 'dragging'
+      this.dragging_ip = ip
+      this.$emit("dragStart", this.dragging_ip)
+
+    },
+    drag_end: function(){
+      this.drag_class = ""
+      this.dragging_ip = ""
+      this.$emit("dragEnd")
+    },
     determineClass: function (service) {
       if (service.state == -1) {
         return "orange-bg host_col darkgrey hover";
@@ -177,6 +195,12 @@ export default {
   -webkit-box-shadow: 5px 5px 39px -12px rgba(0, 0, 0, 0.75);
   -moz-box-shadow: 5px 5px 39px -12px rgba(0, 0, 0, 0.75);
 }
+.dragging{
+  border: 5px dashed rgba(0,0,0,0.5) !important;
+}
+.noselect{
+  user-select: none;
+}
 .top {
   padding-top: 10px;
   display: block;
@@ -202,6 +226,7 @@ export default {
   /* position: relative; */
   /* top: 0; */
   margin-bottom: 0.5rem;
+  cursor: pointer;
 }
 .hover {
   cursor: pointer;
