@@ -134,8 +134,10 @@
             {{ idx }} : {{ item }} <br />
           </div>
         </template>
-        <template v-slot:cell(timestamp)="row">
-          {{ new Date(row.item.timestamp * 1000) }}
+        <template v-slot:cell(timestamp)="cell">
+          {{new Date(cell.item.timestamp * 1000).toLocaleDateString()}}
+          {{new Date(cell.item.timestamp * 1000).toLocaleTimeString()}}
+
         </template>
       </b-table>
       <b-spinner v-else class="m-2" />
