@@ -351,10 +351,16 @@ def group_rename(subnet,name, new_name):
     TODO: Changes name for all members of the group
     """
 
+@app.route("/group/icons/<subnet>/<name>/<new_icon>")
+@requires_auth_write
+def group_icon(subnet, name, new_icon):
     """
     TODO: Change icons
     """
 
+@app.route("/group/add_service/<subnet>/<name>/<new_service>")
+@requires_auth_write
+def group_add_service(subnet, name, new_service):
     """
     TODO: Add Service to all members (check if already have it)
     """
