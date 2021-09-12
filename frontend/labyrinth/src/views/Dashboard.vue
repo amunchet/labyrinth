@@ -81,7 +81,7 @@
                 v-bind:key="j"
               >
                 <div class="overflow-hidden light p-0">
-                  <h2 class="float-left">{{ group.name }}</h2>
+                  <h2 class="group_headers float-left">{{ group.name }}</h2>
                   <font-awesome-icon
                     class="float-right p-1 mt-1 hover"
                     icon="plus"
@@ -256,6 +256,10 @@ h2 {
   margin: 0;
   padding: 0;
   margin-bottom: 5px;
+}
+.group_headers{
+  width: auto !important;
+  text-transform: capitalize;
 }
 .light {
   text-align: left;
