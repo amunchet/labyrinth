@@ -28,8 +28,9 @@ beforeEach(() => {
     propsData: {
       icon: "test",
       passed_class: "test",
-      show_ports: "test",
-      ip: "test",
+      show_ports: "0",
+      host: "",
+      ip: "test.test.test",
       services: [
         {
           name: "test",
