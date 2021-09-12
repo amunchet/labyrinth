@@ -880,7 +880,11 @@ def dashboard(report=False):
                     result = mc.judge(latest_metric, found_service)
 
             # Alerting section
-            if report and (not result or result == -1) and ("monitor" in host and str(host["monitor"]).lower() == "true"):
+            if (
+                report
+                and (not result or result == -1)
+                and ("monitor" in host and str(host["monitor"]).lower() == "true")
+            ):
                 alert_name = "PROBLEM"
                 metric_name = "None"
                 if latest_metric is not None and "name" in latest_metric:
