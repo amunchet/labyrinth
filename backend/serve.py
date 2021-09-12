@@ -335,6 +335,31 @@ def host_group_rename(ip, group):
     return "Success", 200
 
 
+# Group (Mass actions)
+
+@app.route("/group/monitor/<subnet>/<name>/<status>")
+@requires_auth_write
+def group_monitor(subnet,name, status):
+    """
+    TODO: Changes the monitoring option for all memebers of the group
+    """
+
+@app.route("/group/name/<subnet>/<name>/<new_name>")
+@requires_auth_write
+def group_rename(subnet,name, new_name):
+    """
+    TODO: Changes name for all members of the group
+    """
+
+    """
+    TODO: Change icons
+    """
+
+    """
+    TODO: Add Service to all members (check if already have it)
+    """
+
+
 # Services
 
 
