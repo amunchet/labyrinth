@@ -172,14 +172,14 @@ export default {
       this.$bvModal
         .msgBoxConfirm("Confirm deleting service " + name + "?")
         .then((value) => {
-          if(!value){
-            return false
+          if (!value) {
+            return false;
           }
           Helper.apiDelete("service", name, auth)
             .then((res) => {
               this.$store.commit("updateError", res);
               this.loadServices();
-              this.$bvModal.hide("add_service")
+              this.$bvModal.hide("add_service");
             })
             .catch((e) => {
               this.$store.commit("updateError", e);

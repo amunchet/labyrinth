@@ -8,8 +8,10 @@
 
         <b-navbar-toggle target="nav-collapse"></b-navbar-toggle>
 
-        <b-collapse id="nav-collapse" class="pt-2" is-nav  >
-          <b-navbar-nav  v-if="$auth.profile != null && $auth.profile != undefined">
+        <b-collapse id="nav-collapse" class="pt-2" is-nav>
+          <b-navbar-nav
+            v-if="$auth.profile != null && $auth.profile != undefined"
+          >
             <b-nav-item href="#">
               <router-link to="/">
                 <font-awesome-icon icon="home" size="1x" />
@@ -25,8 +27,10 @@
           </b-navbar-nav>
 
           <!-- Right aligned nav items -->
-          <b-navbar-nav class="ml-auto"  >
-            <b-navbar-nav v-if="$auth.profile != null && $auth.profile != undefined" >
+          <b-navbar-nav class="ml-auto">
+            <b-navbar-nav
+              v-if="$auth.profile != null && $auth.profile != undefined"
+            >
               <b-nav-item href="/settings">
                 <router-link to="/settings">Scan</router-link>
               </b-nav-item>
@@ -131,7 +135,6 @@ export default {
         this.$auth.login();
       }
     }
-
   },
 };
 </script>
