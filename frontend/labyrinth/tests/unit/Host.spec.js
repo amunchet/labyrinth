@@ -83,4 +83,19 @@ describe("Host.vue", () => {
   test("is a Vue instance", () => {
     expect(wrapper.isVueInstance).toBeTruthy();
   });
+
+  test("determineClass", ()=>{
+    
+    var service = {
+      state: -1
+    }
+    expect(wrapper.vm.determineClass(service))
+    service.state = false
+
+    expect(wrapper.vm.determineClass(service))
+    service.state = 71
+
+    expect(wrapper.vm.determineClass(service))
+  })
+
 });
