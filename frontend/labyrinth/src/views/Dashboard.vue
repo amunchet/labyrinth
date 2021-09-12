@@ -167,8 +167,12 @@ export default {
   },
   methods: {
     onDrop: function(name){
-      console.log(name)
-      console.log(this.dragged_ip)
+      var auth = this.$auth
+      Helper.apiCall("host_group_rename", this.dragged_ip + "/" + name + "/", auth).then(()=>{
+        this.loadData()
+      }).catch(e=>{
+        this.$store.commit('updateError', e)
+      })
     },
     loadData: /* istanbul ignore next */ function (showLoading) {
       var auth = this.$auth;

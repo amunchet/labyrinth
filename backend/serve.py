@@ -322,6 +322,19 @@ def delete_host(host):
     return "Success", 200
 
 
+@app.route("/host_group_rename/<ip>/<group>/")
+@requires_auth_write
+def host_group_rename(ip, group):
+    """
+    Changes the specific host's group name
+    """
+    found = mongo_client["labyrinth"]["hosts"].find_one({"ip" : ip})
+    if not found:
+        return "Not found", 498
+    mongo_client["labyrinth"]["hosts"].update_many({"ip" : ip}, {"$set" : {"group" : group}})
+    return "Success", 200
+
+
 # Services
 
 
