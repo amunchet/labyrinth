@@ -999,7 +999,7 @@ if __name__ == "__main__":  # pragma: no cover
 
     if len(sys.argv) > 1 and sys.argv[1] == "watcher":
         unwrap(dashboard)(report=True)
-
-    app.debug = True
-    app.config["ENV"] = "development"
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 7000)))
+    else:
+        app.debug = True
+        app.config["ENV"] = "development"
+        app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 7000)))
