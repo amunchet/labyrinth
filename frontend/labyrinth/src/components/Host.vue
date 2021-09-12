@@ -6,7 +6,7 @@
     @dragend="drag_end"
   >
     <div class="top">
-      <div class="number">.{{ ip.split(".")[ip.split(".").length - 1] }}</div>
+      <div :class="monitor ? 'number' : 'number unmonitored'">.{{ ip.split(".")[ip.split(".").length - 1] }}</div>
 
       <div v-if="host != '' && host.length > 15" class="title">
         {{ host.substr(0, 15) }}...
@@ -119,6 +119,7 @@ export default {
     "mem",
     "hd",
     "host",
+    "monitor"
   ],
   data() {
     return {
@@ -191,9 +192,9 @@ export default {
   border: 1px solid #fefefd;
   min-width: 120px;
   max-width: 150px;
-  box-shadow: 5px 5px 39px -12px rgba(0, 0, 0, 0.75);
-  -webkit-box-shadow: 5px 5px 39px -12px rgba(0, 0, 0, 0.75);
-  -moz-box-shadow: 5px 5px 39px -12px rgba(0, 0, 0, 0.75);
+  box-shadow: 5px 5px 30px -12px rgba(0, 0, 0, 0.75);
+  -webkit-box-shadow: 5px 5px 30px -12px rgba(0, 0, 0, 0.75);
+  -moz-box-shadow: 5px 5px 30px -12px rgba(0, 0, 0, 0.75);
 }
 .dragging{
   border: 5px dashed rgba(0,0,0,0.5) !important;
@@ -227,6 +228,9 @@ export default {
   /* top: 0; */
   margin-bottom: 0.5rem;
   cursor: pointer;
+}
+.unmonitored{
+  color: #dfdfde;
 }
 .hover {
   cursor: pointer;
