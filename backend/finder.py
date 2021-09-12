@@ -48,6 +48,7 @@ def convert_host(input: Dict) -> Dict:
         "mac": "",
         "group": "",
         "icon": "",
+        "monitor" : False,
         "services": ["open_ports", "closed_ports", "new_host"],
         "open_ports": [],
         "class": "",
