@@ -5,6 +5,18 @@
     </b-modal>
     <b-container>
       <b-row>
+        <b-col> Monitor </b-col>
+        <b-col>
+          <b-form-checkbox
+            size="lg"
+            v-model="host.monitor"
+            name="check-button"
+            switch
+          >
+          </b-form-checkbox>
+        </b-col>
+      </b-row>
+      <b-row>
         <b-col> IP </b-col>
         <b-col>
           <b-input v-model="host.ip" />
@@ -34,10 +46,9 @@
       ></b-row>
 
       <b-row>
+        <b-col> Notes</b-col>
         <b-col>
-        Notes</b-col>
-        <b-col>
-        <b-textarea v-model="host.notes" />
+          <b-textarea v-model="host.notes" />
         </b-col>
       </b-row>
     </b-container>
