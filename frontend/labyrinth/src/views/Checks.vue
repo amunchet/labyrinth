@@ -3,6 +3,23 @@
     <h2>Create/Edit a Service</h2>
 
     <b-modal id="add_service" title="Add/Edit Service" @ok="saveCheck">
+      <template #modal-footer="{ ok, cancel }">
+        <div style="width: 100%">
+          <b-button
+            @click="deleteService(selected_service.name)"
+            variant="danger"
+            v-if="selected_service['_id'] != undefined"
+            class="float-left"
+            >Delete</b-button
+          >
+          <b-button variant="primary" @click="ok()" class="ml-2 float-right">
+            OK
+          </b-button>
+
+          <b-button @click="cancel()" class="float-right"> Cancel </b-button>
+        </div>
+      </template>
+
       <b-row>
         <b-col
           ><b>Name</b><br />
@@ -149,6 +166,29 @@ export default {
     };
   },
   methods: {
+    deleteService: /* istanbul ignore next */ function (name) {
+      var auth = this.$auth;
+
+      this.$bvModal
+        .msgBoxConfirm("Confirm deleting service " + name + "?")
+        .then((value) => {
+          if(!value){
+            return false
+          }
+          Helper.apiDelete("service", name, auth)
+            .then((res) => {
+              this.$store.commit("updateError", res);
+              this.loadServices();
+              this.$bvModal.hide("add_service")
+            })
+            .catch((e) => {
+              this.$store.commit("updateError", e);
+            });
+        })
+        .catch((err) => {
+          this.$store.commit("updateError", err);
+        });
+    },
     loadServices: /* istanbul ignore next */ function () {
       var auth = this.$auth;
       Helper.apiCall("services", "all", auth)
