@@ -8,8 +8,8 @@
 
         <b-navbar-toggle target="nav-collapse"></b-navbar-toggle>
 
-        <b-collapse id="nav-collapse" class="pt-2" is-nav>
-          <b-navbar-nav>
+        <b-collapse id="nav-collapse" class="pt-2" is-nav  >
+          <b-navbar-nav  v-if="$auth.profile != null && $auth.profile != undefined">
             <b-nav-item href="#">
               <router-link to="/">
                 <font-awesome-icon icon="home" size="1x" />
@@ -25,8 +25,8 @@
           </b-navbar-nav>
 
           <!-- Right aligned nav items -->
-          <b-navbar-nav class="ml-auto">
-            <b-navbar-nav>
+          <b-navbar-nav class="ml-auto"  >
+            <b-navbar-nav v-if="$auth.profile != null && $auth.profile != undefined" >
               <b-nav-item href="/settings">
                 <router-link to="/settings">Scan</router-link>
               </b-nav-item>
@@ -73,7 +73,6 @@
   </div>
 </template>
 <script>
-import Helper from "@/helper";
 export default {
   data() {
     return {};
@@ -98,7 +97,7 @@ export default {
   watch: {
     "$store.state.error": function (val, prev) {
       //window.scrollTo(0, 0)
-      if (val != undefined) {
+      if (val != undefined && val != "Logged in.") {
         var parsed_val = ("" + val).replace(/\[.*\]/, "");
         if (parsed_val != undefined && parsed_val != "" && parsed_val != " ") {
           if (parsed_val.indexOf("401") != -1) {
@@ -125,34 +124,14 @@ export default {
   created: /* istanbul ignore next */ function () {
     var auth = this.$auth;
 
-    var current_page = this.$route.query.page;
-    auth.handleAuthentication();
-    if (current_page == undefined || current_page.indexOf("callback") == -1) {
-      try {
-        Helper.apiCall("secure", "", auth)
-          .then((res) => {
-            this.sandbox = ("" + res).toLowerCase() == "true";
-          })
-          .catch((e) => {
-            var output = "" + e;
-            var page = this.$route.query.page;
-
-            if (
-              output.indexOf("401") != -1 &&
-              (page == undefined || page.indexOf("callback") == -1)
-            ) {
-              //this.$auth.login();
-            } else {
-              this.$store.commit("updateError", e);
-            }
-          });
-      } catch (e) {
-        console.log(this.$auth);
-        console.log(e);
-        //this.$auth.login();
-        this.$auth.handleAuthentication();
+    try {
+      auth.handleAuthentication();
+    } catch (e) {
+      if (("" + e).indexOf("idToken") != -1) {
+        this.$auth.login();
       }
     }
+
   },
 };
 </script>
