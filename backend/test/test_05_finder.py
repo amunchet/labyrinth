@@ -226,7 +226,7 @@ def test_create_initial():
         "ip": "192.168.0.2",
         "subnet": "192.168.0",
         "mac": "02:42:C0:A8:00:02",
-        "group": "",
+        "group": "linux",
         "icon": "linux",
         "services": ["open_ports", "closed_ports", "new_host"],
         "open_ports": [22],
