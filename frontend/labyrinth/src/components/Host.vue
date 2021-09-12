@@ -3,8 +3,10 @@
     <div class="top">
       <div class="number">.{{ ip.split(".")[ip.split(".").length - 1] }}</div>
 
-      <div v-if="host != '' && host.length > 15" class="title">{{host.substr(0,15)}}...</div>
-      <div v-else-if="host != ''" class="title">{{host}}</div>
+      <div v-if="host != '' && host.length > 15" class="title">
+        {{ host.substr(0, 15) }}...
+      </div>
+      <div v-else-if="host != ''" class="title">{{ host }}</div>
       <div class="title" v-else>-</div>
       <div class="pt-1" style="height: 50px">
         <component
@@ -111,7 +113,7 @@ export default {
     "cpu",
     "mem",
     "hd",
-    "host"
+    "host",
   ],
   data() {
     return {
@@ -179,7 +181,7 @@ export default {
   padding-top: 10px;
   display: block;
 }
-.title{
+.title {
   color: darkgrey;
   font-family: Helvetica, Arial;
   font-size: 12pt;

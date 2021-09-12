@@ -231,7 +231,7 @@ def test_create_initial():
         "services": ["open_ports", "closed_ports", "new_host"],
         "open_ports": [22],
         "class": "",
-        "monitor" : False,
+        "monitor": False,
         "host": "labyrinth_sampleclient_1.labyrinth_labyrinth",
     }
     a = finder.convert_host(sample_input)
