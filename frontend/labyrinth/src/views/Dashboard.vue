@@ -5,6 +5,10 @@
 
     <CreateEditHost :inp_host="selected_host" @update="loadData()" />
     <HostMetric @update="loadData()" :data="selected_metric" />
+
+    <GroupModal :selected_group="selected_group" />
+
+    <!-- Main page -->
     <div v-if="!loading">
       <div class="outer_left">
         <Connector
@@ -82,10 +86,17 @@
                 @drop="onDrop(group.name)"
                 @dragover.prevent
                 @dragenter.prevent
-
               >
                 <div class="overflow-hidden light p-0">
-                  <h2 class="group_headers float-left">
+                  <h2
+                    class="group_headers float-left"
+                    @click="
+                      () => {
+                        selected_group = group.name;
+                        $bvModal.show('group_edit');
+                      }
+                    "
+                  >
                     {{ group.name }}&nbsp;
                   </h2>
                   <font-awesome-icon
@@ -112,10 +123,9 @@
                     :cpu="host.cpu_check"
                     :mem="host.mem_check"
                     :hd="host.hd_check"
-
-                    @dragStart="(ip)=>dragged_ip=ip"
+                    :monitor="host.monitor"
+                    @dragStart="(ip) => (dragged_ip = ip)"
                     @dragEnd="dragged_ip = ''"
-
                     @service="
                       (val) => {
                         selected_metric = val;
@@ -141,6 +151,7 @@ import Host from "@/components/Host";
 import CreateEditSubnet from "@/components/CreateEditSubnet";
 import CreateEditHost from "@/components/CreateEditHost";
 import HostMetric from "@/components/HostMetric";
+import GroupModal from '@/components/GroupModal.vue';
 export default {
   data() {
     return {
@@ -155,7 +166,8 @@ export default {
       selected_host: "",
       selected_metric: {},
 
-      dragged_ip: ""
+      dragged_ip: "",
+      selected_group: "",
     };
   },
   components: {
@@ -164,15 +176,22 @@ export default {
     CreateEditSubnet,
     CreateEditHost,
     HostMetric,
+    GroupModal
   },
   methods: {
-    onDrop: function(name){
-      var auth = this.$auth
-      Helper.apiCall("host_group_rename", this.dragged_ip + "/" + name + "/", auth).then(()=>{
-        this.loadData()
-      }).catch(e=>{
-        this.$store.commit('updateError', e)
-      })
+    onDrop: function (name) {
+      var auth = this.$auth;
+      Helper.apiCall(
+        "host_group_rename",
+        this.dragged_ip + "/" + name + "/",
+        auth
+      )
+        .then(() => {
+          this.loadData();
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
     },
     loadData: /* istanbul ignore next */ function (showLoading) {
       var auth = this.$auth;
@@ -280,6 +299,10 @@ h2 {
 .group_headers {
   width: auto !important;
   text-transform: capitalize;
+  cursor: pointer;
+}
+.group_headers:hover {
+  color: #cdcdce;
 }
 .light {
   text-align: left;
