@@ -341,22 +341,31 @@ def host_group_rename(ip, group):
 @requires_auth_write
 def group_monitor(subnet,name, status):
     """
-    TODO: Changes the monitoring option for all memebers of the group
+    Changes the monitoring option for all memebers of the group
     """
+
+    mongo_client["labyrinth"]["hosts"].update_many({"subnet" : subnet, "group" : name}, {"$set" : {"monitor" : str(status).lower() == "true"}})
+    return "Success", 200
 
 @app.route("/group/name/<subnet>/<name>/<new_name>")
 @requires_auth_write
 def group_rename(subnet,name, new_name):
     """
-    TODO: Changes name for all members of the group
+    Changes name for all members of the group
     """
+    mongo_client["labyrinth"]["hosts"].update_many({"subnet" : subnet, "group" : name}, {"$set" : {"group" : new_name}})
+    return "Success", 200
+
 
 @app.route("/group/icons/<subnet>/<name>/<new_icon>")
 @requires_auth_write
 def group_icon(subnet, name, new_icon):
     """
-    TODO: Change icons
+    Change icons
     """
+
+    mongo_client["labyrinth"]["hosts"].update_many({"subnet" : subnet, "group" : name}, {"$set" : {"icon" : new_icon}})
+    return "Success", 200
 
 @app.route("/group/add_service/<subnet>/<name>/<new_service>")
 @requires_auth_write
@@ -364,7 +373,12 @@ def group_add_service(subnet, name, new_service):
     """
     TODO: Add Service to all members (check if already have it)
     """
-
+    a = mongo_client["labyrinth"]["hosts"].find({"subnet" : subnet, "group" : name})
+    for x in [x for x in a]:
+        if new_service not in x["services"]:
+            temp = x["services"] + [new_service]
+            mongo_client["labyrinth"]["hosts"].update_one({"subnet" : subnet, "group" : name, "ip" : x["ip"]}, {"$set" : {"services" : temp}})
+    return "Success", 200
 
 # Services
 

@@ -158,6 +158,7 @@ def test_create_edit_host(setup):
         "icon": "linux",
         "services": ["open_ports", "closed_ports", "check_hd"],
         "class": "health",
+        "monitor" : "false"
     }
 
     # Create Host - what are the implications for the group and subnet?
@@ -289,6 +290,91 @@ def test_delete_host(setup):
 
     a = unwrap(serve.delete_host)("00-00-00-00-01")
     assert a[1] == 407
+
+
+# Groups
+
+def test_group_monitor(setup):
+    """
+    Tests group monitor
+    """
+    test_create_edit_host(setup)
+
+    b= serve.mongo_client["labyrinth"]["hosts"].find({})
+
+    z = [x for x in b]
+    print(z)
+    c = [str(x["monitor"]).lower() for x in z]
+    assert "false" in c
+
+    x = unwrap(serve.group_monitor)("192.168.10", "Windows Servers", True)
+    assert x[1] == 200
+
+    b= serve.mongo_client["labyrinth"]["hosts"].find({})
+    c = [str(x["monitor"]).lower() for x in b]
+    assert "true" in c
+
+
+def test_group_rename(setup):
+    """
+    Tests group rename
+    """
+    test_create_edit_host(setup)
+
+    b= serve.mongo_client["labyrinth"]["hosts"].find({})
+    c = [x["group"] for x in b]
+    assert "Windows Servers" in c
+
+    x = unwrap(serve.group_rename)("192.168.10", "Windows Servers", "Meowmix Servers")
+    assert x[1] == 200
+
+    b= serve.mongo_client["labyrinth"]["hosts"].find({})
+    c = [str(x["group"]).lower() for x in b]
+    assert "meowmix servers" in c
+
+def test_group_icon(setup):
+    """
+    Tests group icon
+    """
+    test_create_edit_host(setup)
+    b= serve.mongo_client["labyrinth"]["hosts"].find({})
+    c = [x["icon"] for x in b]
+    assert "linux" in c
+
+    x = unwrap(serve.group_icon)("192.168.10", "Windows Servers", "windows")
+    assert x[1] == 200
+
+    b= serve.mongo_client["labyrinth"]["hosts"].find({})
+    c = [str(x["icon"]).lower() for x in b]
+    assert "windows" in c
+
+
+
+def test_group_add_service(setup):
+    """
+    Tests group add service
+    """
+    test_create_edit_host(setup)
+    b= serve.mongo_client["labyrinth"]["hosts"].find({})
+    c = [x["services"] for x in b]
+    assert ["open_ports", "closed_ports", "check_hd"] in c
+
+    x = unwrap(serve.group_add_service)("192.168.10", "Windows Servers", "check_meow")
+    assert x[1] == 200
+
+    b= serve.mongo_client["labyrinth"]["hosts"].find({})
+    c = [x["services"] for x in b]
+    assert ["open_ports", "closed_ports", "check_hd", "check_meow"] in c
+
+    # Don't duplicate
+    x = unwrap(serve.group_add_service)("192.168.10", "Windows Servers", "check_meow")
+    assert x[1] == 200
+
+    b= serve.mongo_client["labyrinth"]["hosts"].find({})
+    c = [x["services"] for x in b]
+    assert ["open_ports", "closed_ports", "check_hd", "check_meow"] in c
+
+
 
 
 def test_read_service(setup):
