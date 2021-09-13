@@ -2,6 +2,98 @@
   <b-container>
     <b-row>
       <b-col>
+        <div class="overflow-hidden">
+          <h2 v-if="!isTesting" class="float-left">Deploy</h2>
+          <h2 class="float-left text-success" v-else>TESTING</h2>
+          <div class="float-right mt-1">
+            <b-button
+              variant="success"
+              v-if="!isTesting"
+              @click="
+                () => {
+                  isTesting = !isTesting;
+                  selected_host = sample_ip;
+                }
+              "
+              >Enter Test Mode</b-button
+            >
+            <b-button variant="primary" v-else @click="isTesting = !isTesting"
+              >Enter Production Mode</b-button
+            >
+          </div>
+        </div>
+        <div class="mb-4 mt-2" v-if="!isTesting">
+          Host:
+          <b-select
+            v-model="selected_host"
+            :options="hosts"
+            :enabled="isTesting"
+          />
+        </div>
+        <div v-else class="mb-4 mt-2">
+          Host: <br /><b>sampleclient - ({{ sample_ip }})</b> <br />Backend ip
+          is {{ ip }}
+        </div>
+        <h5 class="mt-2">Ansible playbook</h5>
+        <b-row>
+          <b-col cols="10">
+            <b-select
+              class="mt-2 mb-2"
+              v-if="files_list['ansible'] != undefined"
+              :options="files_list['ansible']"
+              v-model="selected_playbook"
+            />
+          </b-col>
+          <b-col cols="2" class="pt-2">
+            <b-button class="float-right">
+              <font-awesome-icon icon="plus" />
+            </b-button>
+          </b-col>
+        </b-row>
+        <b-textarea
+          v-model="playbook_contents"
+          v-if="loadings.playbook == undefined || loadings.playbook == 0"
+        />
+        <div v-else class="mt-2 text-center">
+          <b-spinner class="ml-auto mr-auto mt-4" />
+        </div>
+        <div class="overflow-hidden mt-2">
+          <b-button
+            variant="success"
+            class="mb-2 float-right"
+            @click="savePlaybook()"
+            v-if="
+              loadings.save_playbook == undefined || loadings.save_playbook == 0
+            "
+          >
+            <font-awesome-icon icon="save" size="1x" />
+          </b-button>
+          <div class="mb-2 mt-2 float-right" v-else>
+            <b-spinner />
+          </div>
+        </div>
+
+        <div>
+          Vault Password:
+          <b-input type="password" v-model="vault_password" />
+        </div>
+        <hr />
+
+        <b-button v-if="isTesting" variant="success" @click="runPlaybook()"
+          >Deploy to sampleclient</b-button
+        >
+        <b-button v-else variant="primary" @click="runPlaybook()"
+          >Deploy to hosts</b-button
+        >
+        <br />
+        <div
+          class="playbook_result"
+          v-html="$sanitize(playbook_result)"
+          v-if="playbook_result && playbook_loaded"
+        ></div>
+        <b-spinner class="m-2" v-if="!playbook_loaded" />
+      </b-col>
+      <b-col>
         <h4>Deployment Files</h4>
         These must be encrypted vault files. Select the ones you need (for
         example, you might be deploying without SSH keys)
@@ -15,6 +107,7 @@
               v-model="selected['ssh']"
               :options="files_list['ssh']"
             />
+            <b-spinner v-else class="m-2" />
           </b-col>
           <b-col>
             <b-form-file
@@ -47,6 +140,7 @@
               :options="files_list['become']"
               v-model="selected['become']"
             />
+            <b-spinner v-else class="m-2" />
           </b-col>
           <b-col>
             <b-form-file
@@ -92,6 +186,7 @@
               :options="files_list['other']"
               v-model="selected['other']"
             />
+            <b-spinner v-else class="m-2" />
           </b-col>
           <b-col>
             <b-form-file
@@ -125,89 +220,6 @@
 
           [Edit file]
         </div>
-      </b-col>
-      <b-col>
-        <div class="overflow-hidden">
-          <h2 v-if="!isTesting" class="float-left">Deploy</h2>
-          <h2 class="float-left text-success" v-else>TESTING</h2>
-          <div class="float-right mt-1">
-            <b-button
-              variant="success"
-              v-if="!isTesting"
-              @click="
-                () => {
-                  isTesting = !isTesting;
-                  selected_host = sample_ip;
-                }
-              "
-              >Enter Test Mode</b-button
-            >
-            <b-button variant="primary" v-else @click="isTesting = !isTesting"
-              >Enter Production Mode</b-button
-            >
-          </div>
-        </div>
-        <div class="mb-4 mt-2" v-if="!isTesting">
-          Host:
-          <b-select
-            v-model="selected_host"
-            :options="hosts"
-            :enabled="isTesting"
-          />
-        </div>
-        <div v-else class="mb-4 mt-2">
-          Host: <br /><b>sampleclient - ({{ sample_ip }})</b> <br />Backend ip
-          is {{ ip }}
-        </div>
-        <h5 class="mt-2">Ansible playbook</h5>
-        <b-select
-          class="mt-2 mb-2"
-          v-if="files_list['ansible'] != undefined"
-          :options="files_list['ansible']"
-          v-model="selected_playbook"
-        />
-        <b-textarea
-          v-model="playbook_contents"
-          v-if="loadings.playbook == undefined || loadings.playbook == 0"
-        />
-        <div v-else class="mt-2 text-center">
-          <b-spinner class="ml-auto mr-auto mt-4" />
-        </div>
-        <div class="overflow-hidden mt-2">
-          <b-button
-            variant="success"
-            class="mb-2 float-right"
-            @click="savePlaybook()"
-            v-if="
-              loadings.save_playbook == undefined || loadings.save_playbook == 0
-            "
-          >
-            <font-awesome-icon icon="save" size="1x" />
-          </b-button>
-          <div class="mb-2 mt-2 float-right" v-else>
-            <b-spinner />
-          </div>
-        </div>
-
-        <div>
-          Vault Password:
-          <b-input type="password" v-model="vault_password" />
-        </div>
-        <hr />
-
-        <b-button v-if="isTesting" variant="success" @click="runPlaybook()"
-          >Deploy to sampleclient</b-button
-        >
-        <b-button v-else variant="primary" @click="runPlaybook()"
-          >Deploy to hosts</b-button
-        >
-        <br />
-        <div
-          class="playbook_result"
-          v-html="$sanitize(playbook_result)"
-          v-if="playbook_result && playbook_loaded"
-        ></div>
-        <b-spinner class="m-2" v-if="!playbook_loaded" />
       </b-col>
     </b-row>
   </b-container>
