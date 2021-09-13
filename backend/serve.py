@@ -823,7 +823,7 @@ def save_ansible_file(fname, inp_data=""):
 # Ansible runner
 @app.route("/ansible_runner/", methods=["POST"])
 @requires_auth_admin
-def run_ansible(inp_data=""):
+def run_ansible(inp_data=""): # pragma: no cover
     if inp_data != "":
         data = inp_data
     elif request.method == "POST":  # pragma: no cover
