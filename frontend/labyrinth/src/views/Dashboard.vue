@@ -222,7 +222,8 @@ export default {
         return "text-right subnet " + subnet.color + "";
       }
     },
-    findTop: function () {
+    // NOTE: I'm not sure how to test this function, since it relies on external DOM
+    findTop: /* istanbul ignore next */function () {
       try {
         for (var i = 0; i < this.connector_count; i++) {
           var height = this.$refs["start_" + i][0].$el.offsetHeight;
