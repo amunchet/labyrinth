@@ -655,6 +655,7 @@ def test_list_dashboard(setup):
                             "ip": "192.168.10.176",
                             "subnet": "192.168.10",
                             "mac": "00-00-00-00-01",
+                            "monitor" : "false",
                             "group": "Windows Servers",
                             "host": "test",
                             "icon": "linux",
