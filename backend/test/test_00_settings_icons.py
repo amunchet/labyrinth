@@ -6,6 +6,7 @@ Tests for settings
     - Possibly ignore alerts, unsure.
 """
 import json
+import os
 
 import pytest
 import serve
@@ -62,6 +63,15 @@ def test_list_icons(setup):
     """
     Lists icons
     """
+    a = unwrap(serve.list_icons)()
+    assert a[1] == 200
+
+    b = json.loads(a[0])
+
+    assert "Camera" in b
+    assert "Cloud" in b
+    assert "NAS" in b
+    assert "Default" in b
 
 def test_delete_icon(setup):
     """
@@ -69,5 +79,15 @@ def test_delete_icon(setup):
     """
 
     # Creates a temporary icon
-
+    temp_file = "/public/icons/test.svg"
+    if not os.path.exists(temp_file):
+        with open(temp_file, "w") as f:
+            f.write("test")
+    
+    assert os.path.exists(temp_file)
     # Deletes it
+
+    a = unwrap(serve.delete_icon)("test")
+    assert a[1] == 200
+
+    assert not os.path.exists(temp_file)

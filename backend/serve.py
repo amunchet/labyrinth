@@ -755,6 +755,14 @@ def delete_setting(setting):
 @requires_auth_admin
 def list_icons():
     """Lists Icons"""
+    def check_extension(fname):
+        extensions = [".svg", ".png", ".bmp", ".jpg", ".jpeg"]
+        for ext in extensions:
+            if ext in fname:
+                return True
+        return False
+
+    return json.dumps([x.replace(".svg", "") for x in os.listdir("/public/icons") if check_extension(x)], default=str), 200
 
 @app.route("/icon/<name>", methods=["DELETE"])
 @requires_auth_admin
