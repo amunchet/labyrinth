@@ -1026,7 +1026,7 @@ def read_metrics(host):
     or_clause = [{"tags.host": host}, {"tags.ip": host}, {"tags.mac": host}]
     return (
         json.dumps(
-            [x for x in mongo_client["labyrinth"]["metrics"].find({"$or": or_clause})],
+            [x for x in mongo_client["labyrinth"]["metrics"].find({"$or": or_clause}).sort([("metrics.timestamp", pymongo.DESCENDING)])][-10:],
             default=str,
         ),
         200,
