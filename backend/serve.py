@@ -1010,7 +1010,7 @@ def last_metrics(count):
                 for x in mongo_client["labyrinth"]["metrics"]
                 .find({})
                 .sort([("metrics.timestamp", pymongo.ASCENDING)])
-            ],
+            ][:count],
             default=str,
         ),
         200,
