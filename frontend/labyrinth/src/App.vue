@@ -31,8 +31,8 @@
             <b-navbar-nav
               v-if="$auth.profile != null && $auth.profile != undefined"
             >
-              <b-nav-item href="/settings">
-                <router-link to="/settings">Scan</router-link>
+              <b-nav-item href="/scan">
+                <router-link to="/scan">Scan</router-link>
               </b-nav-item>
               <b-nav-item href="/services">
                 <router-link to="/services">Metrics</router-link>
@@ -57,14 +57,21 @@
                 </b-avatar>
                 <b-avatar size="2rem" v-else></b-avatar>
               </template>
+              <b-dropdown-item href="settings" v-if="$auth.profile != null">
+                <font-awesome-icon class="mr-2" icon="cog" size="1x" />Settings
+              </b-dropdown-item>
+              <b-dropdown-item disabled v-if="$auth.profile != null">
+                <hr />
+              </b-dropdown-item>
               <b-dropdown-item
                 href="#"
                 @click="$auth.login()"
                 v-if="$auth.profile == null"
                 >Sign In</b-dropdown-item
               >
-              <b-dropdown-item v-else href="#" @click="$auth.logOut()"
-                >Sign Out</b-dropdown-item
+              <b-dropdown-item v-else href="#" @click="$auth.logOut()">
+                <font-awesome-icon icon="sign-out-alt" size="1x" class="mr-1" />
+                Sign Out</b-dropdown-item
               >
             </b-nav-item-dropdown>
           </b-navbar-nav>
