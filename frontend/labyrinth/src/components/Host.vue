@@ -14,13 +14,14 @@
       <div v-else-if="host != ''" class="title">{{ host }}</div>
       <div class="title" v-else>-</div>
       <div class="pt-1" style="height: 50px">
-        <component
+        <img
           v-if="
             icons.indexOf(icon.charAt(0).toUpperCase() + icon.slice(1)) != -1
           "
-          :is="myComponent[icon.charAt(0).toUpperCase() + icon.slice(1)]"
+          :src="'/icons/' + myComponent[icon.charAt(0).toUpperCase() + icon.slice(1)]"
         />
-        <component v-else :is="myComponent['Default']" />
+        <img v-else :src="'/icons/' + myComponent['Default']" />
+
       </div>
     </div>
     <div class="bottom" v-if="show_ports != 0">
@@ -170,14 +171,7 @@ export default {
   created() {
     for (var i = 0; i < this.icons.length; i++) {
       let componentName = this.icons[i];
-      // Vue 3 code
-      /*
-      this.myComponent[this.icons[i]] = defineAsyncComponent(() =>
-        import("../components/icons/" + componentName + ".vue")
-      );
-      */
-      this.myComponent[this.icons[i]] = () =>
-        import("../components/icons/" + componentName + ".vue");
+      this.myComponent[this.icons[i]] = componentName + ".svg"
     }
   },
 };
