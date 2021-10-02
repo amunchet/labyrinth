@@ -6,7 +6,7 @@
     <CreateEditHost :inp_host="selected_host" @update="loadData()" />
     <HostMetric @update="loadData()" :data="selected_metric" />
 
-    <GroupModal :selected_group="selected_group" />
+    <GroupModal :selected_group="selected_group" :selected_subnet="selected_subnet" @updated="loadData()"/>
 
     <!-- Main page -->
     <div v-if="!loading">
@@ -93,6 +93,7 @@
                     @click="
                       () => {
                         selected_group = group.name;
+                        selected_subnet = subnet;
                         $bvModal.show('group_edit');
                       }
                     "

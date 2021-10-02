@@ -345,7 +345,7 @@ def group_monitor(subnet,name, status):
     """
 
     mongo_client["labyrinth"]["hosts"].update_many({"subnet" : subnet, "group" : name}, {"$set" : {"monitor" : str(status).lower() == "true"}})
-    return "Success", 200
+    return "Updated Monitoring to " + str(str(status).lower() == "true"), 200
 
 @app.route("/group/name/<subnet>/<name>/<new_name>")
 @requires_auth_write
@@ -748,6 +748,9 @@ def delete_setting(setting):
         mongo_client["labyrinth"]["settings"].delete_one({"name": setting})
 
     return "Success", 200
+
+
+# Icons
 
 
 # Utilities
