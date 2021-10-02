@@ -30,7 +30,12 @@
       <b-row>
         <b-col> Monitor </b-col>
         <b-col>
-          <b-form-checkbox size="lg" v-model="host.monitor" name="check-button" switch>
+          <b-form-checkbox
+            size="lg"
+            v-model="host.monitor"
+            name="check-button"
+            switch
+          >
           </b-form-checkbox>
         </b-col>
       </b-row>
