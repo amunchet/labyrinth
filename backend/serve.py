@@ -751,6 +751,24 @@ def delete_setting(setting):
 
 
 # Icons
+@app.route("/icons/")
+@requires_auth_admin
+def list_icons():
+    """Lists Icons"""
+
+@app.route("/icon/<name>", methods=["DELETE"])
+@requires_auth_admin
+def delete_icon(name):
+    """
+    Deletes an icon
+    """
+
+@app.route("/icon/<name>", methods=["POST"])
+@requires_auth_admin
+def create_icon(): # pragma: no cover
+    """
+    Creates an icon
+    """
 
 
 # Utilities

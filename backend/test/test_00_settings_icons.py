@@ -55,3 +55,19 @@ def test_delete_setting(setup):
 
     b = unwrap(serve.get_setting)("test")
     assert b[1] == 481
+
+# Icons
+
+def test_list_icons(setup):
+    """
+    Lists icons
+    """
+
+def test_delete_icon(setup):
+    """
+    Removes an icon
+    """
+
+    # Creates a temporary icon
+
+    # Deletes it
