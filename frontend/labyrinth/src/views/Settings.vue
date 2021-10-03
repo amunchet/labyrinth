@@ -76,6 +76,7 @@ export default {
   margin: 1rem;
   padding: 1rem;
   text-align: center;
+  border-radius: 0.5rem;
 }
 .box_text {
   margin-top: 0.5rem;
