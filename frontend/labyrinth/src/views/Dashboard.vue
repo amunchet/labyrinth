@@ -6,7 +6,11 @@
     <CreateEditHost :inp_host="selected_host" @update="loadData()" />
     <HostMetric @update="loadData()" :data="selected_metric" />
 
-    <GroupModal :selected_group="selected_group" :selected_subnet="selected_subnet" @updated="loadData()"/>
+    <GroupModal
+      :selected_group="selected_group"
+      :selected_subnet="selected_subnet"
+      @updated="loadData()"
+    />
 
     <!-- Main page -->
     <div v-if="!loading">
@@ -152,7 +156,7 @@ import Host from "@/components/Host";
 import CreateEditSubnet from "@/components/CreateEditSubnet";
 import CreateEditHost from "@/components/CreateEditHost";
 import HostMetric from "@/components/HostMetric";
-import GroupModal from '@/components/GroupModal.vue';
+import GroupModal from "@/components/GroupModal.vue";
 export default {
   data() {
     return {
@@ -177,7 +181,7 @@ export default {
     CreateEditSubnet,
     CreateEditHost,
     HostMetric,
-    GroupModal
+    GroupModal,
   },
   methods: {
     onDrop: function (name) {
@@ -202,6 +206,27 @@ export default {
       Helper.apiCall("dashboard", "", auth)
         .then((res) => {
           this.full_data = res;
+
+          for(var i=0; i<this.full_data.length; i++){
+            var temp = this.full_data[i]
+            temp.groups.sort((prev, next)=>{
+              if(prev.name == ""){
+                return 1
+              }
+              if(next.name == ""){
+                return -1
+              }
+
+              if(prev.starred){
+                return -1;
+              }
+              if(next.starred){
+                return 1
+              }
+              return prev.name > next.name
+            })
+          }
+
           this.loading = false;
           this.findTop();
         })
@@ -224,7 +249,7 @@ export default {
       }
     },
     // NOTE: I'm not sure how to test this function, since it relies on external DOM
-    findTop: /* istanbul ignore next */function () {
+    findTop: /* istanbul ignore next */ function () {
       try {
         for (var i = 0; i < this.connector_count; i++) {
           var height = this.$refs["start_" + i][0].$el.offsetHeight;
