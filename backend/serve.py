@@ -371,7 +371,7 @@ def group_icon(subnet, name, new_icon):
 @requires_auth_write
 def group_add_service(subnet, name, new_service):
     """
-    TODO: Add Service to all members (check if already have it)
+    Add Service to all members (check if already have it)
     """
     a = mongo_client["labyrinth"]["hosts"].find({"subnet" : subnet, "group" : name})
     for x in [x for x in a]:
@@ -379,6 +379,21 @@ def group_add_service(subnet, name, new_service):
             temp = x["services"] + [new_service]
             mongo_client["labyrinth"]["hosts"].update_one({"subnet" : subnet, "group" : name, "ip" : x["ip"]}, {"$set" : {"services" : temp}})
     return "Success", 200
+
+@app.route("/group/delete_service/<subnet>/<name>/<new_service>")
+@requires_auth_write
+def group_delete_service(subnet, name, new_service):
+    """
+    Deletes Service to all members (check if already have it)
+    """
+    a = mongo_client["labyrinth"]["hosts"].find({"subnet" : subnet, "group" : name})
+    for x in [x for x in a]:
+        if new_service in x["services"]:
+            temp = [y for y in x["services"] if y != new_service]
+            mongo_client["labyrinth"]["hosts"].update_one({"subnet" : subnet, "group" : name, "ip" : x["ip"]}, {"$set" : {"services" : temp}})
+    return "Success", 200
+
+
 
 # Services
 

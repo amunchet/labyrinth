@@ -374,6 +374,12 @@ def test_group_add_service(setup):
     c = [x["services"] for x in b]
     assert ["open_ports", "closed_ports", "check_hd", "check_meow"] in c
 
+    z = unwrap(serve.group_delete_service)("192.168.10", "Windows Servers", "check_meow")
+    assert z[1] == 200
+    
+    b= serve.mongo_client["labyrinth"]["hosts"].find({})
+    c = [x["services"] for x in b]
+    assert ["open_ports", "closed_ports", "check_hd"] in c
 
 
 
