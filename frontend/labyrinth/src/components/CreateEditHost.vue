@@ -39,7 +39,7 @@
         ><b-col>Subnet</b-col><b-col><b-input v-model="host.subnet" /></b-col
       ></b-row>
       <b-row
-        ><b-col>Icon</b-col><b-col><b-input v-model="host.icon" /></b-col
+        ><b-col>Icon</b-col><b-col><b-select :options="icons" v-model="host.icon" /></b-col
       ></b-row>
       <b-row
         ><b-col>Class</b-col><b-col><b-input v-model="host.class" /></b-col
@@ -280,6 +280,7 @@ export default {
       isNew: true,
       host: "",
       metrics: [],
+      
       safe_host: {
         ip: "",
         subnet: "",
@@ -295,6 +296,7 @@ export default {
       show_add_service: false,
 
       services: [],
+      icons: [],
     };
   },
   watch: {
@@ -311,6 +313,21 @@ export default {
     },
   },
   methods: {
+    listIcons: /* istanbul ignore next */ function () {
+      var auth = this.$auth;
+      Helper.apiCall("icons", "", auth)
+        .then((res) => {
+          this.icons = res.map((x) => {
+            return {
+              text: x,
+              value: x.toLowerCase(),
+            };
+          });
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
+    },
     loadServices: /* istanbul ignore next */ function () {
       var auth = this.$auth;
       Helper.apiCall("services", "all", auth)
@@ -387,6 +404,7 @@ export default {
   mounted: /* istanbul ignore next */ function () {
     try {
       this.loadServices();
+      this.listIcons()
     } catch (e) {
       this.$store.commit("updateError", e);
     }
