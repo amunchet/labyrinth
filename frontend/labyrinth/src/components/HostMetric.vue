@@ -1,21 +1,58 @@
 <template>
   <b-modal id="service_detail" title="Service Detail" size="xl">
+    <line-chart height="100px" :chart-data="datacollection"></line-chart>
+    <button @click="fillData()">Randomize</button>
+
     <b-table :items="result" v-if="!loading"/>
     <b-spinner v-else  />
   </b-modal>
 </template>
+
 <script>
+  import LineChart from './charts/BarChart'
+
 import Helper from '@/helper'
-export default {
+
+  export default {
+
   name: "HostMetric",
   props: ["data"],
-  data(){
-    return{
+    components: {
+      LineChart
+    },
+    data () {
+      return {
+        datacollection: null,
+
       result: [],
       loading: false,
-    }
-  },
-  watch: {
+      }
+    },
+    mounted () {
+      this.fillData()
+    },
+    methods: {
+      fillData () {
+        this.datacollection = {
+          labels: [this.getRandomInt(), this.getRandomInt()],
+          datasets: [
+            {
+              label: 'Data One',
+              backgroundColor: '#f87979',
+              data: [this.getRandomInt(), this.getRandomInt()]
+            }, {
+              label: 'Data One',
+              backgroundColor: '#f87979',
+              data: [this.getRandomInt(), this.getRandomInt()]
+            }
+          ]
+        }
+      },
+      getRandomInt () {
+        return Math.floor(Math.random() * (50 - 5 + 1)) + 5
+      }
+    },
+watch: {
     data: /* istanbul ignore next */ function(inp){
       if(inp != "" && inp != undefined && inp){
         var auth = this.$auth
@@ -30,5 +67,13 @@ export default {
       }
     }
   },
-};
+
+  }
 </script>
+
+<style>
+  .small {
+    max-width: 600px;
+    margin:  150px auto;
+  }
+</style>

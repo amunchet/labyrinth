@@ -18,6 +18,7 @@
     "axios": "^0.21.4",
     "bootstrap": "^4.6.0",
     "bootstrap-vue": "^2.17.3",
+    "chart.js": "^2.9.4",
     "core-js": "^3.17.3",
     "mutationobserver-shim": "^0.3.7",
     "popper.js": "^1.16.1",
@@ -25,6 +26,7 @@
     "register-service-worker": "^1.7.1",
     "sanitize-html": "^2.5.0",
     "vue": "^2.6.11",
+    "vue-chartjs": "^3.5.1",
     "vue-router": "^3.2.0",
     "vuex": "^3.4.0"
   },
