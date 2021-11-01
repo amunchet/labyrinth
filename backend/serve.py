@@ -1062,17 +1062,21 @@ def last_metrics(count):
 
 
 @app.route("/metrics/<host>")
+@app.route("/metrics/<host>/<service>")
+@app.route("/metrics/<host>/<service>/<int:count>")
 @requires_auth_read
-def read_metrics(host):
+def read_metrics(host, service="", count=10):
     """
     Returns the latest metrics for a given host
     """
-    or_clause = [{"tags.host": host}, {"tags.ip": host}, {"tags.mac": host}]
+    or_clause = {"$or" : [{"tags.host": host}, {"tags.ip": host}, {"tags.mac": host}]}
+    if service != "":
+      or_clause["name"] = service
+    
+    retval = [x for x in mongo_client["labyrinth"]["metrics"].find(or_clause).sort([("metrics.timestamp", pymongo.DESCENDING)])]
+
     return (
-        json.dumps(
-            [x for x in mongo_client["labyrinth"]["metrics"].find({"$or": or_clause}).sort([("metrics.timestamp", pymongo.DESCENDING)])][-10:],
-            default=str,
-        ),
+        json.dumps(retval[-1 * count:],default=str),
         200,
     )
 

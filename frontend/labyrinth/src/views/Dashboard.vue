@@ -134,6 +134,7 @@
                     @service="
                       (val) => {
                         selected_metric = val;
+                        selected_metric['ip'] = host.ip
                         $forceUpdate();
                       }
                     "
