@@ -199,12 +199,12 @@ export default {
           this.$store.commit("updateError", e);
         });
     },
-    loadData: /* istanbul ignore next */ function (showLoading) {
+    loadData: /* istanbul ignore next */ async function (showLoading) {
       var auth = this.$auth;
       if (showLoading) {
         this.loading = true;
       }
-      Helper.apiCall("dashboard", "", auth)
+      await Helper.apiCall("dashboard", "", auth)
         .then((res) => {
           this.full_data = res;
 
@@ -227,11 +227,12 @@ export default {
               return prev.name > next.name
             })
           }
-
+          setTimeout(()=>{this.loadData(false)}, 2000)
           this.loading = false;
           this.findTop();
         })
         .catch((e) => {
+          setTimeout(()=>{this.loadData(false)}, 2000)
           this.$store.commit("updateError", e);
         });
     },
