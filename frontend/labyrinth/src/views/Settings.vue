@@ -21,11 +21,25 @@
             </div>
             </div>
         </div>
+        <hr />
+
+        <h3>Colors/Themes</h3>
+        TODO: Coming Soon
       </b-col>
 
       <b-col class="sub">
-        <h3>Colors/Themes</h3>
-        TODO: Coming Soon
+        <h3>Telegraf</h3>
+        <b-container class="mt-3">
+          <b-row>
+            <b-col>Default Template file: </b-col>
+            <b-col><b-select /></b-col>
+            <b-col cols="2">
+              <b-button variant="primary">
+                <font-awesome-icon icon="sync-alt" size="1x" />
+              </b-button>
+            </b-col>
+          </b-row>
+        </b-container>
       </b-col>
     </b-row>
   </div>

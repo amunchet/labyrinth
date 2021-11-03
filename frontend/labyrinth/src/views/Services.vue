@@ -50,24 +50,21 @@
     </b-modal>
 
     <b-row>
-      <b-col cols="7">
-        <h4>Available Telegraf Services</h4>
+      <b-col cols="6" class="border-right">
+        <h4 class="text-left">Available Telegraf Services</h4>
 
         <b-row>
-          <b-col cols="0">
-            <b-button variant="primary" @click="putStructure()">
-              <font-awesome-icon icon="sync-alt" size="1x" />
-            </b-button>
-          </b-col>
-          <b-col>
-            <b-select />
-          </b-col>
           <b-col>
             <b-form-input
               placeholder="Search (press tab to filter)"
               v-model="temp_filter"
               @blur="service_filter = temp_filter"
             ></b-form-input>
+          </b-col>
+          <b-col cols="5"> 
+            <b-button variant="primary" @click="putStructure()" class="float-right">
+              Save Schema Changes
+            </b-button>
           </b-col>
         </b-row>
         <hr />
@@ -88,7 +85,7 @@
       </b-col>
       <b-col class="ml-1">
         <b-row>
-          <b-col class="text-left"><h4>Created Configuration File</h4></b-col>
+          <b-col class="text-left"><h4>Configuration File</h4></b-col>
           <b-col>
             <b-select v-model="selected_host" :options="hosts" />
           </b-col>
