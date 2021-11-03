@@ -1071,9 +1071,24 @@ def read_metrics(host, service="", count=10):
     """
     or_clause = {"$or" : [{"tags.host": host}, {"tags.ip": host}, {"tags.mac": host}]}
     if service != "":
-      or_clause["name"] = service
+        or_clause["name"] = service
     
+    found_host = mongo_client["labyrinth"]["hosts"].find_one({"$or" : [{"mac" : host}, {"ip" : host}]})
+
     retval = [x for x in mongo_client["labyrinth"]["metrics"].find(or_clause).sort([("metrics.timestamp", pymongo.DESCENDING)])]
+
+    if service.strip() == "open_ports" or service.strip() == "closed_ports":
+        for item in retval:
+            item["judgement"] = mc.judge_port(item, service, found_host, stale_time=10000)
+    else:
+        found_service = mongo_client["labyrinth"]["services"].find_one({"name" : service})
+        for item in retval:
+            if item is None or found_service is None:
+                item["judgement"] = False
+            else:
+                item["judgement"] = mc.judge(item, found_service)
+
+
 
     return (
         json.dumps(retval[-1 * count:],default=str),

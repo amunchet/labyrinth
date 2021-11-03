@@ -1,79 +1,83 @@
 <template>
-  <b-modal id="service_detail" title="Service Detail" size="xl">
-    <line-chart height="100px" :chart-data="datacollection"></line-chart>
-    <button @click="fillData()">Randomize</button>
+  <b-modal id="service_detail" title="Service Details" size="xl">
+    <line-chart v-if="display" height="100px" :chart-data="datacollection"></line-chart>
 
-    <b-table :items="result" v-if="!loading"/>
-    <b-spinner v-else  />
+    <b-table :items="result" v-if="!loading" :fields="['name', 'tags', 'fields', 'timestamp', 'judgement']">
+      <template v-slot:cell(timestamp)="row">
+        {{formatDate(row.item.timestamp * 1000)}} {{formatDate(row.item.timestamp * 1000, true)}}
+      </template>
+    </b-table>
+    <b-spinner v-else />
   </b-modal>
 </template>
 
 <script>
-  import LineChart from './charts/BarChart'
+import LineChart from "./charts/BarChart";
 
-import Helper from '@/helper'
+import Helper from "@/helper";
 
-  export default {
-
+export default {
   name: "HostMetric",
   props: ["data"],
-    components: {
-      LineChart
-    },
-    data () {
-      return {
-        datacollection: null,
-
+  components: {
+    LineChart,
+  },
+  data() {
+    return {
+      datacollection: null,
+      display: false,
       result: [],
       loading: false,
-      }
-    },
-    mounted () {
-      this.fillData()
-    },
-    methods: {
-      fillData () {
-        this.datacollection = {
-          labels: [this.getRandomInt(), this.getRandomInt()],
-          datasets: [
-            {
-              label: 'Data One',
-              backgroundColor: '#f87979',
-              data: [this.getRandomInt(), this.getRandomInt()]
-            }, {
-              label: 'Data One',
-              backgroundColor: '#f87979',
-              data: [this.getRandomInt(), this.getRandomInt()]
-            }
-          ]
-        }
-      },
-      getRandomInt () {
-        return Math.floor(Math.random() * (50 - 5 + 1)) + 5
-      }
-    },
-watch: {
-    data: /* istanbul ignore next */ function(inp){
-      if(inp != "" && inp != undefined && inp){
-        var auth = this.$auth
-        this.loading = true
-        Helper.apiCall("metrics", this.data.ip + "/" + this.data.name, auth).then(res=>{
-          this.result = res
-          this.loading = false
-        }).catch(e=>{
-          this.$store.commit('updateError', e)
-          this.loading = false
-        })
-      }
-    }
+    };
   },
-
-  }
+  mounted() {},
+  methods: {
+    formatDate: Helper.formatDate
+  },
+  watch: {
+    data: /* istanbul ignore next */ async function (inp) {
+      if (inp != "" && inp != undefined && inp) {
+        var auth = this.$auth;
+        this.loading = true;
+        this.display = false
+        await Helper.apiCall(
+          "metrics",
+          this.data.ip + "/" + this.data.name,
+          auth
+        )
+          .then((res) => {
+            this.result = res;
+            this.loading = false;
+            this.datacollection = {
+              labels: this.result.map((x) => this.formatDate(x["timestamp"] * 1000, true)),
+              datasets: [
+                {
+                  label: "Success",
+                  backgroundColor: "green",
+                  data: this.result.map((x) => x["judgement"] * 1),
+                },
+                {
+                  label: "Failure",
+                  backgroundColor: "red",
+                  data: this.result.map(x=>(x["judgement"] == false) * 1)
+                }
+              ],
+            };
+            this.display = true;
+          })
+          .catch((e) => {
+            this.$store.commit("updateError", e);
+            this.loading = false;
+          });
+      }
+    },
+  },
+};
 </script>
 
 <style>
-  .small {
-    max-width: 600px;
-    margin:  150px auto;
-  }
+.small {
+  max-width: 600px;
+  margin: 150px auto;
+}
 </style>
