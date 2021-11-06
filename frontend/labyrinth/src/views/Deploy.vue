@@ -341,7 +341,7 @@ export default {
       formData.append("data", this.playbook_contents);
       Helper.apiPost(
         "save_ansible_file/",
-        this.selected_playbook,
+        this.selected_playbook.replace(".yml", ""),
         "",
         auth,
         formData
