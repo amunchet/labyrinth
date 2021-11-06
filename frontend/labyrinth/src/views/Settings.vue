@@ -39,7 +39,19 @@
               </b-button>
             </b-col>
           </b-row>
+          <b-row class="mt-3">
+            <b-col>Default Backend server location</b-col>
+            <b-col>
+              <b-input v-model="default_backend" placeholder="Default Telegraf Server Backend (e.g. backend)"/>
+            </b-col>
+            <b-col cols="2">
+              <b-button variant="success" @click="saveDefaultBackend()">
+                <font-awesome-icon icon="save" size='1x' />
+              </b-button>
+            </b-col>
+          </b-row>
         </b-container>
+        
       </b-col>
     </b-row>
   </div>
@@ -51,6 +63,7 @@ export default {
   data() {
     return {
       icons: [],
+      default_backend: "",
     };
   },
   methods: {
@@ -64,11 +77,33 @@ export default {
           this.$store.commit("updateError", e);
         });
     },
+    loadDefaultBackend: /* istanbul ignore next */ function(){
+      var auth = this.$auth
+      Helper.apiCall("settings", "default_telegraf_backend", auth).then(res=>{
+        this.default_backend = res
+      }).catch(e=>{
+        this.$store.commit("updateError", e)
+      })
+    },
+    saveDefaultBackend: /* istanbul ignore next */ function(){
+      var auth = this.$auth
+      var formData = new FormData()
+      formData.append("name", "default_telegraf_backend")
+      formData.append("value", this.default_backend)
+
+      Helper.apiPost("settings", "", "", auth, formData).then(res=>{
+        this.$store.commit("updateError", res)
+        this.loadDefaultBackend()
+      }).catch(e=>{
+        this.$store.commit("updateError", e)
+      })
+    },
     deleteIcon: /* istanbul ignore next */ function (){
       alert("TODO: Delete icon")
     },
   },
   mounted: function () {
+    this.loadDefaultBackend()
     this.loadIcons();
   },
 };

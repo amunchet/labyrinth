@@ -733,6 +733,7 @@ def get_setting(setting=""):
 
 
 @app.route("/settings", methods=["POST"])
+@app.route("/settings/", methods=["POST"])
 @requires_auth_admin
 def save_setting(name="", value=""):
     if name != "" and value != "":
@@ -744,7 +745,7 @@ def save_setting(name="", value=""):
         return "Invalid", 497
 
     if mongo_client["labyrinth"]["settings"].find_one({"name": parsed_name}):
-        mongo_client.delete_one({"name": parsed_name})
+        mongo_client["labyrinth"]["settings"].delete_one({"name": parsed_name})
 
     mongo_client["labyrinth"]["settings"].insert_one(
         {"name": parsed_name, "value": parsed_value}
