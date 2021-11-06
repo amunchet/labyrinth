@@ -63,8 +63,12 @@
               @blur="service_filter = temp_filter"
             ></b-form-input>
           </b-col>
-          <b-col cols="5"> 
-            <b-button variant="primary" @click="putStructure()" class="float-right">
+          <b-col cols="5">
+            <b-button
+              variant="primary"
+              @click="putStructure()"
+              class="float-right"
+            >
               Save Schema Changes
             </b-button>
           </b-col>
@@ -92,17 +96,14 @@
             <b-select v-model="selected_host" :options="hosts" />
           </b-col>
           <b-col cols="1"
-            ><b-button 
-                v-if="!saving_conf"
-            variant="success" class="float-right">
-              <font-awesome-icon
-                icon="save"
-                size="1x"
-                @click="saveConf()"
-              /> 
-              </b-button
-          >
-          <b-spinner v-else />
+            ><b-button
+              v-if="!saving_conf"
+              variant="success"
+              class="float-right"
+            >
+              <font-awesome-icon icon="save" size="1x" @click="saveConf()" />
+            </b-button>
+            <b-spinner v-else />
           </b-col> </b-row
         ><b-row class="mt-1">
           <b-col
@@ -123,16 +124,19 @@
           <b-button
             class="float-right m-0 p-0 shadow-none"
             variant="link"
-            @click="()=>{
-              output_data = {}
-              }"
+            @click="
+              () => {
+                output_data = {};
+                this.loadSuggestedFields()
+              }
+            "
             >Clear All</b-button
           >
         </div>
 
         <hr />
 
-        <div v-if="output_data">
+        <div v-if="output_data && selected_host">
           <ServiceComponent
             v-for="(section, idx) in output_data"
             v-bind:key="idx"
@@ -157,6 +161,9 @@
             "
           />
         </div>
+        <div v-else>
+          Please select a configuration file for a host from the dropdown.
+        </div>
       </b-col>
     </b-row>
   </b-container>
@@ -172,6 +179,8 @@ export default {
   },
   data() {
     return {
+      default_backend: "",
+      telegraf_key: "",
       service_filter: "",
       saving_conf: false,
       output_data: {},
@@ -261,7 +270,27 @@ export default {
       this.$forceUpdate();
     },
 
-    loadSuggestedFields: function () {
+    loadDefaultBackendLocation: async function () {
+      var auth = this.$auth;
+      await Helper.apiCall("settings", "default_telegraf_backend", auth)
+        .then((res) => {
+          this.default_backend = res;
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
+    },
+    loadTelegrafKey: async function () {
+      var auth = this.$auth;
+      await Helper.apiCall("telegraf_key", "", auth)
+        .then((res) => {
+          this.telegraf_key= res;
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
+    },
+    loadSuggestedFields: async function () {
       // Any time we add, force global tags to be host
       // Also add predetermined outputs
 
@@ -269,9 +298,30 @@ export default {
         this.output_data["global_tags"] = {};
       }
 
-      if(this.output_data["outputs"] == undefined){
-        this.output_data["outputs"] = {}
+      if (this.output_data["outputs"] == undefined) {
+        this.output_data["outputs"] = {};
       }
+
+      if(this.default_backend == ""){
+        await this.loadDefaultBackendLocation()
+      }
+      this.output_data["outputs"] = {
+        http: [
+          {
+            url: this.default_backend,
+            timeout: "5s",
+            method: "POST",
+            insecure_skip_verify: true,
+            data_format: "json",
+            content_encoding: "identity",
+            headers: {
+              "Content-Type": "text/plain; charset=utf-8",
+              idle_conn_timeout: "0",
+              Authorization: this.telegraf_key,
+            },
+          },
+        ],
+      };
 
       var found_host = this.raw_hosts.filter(
         (x) => x.ip == this.selected_host
@@ -369,11 +419,11 @@ export default {
       var formData = new FormData();
       formData.append("raw", this.loadedFile);
       formData.append("data", "{}");
-      this.saving_conf = true
+      this.saving_conf = true;
       Helper.apiPost("save_conf", "", this.selected_host, auth, formData)
         .then((res) => {
           this.$store.commit("updateError", res);
-          this.saving_conf = false
+          this.saving_conf = false;
           Helper.apiCall("load_service", this.selected_host, auth)
             .then((res) => {
               this.output_data = res;
@@ -384,7 +434,7 @@ export default {
             });
         })
         .catch((e) => {
-          this.saving_conf = false
+          this.saving_conf = false;
           this.$store.commit("updateError", e);
         });
     },
@@ -392,25 +442,27 @@ export default {
       var auth = this.$auth;
       var formData = new FormData();
       formData.append("data", JSON.stringify(this.output_data));
-      this.saving_conf = true
+      this.saving_conf = true;
       Helper.apiPost("save_conf", "", this.selected_host, auth, formData)
         .then((res) => {
           this.hasBeenSaved = true;
           this.loadFile();
           this.$store.commit("updateError", res);
-          this.saving_conf = false
+          this.saving_conf = false;
         })
         .catch((e) => {
-          this.saving_conf = false
+          this.saving_conf = false;
           this.$store.commit("updateError", e);
         });
     },
   },
-  mounted: /* istanbul ignore next */ function () {
+  mounted: /* istanbul ignore next */ async function () {
     try {
       this.loadStructure();
       this.getAutosave();
       this.listHosts();
+      await this.loadDefaultBackendLocation();
+      await this.loadTelegrafKey()
     } catch (e) {
       this.$store.commit("updateError", e);
     }
