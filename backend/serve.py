@@ -35,7 +35,7 @@ from concurrent.futures import ThreadPoolExecutor
 executor = ThreadPoolExecutor(2)
 
 
-TELEGRAF_KEY = os.environ.get("TELEGRAF_KEY")
+TELEGRAF_KEY = os.environ.get("TELEGRAF_KEY") or "TEST"
 
 
 def _requires_header(f, permission):  # pragma: no cover
@@ -711,6 +711,14 @@ def restart_alertmanager():
 
 
 # Settings
+@app.route("/telegraf_key/")
+@requires_auth_admin
+def telegraf_key(): # pragma: no cover
+    """
+    Returns Telegraf Key
+    """
+    return str(TELEGRAF_KEY), 200
+
 @app.route("/settings")
 @app.route("/settings/<setting>", methods=["GET"])
 @requires_auth_read
