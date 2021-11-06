@@ -74,10 +74,19 @@
 
       <div class="table">
         <div class="host_row">
-          <div class="host_col flexed">
+          <div class="host_col flexed"  >
             <div
-              :class="determineClass(service)"
+              :class="'overflow-hidden ' + determineClass(service)"
+              style="height: 24px;"
               v-for="(service, idx) in services"
+              @mouseover="()=>{
+                service['hover'] = true
+                $forceUpdate()
+                }"
+              @mouseleave="()=>{
+                service['hover'] = false
+                $forceUpdate()
+                }"
               v-bind:key="idx"
               @click="
                 () => {
@@ -86,7 +95,10 @@
                 }
               "
             >
-              &nbsp;&nbsp;&nbsp;
+              <span v-if="service['hover']" class="small_text">
+                {{service.name.replace("_", " ")}}
+              </span>
+              <span v-else>&nbsp;&nbsp;&nbsp;</span>
             </div>
           </div>
         </div>
@@ -177,6 +189,11 @@ export default {
 };
 </script>
 <style scoped>
+.small_text{
+  font-size: 8pt;
+  line-height: 10px !important;
+  color: #65656e;
+}
 .main {
   padding: 10px;
   border-radius: 1rem;
