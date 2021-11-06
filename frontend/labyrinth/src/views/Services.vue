@@ -17,10 +17,12 @@
               <b-button
                 variant="warning"
                 class="mb-2 float-right"
+                v-if="!saving_conf"
                 @click="saveRaw()"
               >
                 <font-awesome-icon icon="save" size="1x" />
               </b-button>
+              <b-spinner class="float-right mb-2" v-else />
             </div>
             <b-textarea v-model="loadedFile" />
           </b-col>
@@ -90,13 +92,18 @@
             <b-select v-model="selected_host" :options="hosts" />
           </b-col>
           <b-col cols="1"
-            ><b-button variant="success" class="float-right">
+            ><b-button 
+                v-if="!saving_conf"
+            variant="success" class="float-right">
               <font-awesome-icon
                 icon="save"
                 size="1x"
-                @click="saveConf"
-              /> </b-button
-          ></b-col> </b-row
+                @click="saveConf()"
+              /> 
+              </b-button
+          >
+          <b-spinner v-else />
+          </b-col> </b-row
         ><b-row class="mt-1">
           <b-col
             ><b-button
@@ -116,7 +123,9 @@
           <b-button
             class="float-right m-0 p-0 shadow-none"
             variant="link"
-            @click="output_data = {}"
+            @click="()=>{
+              output_data = {}
+              }"
             >Clear All</b-button
           >
         </div>
@@ -164,6 +173,7 @@ export default {
   data() {
     return {
       service_filter: "",
+      saving_conf: false,
       output_data: {},
       temp_filter: "",
       data: [],
@@ -192,7 +202,7 @@ export default {
             await Helper.apiCall("load_service", val, auth)
               .then((res) => {
                 this.output_data = res;
-                this.forceGlobalTag();
+                this.loadSuggestedFields();
               })
               .catch((e) => {
                 this.$store.commit("updateError", e);
@@ -202,7 +212,7 @@ export default {
             this.$store.commit("updateError", e);
           });
 
-        this.forceGlobalTag();
+        this.loadSuggestedFields();
       }
     },
   },
@@ -247,15 +257,22 @@ export default {
 
       this.output_data = temp;
 
-      this.forceGlobalTag();
+      this.loadSuggestedFields();
       this.$forceUpdate();
     },
 
-    forceGlobalTag: function () {
+    loadSuggestedFields: function () {
       // Any time we add, force global tags to be host
+      // Also add predetermined outputs
+
       if (this.output_data["global_tags"] == undefined) {
         this.output_data["global_tags"] = {};
       }
+
+      if(this.output_data["outputs"] == undefined){
+        this.output_data["outputs"] = {}
+      }
+
       var found_host = this.raw_hosts.filter(
         (x) => x.ip == this.selected_host
       )[0];
@@ -352,19 +369,22 @@ export default {
       var formData = new FormData();
       formData.append("raw", this.loadedFile);
       formData.append("data", "{}");
+      this.saving_conf = true
       Helper.apiPost("save_conf", "", this.selected_host, auth, formData)
         .then((res) => {
           this.$store.commit("updateError", res);
+          this.saving_conf = false
           Helper.apiCall("load_service", this.selected_host, auth)
             .then((res) => {
               this.output_data = res;
-              this.forceGlobalTag();
+              this.loadSuggestedFields();
             })
             .catch((e) => {
               this.$store.commit("updateError", e);
             });
         })
         .catch((e) => {
+          this.saving_conf = false
           this.$store.commit("updateError", e);
         });
     },
@@ -372,13 +392,16 @@ export default {
       var auth = this.$auth;
       var formData = new FormData();
       formData.append("data", JSON.stringify(this.output_data));
+      this.saving_conf = true
       Helper.apiPost("save_conf", "", this.selected_host, auth, formData)
         .then((res) => {
           this.hasBeenSaved = true;
           this.loadFile();
           this.$store.commit("updateError", res);
+          this.saving_conf = false
         })
         .catch((e) => {
+          this.saving_conf = false
           this.$store.commit("updateError", e);
         });
     },
