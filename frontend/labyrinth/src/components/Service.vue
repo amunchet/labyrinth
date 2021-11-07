@@ -62,7 +62,7 @@
     <div>
       <div class="text-left comment" v-if="comment.comments != undefined">
         <span v-for="(comment, i) in comment.comments" v-bind:key="i">
-          {{ comment.replace(/#/g, "") }}&nbsp;
+          {{ comment.replace(/#/g, "").replace("/", " / ") }}&nbsp;
         </span>
       </div>
 
