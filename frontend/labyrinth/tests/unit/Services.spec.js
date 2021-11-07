@@ -64,7 +64,7 @@ describe("Services.vue", () => {
     expect(wrapper.isVueInstance).toBeTruthy();
   });
 
-  test("forceGlobalTag - ensures global settings present in all configuration files", () => {
+  test("loadSuggestedFields - ensures global settings present in all configuration files", () => {
     wrapper.vm.$data.raw_hosts = [
       {
         ip: "TEST",
@@ -74,7 +74,7 @@ describe("Services.vue", () => {
 
     wrapper.vm.$data.selected_host = "TEST";
 
-    wrapper.vm.forceGlobalTag();
+    wrapper.vm.loadSuggestedFields();
     expect(wrapper.vm.$data.output_data["global_tags"]).toStrictEqual({
       ip: "TEST",
       mac: "Test",
