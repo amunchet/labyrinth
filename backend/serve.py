@@ -990,12 +990,12 @@ def dashboard(report=False):
                 else:
                     result = mc.judge(latest_metric, found_service)
 
-            # Alerting section
+            # Alerting section - this code is tested elsewhere
             if (
                 report
                 and (not result or result == -1)
                 and ("monitor" in host and str(host["monitor"]).lower() == "true")
-            ):
+            ): # pragma: no cover
                 alert_name = "PROBLEM"
                 metric_name = "None"
                 if latest_metric is not None and "name" in latest_metric:
