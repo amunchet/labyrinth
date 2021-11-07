@@ -127,7 +127,7 @@
             @click="
               () => {
                 output_data = {};
-                this.loadSuggestedFields()
+                this.loadSuggestedFields();
               }
             "
             >Clear All</b-button
@@ -210,7 +210,7 @@ export default {
             var auth = this.$auth;
             await Helper.apiCall("load_service", val, auth)
               .then((res) => {
-                if (res != ""){
+                if (res != "") {
                   this.output_data = res;
                 }
                 this.loadSuggestedFields();
@@ -272,7 +272,7 @@ export default {
       this.$forceUpdate();
     },
 
-    loadDefaultBackendLocation: async function () {
+    loadDefaultBackendLocation: /* istanbul ignore next */ async function () {
       var auth = this.$auth;
       await Helper.apiCall("settings", "default_telegraf_backend", auth)
         .then((res) => {
@@ -282,11 +282,11 @@ export default {
           this.$store.commit("updateError", e);
         });
     },
-    loadTelegrafKey: async function () {
+    loadTelegrafKey: /* istanbul ignore next */ async function () {
       var auth = this.$auth;
       await Helper.apiCall("telegraf_key", "", auth)
         .then((res) => {
-          this.telegraf_key= res;
+          this.telegraf_key = res;
         })
         .catch((e) => {
           this.$store.commit("updateError", e);
@@ -304,25 +304,21 @@ export default {
         this.output_data["outputs"] = {};
       }
 
-      if(this.default_backend == ""){
-        await this.loadDefaultBackendLocation()
+      if (this.default_backend == "") {
+        await this.loadDefaultBackendLocation();
       }
-      this.output_data["outputs"] = {
-        http: [
-          {
-            url: this.default_backend,
-            timeout: "5s",
-            method: "POST",
-            insecure_skip_verify: true,
-            data_format: "json",
-            content_encoding: "identity",
-            headers: {
-              "Content-Type": "text/plain; charset=utf-8",
-              idle_conn_timeout: "0",
-              Authorization: this.telegraf_key,
-            },
-          },
-        ],
+      this.output_data["outputs"]["http"] = {
+        url: this.default_backend,
+        timeout: "5s",
+        method: "POST",
+        insecure_skip_verify: true,
+        data_format: "json",
+        content_encoding: "identity",
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          idle_conn_timeout: "0",
+          Authorization: this.telegraf_key,
+        },
       };
 
       var found_host = this.raw_hosts.filter(
@@ -464,7 +460,7 @@ export default {
       this.getAutosave();
       this.listHosts();
       await this.loadDefaultBackendLocation();
-      await this.loadTelegrafKey()
+      await this.loadTelegrafKey();
     } catch (e) {
       this.$store.commit("updateError", e);
     }

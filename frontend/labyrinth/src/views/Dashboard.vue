@@ -185,7 +185,7 @@ export default {
     GroupModal,
   },
   methods: {
-    onDrop: function (name) {
+    onDrop: /* istanbul ignore next */ function (name) {
       var auth = this.$auth;
       Helper.apiCall(
         "host_group_rename",
@@ -271,7 +271,7 @@ export default {
   },
   watch: {
     $refs: {
-      start_1: function (val) {
+      start_1: /* istanbul ignore next */ function (val) {
         if (val.$el != undefined) {
           this.findTop();
         }

@@ -24,22 +24,7 @@ export default {
     }
     return [year, month, day].join("-");
   },
-  listIcons: function () {
-    var retval = [
-      "Camera",
-      "Cloud",
-      "Linux",
-      "NAS",
-      "Phone",
-      "Router",
-      "Speaker",
-      "Tower",
-      "VMWare",
-      "Windows",
-      "Wireless",
-    ];
-    return retval;
-  },
+  
   listColors: function () {
     var retval = [
       "darkblue",

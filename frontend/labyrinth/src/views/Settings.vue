@@ -6,8 +6,11 @@
         <div class="flex">
           <div v-for="(item, idx) in icons" v-bind:key="idx" class="box">
             <div class="overflow-hidden">
-              <font-awesome-icon icon="times" size="1x" class="cursor float-right" 
-              @click="deleteIcon()"
+              <font-awesome-icon
+                icon="times"
+                size="1x"
+                class="cursor float-right"
+                @click="deleteIcon()"
               />
             </div>
             <img :src="'/icons/' + item + '.svg'" :alt="item + ' icon'" />
@@ -16,10 +19,8 @@
             </div>
           </div>
           <div class="box pt-4 bg-success cursor text-white">
-          <div class="mt-4 cursor" >
-            + Upload New Icon (TODO)
-            </div>
-            </div>
+            <div class="mt-4 cursor">+ Upload New Icon (TODO)</div>
+          </div>
         </div>
         <hr />
 
@@ -42,16 +43,18 @@
           <b-row class="mt-3">
             <b-col>Default Backend server location</b-col>
             <b-col>
-              <b-input v-model="default_backend" placeholder="Default Telegraf Server Backend (e.g. backend)"/>
+              <b-input
+                v-model="default_backend"
+                placeholder="Default Telegraf Server Backend (e.g. backend)"
+              />
             </b-col>
             <b-col cols="2">
               <b-button variant="success" @click="saveDefaultBackend()">
-                <font-awesome-icon icon="save" size='1x' />
+                <font-awesome-icon icon="save" size="1x" />
               </b-button>
             </b-col>
           </b-row>
         </b-container>
-        
       </b-col>
     </b-row>
   </div>
@@ -77,34 +80,42 @@ export default {
           this.$store.commit("updateError", e);
         });
     },
-    loadDefaultBackend: /* istanbul ignore next */ function(){
-      var auth = this.$auth
-      Helper.apiCall("settings", "default_telegraf_backend", auth).then(res=>{
-        this.default_backend = res
-      }).catch(e=>{
-        this.$store.commit("updateError", e)
-      })
+    loadDefaultBackend: /* istanbul ignore next */ function () {
+      var auth = this.$auth;
+      Helper.apiCall("settings", "default_telegraf_backend", auth)
+        .then((res) => {
+          this.default_backend = res;
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
     },
-    saveDefaultBackend: /* istanbul ignore next */ function(){
-      var auth = this.$auth
-      var formData = new FormData()
-      formData.append("name", "default_telegraf_backend")
-      formData.append("value", this.default_backend)
+    saveDefaultBackend: /* istanbul ignore next */ function () {
+      var auth = this.$auth;
+      var formData = new FormData();
+      formData.append("name", "default_telegraf_backend");
+      formData.append("value", this.default_backend);
 
-      Helper.apiPost("settings", "", "", auth, formData).then(res=>{
-        this.$store.commit("updateError", res)
-        this.loadDefaultBackend()
-      }).catch(e=>{
-        this.$store.commit("updateError", e)
-      })
+      Helper.apiPost("settings", "", "", auth, formData)
+        .then((res) => {
+          this.$store.commit("updateError", res);
+          this.loadDefaultBackend();
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
     },
-    deleteIcon: /* istanbul ignore next */ function (){
-      alert("TODO: Delete icon")
+    deleteIcon: /* istanbul ignore next */ function () {
+      alert("TODO: Delete icon");
     },
   },
   mounted: function () {
-    this.loadDefaultBackend()
-    this.loadIcons();
+    try {
+      this.loadDefaultBackend();
+      this.loadIcons();
+    } catch (e) {
+      this.$store.commit("updateError", e);
+    }
   },
 };
 </script>

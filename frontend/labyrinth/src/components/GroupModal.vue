@@ -99,7 +99,7 @@ export default {
     }
   },
   methods: {
-    changeMonitor: function (status) {
+    changeMonitor: /* istanbul ignore next */ function (status) {
       var auth = this.$auth;
       var url =
         "monitor/" +
@@ -118,7 +118,7 @@ export default {
           this.$store.commit("updateError", e);
         });
     },
-    changeGroupName: function () {
+    changeGroupName: /* istanbul ignore next */ function () {
       var auth = this.$auth;
       var url =
         "name/" +
@@ -136,7 +136,7 @@ export default {
           this.$store.commit("updateError", e);
         });
     },
-    changeIcons: function () {
+    changeIcons: /* istanbul ignore next */ function () {
       var auth = this.$auth;
       var url =
         "icons/" +
@@ -154,7 +154,7 @@ export default {
           this.$store.commit("updateError", e);
         });
     },
-    addService: function () {
+    addService: /* istanbul ignore next */ function () {
       var auth = this.$auth
       var url = "add_service/" + this.selected_subnet.subnet + "/" + this.selected_group + "/" + this.selected_service
       Helper.apiCall("group", url, auth).then(res=>{
@@ -164,7 +164,7 @@ export default {
         this.$store.commit("updateError", e)
       })
     },
-    deleteService: function () {
+    deleteService: /* istanbul ignore next */ function () {
       var auth = this.$auth
       var url = "delete_service/" + this.selected_subnet.subnet + "/" + this.selected_group + "/" + this.selected_delete_service
       Helper.apiCall("group", url, auth).then(res=>{
@@ -175,7 +175,7 @@ export default {
       })
     },
 
-    listIcons: function () {
+    listIcons: /* istanbul ignore next */ function () {
       var auth = this.$auth;
       Helper.apiCall("icons", "", auth)
         .then((res) => {
@@ -190,7 +190,7 @@ export default {
           this.$store.commit("updateError", e);
         });
     },
-    listServices: function () {
+    listServices: /* istanbul ignore next */ function () {
       var auth = this.$auth;
       Helper.apiCall("services", "all", auth)
         .then((res) => {

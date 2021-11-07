@@ -183,7 +183,6 @@ export default {
   },
   mounted: function () {
     try {
-      //this.icons = Helper.listIcons();
       this.colors = Helper.listColors();
 
       this.listIcons()
