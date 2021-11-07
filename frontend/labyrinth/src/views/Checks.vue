@@ -97,8 +97,8 @@
       class="m-2 float-right"
       >+ Add Service</b-button
     >
-
-    <b-table :fields="service_fields" :items="services" striped>
+    <b-spinner class="m-2" v-if="servicesLoading" />
+    <b-table :fields="service_fields" :items="services" striped v-else>
       <template v-slot:cell(name)="row">
         <b-button
           variant="link"
@@ -150,6 +150,7 @@ import Helper from "@/helper";
 export default {
   data() {
     return {
+      servicesLoading: false,
       selected_service: {
         type: "check",
       },
@@ -193,12 +194,15 @@ export default {
     },
     loadServices: /* istanbul ignore next */ function () {
       var auth = this.$auth;
+      this.servicesLoading = true
       Helper.apiCall("services", "all", auth)
         .then((res) => {
           this.services = res;
+          this.servicesLoading = false
         })
         .catch((e) => {
           this.$store.commit("updateError", e);
+          this.servicesLoading = false
         });
     },
     loadMetrics: /* istanbul ignore next */ function () {
