@@ -210,7 +210,9 @@ export default {
             var auth = this.$auth;
             await Helper.apiCall("load_service", val, auth)
               .then((res) => {
-                this.output_data = res;
+                if (res != ""){
+                  this.output_data = res;
+                }
                 this.loadSuggestedFields();
               })
               .catch((e) => {

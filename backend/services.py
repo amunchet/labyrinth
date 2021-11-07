@@ -202,6 +202,9 @@ def load(fname: str, format="json") -> dict:
     Loads a written TOML file into datastructure and returns it
     """
     dir = "/src/uploads/telegraf/"
+    if not os.path.exists("{}{}.conf".format(dir, fname)):
+        return ""
+
     with open("{}{}.conf".format(dir, fname)) as f:
         if format == "json":
             return json.dumps(toml.load(f), default=str)
