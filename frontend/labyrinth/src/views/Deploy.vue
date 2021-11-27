@@ -1,5 +1,59 @@
 <template>
   <b-container>
+    <b-modal id="add_vault" title="Manually Add Vault File" size="lg">
+      <p>
+        WARNING: This is not a good idea. A better idea is to create a vault
+        file offline and then upload it. It's not a great idea to trust a random
+        NPM package to not steal your network secrets. Use this only in testing
+        or a lab environment.
+      </p>
+
+      <b-row>
+        <b-col> </b-col>
+      </b-row>
+      <b-row>
+        <b-col> Type: </b-col>
+        <b-col><b-select v-model="generated_ansible.type" :options="['Username and Password', 'SSH Key']"/></b-col>
+      </b-row>
+      <b-row>
+        <b-col>
+          Ansible Vault Password:
+        </b-col>
+        <b-col>
+          <b-input type="password" v-model="generated_ansible.vault_password" />
+        </b-col>
+      </b-row>
+      <hr />
+      <b-row v-if="generated_ansible.type == 'Username and Password'">
+        <b-col> Username: <b-input v-model="generated_ansible.ssh_username" /> </b-col>
+        <b-col> Password: <b-input type="password" v-model="generated_ansible.ssh_password" /> </b-col>
+      </b-row>
+      <b-row v-if="generated_ansible.type == 'SSH Key'">
+        <b-col>
+          SSH Key <br />
+          <b-textarea style='height:150px;' v-model="generated_ansible.ssh_key"/>
+        </b-col>
+      </b-row>
+      <b-row>
+        <b-col>
+      <b-button class="float-right" variant="primary" @click="()=>{
+        loading_generated_vault_file = true
+        $forceUpdate()
+        generateAnsibleVault()
+        }">
+        Generate Ansible File
+      </b-button>
+        </b-col>
+      </b-row>
+      <b-row>
+        <b-col v-if="!loading_generated_vault_file">
+          {{generated_vault_file}}
+        </b-col>
+        <b-col v-else>
+          <b-spinner class="m-2" />
+        </b-col>
+      </b-row>
+    </b-modal>
     <b-row>
       <b-col>
         <div class="overflow-hidden">
@@ -108,6 +162,20 @@
               :options="files_list['ssh']"
             />
             <b-spinner v-else class="m-2" />
+            <br />
+            <b-button
+              class="mt-2"
+              variant="warning"
+              @click="
+                () => {
+                  generated_ansible = {'type' : 'SSH Key'}
+                  generated_vault_file = ''
+                  $bvModal.show('add_vault');
+                }
+              "
+            >
+              <font-awesome-icon icon="plus" size="1x" />
+            </b-button>
           </b-col>
           <b-col>
             <b-form-file
@@ -141,6 +209,20 @@
               v-model="selected['become']"
             />
             <b-spinner v-else class="m-2" />
+            <br />
+            <b-button
+              class="mt-2"
+              variant="warning"
+              @click="
+                () => {
+                  generated_ansible = {'type' : 'Username and Password'}
+                  generated_vault_file = ''
+                  $bvModal.show('add_vault');
+                }
+              "
+            >
+              <font-awesome-icon icon="plus" size="1x" />
+            </b-button>
           </b-col>
           <b-col>
             <b-form-file
@@ -227,6 +309,7 @@
 <script>
 import Helper from "@/helper";
 import styles from "@/assets/variables.scss";
+const { Vault } = require("ansible-vault");
 export default {
   name: "Deploy",
   data() {
@@ -239,6 +322,10 @@ export default {
         become: "",
         other: "",
       },
+
+      generated_ansible: {},
+      generated_vault_file: "",
+      loading_generated_vault_file: false,
 
       ip: "",
       sample_ip: "",
@@ -288,6 +375,21 @@ export default {
     },
   },
   methods: {
+    generateAnsibleVault: async function(){
+
+      var a = new Vault({ password: this.generated_ansible.vault_password });
+      this.loading_generated_vault_file = true
+      a.encrypt(this.generated_ansible.ssh_key).then(async (x)=>{
+        this.loading_generated_vault_file = false
+        this.generated_vault_file = x
+      }).catch(e=>{
+        this.$store.commit('updateError', e)
+      });
+    },
+    saveAnsibleVault: /* istanbul ignore next */ function () {
+      //TODO: generated_vault_file
+    },
+
     uploadHelper: /* istanbul ignore next */ function (val, type) {
       if (val) {
         var auth = this.$auth;
@@ -440,6 +542,7 @@ export default {
 
   mounted: /* istanbul ignore next */ async function () {
     try {
+
       await this.loadFilesList("ansible");
       this.loadFilesList("ssh");
       this.loadFilesList("become");
