@@ -657,12 +657,16 @@ def alertmanager_pass():
 
 
 @app.route("/alertmanager/", methods=["GET"])
+@app.route("/alertmanager/<fname>", methods=["GET"])
 @requires_auth_admin
-def alertmanager_load():
+def alertmanager_load(fname=""):
     """Return contents of configuration file"""
-    if not os.path.exists("/alertmanager/alertmanager.yml"):
+    url = "/alertmanager/alertmanager.yml"
+    if fname != "":
+        url = "/alertmanager/{}.yml".format(fname.replace(".yml", ""))
+    if not os.path.exists(url):
         return "", 200
-    return open("/alertmanager/alertmanager.yml").read(), 200
+    return open(url).read(), 200
 
 
 @app.route("/alertmanager/", methods=["POST"])
