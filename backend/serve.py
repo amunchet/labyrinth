@@ -859,6 +859,19 @@ def list_directory(type):
     return json.dumps(os.listdir("/src/uploads/{}".format(type))), 200
 
 
+@app.route("/new_ansible_file/<fname>")
+@requires_auth_admin
+def new_ansible_file(fname):
+    """
+    Creates a new ansible file
+    """
+    filename = "/src/uploads/ansible/{}.yml".format(fname.replace(".yml", ""))
+    if os.path.exists(filename):
+        return "File already exists", 407
+    with open(filename, "w") as f:
+        f.write("")
+    return filename, 200
+
 @app.route("/get_ansible_file/<fname>")
 @requires_auth_admin
 def get_ansible_file(fname):

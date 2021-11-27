@@ -86,6 +86,19 @@
         </b-col>
       </b-row>
     </b-modal>
+
+    <b-modal id="new_playbook" title="Add New Ansible Playbook" @ok="createPlaybook">
+      <b-container>
+        <b-row>
+          <b-col cols="4">
+            Playbook name:
+          </b-col>
+          <b-col>
+            <b-input placeholder="New Playbook name (e.g. test.yml)" v-model="new_ansible_file"/>
+          </b-col>
+        </b-row>
+      </b-container>
+    </b-modal>
     <b-row>
       <b-col>
         <div class="overflow-hidden">
@@ -140,7 +153,10 @@
             />
           </b-col>
           <b-col cols="2" class="pt-2">
-            <b-button class="float-right">
+            <b-button variant="primary" class="float-right" @click="()=>{
+              new_ansible_file = ''
+              $bvModal.show('new_playbook')
+              }">
               <font-awesome-icon icon="plus" />
             </b-button>
           </b-col>
@@ -376,6 +392,8 @@ export default {
       sample_ip: "",
       sample_loading: false,
 
+      new_ansible_file: "",
+
       files_list: {},
 
       hosts: [],
@@ -506,6 +524,17 @@ export default {
         });
     },
 
+    createPlaybook: /* istanbul ignore next */ function(e){
+      var auth = this.$auth
+      e.preventDefault()
+      Helper.apiCall("new_ansible_file", this.new_ansible_file, auth).then(async ()=>{
+        await this.loadFilesList("ansible")
+        this.selected_playbook = this.new_ansible_file.replace(".yml","") + ".yml"
+        this.$bvModal.hide("new_playbook")
+      }).catch(e=>{
+        this.$store.commit("updateError", e)
+      })
+    },
     savePlaybook: /* istanbul ignore next */ function () {
       this.loadings["save_playbook"] = 1;
       this.$forceUpdate();
