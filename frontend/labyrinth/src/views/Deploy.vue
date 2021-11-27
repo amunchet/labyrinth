@@ -117,8 +117,13 @@
           />
         </div>
         <div v-else class="mb-4 mt-2">
+          <div v-if="!sample_loading">
           Host: <br /><b>sampleclient - ({{ sample_ip }})</b> <br />Backend ip
           is {{ ip }}
+          </div>
+          <div v-else>
+            <b-spinner class="m-2" />
+          </div>
         </div>
         <h5 class="mt-2">Ansible playbook</h5>
         <hr />
@@ -369,6 +374,7 @@ export default {
 
       ip: "",
       sample_ip: "",
+      sample_loading: false,
 
       files_list: {},
 
@@ -559,22 +565,26 @@ export default {
         });
     },
 
-    loadIP: /* istanbul ignore next */ function () {
+    loadIP: /* istanbul ignore next */ async function () {
       var auth = this.$auth;
-      Helper.apiCall("find_ip", "", auth)
+      this.sample_loading  = true
+      await Helper.apiCall("find_ip", "", auth)
         .then((res) => {
           this.ip = res;
         })
         .catch((e) => {
           this.$store.commit("updateError", e);
+          this.sample_loading = false
         });
-      Helper.apiCall("find_ip", "sampleclient", auth)
+      await Helper.apiCall("find_ip", "sampleclient", auth)
         .then((res) => {
           this.sample_ip = res;
         })
         .catch((e) => {
           this.$store.commit("updateError", e);
+          this.sample_loading = false
         });
+      this.sample_loading = false
     },
 
     loadFilesList: /* istanbul ignore next */ async function (type) {
