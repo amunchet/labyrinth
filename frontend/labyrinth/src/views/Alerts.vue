@@ -3,10 +3,14 @@
     <b-tabs content-class="mt-3" lazy>
       <b-tab title="Active Alerts" active class="text-left">
         <p>List of active alerts.</p>
+        <div v-if="active_alerts_loading">
+          <b-spinner class="m-2" />
+        </div>
         <b-table
           striped
           style="max-width: 100%"
           :items="active_alerts"
+          v-else
           :fields="['resolve', 'labels', 'annotations', 'receivers', 'time']"
         >
           <template v-slot:cell(resolve)="item">
@@ -86,6 +90,7 @@ export default {
       file: "",
       loading: false,
       active_alerts: [],
+      active_alerts_loading: false,
     };
   },
   methods: {
@@ -104,9 +109,11 @@ export default {
     },
     loadAlerts: /* istanbul ignore next */ function () {
       var auth = this.$auth;
+      this.active_alerts_loading = true
       Helper.apiCall("alertmanager", "alerts", auth)
         .then((res) => {
           this.active_alerts = res;
+          this.active_alerts_loading = false
         })
         .catch((e) => {
           this.$store.commit("updateError", e);
