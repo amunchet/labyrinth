@@ -26,7 +26,7 @@
           <span class="helptext">Name of the service</span>
         </b-col>
         <b-col>
-          <b-input v-model="selected_service.name" placeholder="E.g. check_hd"
+          <b-input v-model="selected_service.name" placeholder="E.g. cpu"
         /></b-col>
       </b-row>
       <b-row>
@@ -47,18 +47,18 @@
           <span class="helptext">Specific service metric</span>
         </b-col>
         <b-col>
-          <b-input v-model="selected_service.metric" placeholder="E.g. diskio"
+          <b-input v-model="selected_service.metric" placeholder="E.g. usage_user" 
         /></b-col>
       </b-row>
       <b-row>
         <b-col
           ><b>Field</b><br />
-          <span class="helptext">Service metric field</span>
+          <span class="helptext">Child field - usually the same as Metric.</span>
         </b-col>
         <b-col>
           <b-input
             v-model="selected_service.field"
-            placeholder="E.g. read_time"
+            placeholder="E.g. usage_user"
         /></b-col>
       </b-row>
       <b-row>
