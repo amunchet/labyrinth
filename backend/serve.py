@@ -113,15 +113,26 @@ valid_type = ["ssh", "totp", "become", "telegraf", "ansible", "other"]
 def upload(type, override_token):  # pragma: no cover
     """
     Handles file upload
+        - Two types: straight upload and form data upload
+        - Form data upload comes from manual additions of vault files
     """
     if type not in valid_type:
         return "Invalid type", 412
 
-    if "file" not in request.files:
+    if "file" not in request.files and "file" not in request.form:
         return "No file included", 407
 
-    file = request.files["file"]
-    if file.filename == "":
+    file = ""
+    data = ""
+    filename = ""
+
+    if "file" in request.files:
+        file = request.files["file"]
+    else:
+        data = request.form["file"]
+        filename = request.form["filename"]
+
+    if file != "" and file.filename == "":
         return "No file selected", 409
 
     if not os.path.exists("/src/uploads"):
@@ -130,7 +141,20 @@ def upload(type, override_token):  # pragma: no cover
     if not os.path.exists("/src/uploads/{}".format(type)):
         os.mkdir("/src/uploads/{}".format(type))
 
-    if file:
+    if data:
+        with open("/tmp/{}".format(filename), "w") as f:
+            f.write(data)
+        
+        if os.path.exists("/src/uploads/become/{}.yml".format(filename.replace(".yml", ""))):
+            os.remove("/src/uploads/become/{}.yml".format(filename.replace(".yml", "")))
+
+        if ansible_helper.check_file(filename, type):
+            shutil.move("/tmp/{}".format(filename), "/src/uploads/become/{}.yml".format(filename.replace(".yml", "")))
+            return filename, 200
+        os.remove("/tmp/{}".format(filename))
+        return "File check failed", 522
+
+    elif file:
         filename = secure_filename(file.filename)
         file.save("/tmp/{}".format(filename))
         if ansible_helper.check_file(filename, type):
