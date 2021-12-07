@@ -9,6 +9,7 @@ import sys
 import json
 import socket
 import datetime
+import time
 
 import pymongo
 import redis
@@ -971,13 +972,23 @@ def update_ip(mac, new_ip):
 
 # Dashboard
 
-
+@app.route("/dashboard/<val>")
 @app.route("/dashboard/")
 @requires_auth_read
-def dashboard(report=False):
+def dashboard(val="", report=False):
     """Dashboard"""
     # Get all the subnets
+
+    rc = redis.Redis(host=os.environ.get("REDIS_HOST"))
+    if str(val) == "1":
+        cachedboard = rc.get("dashboard")
+        if cachedboard:
+            return rc.get("dashboard"), 200
+    
     subnets = {}
+
+
+
     for item in json.loads(unwrap(list_subnets)()[0]):
         subnets[item] = {}
 
@@ -1085,6 +1096,9 @@ def dashboard(report=False):
             subnet["groups"].append({"name": group, "hosts": groups[group]})
         del subnet["hosts"]
 
+    if not rc.get("dashboard_time") or time.time() - float(rc.get("dashboard_time")) > 5:
+        rc.set("dashboard", json.dumps(subnets, default=str))
+        rc.set("dashboard_time", str(time.time()))
     return json.dumps(subnets, default=str), 200
 
 

@@ -201,10 +201,12 @@ export default {
     },
     loadData: /* istanbul ignore next */ async function (showLoading) {
       var auth = this.$auth;
+      var url = ""
       if (showLoading) {
         this.loading = true;
+        url = "1"
       }
-      await Helper.apiCall("dashboard", "", auth)
+      await Helper.apiCall("dashboard", url, auth)
         .then((res) => {
           this.full_data = res;
 
