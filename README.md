@@ -3,7 +3,7 @@
 <img src="frontend/labyrinth/public/logo.png" height="100" alt="Labyrinth Logo" />
 
 # Labyrinth
-The beautiful network analyzer and mapper.
+The beautiful network analyzer, mapper, and monitor.
 
 <img src="frontend/labyrinth/public/img/screenshot.png"  alt="Labyrinth Screenshot" />
 
