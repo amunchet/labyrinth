@@ -134,7 +134,7 @@
                     @service="
                       (val) => {
                         selected_metric = val;
-                        selected_metric['ip'] = host.ip
+                        selected_metric['ip'] = host.ip;
                         $forceUpdate();
                       }
                     "
@@ -201,40 +201,46 @@ export default {
     },
     loadData: /* istanbul ignore next */ async function (showLoading) {
       var auth = this.$auth;
-      var url = ""
+      var url = "";
       if (showLoading) {
         this.loading = true;
-        url = "1"
+        url = "1";
       }
       await Helper.apiCall("dashboard", url, auth)
         .then((res) => {
           this.full_data = res;
 
-          for(var i=0; i<this.full_data.length; i++){
-            var temp = this.full_data[i]
-            temp.groups.sort((prev, next)=>{
-              if(prev.name == ""){
-                return 1
-              }
-              if(next.name == ""){
-                return -1
-              }
+          for (var i = 0; i < this.full_data.length; i++) {
+            var temp = this.full_data[i];
+            if (temp.groups != undefined) {
+              temp.groups.sort((prev, next) => {
+                if (prev.name == "") {
+                  return 1;
+                }
+                if (next.name == "") {
+                  return -1;
+                }
 
-              if(prev.starred){
-                return -1;
-              }
-              if(next.starred){
-                return 1
-              }
-              return prev.name > next.name
-            })
+                if (prev.starred) {
+                  return -1;
+                }
+                if (next.starred) {
+                  return 1;
+                }
+                return prev.name > next.name;
+              });
+            }
           }
-          setTimeout(()=>{this.loadData(false)}, 2000)
+          setTimeout(() => {
+            this.loadData(false);
+          }, 2000);
           this.loading = false;
           this.findTop();
         })
         .catch((e) => {
-          setTimeout(()=>{this.loadData(false)}, 2000)
+          setTimeout(() => {
+            this.loadData(false);
+          }, 2000);
           this.$store.commit("updateError", e);
         });
     },
