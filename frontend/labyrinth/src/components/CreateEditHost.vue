@@ -1,5 +1,16 @@
 <template>
   <b-modal id="create_edit_host" title="Create/Edit Host" size="lg">
+    <template #modal-footer="{ cancel }">
+      <div style="width: 100%">
+        <b-button class="float-left" variant="danger" @click="deleteHost()"
+          >Delete</b-button
+        >
+        <b-button class="float-right ml-2" variant="primary" @click="saveHost()"
+          >OK</b-button
+        >
+        <b-button class="float-right" @click="cancel()">Cancel</b-button>
+      </div>
+    </template>
     <b-modal id="checks" size="xl" @hide="loadServices()">
       <Checks />
     </b-modal>
@@ -253,17 +264,7 @@
       </div>
     </b-row>
 
-    <template #modal-footer="{ cancel }">
-      <div style="width: 100%">
-        <b-button class="float-left" variant="danger" @click="deleteHost()"
-          >Delete</b-button
-        >
-        <b-button class="float-right ml-2" variant="primary" @click="saveHost()"
-          >OK</b-button
-        >
-        <b-button class="float-right" @click="cancel()">Cancel</b-button>
-      </div>
-    </template>
+
   </b-modal>
 </template>
 <script>
