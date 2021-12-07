@@ -1,6 +1,6 @@
 [![Labyrinth Tests](https://github.com/amunchet/labyrinth/actions/workflows/push.yml/badge.svg)](https://github.com/amunchet/labyrinth/actions/workflows/push.yml)
 
-[[Need Logo Image]]
+<img src="frontend/labyrinth/public/logo.png" height="100" alt="Labyrinth Logo" />
 
 # Labyrinth
 The beautiful network analyzer and mapper.
