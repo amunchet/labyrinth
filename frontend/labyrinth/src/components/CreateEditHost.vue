@@ -1,13 +1,42 @@
 <template>
   <b-modal id="create_edit_host" title="Create/Edit Host" size="lg">
+    <template #modal-footer="{ cancel }">
+      <div style="width: 100%">
+        <b-button class="float-left" variant="danger" @click="deleteHost()"
+          >Delete</b-button
+        >
+        <b-button class="float-right ml-2" variant="primary" @click="saveHost()"
+          >OK</b-button
+        >
+        <b-button class="float-right" @click="cancel()">Cancel</b-button>
+      </div>
+    </template>
     <b-modal id="checks" size="xl" @hide="loadServices()">
       <Checks />
     </b-modal>
     <b-container>
       <b-row>
+        <b-col> Monitor </b-col>
+        <b-col>
+          <b-form-checkbox
+            size="lg"
+            v-model="host.monitor"
+            name="check-button"
+            switch
+          >
+          </b-form-checkbox>
+        </b-col>
+      </b-row>
+      <b-row>
         <b-col> IP </b-col>
         <b-col>
           <b-input v-model="host.ip" />
+        </b-col>
+      </b-row>
+      <b-row>
+        <b-col> Hostname </b-col>
+        <b-col>
+          <b-input v-model="host.host" />
         </b-col>
       </b-row>
 
@@ -21,22 +50,16 @@
         ><b-col>Subnet</b-col><b-col><b-input v-model="host.subnet" /></b-col
       ></b-row>
       <b-row
-        ><b-col>Icon</b-col><b-col><b-input v-model="host.icon" /></b-col
+        ><b-col>Icon</b-col><b-col><b-select :options="icons" v-model="host.icon" /></b-col
       ></b-row>
       <b-row
         ><b-col>Class</b-col><b-col><b-input v-model="host.class" /></b-col
       ></b-row>
 
       <b-row>
-        <b-col> Monitor </b-col>
+        <b-col> Notes</b-col>
         <b-col>
-          <b-form-checkbox
-            size="lg"
-            v-model="host.monitor"
-            name="check-button"
-            switch
-          >
-          </b-form-checkbox>
+          <b-textarea style="min-height: 100px;" v-model="host.notes" />
         </b-col>
       </b-row>
     </b-container>
@@ -232,21 +255,16 @@
           :fields="['name', 'fields', 'tags', 'timestamp']"
           :items="metrics"
           striped
-        />
+        >
+        <template v-slot:cell(timestamp)="cell">
+          {{new Date(cell.item.timestamp * 1000).toLocaleDateString()}}
+          {{new Date(cell.item.timestamp * 1000).toLocaleTimeString()}}
+        </template>
+        </b-table>
       </div>
     </b-row>
 
-    <template #modal-footer="{ cancel }">
-      <div style="width: 100%">
-        <b-button class="float-left" variant="danger" @click="deleteHost()"
-          >Delete</b-button
-        >
-        <b-button class="float-right ml-2" variant="primary" @click="saveHost()"
-          >OK</b-button
-        >
-        <b-button class="float-right" @click="cancel()">Cancel</b-button>
-      </div>
-    </template>
+
   </b-modal>
 </template>
 <script>
@@ -263,6 +281,7 @@ export default {
       isNew: true,
       host: "",
       metrics: [],
+      
       safe_host: {
         ip: "",
         subnet: "",
@@ -278,6 +297,7 @@ export default {
       show_add_service: false,
 
       services: [],
+      icons: [],
     };
   },
   watch: {
@@ -294,6 +314,21 @@ export default {
     },
   },
   methods: {
+    listIcons: /* istanbul ignore next */ function () {
+      var auth = this.$auth;
+      Helper.apiCall("icons", "", auth)
+        .then((res) => {
+          this.icons = res.map((x) => {
+            return {
+              text: x,
+              value: x.toLowerCase(),
+            };
+          });
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
+    },
     loadServices: /* istanbul ignore next */ function () {
       var auth = this.$auth;
       Helper.apiCall("services", "all", auth)
@@ -370,6 +405,7 @@ export default {
   mounted: /* istanbul ignore next */ function () {
     try {
       this.loadServices();
+      this.listIcons()
     } catch (e) {
       this.$store.commit("updateError", e);
     }

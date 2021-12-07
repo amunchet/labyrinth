@@ -3,10 +3,14 @@
     <b-tabs content-class="mt-3" lazy>
       <b-tab title="Active Alerts" active class="text-left">
         <p>List of active alerts.</p>
+        <div v-if="active_alerts_loading">
+          <b-spinner class="m-2" />
+        </div>
         <b-table
           striped
           style="max-width: 100%"
           :items="active_alerts"
+          v-else
           :fields="['resolve', 'labels', 'annotations', 'receivers', 'time']"
         >
           <template v-slot:cell(resolve)="item">
@@ -61,8 +65,8 @@
       </b-tab>
       <b-tab title="AlertManager Configuration File" class="text-left">
         <i>alertmanager.yml</i>
-        <b-button @click="load()" class="mb-2 float-right" variant="warning">
-          Load File
+        <b-button @click="load()" class="mb-2 float-right" variant="primary">
+          Load AlertManager Configuration
         </b-button>
         <b-textarea v-if="file" class="shadow-none" v-model="file" />
         <b-spinner class="m-2 float-right" v-if="loading" />
@@ -71,6 +75,11 @@
             <font-awesome-icon icon="save" size="1x" />
           </b-button>
         </div>
+        <br /><br />
+        <hr />
+        <h5>Example alertmanager.yml file</h5>
+        <b-textarea v-model="sample_alertmanager" disabled />
+
       </b-tab>
     </b-tabs>
   </b-container>
@@ -86,6 +95,10 @@ export default {
       file: "",
       loading: false,
       active_alerts: [],
+      active_alerts_loading: false,
+
+      sample_loading: false,
+      sample_alertmanager: "",
     };
   },
   methods: {
@@ -104,9 +117,11 @@ export default {
     },
     loadAlerts: /* istanbul ignore next */ function () {
       var auth = this.$auth;
+      this.active_alerts_loading = true
       Helper.apiCall("alertmanager", "alerts", auth)
         .then((res) => {
           this.active_alerts = res;
+          this.active_alerts_loading = false
         })
         .catch((e) => {
           this.$store.commit("updateError", e);
@@ -135,6 +150,20 @@ export default {
           this.$store.commit("updateError", e);
         });
     },
+    loadSample: /* istanbul ignore next */ function () {
+      var auth = this.$auth;
+      this.sample_loading = true;
+      Helper.apiCall("alertmanager", "alertmanager.sample", auth)
+        .then((res) => {
+          this.sample_alertmanager = res;
+          this.sample_loading = false;
+        })
+        .catch((e) => {
+          this.sample_loading = false;
+          this.$store.commit("updateError", e);
+        });
+    },
+
     save: /* istanbul ignore next */ function () {
       var auth = this.$auth;
       var formData = new FormData();
@@ -193,6 +222,7 @@ export default {
     this.navigator = navigator;
     try {
       this.loadAlerts();
+      this.loadSample()
     } catch (e) {
       this.$store.commit("updateError", e);
     }

@@ -48,6 +48,7 @@ def convert_host(input: Dict) -> Dict:
         "mac": "",
         "group": "",
         "icon": "",
+        "monitor": False,
         "services": ["open_ports", "closed_ports", "new_host"],
         "open_ports": [],
         "class": "",
@@ -64,6 +65,8 @@ def convert_host(input: Dict) -> Dict:
     print(input["osmatch"])
     if input["osmatch"]:
         output["icon"] = input["osmatch"][0]["name"].split(" ")[0].lower()
+
+    output["group"] = output["icon"]
 
     if "tcp" in input:
         output["open_ports"] = [int(x) for x in input["tcp"].keys()]

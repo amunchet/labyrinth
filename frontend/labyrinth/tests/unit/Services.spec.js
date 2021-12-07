@@ -15,8 +15,8 @@ config.mocks["$auth"] = {
     picture: "Test.jpg",
   },
   idToken: 1,
-  login: function () {},
-  getAccessToken: function () {},
+  login: function () { },
+  getAccessToken: function () { },
 };
 
 config.mocks["$sanitize"] = (x) => x;
@@ -64,17 +64,17 @@ describe("Services.vue", () => {
     expect(wrapper.isVueInstance).toBeTruthy();
   });
 
-  test("forceGlobalTag - ensures global settings present in all configuration files", () => {
+  test("loadSuggestedFields - ensures global settings present in all configuration files", () => {
     wrapper.vm.$data.raw_hosts = [
       {
         ip: "TEST",
         mac: "Test",
       },
     ];
-
+    wrapper.vm.$data.default_backend = "http://test"
     wrapper.vm.$data.selected_host = "TEST";
 
-    wrapper.vm.forceGlobalTag();
+    wrapper.vm.loadSuggestedFields();
     expect(wrapper.vm.$data.output_data["global_tags"]).toStrictEqual({
       ip: "TEST",
       mac: "Test",
@@ -95,6 +95,19 @@ describe("Services.vue", () => {
 
     var expected = {
       outputs: {
+        "http": {
+          "content_encoding": "identity",
+          "data_format": "json",
+          "headers": {
+            "Authorization": "",
+            "Content-Type": "text/plain; charset=utf-8",
+            "idle_conn_timeout": "0",
+          },
+          "insecure_skip_verify": true,
+          "method": "POST",
+          "timeout": "5s",
+          "url": "http://test",
+        },
         amon: [
           {
             server_key: "my-server-key",
@@ -114,6 +127,7 @@ describe("Services.vue", () => {
         mac: "Test",
       },
     ];
+    wrapper.vm.$data.default_backend = "http://test"
 
     wrapper.vm.$data.selected_host = "TEST";
 

@@ -9,6 +9,7 @@ services:
     volumes:
       - ./backend/:/src
       - ./alertmanager:/alertmanager
+      - ./frontend/labyrinth/public:/public
     networks:
       - labyrinth
     environment: 

@@ -62,7 +62,7 @@
     <div>
       <div class="text-left comment" v-if="comment.comments != undefined">
         <span v-for="(comment, i) in comment.comments" v-bind:key="i">
-          {{ comment.replace(/#/g, "") }}&nbsp;
+          {{ comment.replace(/#/g, "").replace("/", " / ") }}&nbsp;
         </span>
       </div>
 
@@ -359,17 +359,21 @@ export default {
     },
   },
   mounted: function () {
-    this.parsed_data = this.inp_data;
-    if (this.parent != undefined) {
-      this.comment_name = (this.parent + "." + this.name)
-        .replace(".0", "")
-        .replace("undefined.", "");
-    } else {
-      this.comment_name = this.name;
-    }
+    try {
+      this.parsed_data = this.inp_data;
+      if (this.parent != undefined) {
+        this.comment_name = (this.parent + "." + this.name)
+          .replace(".0", "")
+          .replace("undefined.", "");
+      } else {
+        this.comment_name = this.name;
+      }
 
-    if (this.start_minimized != undefined) {
-      this.minimized = this.start_minimized;
+      if (this.start_minimized != undefined) {
+        this.minimized = this.start_minimized;
+      }
+    } catch (e) {
+      this.$store.commit("updateError", e);
     }
   },
 };

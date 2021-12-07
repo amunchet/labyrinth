@@ -102,6 +102,21 @@ export default {
     };
   },
   methods: {
+    listIcons: /* istanbul ignore next */ function () {
+      var auth = this.$auth;
+      Helper.apiCall("icons", "", auth)
+        .then((res) => {
+          this.icons = res.map((x) => {
+            return {
+              text: x,
+              value: x.toLowerCase(),
+            };
+          });
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
+    },
     saveSubnet: /* istanbul ignore next */ function () {
       if (this.subnet.subnet == "") {
         this.$store.commit("updateError", "Error: Please enter subnet name");
@@ -168,8 +183,10 @@ export default {
   },
   mounted: function () {
     try {
-      this.icons = Helper.listIcons();
       this.colors = Helper.listColors();
+
+      this.listIcons()
+
     } catch (e) {
       this.$store.commit("updateError", e);
     }

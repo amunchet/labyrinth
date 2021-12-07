@@ -26,7 +26,7 @@
           <span class="helptext">Name of the service</span>
         </b-col>
         <b-col>
-          <b-input v-model="selected_service.name" placeholder="E.g. check_hd"
+          <b-input v-model="selected_service.name" placeholder="E.g. cpu"
         /></b-col>
       </b-row>
       <b-row>
@@ -47,18 +47,18 @@
           <span class="helptext">Specific service metric</span>
         </b-col>
         <b-col>
-          <b-input v-model="selected_service.metric" placeholder="E.g. diskio"
+          <b-input v-model="selected_service.metric" placeholder="E.g. usage_user" 
         /></b-col>
       </b-row>
       <b-row>
         <b-col
           ><b>Field</b><br />
-          <span class="helptext">Service metric field</span>
+          <span class="helptext">Child field - usually the same as Metric.</span>
         </b-col>
         <b-col>
           <b-input
             v-model="selected_service.field"
-            placeholder="E.g. read_time"
+            placeholder="E.g. usage_user"
         /></b-col>
       </b-row>
       <b-row>
@@ -84,43 +84,64 @@
       </b-row>
     </b-modal>
 
-    <b-button
-      @click="
-        () => {
-          selected_service = {
-            type: 'check',
-          };
-          $bvModal.show('add_service');
-        }
-      "
-      variant="success"
-      class="m-2 float-right"
-      >+ Add Service</b-button
-    >
-
-    <b-table :fields="service_fields" :items="services" striped>
-      <template v-slot:cell(name)="row">
-        <b-button
-          variant="link"
-          class="shadow-none"
-          @click="
-            () => {
-              selected_service = row.item;
-              $bvModal.show('add_service');
-            }
-          "
-        >
-          <font-awesome-icon icon="edit" size="1x" />
-        </b-button>
-        {{ row.item.name }}
-      </template>
-    </b-table>
+    <div class="metrics-table">
+      <b-row class="ml-0 pl-0">
+        <b-col class="ml-0 pl-0">
+          <b-input class="float-left" v-model="services_filter" placeholder="Filter Services" />
+        </b-col>
+        <b-col>
+          <b-button
+            @click="
+              () => {
+                selected_service = {
+                  type: 'check',
+                };
+                $bvModal.show('add_service');
+              }
+            "
+            variant="success"
+            class="float-right"
+            >+ Add Service</b-button
+          >
+        </b-col>
+      </b-row>
+      <b-spinner class="m-2" v-if="servicesLoading" />
+      <b-table
+        :filter="services_filter"
+        :fields="service_fields"
+        :items="services"
+        striped
+        v-else
+      >
+        <template v-slot:cell(name)="row">
+          <b-button
+            variant="link"
+            class="shadow-none"
+            @click="
+              () => {
+                selected_service = row.item;
+                $bvModal.show('add_service');
+              }
+            "
+          >
+            <font-awesome-icon icon="edit" size="1x" />
+          </b-button>
+          {{ row.item.name }}
+        </template>
+      </b-table>
+    </div>
     <hr />
     <h2 class="mt-2 mb-2">Latest Metrics</h2>
     <div class="metrics-table mb-2">
+      <b-row class="ml-0 pl-0">
+        <b-col cols="6" class="ml-0 pl-0">
+      <b-input class="mt-2 mb-2" v-model="metrics_filter"  placeholder="Filter metrics" />
+        </b-col>
+      </b-row>
       <b-table
         :items="metrics"
         striped
+        :filter="metrics_filter"
         :fields="['name', 'tags', 'fields', 'timestamp']"
         v-if="checksLoaded"
       >
@@ -134,8 +155,9 @@
             {{ idx }} : {{ item }} <br />
           </div>
         </template>
-        <template v-slot:cell(timestamp)="row">
-          {{ new Date(row.item.timestamp * 1000) }}
+        <template v-slot:cell(timestamp)="cell">
+          {{ new Date(cell.item.timestamp * 1000).toLocaleDateString() }}
+          {{ new Date(cell.item.timestamp * 1000).toLocaleTimeString() }}
         </template>
       </b-table>
       <b-spinner v-else class="m-2" />
@@ -148,6 +170,10 @@ import Helper from "@/helper";
 export default {
   data() {
     return {
+      services_filter: "",
+      metrics_filter: "",
+
+      servicesLoading: false,
       selected_service: {
         type: "check",
       },
@@ -191,12 +217,15 @@ export default {
     },
     loadServices: /* istanbul ignore next */ function () {
       var auth = this.$auth;
+      this.servicesLoading = true;
       Helper.apiCall("services", "all", auth)
         .then((res) => {
           this.services = res;
+          this.servicesLoading = false;
         })
         .catch((e) => {
           this.$store.commit("updateError", e);
+          this.servicesLoading = false;
         });
     },
     loadMetrics: /* istanbul ignore next */ function () {

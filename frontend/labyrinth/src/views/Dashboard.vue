@@ -5,6 +5,14 @@
 
     <CreateEditHost :inp_host="selected_host" @update="loadData()" />
     <HostMetric @update="loadData()" :data="selected_metric" />
+
+    <GroupModal
+      :selected_group="selected_group"
+      :selected_subnet="selected_subnet"
+      @updated="loadData()"
+    />
+
+    <!-- Main page -->
     <div v-if="!loading">
       <div class="outer_left">
         <Connector
@@ -79,9 +87,23 @@
                 class="grouped"
                 v-for="(group, j) in subnet.groups"
                 v-bind:key="j"
+                @drop="onDrop(group.name)"
+                @dragover.prevent
+                @dragenter.prevent
               >
                 <div class="overflow-hidden light p-0">
-                  <h2 class="float-left">{{ group.name }}</h2>
+                  <h2
+                    class="group_headers float-left"
+                    @click="
+                      () => {
+                        selected_group = group.name;
+                        selected_subnet = subnet;
+                        $bvModal.show('group_edit');
+                      }
+                    "
+                  >
+                    {{ group.name }}&nbsp;
+                  </h2>
                   <font-awesome-icon
                     class="float-right p-1 mt-1 hover"
                     icon="plus"
@@ -106,12 +128,17 @@
                     :cpu="host.cpu_check"
                     :mem="host.mem_check"
                     :hd="host.hd_check"
+                    :monitor="host.monitor"
+                    @dragStart="(ip) => (dragged_ip = ip)"
+                    @dragEnd="dragged_ip = ''"
                     @service="
                       (val) => {
                         selected_metric = val;
+                        selected_metric['ip'] = host.ip
                         $forceUpdate();
                       }
                     "
+                    :host="host.host"
                   />
                 </div>
               </div>
@@ -130,6 +157,7 @@ import Host from "@/components/Host";
 import CreateEditSubnet from "@/components/CreateEditSubnet";
 import CreateEditHost from "@/components/CreateEditHost";
 import HostMetric from "@/components/HostMetric";
+import GroupModal from "@/components/GroupModal.vue";
 export default {
   data() {
     return {
@@ -143,6 +171,9 @@ export default {
       selected_subnet: "",
       selected_host: "",
       selected_metric: {},
+
+      dragged_ip: "",
+      selected_group: "",
     };
   },
   components: {
@@ -151,20 +182,59 @@ export default {
     CreateEditSubnet,
     CreateEditHost,
     HostMetric,
+    GroupModal,
   },
   methods: {
-    loadData: /* istanbul ignore next */ function (showLoading) {
+    onDrop: /* istanbul ignore next */ function (name) {
       var auth = this.$auth;
+      Helper.apiCall(
+        "host_group_rename",
+        this.dragged_ip + "/" + name + "/",
+        auth
+      )
+        .then(() => {
+          this.loadData();
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
+    },
+    loadData: /* istanbul ignore next */ async function (showLoading) {
+      var auth = this.$auth;
+      var url = ""
       if (showLoading) {
         this.loading = true;
+        url = "1"
       }
-      Helper.apiCall("dashboard", "", auth)
+      await Helper.apiCall("dashboard", url, auth)
         .then((res) => {
           this.full_data = res;
+
+          for(var i=0; i<this.full_data.length; i++){
+            var temp = this.full_data[i]
+            temp.groups.sort((prev, next)=>{
+              if(prev.name == ""){
+                return 1
+              }
+              if(next.name == ""){
+                return -1
+              }
+
+              if(prev.starred){
+                return -1;
+              }
+              if(next.starred){
+                return 1
+              }
+              return prev.name > next.name
+            })
+          }
+          setTimeout(()=>{this.loadData(false)}, 2000)
           this.loading = false;
           this.findTop();
         })
         .catch((e) => {
+          setTimeout(()=>{this.loadData(false)}, 2000)
           this.$store.commit("updateError", e);
         });
     },
@@ -182,7 +252,8 @@ export default {
         return "text-right subnet " + subnet.color + "";
       }
     },
-    findTop: function () {
+    // NOTE: I'm not sure how to test this function, since it relies on external DOM
+    findTop: /* istanbul ignore next */ function () {
       try {
         for (var i = 0; i < this.connector_count; i++) {
           var height = this.$refs["start_" + i][0].$el.offsetHeight;
@@ -202,7 +273,7 @@ export default {
   },
   watch: {
     $refs: {
-      start_1: function (val) {
+      start_1: /* istanbul ignore next */ function (val) {
         if (val.$el != undefined) {
           this.findTop();
         }
@@ -255,6 +326,14 @@ h2 {
   margin: 0;
   padding: 0;
   margin-bottom: 5px;
+}
+.group_headers {
+  width: auto !important;
+  text-transform: capitalize;
+  cursor: pointer;
+}
+.group_headers:hover {
+  color: #cdcdce;
 }
 .light {
   text-align: left;
