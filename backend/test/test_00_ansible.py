@@ -95,6 +95,13 @@ def test_find_ip():
     assert a[1] == 200
     assert a[0] == ip
 
+def test_run_ansible_ssh_key():
+    """
+    Runs ansible runner with a specified ssh key
+        - Already created on sample client
+    """
+    assert False
+
 
 def test_check_file():
     """
@@ -225,3 +232,4 @@ def test_run_ansible():
         assert True
 
     assert not os.path.exists("/vault.pass")
+
