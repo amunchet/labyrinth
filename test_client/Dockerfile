@@ -17,4 +17,6 @@ RUN echo "root:test" | chpasswd
 ADD entrypoint.sh /
 RUN dos2unix /entrypoint.sh
 
+
+
 CMD exec sh -c "/entrypoint.sh"
