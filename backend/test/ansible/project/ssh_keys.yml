@@ -1,0 +1,32 @@
+# TODO: Copied from stackoverflow
+# TODO: Delete vault password file 
+- hosts: all
+  # Postpone facts gathering until SSH keys have been unlocked
+  gather_facts: no
+
+  pre_tasks:
+    # TODO: SSH key file will be static upload (or changed from commandline)
+    - name: Unlock SSH key "{{ ssh_key_file }}"
+      expect:
+        command: ssh-add "{{ ssh_key_file }}"
+        responses:
+          passphrase: "{{ ssh_key_pass }}"
+      delegate_to: 127.0.0.1
+      become: no
+      changed_when: no
+      no_log: true
+
+    - name: Gathering facts
+      setup:
+
+  tasks:
+    # Do some stuff...
+    # ...
+
+  post_tasks:
+    # Optional, to remove the keys from the agent at the end:
+    - name: Lock SSH key "{{ ssh_key_file }}"
+      command: ssh-add -d "{{ ssh_key_file }}"
+      delegate_to: 127.0.0.1
+      become: no
+      changed_when: no
