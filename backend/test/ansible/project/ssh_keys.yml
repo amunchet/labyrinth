@@ -1,11 +1,20 @@
-# TODO: Copied from stackoverflow
-# TODO: Delete vault password file 
+---
+# Manual run with: `ansible-playbook --ask-vault-pass project/ssh_keys.yml` 
+
+- hosts: localhost
+  tasks:
+    - name: Remove password file
+      raw: rm -rf /src/test/ansible/vault.pass
+
+
 - hosts: all
   # Postpone facts gathering until SSH keys have been unlocked
   gather_facts: no
-
+  vars_files:
+    - /src/test/ansible/vars/ssh_vault.yml
   pre_tasks:
-    # TODO: SSH key file will be static upload (or changed from commandline)
+    # SSH key file will be static upload (or changed from commandline)
+      
     - name: Unlock SSH key "{{ ssh_key_file }}"
       expect:
         command: ssh-add "{{ ssh_key_file }}"
@@ -14,19 +23,36 @@
       delegate_to: 127.0.0.1
       become: no
       changed_when: no
-      no_log: true
+      # no_log: true
 
     - name: Gathering facts
       setup:
 
   tasks:
-    # Do some stuff...
-    # ...
+  - name: Add Repo key
+    raw: wget -qO- https://repos.influxdata.com/influxdb.key | apt-key add -
+
+  - name: Add InfluxDB repo
+    raw: echo "deb https://repos.influxdata.com/debian buster stable" | tee /etc/apt/sources.list.d/influxdb.list
+  
+  - name: Telegraf installation
+    apt:
+      name: telegraf
+      update_cache: yes
+      state: present
 
   post_tasks:
     # Optional, to remove the keys from the agent at the end:
     - name: Lock SSH key "{{ ssh_key_file }}"
-      command: ssh-add -d "{{ ssh_key_file }}"
+      command: ssh-add -D
       delegate_to: 127.0.0.1
       become: no
       changed_when: no
+
+    - name: List SSH keys
+      shell: ssh-add -L
+      delegate_to: 127.0.0.1
+      become: no
+      changed_when: no
+      register: ssh_exists
+      failed_when: ssh_exists.rc != 1
