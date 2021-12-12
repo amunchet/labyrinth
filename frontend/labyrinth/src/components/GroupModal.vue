@@ -86,7 +86,7 @@ export default {
     };
   },
   watch: {
-    status: function (val) {
+    status: /* istanbul ignore next */ function (val) {
       this.changeMonitor(val);
     },
   },

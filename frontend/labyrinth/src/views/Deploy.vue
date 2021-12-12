@@ -434,7 +434,7 @@ export default {
         }
       }
 
-      a.encrypt(item)
+      await a.encrypt(item)
         .then(async (x) => {
           this.loading_generated_vault_file = false;
           this.generated_vault_file = x;
