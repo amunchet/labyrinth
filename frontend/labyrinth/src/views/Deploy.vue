@@ -49,8 +49,23 @@
         <b-col>
           Password:
           <b-input type="password" v-model="generated_ansible.ssh_password" />
-        </b-col>
+          <hr />
+          SSH Key Passphrase:
+          <b-input type="password" v-model="generated_ansible.ssh_passphrase" />
+
+          SSH Key:
+          <b-select
+              v-if="files_list['ssh'] != undefined"
+              v-model="generated_ansible.ssh_key_file"
+              :options="files_list['ssh']"
+            />
+            <div v-else class="m-2">
+            <b-spinner />
+            </div>
+
+                  </b-col>
       </b-row>
+      
       <b-row v-if="generated_ansible.type == 'SSH Key'">
         <b-col>
           SSH Key <br />
@@ -265,25 +280,21 @@
               ---<br />
               ansible_user: "XXXXXX" <br />
               ansible_ssh_pass: "XXXXXXX"<br />
+              </code><br />
+              <i># If SSH key is used - .yml is added automatically</i><br />
+              <code class="text-left">
+              ssh_key_file: /src/uploads/ssh/XXXXXX.yml<br />
+              ssh_key_pass: XXXXXXX
             </code>
           </b-col>
         </b-row>
         <hr />
-        <h6><i>Future Deployments</i></h6>
-        <b-row> <b-col> SSH Key </b-col> </b-row
+        <b-row> <b-col> SSH Key - must have a passphrase</b-col> </b-row
         ><b-row>
-          <b-col>
-            <b-select
-            disabled
-              v-if="files_list['ssh'] != undefined"
-              v-model="selected['ssh']"
-              :options="files_list['ssh']"
-            />
-            <b-spinner v-else class="m-2" />
-            <br />
+          <!--
+          <b-col cols="3" class="text-center">
             <b-button
-            disabled
-              class="mt-2"
+              class=""
               variant="warning"
               @click="
                 () => {
@@ -296,9 +307,9 @@
               <font-awesome-icon icon="plus" size="1x" />
             </b-button>
           </b-col>
+          -->
           <b-col>
             <b-form-file
-              disabled
               class="float-left"
               v-model="ssh_key_file"
               placeholder="..."
@@ -306,7 +317,6 @@
             ></b-form-file> </b-col
           ><b-col cols="1">
             <b-button
-              disabled
               variant="link"
               class="m-0 mt-2 p-0 float-left"
               @click="
@@ -315,41 +325,6 @@
                   ssh_key_file = [];
                 }
               "
-            >
-              <font-awesome-icon icon="times" size="1x" />
-            </b-button>
-          </b-col>
-        </b-row>
-        <b-row> <b-col> Other Ansible Files (optional) </b-col> </b-row
-        ><b-row>
-          <b-col>
-            <b-select
-              disabled
-              v-if="files_list['other'] != undefined"
-              :options="files_list['other']"
-              v-model="selected['other']"
-            />
-            <b-spinner v-else class="m-2" />
-          </b-col>
-          <b-col>
-            <b-form-file
-              disabled
-              v-model="other_file"
-              placeholder="..."
-              drop-placeholder="Drop here..."
-            ></b-form-file>
-          </b-col>
-          <b-col cols="1">
-            <b-button
-              variant="link"
-              class="m-0 mt-2 p-0 float-left"
-              @click="
-                () => {
-                  files_list['other'] = '';
-                  other_file = [];
-                }
-              "
-              disabled
             >
               <font-awesome-icon icon="times" size="1x" />
             </b-button>
@@ -450,6 +425,13 @@ export default {
         item = `ansible_user: ${this.generated_ansible.ssh_username}`;
 
         item += `\nansible_ssh_pass: ${this.generated_ansible.ssh_password}\n`;
+
+        if(this.generated_ansible.ssh_passphrase > ""){
+          item += `\nssh_key_pass: ${this.generated_ansible.ssh_passphrase}`
+        }
+        if(this.generated_ansible.ssh_key_file > ""){
+          item += `\nssh_key_file: /src/uploads/ssh/${this.generated_ansible.ssh_key_file}`
+        }
       }
 
       a.encrypt(item)
@@ -569,6 +551,10 @@ export default {
     },
 
     runPlaybook: /* istanbul ignore next */ function () {
+      if (this.selected["become"] == ""){
+        this.$store.commit("updateError", "Error: No Become Password file selected")
+        return false
+      }
       var auth = this.$auth;
       var formData = new FormData();
       var host = this.selected_host;
