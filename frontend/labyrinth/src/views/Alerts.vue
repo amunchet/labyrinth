@@ -79,7 +79,6 @@
         <hr />
         <h5>Example alertmanager.yml file</h5>
         <b-textarea v-model="sample_alertmanager" disabled />
-
       </b-tab>
     </b-tabs>
   </b-container>
@@ -117,11 +116,11 @@ export default {
     },
     loadAlerts: /* istanbul ignore next */ function () {
       var auth = this.$auth;
-      this.active_alerts_loading = true
+      this.active_alerts_loading = true;
       Helper.apiCall("alertmanager", "alerts", auth)
         .then((res) => {
           this.active_alerts = res;
-          this.active_alerts_loading = false
+          this.active_alerts_loading = false;
         })
         .catch((e) => {
           this.$store.commit("updateError", e);
@@ -222,7 +221,7 @@ export default {
     this.navigator = navigator;
     try {
       this.loadAlerts();
-      this.loadSample()
+      this.loadSample();
     } catch (e) {
       this.$store.commit("updateError", e);
     }

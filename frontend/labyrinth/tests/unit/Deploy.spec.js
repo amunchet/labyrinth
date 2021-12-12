@@ -1,5 +1,5 @@
 // TEMPLATE FILE - Copy this file
-import { config, shallowMount } from "@vue/test-utils";
+import { config, mount } from "@vue/test-utils";
 
 //import { render } from '@vue/server-test-utils'
 
@@ -24,7 +24,7 @@ config.mocks["loaded"] = true;
 let wrapper;
 
 beforeEach(() => {
-  wrapper = shallowMount(Instance, {
+  wrapper = mount(Instance, {
     propsData: {
       options: [
         "All",
@@ -69,5 +69,22 @@ afterEach(() => {
 describe("Deploy.vue", () => {
   test("is a Vue instance", () => {
     expect(wrapper.isVueInstance).toBeTruthy();
+  });
+
+  test("ansible encrypt", async () => {
+    wrapper.vm.$data.generated_ansible = {
+      vault_password: "testpassword",
+      ansible_user: "Test",
+      ssh_password: "testpass",
+      ssh_passphrase: "sshkeypass",
+      ssh_key_file: "sshkeyfile",
+    };
+
+    await wrapper.vm.$forceUpdate();
+    await wrapper.vm.generateAnsibleVault();
+
+    await wrapper.vm.$forceUpdate();
+    expect(wrapper.vm.loading_generated_vault_file).toBe(false);
+    expect(wrapper.vm.generated_vault_file).toContain("ANSIBLE_VAULT");
   });
 });

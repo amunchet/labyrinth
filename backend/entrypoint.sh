@@ -1,6 +1,9 @@
 #!/bin/sh
 
 # Entrypoint script for docker
+echo "Starting SSH agent..."
+eval `ssh-agent`
+
 echo "Starting entrypoint.sh..."
 
 if [ -z "$PRODUCTION"]; then

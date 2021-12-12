@@ -349,7 +349,7 @@ h2 {
   margin-bottom: 15px;
 }
 h2.subnet {
-  font-family: fantasy, system-ui, "sans-serif";
+  font-family: system-ui, "sans-serif";
   font-size: 28pt;
   color: #5b5b56;
   font-weight: 100;

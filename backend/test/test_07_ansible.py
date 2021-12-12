@@ -123,7 +123,7 @@ def test_check_file():
 
     # Encrypted files
 
-    helper("/src/test/sample_encrypted_file", "ssh")
+    helper("/src/test/ansible/sample_key", "ssh")
     helper("/src/test/sample_encrypted_file", "totp")
     helper("/src/test/sample_encrypted_file", "become")
     helper("/src/test/sample_telegraf.json", "become", False)

@@ -55,7 +55,11 @@
       <b-row>
         <b-col cols="5"> Delete a Service from All</b-col>
         <b-col cols="6">
-          <b-select size="sm" :options="services" v-model="selected_delete_service" />
+          <b-select
+            size="sm"
+            :options="services"
+            v-model="selected_delete_service"
+          />
         </b-col>
         <b-col cols="1">
           <b-button size="sm" variant="danger" @click="deleteService()">
@@ -63,7 +67,6 @@
           </b-button>
         </b-col>
       </b-row>
-
     </div>
   </b-modal>
 </template>
@@ -86,14 +89,14 @@ export default {
     };
   },
   watch: {
-    status: function (val) {
+    status: /* istanbul ignore next */ function (val) {
       this.changeMonitor(val);
     },
   },
   mounted: /* istanbul ignore next */ function () {
     try {
       this.listIcons();
-      this.listServices()
+      this.listServices();
     } catch (e) {
       this.$store.commit("updateError", e);
     }
@@ -155,24 +158,40 @@ export default {
         });
     },
     addService: /* istanbul ignore next */ function () {
-      var auth = this.$auth
-      var url = "add_service/" + this.selected_subnet.subnet + "/" + this.selected_group + "/" + this.selected_service
-      Helper.apiCall("group", url, auth).then(res=>{
-        this.$emit("updated")
-        this.$store.commit("updateError", res)
-      }).catch(e=>{
-        this.$store.commit("updateError", e)
-      })
+      var auth = this.$auth;
+      var url =
+        "add_service/" +
+        this.selected_subnet.subnet +
+        "/" +
+        this.selected_group +
+        "/" +
+        this.selected_service;
+      Helper.apiCall("group", url, auth)
+        .then((res) => {
+          this.$emit("updated");
+          this.$store.commit("updateError", res);
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
     },
     deleteService: /* istanbul ignore next */ function () {
-      var auth = this.$auth
-      var url = "delete_service/" + this.selected_subnet.subnet + "/" + this.selected_group + "/" + this.selected_delete_service
-      Helper.apiCall("group", url, auth).then(res=>{
-        this.$emit("updated")
-        this.$store.commit("updateError", res)
-      }).catch(e=>{
-        this.$store.commit("updateError", e)
-      })
+      var auth = this.$auth;
+      var url =
+        "delete_service/" +
+        this.selected_subnet.subnet +
+        "/" +
+        this.selected_group +
+        "/" +
+        this.selected_delete_service;
+      Helper.apiCall("group", url, auth)
+        .then((res) => {
+          this.$emit("updated");
+          this.$store.commit("updateError", res);
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
     },
 
     listIcons: /* istanbul ignore next */ function () {

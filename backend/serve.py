@@ -145,12 +145,17 @@ def upload(type, override_token):  # pragma: no cover
     if data:
         with open("/tmp/{}".format(filename), "w") as f:
             f.write(data)
-        
-        if os.path.exists("/src/uploads/become/{}.yml".format(filename.replace(".yml", ""))):
+
+        if os.path.exists(
+            "/src/uploads/become/{}.yml".format(filename.replace(".yml", ""))
+        ):
             os.remove("/src/uploads/become/{}.yml".format(filename.replace(".yml", "")))
 
         if ansible_helper.check_file(filename, type):
-            shutil.move("/tmp/{}".format(filename), "/src/uploads/become/{}.yml".format(filename.replace(".yml", "")))
+            shutil.move(
+                "/tmp/{}".format(filename),
+                "/src/uploads/become/{}.yml".format(filename.replace(".yml", "")),
+            )
             return filename, 200
         os.remove("/tmp/{}".format(filename))
         return "File check failed", 522
@@ -165,6 +170,9 @@ def upload(type, override_token):  # pragma: no cover
         else:
             return "File check failed", 521
 
+    # Chmod
+    chmod_filename = "/src/uploads/{}/{}".format(type, filename)
+    os.chmod(chmod_filename, 0o600)
     return file.filename, 200
 
 
@@ -353,32 +361,41 @@ def host_group_rename(ip, group):
     """
     Changes the specific host's group name
     """
-    found = mongo_client["labyrinth"]["hosts"].find_one({"ip" : ip})
+    found = mongo_client["labyrinth"]["hosts"].find_one({"ip": ip})
     if not found:
         return "Not found", 498
-    mongo_client["labyrinth"]["hosts"].update_many({"ip" : ip}, {"$set" : {"group" : group}})
+    mongo_client["labyrinth"]["hosts"].update_many(
+        {"ip": ip}, {"$set": {"group": group}}
+    )
     return "Success", 200
 
 
 # Group (Mass actions)
 
+
 @app.route("/group/monitor/<subnet>/<name>/<status>")
 @requires_auth_write
-def group_monitor(subnet,name, status):
+def group_monitor(subnet, name, status):
     """
     Changes the monitoring option for all memebers of the group
     """
 
-    mongo_client["labyrinth"]["hosts"].update_many({"subnet" : subnet, "group" : name}, {"$set" : {"monitor" : str(status).lower() == "true"}})
+    mongo_client["labyrinth"]["hosts"].update_many(
+        {"subnet": subnet, "group": name},
+        {"$set": {"monitor": str(status).lower() == "true"}},
+    )
     return "Updated Monitoring to " + str(str(status).lower() == "true"), 200
+
 
 @app.route("/group/name/<subnet>/<name>/<new_name>")
 @requires_auth_write
-def group_rename(subnet,name, new_name):
+def group_rename(subnet, name, new_name):
     """
     Changes name for all members of the group
     """
-    mongo_client["labyrinth"]["hosts"].update_many({"subnet" : subnet, "group" : name}, {"$set" : {"group" : new_name}})
+    mongo_client["labyrinth"]["hosts"].update_many(
+        {"subnet": subnet, "group": name}, {"$set": {"group": new_name}}
+    )
     return "Success", 200
 
 
@@ -389,8 +406,11 @@ def group_icon(subnet, name, new_icon):
     Change icons
     """
 
-    mongo_client["labyrinth"]["hosts"].update_many({"subnet" : subnet, "group" : name}, {"$set" : {"icon" : new_icon}})
+    mongo_client["labyrinth"]["hosts"].update_many(
+        {"subnet": subnet, "group": name}, {"$set": {"icon": new_icon}}
+    )
     return "Success", 200
+
 
 @app.route("/group/add_service/<subnet>/<name>/<new_service>")
 @requires_auth_write
@@ -398,12 +418,16 @@ def group_add_service(subnet, name, new_service):
     """
     Add Service to all members (check if already have it)
     """
-    a = mongo_client["labyrinth"]["hosts"].find({"subnet" : subnet, "group" : name})
+    a = mongo_client["labyrinth"]["hosts"].find({"subnet": subnet, "group": name})
     for x in [x for x in a]:
         if new_service not in x["services"]:
             temp = x["services"] + [new_service]
-            mongo_client["labyrinth"]["hosts"].update_one({"subnet" : subnet, "group" : name, "ip" : x["ip"]}, {"$set" : {"services" : temp}})
+            mongo_client["labyrinth"]["hosts"].update_one(
+                {"subnet": subnet, "group": name, "ip": x["ip"]},
+                {"$set": {"services": temp}},
+            )
     return "Success", 200
+
 
 @app.route("/group/delete_service/<subnet>/<name>/<new_service>")
 @requires_auth_write
@@ -411,13 +435,15 @@ def group_delete_service(subnet, name, new_service):
     """
     Deletes Service to all members (check if already have it)
     """
-    a = mongo_client["labyrinth"]["hosts"].find({"subnet" : subnet, "group" : name})
+    a = mongo_client["labyrinth"]["hosts"].find({"subnet": subnet, "group": name})
     for x in [x for x in a]:
         if new_service in x["services"]:
             temp = [y for y in x["services"] if y != new_service]
-            mongo_client["labyrinth"]["hosts"].update_one({"subnet" : subnet, "group" : name, "ip" : x["ip"]}, {"$set" : {"services" : temp}})
+            mongo_client["labyrinth"]["hosts"].update_one(
+                {"subnet": subnet, "group": name, "ip": x["ip"]},
+                {"$set": {"services": temp}},
+            )
     return "Success", 200
-
 
 
 # Services
@@ -742,11 +768,12 @@ def restart_alertmanager():
 # Settings
 @app.route("/telegraf_key/")
 @requires_auth_admin
-def telegraf_key(): # pragma: no cover
+def telegraf_key():  # pragma: no cover
     """
     Returns Telegraf Key
     """
     return str(TELEGRAF_KEY), 200
+
 
 @app.route("/settings")
 @app.route("/settings/<setting>", methods=["GET"])
@@ -804,18 +831,33 @@ def delete_setting(setting):
 
 
 # Icons
+def check_extension(fname):
+    """
+    Checks icon extensions
+    """
+    extensions = [".svg", ".png", ".bmp", ".jpg", ".jpeg"]
+    for ext in extensions:
+        if ext in fname:
+            return True
+    return False
+
+
 @app.route("/icons/")
 @requires_auth_admin
 def list_icons():
     """Lists Icons"""
-    def check_extension(fname):
-        extensions = [".svg", ".png", ".bmp", ".jpg", ".jpeg"]
-        for ext in extensions:
-            if ext in fname:
-                return True
-        return False
+    return (
+        json.dumps(
+            [
+                x.replace(".svg", "")
+                for x in os.listdir("/public/icons")
+                if check_extension(x)
+            ],
+            default=str,
+        ),
+        200,
+    )
 
-    return json.dumps([x.replace(".svg", "") for x in os.listdir("/public/icons") if check_extension(x)], default=str), 200
 
 @app.route("/icon/<name>", methods=["DELETE"])
 @requires_auth_admin
@@ -823,10 +865,19 @@ def delete_icon(name):
     """
     Deletes an icon
     """
+    del_files = [
+        x
+        for x in os.listdir("/public/icons")
+        if x.split("/")[-1].split(".")[0] == name and check_extension(x)
+    ]
+    for fname in del_files:
+        os.remove(os.path.join("/public/icons", fname.split("/")[-1]))
+    return "Success", 200
+
 
 @app.route("/icon/<name>", methods=["POST"])
 @requires_auth_admin
-def create_icon(): # pragma: no cover
+def create_icon():  # pragma: no cover
     """
     Creates an icon
     """
@@ -877,6 +928,7 @@ def new_ansible_file(fname):
         f.write("")
     return filename, 200
 
+
 @app.route("/get_ansible_file/<fname>")
 @requires_auth_admin
 def get_ansible_file(fname):
@@ -918,7 +970,7 @@ def save_ansible_file(fname, inp_data=""):
 # Ansible runner
 @app.route("/ansible_runner/", methods=["POST"])
 @requires_auth_admin
-def run_ansible(inp_data=""): # pragma: no cover
+def run_ansible(inp_data=""):  # pragma: no cover
     if inp_data != "":
         data = inp_data
     elif request.method == "POST":  # pragma: no cover
@@ -972,6 +1024,7 @@ def update_ip(mac, new_ip):
 
 # Dashboard
 
+
 @app.route("/dashboard/<val>")
 @app.route("/dashboard/")
 @requires_auth_read
@@ -984,10 +1037,8 @@ def dashboard(val="", report=False):
         cachedboard = rc.get("dashboard")
         if cachedboard:
             return rc.get("dashboard"), 200
-    
+
     subnets = {}
-
-
 
     for item in json.loads(unwrap(list_subnets)()[0]):
         subnets[item] = {}
@@ -1047,7 +1098,7 @@ def dashboard(val="", report=False):
                 report
                 and (not result or result == -1)
                 and ("monitor" in host and str(host["monitor"]).lower() == "true")
-            ): # pragma: no cover
+            ):  # pragma: no cover
                 alert_name = "PROBLEM"
                 metric_name = "None"
                 if latest_metric is not None and "name" in latest_metric:
@@ -1096,7 +1147,10 @@ def dashboard(val="", report=False):
             subnet["groups"].append({"name": group, "hosts": groups[group]})
         del subnet["hosts"]
 
-    if not rc.get("dashboard_time") or time.time() - float(rc.get("dashboard_time")) > 5:
+    if (
+        not rc.get("dashboard_time")
+        or time.time() - float(rc.get("dashboard_time")) > 5
+    ):
         rc.set("dashboard", json.dumps(subnets, default=str))
         rc.set("dashboard_time", str(time.time()))
     return json.dumps(subnets, default=str), 200
@@ -1133,29 +1187,38 @@ def read_metrics(host, service="", count=10):
     """
     Returns the latest metrics for a given host
     """
-    or_clause = {"$or" : [{"tags.host": host}, {"tags.ip": host}, {"tags.mac": host}]}
+    or_clause = {"$or": [{"tags.host": host}, {"tags.ip": host}, {"tags.mac": host}]}
     if service != "":
         or_clause["name"] = service
-    
-    found_host = mongo_client["labyrinth"]["hosts"].find_one({"$or" : [{"mac" : host}, {"ip" : host}]})
 
-    retval = [x for x in mongo_client["labyrinth"]["metrics"].find(or_clause).sort([("metrics.timestamp", pymongo.DESCENDING)])]
+    found_host = mongo_client["labyrinth"]["hosts"].find_one(
+        {"$or": [{"mac": host}, {"ip": host}]}
+    )
+
+    retval = [
+        x
+        for x in mongo_client["labyrinth"]["metrics"]
+        .find(or_clause)
+        .sort([("metrics.timestamp", pymongo.DESCENDING)])
+    ]
 
     if service.strip() == "open_ports" or service.strip() == "closed_ports":
         for item in retval:
-            item["judgement"] = mc.judge_port(item, service, found_host, stale_time=10000)
+            item["judgement"] = mc.judge_port(
+                item, service, found_host, stale_time=10000
+            )
     else:
-        found_service = mongo_client["labyrinth"]["services"].find_one({"name" : service})
+        found_service = mongo_client["labyrinth"]["services"].find_one(
+            {"name": service}
+        )
         for item in retval:
             if item is None or found_service is None:
                 item["judgement"] = False
             else:
                 item["judgement"] = mc.judge(item, found_service)
 
-
-
     return (
-        json.dumps(retval[-1 * count:],default=str),
+        json.dumps(retval[-1 * count :], default=str),
         200,
     )
 

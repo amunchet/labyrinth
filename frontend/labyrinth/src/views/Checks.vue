@@ -47,13 +47,17 @@
           <span class="helptext">Specific service metric</span>
         </b-col>
         <b-col>
-          <b-input v-model="selected_service.metric" placeholder="E.g. usage_user" 
+          <b-input
+            v-model="selected_service.metric"
+            placeholder="E.g. usage_user"
         /></b-col>
       </b-row>
       <b-row>
         <b-col
           ><b>Field</b><br />
-          <span class="helptext">Child field - usually the same as Metric.</span>
+          <span class="helptext"
+            >Child field - usually the same as Metric.</span
+          >
         </b-col>
         <b-col>
           <b-input
@@ -87,7 +91,11 @@
     <div class="metrics-table">
       <b-row class="ml-0 pl-0">
         <b-col class="ml-0 pl-0">
-          <b-input class="float-left" v-model="services_filter" placeholder="Filter Services" />
+          <b-input
+            class="float-left"
+            v-model="services_filter"
+            placeholder="Filter Services"
+          />
         </b-col>
         <b-col>
           <b-button
@@ -135,7 +143,11 @@
     <div class="metrics-table mb-2">
       <b-row class="ml-0 pl-0">
         <b-col cols="6" class="ml-0 pl-0">
-      <b-input class="mt-2 mb-2" v-model="metrics_filter"  placeholder="Filter metrics" />
+          <b-input
+            class="mt-2 mb-2"
+            v-model="metrics_filter"
+            placeholder="Filter metrics"
+          />
         </b-col>
       </b-row>
       <b-table

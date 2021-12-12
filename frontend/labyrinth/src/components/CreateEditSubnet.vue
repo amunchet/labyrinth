@@ -185,8 +185,7 @@ export default {
     try {
       this.colors = Helper.listColors();
 
-      this.listIcons()
-
+      this.listIcons();
     } catch (e) {
       this.$store.commit("updateError", e);
     }

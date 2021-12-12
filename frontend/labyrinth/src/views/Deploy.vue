@@ -44,13 +44,31 @@
       <hr />
       <b-row v-if="generated_ansible.type == 'Username and Password'">
         <b-col>
-          Username: <b-input v-model="generated_ansible.ssh_username" placeholder="Ansible username (e.g. root)"/>
+          Username:
+          <b-input
+            v-model="generated_ansible.ssh_username"
+            placeholder="Ansible username (e.g. root)"
+          />
         </b-col>
         <b-col>
           Password:
           <b-input type="password" v-model="generated_ansible.ssh_password" />
+          <hr />
+          SSH Key Passphrase:
+          <b-input type="password" v-model="generated_ansible.ssh_passphrase" />
+
+          SSH Key:
+          <b-select
+            v-if="files_list['ssh'] != undefined"
+            v-model="generated_ansible.ssh_key_file"
+            :options="files_list['ssh']"
+          />
+          <div v-else class="m-2">
+            <b-spinner />
+          </div>
         </b-col>
       </b-row>
+
       <b-row v-if="generated_ansible.type == 'SSH Key'">
         <b-col>
           SSH Key <br />
@@ -87,14 +105,19 @@
       </b-row>
     </b-modal>
 
-    <b-modal id="new_playbook" title="Add New Ansible Playbook" @ok="createPlaybook">
+    <b-modal
+      id="new_playbook"
+      title="Add New Ansible Playbook"
+      @ok="createPlaybook"
+    >
       <b-container>
         <b-row>
-          <b-col cols="4">
-            Playbook name:
-          </b-col>
+          <b-col cols="4"> Playbook name: </b-col>
           <b-col>
-            <b-input placeholder="New Playbook name (e.g. test.yml)" v-model="new_ansible_file"/>
+            <b-input
+              placeholder="New Playbook name (e.g. test.yml)"
+              v-model="new_ansible_file"
+            />
           </b-col>
         </b-row>
       </b-container>
@@ -131,8 +154,8 @@
         </div>
         <div v-else class="mb-4 mt-2">
           <div v-if="!sample_loading">
-          Host: <br /><b>sampleclient - ({{ sample_ip }})</b> <br />Backend ip
-          is {{ ip }}
+            Host: <br /><b>sampleclient - ({{ sample_ip }})</b> <br />Backend ip
+            is {{ ip }}
           </div>
           <div v-else>
             <b-spinner class="m-2" />
@@ -141,7 +164,9 @@
         <h5 class="mt-2">Ansible playbook</h5>
         <hr />
         <p>
-          Remember to change your <code>vars_files</code> to your uploaded ansible vault files.  An example of a correct location would be<br /> <code>- /src/uploads/become/password.yml</code>
+          Remember to change your <code>vars_files</code> to your uploaded
+          ansible vault files. An example of a correct location would be<br />
+          <code>- /src/uploads/become/password.yml</code>
         </p>
         <b-row>
           <b-col cols="10">
@@ -153,10 +178,16 @@
             />
           </b-col>
           <b-col cols="2" class="pt-2">
-            <b-button variant="primary" class="float-right" @click="()=>{
-              new_ansible_file = ''
-              $bvModal.show('new_playbook')
-              }">
+            <b-button
+              variant="primary"
+              class="float-right"
+              @click="
+                () => {
+                  new_ansible_file = '';
+                  $bvModal.show('new_playbook');
+                }
+              "
+            >
               <font-awesome-icon icon="plus" />
             </b-button>
           </b-col>
@@ -264,26 +295,22 @@
             <code class="text-left">
               ---<br />
               ansible_user: "XXXXXX" <br />
-              ansible_ssh_pass: "XXXXXXX"<br />
+              ansible_ssh_pass: "XXXXXXX"<br /> </code
+            ><br />
+            <i># If SSH key is used - .yml is added automatically</i><br />
+            <code class="text-left">
+              ssh_key_file: /src/uploads/ssh/XXXXXX.yml<br />
+              ssh_key_pass: XXXXXXX
             </code>
           </b-col>
         </b-row>
         <hr />
-        <h6><i>Future Deployments</i></h6>
-        <b-row> <b-col> SSH Key </b-col> </b-row
+        <b-row> <b-col> SSH Key - must have a passphrase</b-col> </b-row
         ><b-row>
-          <b-col>
-            <b-select
-            disabled
-              v-if="files_list['ssh'] != undefined"
-              v-model="selected['ssh']"
-              :options="files_list['ssh']"
-            />
-            <b-spinner v-else class="m-2" />
-            <br />
+          <!--
+          <b-col cols="3" class="text-center">
             <b-button
-            disabled
-              class="mt-2"
+              class=""
               variant="warning"
               @click="
                 () => {
@@ -296,9 +323,9 @@
               <font-awesome-icon icon="plus" size="1x" />
             </b-button>
           </b-col>
+          -->
           <b-col>
             <b-form-file
-              disabled
               class="float-left"
               v-model="ssh_key_file"
               placeholder="..."
@@ -306,7 +333,6 @@
             ></b-form-file> </b-col
           ><b-col cols="1">
             <b-button
-              disabled
               variant="link"
               class="m-0 mt-2 p-0 float-left"
               @click="
@@ -315,41 +341,6 @@
                   ssh_key_file = [];
                 }
               "
-            >
-              <font-awesome-icon icon="times" size="1x" />
-            </b-button>
-          </b-col>
-        </b-row>
-        <b-row> <b-col> Other Ansible Files (optional) </b-col> </b-row
-        ><b-row>
-          <b-col>
-            <b-select
-              disabled
-              v-if="files_list['other'] != undefined"
-              :options="files_list['other']"
-              v-model="selected['other']"
-            />
-            <b-spinner v-else class="m-2" />
-          </b-col>
-          <b-col>
-            <b-form-file
-              disabled
-              v-model="other_file"
-              placeholder="..."
-              drop-placeholder="Drop here..."
-            ></b-form-file>
-          </b-col>
-          <b-col cols="1">
-            <b-button
-              variant="link"
-              class="m-0 mt-2 p-0 float-left"
-              @click="
-                () => {
-                  files_list['other'] = '';
-                  other_file = [];
-                }
-              "
-              disabled
             >
               <font-awesome-icon icon="times" size="1x" />
             </b-button>
@@ -450,9 +441,17 @@ export default {
         item = `ansible_user: ${this.generated_ansible.ssh_username}`;
 
         item += `\nansible_ssh_pass: ${this.generated_ansible.ssh_password}\n`;
+
+        if (this.generated_ansible.ssh_passphrase > "") {
+          item += `\nssh_key_pass: ${this.generated_ansible.ssh_passphrase}`;
+        }
+        if (this.generated_ansible.ssh_key_file > "") {
+          item += `\nssh_key_file: /src/uploads/ssh/${this.generated_ansible.ssh_key_file}`;
+        }
       }
 
-      a.encrypt(item)
+      await a
+        .encrypt(item)
         .then(async (x) => {
           this.loading_generated_vault_file = false;
           this.generated_vault_file = x;
@@ -524,16 +523,19 @@ export default {
         });
     },
 
-    createPlaybook: /* istanbul ignore next */ function(e){
-      var auth = this.$auth
-      e.preventDefault()
-      Helper.apiCall("new_ansible_file", this.new_ansible_file, auth).then(async ()=>{
-        await this.loadFilesList("ansible")
-        this.selected_playbook = this.new_ansible_file.replace(".yml","") + ".yml"
-        this.$bvModal.hide("new_playbook")
-      }).catch(e=>{
-        this.$store.commit("updateError", e)
-      })
+    createPlaybook: /* istanbul ignore next */ function (e) {
+      var auth = this.$auth;
+      e.preventDefault();
+      Helper.apiCall("new_ansible_file", this.new_ansible_file, auth)
+        .then(async () => {
+          await this.loadFilesList("ansible");
+          this.selected_playbook =
+            this.new_ansible_file.replace(".yml", "") + ".yml";
+          this.$bvModal.hide("new_playbook");
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
     },
     savePlaybook: /* istanbul ignore next */ function () {
       this.loadings["save_playbook"] = 1;
@@ -569,6 +571,13 @@ export default {
     },
 
     runPlaybook: /* istanbul ignore next */ function () {
+      if (this.selected["become"] == "") {
+        this.$store.commit(
+          "updateError",
+          "Error: No Become Password file selected"
+        );
+        return false;
+      }
       var auth = this.$auth;
       var formData = new FormData();
       var host = this.selected_host;
@@ -596,14 +605,14 @@ export default {
 
     loadIP: /* istanbul ignore next */ async function () {
       var auth = this.$auth;
-      this.sample_loading  = true
+      this.sample_loading = true;
       await Helper.apiCall("find_ip", "", auth)
         .then((res) => {
           this.ip = res;
         })
         .catch((e) => {
           this.$store.commit("updateError", e);
-          this.sample_loading = false
+          this.sample_loading = false;
         });
       await Helper.apiCall("find_ip", "sampleclient", auth)
         .then((res) => {
@@ -611,9 +620,9 @@ export default {
         })
         .catch((e) => {
           this.$store.commit("updateError", e);
-          this.sample_loading = false
+          this.sample_loading = false;
         });
-      this.sample_loading = false
+      this.sample_loading = false;
     },
 
     loadFilesList: /* istanbul ignore next */ async function (type) {

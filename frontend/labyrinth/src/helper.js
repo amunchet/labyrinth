@@ -6,7 +6,7 @@ const devel_port = "8101";
 
 export default {
   name: "Helper",
-  formatDate(date, isTime=false) {
+  formatDate(date, isTime = false) {
     var d = new Date(date),
       month = "" + (d.getMonth() + 1),
       day = "" + d.getDate(),
@@ -15,16 +15,16 @@ export default {
     if (month.length < 2) month = "0" + month;
     if (day.length < 2) day = "0" + day;
 
-    if(isTime){
-        var hours = d.getHours()
-        var minutes = d.getMinutes()
-        var seconds = d.getSeconds()
+    if (isTime) {
+      var hours = d.getHours();
+      var minutes = d.getMinutes();
+      var seconds = d.getSeconds();
 
-        return hours + ":" + minutes + ":" + seconds
+      return hours + ":" + minutes + ":" + seconds;
     }
     return [year, month, day].join("-");
   },
-  
+
   listColors: function () {
     var retval = [
       "darkblue",
