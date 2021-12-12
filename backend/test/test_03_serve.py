@@ -258,10 +258,10 @@ def test_host_group_rename(setup):
     b = serve.mongo_client["labyrinth"]["hosts"].find({})
     c = [x for x in b]
     assert len(c) == 1
-    print(c[0])
-    assert c[0]["group"] == "Linux Servers"
+    print("This:", c[0])
+    assert c[0]["group"] == "Windows Servers"
 
-    a = unwrap(serve.host_group_rename)("192.168.0.172", "test")
+    a = unwrap(serve.host_group_rename)("192.168.10.176", "test")
     assert a[1] == 200
     
     b = serve.mongo_client["labyrinth"]["hosts"].find({})
