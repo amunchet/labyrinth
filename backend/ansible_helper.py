@@ -91,6 +91,17 @@ def check_file(filename, file_type, raw=""):
 
     elif file_type == "other":
         return True
+    elif file_type == "ssh":
+        # Checking for encrypted file
+        with open(look_file) as f:
+            count = 0
+            for item in f.readlines():
+                if count == 0:
+                    if "--BEGIN OPENSSH PRIVATE KEY--" in item:
+                        return True
+                break
+        return False
+
     else:
         # Checking for encrypted file
         with open(look_file) as f:
