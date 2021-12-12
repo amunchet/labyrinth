@@ -10,7 +10,8 @@ RUN apt update && apt -y install \
     dos2unix \
     curl \
     gnupg \
-    sudo
+    sudo \
+    python3
 
 RUN echo "root:test" | chpasswd
 
