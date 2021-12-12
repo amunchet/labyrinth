@@ -249,7 +249,7 @@ def test_delete_subnet(setup):
     assert a[1] == 407
 
 
-def test_group_rename(setup):
+def test_host_group_rename(setup):
     """
     Tests group renaming
     """
