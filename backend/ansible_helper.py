@@ -179,29 +179,7 @@ def run_ansible(
     with open("{}/vault.pass".format(RUN_DIR), "w") as f:
         f.write(vault_password)
 
-    # SSH Key File - Optional
-    if ssh_key_file != "":
-        # Copy it over
-        ssh_key = "{}/{}".format(SSH_DIR, ssh_key_file)
-        if not os.path.exists(ssh_key):
-            raise Exception("SSH Key not found:" + str(ssh_key))
-
-        shutil.copy(ssh_key, "{}/env/ssh_key".format(RUN_DIR))
-
-        # Decrypt it - if that fails, then die
-        try:
-            os.system(
-                "ansible-vault decrypt {}/env/ssh_key --vault-password-file {}/vault.pass".format(
-                    RUN_DIR, RUN_DIR
-                )
-            )
-            if not os.path.exists("{}/env/ssh_key".format(RUN_DIR)):
-                raise Exception("No file found from SSH decrypt")
-        except Exception:
-            if os.path.exists("{}/vault.pass".format(RUN_DIR)):
-                os.remove("{}/vault.pass".format(RUN_DIR))
-            raise Exception("SSH key decrypt failed")
-
+    
     # Write password
     with open("{}/vault.pass".format(RUN_DIR), "w") as f:
         f.write(vault_password)
