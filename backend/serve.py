@@ -165,6 +165,9 @@ def upload(type, override_token):  # pragma: no cover
         else:
             return "File check failed", 521
 
+    # Chmod
+    chmod_filename = "/src/uploads/{}/{}".format(type, filename)
+    os.chmod(chmod_filename, 0o600)
     return file.filename, 200
 
 
