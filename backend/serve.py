@@ -807,17 +807,20 @@ def delete_setting(setting):
 
 
 # Icons
+def check_extension(fname):
+    """
+    Checks icon extensions
+    """
+    extensions = [".svg", ".png", ".bmp", ".jpg", ".jpeg"]
+    for ext in extensions:
+        if ext in fname:
+            return True
+    return False
+
 @app.route("/icons/")
 @requires_auth_admin
 def list_icons():
     """Lists Icons"""
-    def check_extension(fname):
-        extensions = [".svg", ".png", ".bmp", ".jpg", ".jpeg"]
-        for ext in extensions:
-            if ext in fname:
-                return True
-        return False
-
     return json.dumps([x.replace(".svg", "") for x in os.listdir("/public/icons") if check_extension(x)], default=str), 200
 
 @app.route("/icon/<name>", methods=["DELETE"])
@@ -826,6 +829,11 @@ def delete_icon(name):
     """
     Deletes an icon
     """
+    del_files = [x for x in os.listdir("/public/icons") if x.split("/")[-1].split(".")[0] == name and check_extension(x)]
+    for fname in del_files:
+        os.remove(os.path.join("/public/icons", fname.split("/")[-1]))
+    return "Success", 200
+
 
 @app.route("/icon/<name>", methods=["POST"])
 @requires_auth_admin
