@@ -50,7 +50,8 @@
         ><b-col>Subnet</b-col><b-col><b-input v-model="host.subnet" /></b-col
       ></b-row>
       <b-row
-        ><b-col>Icon</b-col><b-col><b-select :options="icons" v-model="host.icon" /></b-col
+        ><b-col>Icon</b-col
+        ><b-col><b-select :options="icons" v-model="host.icon" /></b-col
       ></b-row>
       <b-row
         ><b-col>Class</b-col><b-col><b-input v-model="host.class" /></b-col
@@ -59,7 +60,7 @@
       <b-row>
         <b-col> Notes</b-col>
         <b-col>
-          <b-textarea style="min-height: 100px;" v-model="host.notes" />
+          <b-textarea style="min-height: 100px" v-model="host.notes" />
         </b-col>
       </b-row>
     </b-container>
@@ -256,15 +257,13 @@
           :items="metrics"
           striped
         >
-        <template v-slot:cell(timestamp)="cell">
-          {{new Date(cell.item.timestamp * 1000).toLocaleDateString()}}
-          {{new Date(cell.item.timestamp * 1000).toLocaleTimeString()}}
-        </template>
+          <template v-slot:cell(timestamp)="cell">
+            {{ new Date(cell.item.timestamp * 1000).toLocaleDateString() }}
+            {{ new Date(cell.item.timestamp * 1000).toLocaleTimeString() }}
+          </template>
         </b-table>
       </div>
     </b-row>
-
-
   </b-modal>
 </template>
 <script>
@@ -281,7 +280,7 @@ export default {
       isNew: true,
       host: "",
       metrics: [],
-      
+
       safe_host: {
         ip: "",
         subnet: "",
@@ -405,7 +404,7 @@ export default {
   mounted: /* istanbul ignore next */ function () {
     try {
       this.loadServices();
-      this.listIcons()
+      this.listIcons();
     } catch (e) {
       this.$store.commit("updateError", e);
     }

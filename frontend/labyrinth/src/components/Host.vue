@@ -1,12 +1,14 @@
 <template>
-  <div 
-    draggable 
+  <div
+    draggable
     :class="'noselect ' + passed_class + ' ' + drag_class"
     @dragstart="drag_start(ip)"
     @dragend="drag_end"
   >
     <div class="top">
-      <div :class="monitor ? 'number' : 'number unmonitored'">.{{ ip.split(".")[ip.split(".").length - 1] }}</div>
+      <div :class="monitor ? 'number' : 'number unmonitored'">
+        .{{ ip.split(".")[ip.split(".").length - 1] }}
+      </div>
 
       <div v-if="host != '' && host.length > 15" class="title">
         {{ host.substr(0, 15) }}...
@@ -18,10 +20,12 @@
           v-if="
             icons.indexOf(icon.charAt(0).toUpperCase() + icon.slice(1)) != -1
           "
-          :src="'/icons/' + myComponent[icon.charAt(0).toUpperCase() + icon.slice(1)]"
+          :src="
+            '/icons/' +
+            myComponent[icon.charAt(0).toUpperCase() + icon.slice(1)]
+          "
         />
         <img v-else :src="'/icons/' + myComponent['Default']" />
-
       </div>
     </div>
     <div class="bottom" v-if="show_ports != 0">
@@ -74,19 +78,23 @@
 
       <div class="table">
         <div class="host_row">
-          <div class="host_col flexed"  >
+          <div class="host_col flexed">
             <div
               :class="'overflow-hidden ' + determineClass(service)"
-              style="height: 24px;"
+              style="height: 24px"
               v-for="(service, idx) in services"
-              @mouseover="()=>{
-                service['hover'] = true
-                $forceUpdate()
-                }"
-              @mouseleave="()=>{
-                service['hover'] = false
-                $forceUpdate()
-                }"
+              @mouseover="
+                () => {
+                  service['hover'] = true;
+                  $forceUpdate();
+                }
+              "
+              @mouseleave="
+                () => {
+                  service['hover'] = false;
+                  $forceUpdate();
+                }
+              "
               v-bind:key="idx"
               @click="
                 () => {
@@ -96,7 +104,7 @@
               "
             >
               <span v-if="service['hover']" class="small_text">
-                {{service.name.replace("_", " ")}}
+                {{ service.name.replace("_", " ") }}
               </span>
               <span v-else>&nbsp;&nbsp;&nbsp;</span>
             </div>
@@ -132,7 +140,7 @@ export default {
     "mem",
     "hd",
     "host",
-    "monitor"
+    "monitor",
   ],
   data() {
     return {
@@ -159,16 +167,15 @@ export default {
     };
   },
   methods: {
-    drag_start: function(ip){
-      this.drag_class = 'dragging'
-      this.dragging_ip = ip
-      this.$emit("dragStart", this.dragging_ip)
-
+    drag_start: function (ip) {
+      this.drag_class = "dragging";
+      this.dragging_ip = ip;
+      this.$emit("dragStart", this.dragging_ip);
     },
-    drag_end: function(){
-      this.drag_class = ""
-      this.dragging_ip = ""
-      this.$emit("dragEnd")
+    drag_end: function () {
+      this.drag_class = "";
+      this.dragging_ip = "";
+      this.$emit("dragEnd");
     },
     determineClass: function (service) {
       if (service.state == -1) {
@@ -183,13 +190,13 @@ export default {
   created() {
     for (var i = 0; i < this.icons.length; i++) {
       let componentName = this.icons[i];
-      this.myComponent[this.icons[i]] = componentName + ".svg"
+      this.myComponent[this.icons[i]] = componentName + ".svg";
     }
   },
 };
 </script>
 <style scoped>
-.small_text{
+.small_text {
   font-size: 8pt;
   line-height: 10px !important;
   color: #65656e;
@@ -207,10 +214,10 @@ export default {
   -webkit-box-shadow: 5px 5px 30px -12px rgba(0, 0, 0, 0.75);
   -moz-box-shadow: 5px 5px 30px -12px rgba(0, 0, 0, 0.75);
 }
-.dragging{
-  border: 5px dashed rgba(0,0,0,0.5) !important;
+.dragging {
+  border: 5px dashed rgba(0, 0, 0, 0.5) !important;
 }
-.noselect{
+.noselect {
   user-select: none;
 }
 .top {
@@ -240,7 +247,7 @@ export default {
   margin-bottom: 0.5rem;
   cursor: pointer;
 }
-.unmonitored{
+.unmonitored {
   color: #dfdfde;
 }
 .hover {

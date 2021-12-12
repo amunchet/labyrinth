@@ -95,6 +95,7 @@ def test_find_ip():
     assert a[1] == 200
     assert a[0] == ip
 
+
 def test_check_file():
     """
     Runs the different checks for the given files
@@ -224,4 +225,3 @@ def test_run_ansible():
         assert True
 
     assert not os.path.exists("/vault.pass")
-

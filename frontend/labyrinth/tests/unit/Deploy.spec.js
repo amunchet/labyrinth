@@ -71,21 +71,20 @@ describe("Deploy.vue", () => {
     expect(wrapper.isVueInstance).toBeTruthy();
   });
 
-  test("ansible encrypt", async()=>{
+  test("ansible encrypt", async () => {
     wrapper.vm.$data.generated_ansible = {
-        "vault_password" : "testpassword",
-        "ansible_user" : "Test",
-        "ssh_password" : "testpass",
-        "ssh_passphrase" : "sshkeypass",
-        "ssh_key_file" : "sshkeyfile"
-    }
-    
-    await wrapper.vm.$forceUpdate()
-    await wrapper.vm.generateAnsibleVault()
+      vault_password: "testpassword",
+      ansible_user: "Test",
+      ssh_password: "testpass",
+      ssh_passphrase: "sshkeypass",
+      ssh_key_file: "sshkeyfile",
+    };
 
-    await wrapper.vm.$forceUpdate()
-    expect(wrapper.vm.loading_generated_vault_file).toBe(false)
-    expect(wrapper.vm.generated_vault_file).toContain("ANSIBLE_VAULT")
+    await wrapper.vm.$forceUpdate();
+    await wrapper.vm.generateAnsibleVault();
 
-  })
+    await wrapper.vm.$forceUpdate();
+    expect(wrapper.vm.loading_generated_vault_file).toBe(false);
+    expect(wrapper.vm.generated_vault_file).toContain("ANSIBLE_VAULT");
+  });
 });

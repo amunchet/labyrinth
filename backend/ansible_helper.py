@@ -179,7 +179,6 @@ def run_ansible(
     with open("{}/vault.pass".format(RUN_DIR), "w") as f:
         f.write(vault_password)
 
-    
     # Write password
     with open("{}/vault.pass".format(RUN_DIR), "w") as f:
         f.write(vault_password)

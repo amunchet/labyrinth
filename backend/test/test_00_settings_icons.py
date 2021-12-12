@@ -57,7 +57,9 @@ def test_delete_setting(setup):
     b = unwrap(serve.get_setting)("test")
     assert b[1] == 481
 
+
 # Icons
+
 
 def test_list_icons(setup):
     """
@@ -73,6 +75,7 @@ def test_list_icons(setup):
     assert "NAS" in b
     assert "Default" in b
 
+
 def test_delete_icon(setup):
     """
     Removes an icon
@@ -83,7 +86,7 @@ def test_delete_icon(setup):
     if not os.path.exists(temp_file):
         with open(temp_file, "w") as f:
             f.write("test")
-    
+
     assert os.path.exists(temp_file)
     # Deletes it
 
