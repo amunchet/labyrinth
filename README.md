@@ -11,8 +11,8 @@ The beautiful network analyzer, mapper, and monitor.
 1.  Labyrinth is using **CVE-Search-Docker** (https://github.com/cve-search/CVE-Search-Docker) to provide vulnerability searching.  This exists as a submodule.  To correctly pull or initialize, you'll need two additional commands `git submodule init && git submodule init`.  Warning: It's a rather large folder.
 
 ## Install
-1.  `docker-compose -f docker-compose-production.yml up --build -d`
-2.  [Need Notes on Auth0 installation]
+1. `sudo bash install.sh` - this will walk you through the setup needed for Auth0 information.
+2.  If you are running docker as non-root, then remove the top section from `install.sh` and re-run.
 
 ## FAQ
 ### 1.  Aren't you reinventing the wheel?
@@ -36,6 +36,16 @@ Labyrinth is built for smaller to midsize networks - I simply don't know how it 
 
 ### 3.  Who is Labyrinth made for?
 Labyrinth is for whatever poor sysadmin has a small to midsize network they can't keep up with - and they just want something easy and pretty to occasionally look at.  Whether that's a homelab admin or a one-man devops band, Labyrinth is here to help.
+
+### 4.  Can you use it with Kubernetes?
+You probably can use Labyrinth for K8, but there are plenty of better, specialized tools that you should probably use instead.
+
+## Development
+Start a development docker-compose stack with the following commands:
+- `docker-compose -f docker-compose-development.yml up --build -d`
+- Port `8100` will be the Vue frontend server.  Go there to start up the development server.
+- Once the Vue frontend server has been started, navigate to `:8101` to see the live frontend.
+- Certificates: you may need to point your browser to `:7200` to accept the self-signed certificate.  If you navigate to the frontend without doing that, you will receive "Network Error" messages.
 
 # TODO
 - Documentation on setting up Auth0 for the system.  Also notes on how to disable using auth (can just have it as an ENV variable in the docker compose)
