@@ -13,3 +13,4 @@ backend/htmlcov
 venv/**
 data/**
 **/.coverage.**
+docker-compose.yml

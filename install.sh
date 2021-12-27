@@ -1,7 +1,8 @@
 #!/bin/bash
 
+# TODO: Remove if docker user is not root
 if [[ $EUID -ne 0 ]]; then
-	echo "This script must be run as root" 
+	echo "This script must be run as root.  If your user is not root but has docker permissions, delete this section from install.sh" 
 	exit 1
 fi
 
@@ -18,9 +19,9 @@ ENV_FOLDER="backend"
 
 echo "Setting up .env..."
 
-if [ -f "$ENV_FOLDER/.env" ]; then
-	echo ".env already exists.  Continuing."
-else
+
+auth_zero () {
+	echo $ENV_FOLDER
 	cp $ENV_FOLDER/.env.sample $ENV_FOLDER/.env
 
 	echo "What is your Auth0 API Url Identifier? (e.g. http://labyrinth/labyrinth)" # APIURL
@@ -34,6 +35,19 @@ else
 	echo "Enter the key to receive telegraf metrics? E.g. 1234" # TELEGRAF_KEY
 	read;
 	sed -i "s|=TELEGRAF_KEY|=$REPLY|" $ENV_FOLDER/.env
+
+}
+
+if [ -f "$ENV_FOLDER/.env" ]; then
+	echo ".env already exists.  Do you want to skip?  Enter is yes, any other entry else will create a new configuration."
+	read;
+	if [ -z "$REPLY" ]; then
+		echo "Skipping Auth0 Configuration"
+	else
+		auth_zero
+	fi
+else
+	auth_zero
 fi
 clear || cls
 
@@ -68,21 +82,17 @@ clear || cls
 # alertmanager.yml.sample - check if exists
 ALERTMANAGER_FOLDER="alertmanager"
 
-
-if [ -f $ALERTMANAGER_FOLDER/alertmanager.yml ]; then
-	echo "Alertmanager configuration already found.  Continuing..."
-else
+alertmanager() {
 	echo "What is your email server? e.g. localhost:25 (Press Enter to skip)"
 	read;
 	if [ -z "$REPLY" ]; then
 		echo "Skipping alertmanager configuration..."
 	else
-
-		cp $ALERTMANAGER_FOLDER/alertmanager.yml.sample $ALERTMANAGER_FOLDER/alertmanager.yml
+		cp $ALERTMANAGER_FOLDER/alertmanager.sample.yml $ALERTMANAGER_FOLDER/alertmanager.yml
 
 		sed -i "s|SMARTHOST|$REPLY|" $ALERTMANAGER_FOLDER/alertmanager.yml
 
-		echo "What is your Email from?"
+		echo "Who is your Email from?"
 		read;
 		sed -i "s|MAILFROM|$REPLY|" $ALERTMANAGER_FOLDER/alertmanager.yml
 
@@ -99,6 +109,18 @@ else
 		sed -i "s|MAILTO|$REPLY|" $ALERTMANAGER_FOLDER/alertmanager.yml
 	fi
 
+}
+
+if [ -f $ALERTMANAGER_FOLDER/alertmanager.yml ]; then
+	echo "Alertmanager configuration already found. Overwrite configuration?  Enter is Keep configuration, any other key will create new configuration"
+       	read;
+	if [ -z "$REPLY" ]; then
+		echo "Skipping alertmanager configuration..."
+	else
+		alertmanager
+	fi	
+else
+	alertmanager
 fi
 
 clear || cls
