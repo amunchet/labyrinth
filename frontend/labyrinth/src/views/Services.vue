@@ -102,7 +102,7 @@
               class="float-right"
               @click="saveConf()"
             >
-              <font-awesome-icon icon="save" size="1x"  />
+              <font-awesome-icon icon="save" size="1x" />
             </b-button>
             <b-spinner v-else />
           </b-col> </b-row
