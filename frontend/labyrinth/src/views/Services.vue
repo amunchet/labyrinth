@@ -100,8 +100,9 @@
               v-if="!saving_conf"
               variant="success"
               class="float-right"
+              @click="saveConf()"
             >
-              <font-awesome-icon icon="save" size="1x" @click="saveConf()" />
+              <font-awesome-icon icon="save" size="1x"  />
             </b-button>
             <b-spinner v-else />
           </b-col> </b-row
