@@ -282,6 +282,8 @@ export default {
         .catch((e) => {
           if(e.status == undefined || e.status != 481){
             this.$store.commit("updateError", e);
+          }else{
+            this.$store.commit("updateError", "Error: Please update default backend location in Settings.")
           }
         });
     },

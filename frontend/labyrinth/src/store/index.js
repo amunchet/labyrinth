@@ -17,8 +17,6 @@ export default new Vuex.Store({
     },
     updateError(state, msg) {
       // General Application: Displays the error message
-      console.log(state)
-      console.log(msg)
       state.full_error = msg;
 
       var temp = ""
@@ -42,7 +40,9 @@ export default new Vuex.Store({
       if (msg.data){
         temp += msg.data
       }
-      console.log(temp)
+      if (temp == ""){
+        temp = msg
+      }
       state.error = temp
 
       state.error = "[" + new Date().getTime() + "] " + state.error;
