@@ -6,6 +6,35 @@ const devel_port = "8101";
 
 export default {
   name: "Helper",
+  validateIP(ip){
+    try{
+
+      var nonnumber = ip.replace(/\./g, '').replace(/[0-9]/g, "")
+      if (nonnumber.length > 0){
+        return false
+      }
+      
+      
+      var splits = ip.split(".")
+      if (splits.length != 4){
+        return false
+      }
+
+      for (var i = 0; i<4; i++){
+        var temp = parseInt(splits[i])
+        if (isNaN(temp)){
+          return false
+        }
+        if (temp < 0 || temp > 254){
+          return false
+        }
+      }
+
+    }catch(e){
+      return false
+    }
+    return true
+  },
   formatDate(date, isTime = false) {
     var d = new Date(date),
       month = "" + (d.getMonth() + 1),
