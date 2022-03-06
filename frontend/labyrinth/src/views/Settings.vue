@@ -87,8 +87,8 @@ export default {
           this.default_backend = res;
         })
         .catch((e) => {
-          if(e.status == undefined || e.status != 481){
-          this.$store.commit("updateError", e);
+          if (e.status == undefined || e.status != 481) {
+            this.$store.commit("updateError", e);
           }
         });
     },
