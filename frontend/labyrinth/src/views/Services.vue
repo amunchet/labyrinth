@@ -200,22 +200,21 @@ export default {
   watch: {
     selected_host: /* istanbul ignore next */ async function (val) {
       if (val != "" && val != "TEST") {
-        
-            var auth = this.$auth;
-            await Helper.apiCall("load_service", val, auth)
-              .then((res) => {
-                if (res != "") {
-                  this.output_data = res;
-                }
-                this.loadSuggestedFields();
-              })
-              .catch((e) => {
-                this.$store.commit("updateError", e);
-              });
-          }
-
-        this.loadSuggestedFields();
+        var auth = this.$auth;
+        await Helper.apiCall("load_service", val, auth)
+          .then((res) => {
+            if (res != "") {
+              this.output_data = res;
+            }
+            this.loadSuggestedFields();
+          })
+          .catch((e) => {
+            this.$store.commit("updateError", e);
+          });
       }
+
+      this.loadSuggestedFields();
+    },
   },
   methods: {
     add: function (data) {
@@ -269,10 +268,13 @@ export default {
           this.default_backend = res;
         })
         .catch((e) => {
-          if(e.status == undefined || e.status != 481){
+          if (e.status == undefined || e.status != 481) {
             this.$store.commit("updateError", e);
-          }else{
-            this.$store.commit("updateError", "Error: Please update default backend location in Settings.")
+          } else {
+            this.$store.commit(
+              "updateError",
+              "Error: Please update default backend location in Settings."
+            );
           }
         });
     },

@@ -19,31 +19,31 @@ export default new Vuex.Store({
       // General Application: Displays the error message
       state.full_error = msg;
 
-      var temp = ""
+      var temp = "";
       if (msg.response) {
         state.error_response = msg.response;
       }
       if (msg.error_description) {
         temp += msg.error_description + " ";
-      } 
+      }
       if (msg.error) {
         temp += msg.error + " ";
-      } 
-      
-      if(msg.status){
-        if(msg.status != 200){
-          temp = "Error " + temp
-        }
-        temp += msg.status + ": "
       }
 
-      if (msg.data){
-        temp += msg.data
+      if (msg.status) {
+        if (msg.status != 200) {
+          temp = "Error " + temp;
+        }
+        temp += msg.status + ": ";
       }
-      if (temp == ""){
-        temp = msg
+
+      if (msg.data) {
+        temp += msg.data;
       }
-      state.error = temp
+      if (temp == "") {
+        temp = msg;
+      }
+      state.error = temp;
 
       state.error = "[" + new Date().getTime() + "] " + state.error;
 
