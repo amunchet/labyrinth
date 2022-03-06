@@ -200,14 +200,7 @@ export default {
   watch: {
     selected_host: /* istanbul ignore next */ async function (val) {
       if (val != "" && val != "TEST") {
-        await this.$bvModal
-          .msgBoxConfirm(
-            "Do you want to overwrite working configuration from disk?"
-          )
-          .then(async (res) => {
-            if (!res) {
-              return;
-            }
+        
             var auth = this.$auth;
             await Helper.apiCall("load_service", val, auth)
               .then((res) => {
@@ -219,14 +212,10 @@ export default {
               .catch((e) => {
                 this.$store.commit("updateError", e);
               });
-          })
-          .catch((e) => {
-            this.$store.commit("updateError", e);
-          });
+          }
 
         this.loadSuggestedFields();
       }
-    },
   },
   methods: {
     add: function (data) {
