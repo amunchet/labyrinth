@@ -200,32 +200,20 @@ export default {
   watch: {
     selected_host: /* istanbul ignore next */ async function (val) {
       if (val != "" && val != "TEST") {
-        await this.$bvModal
-          .msgBoxConfirm(
-            "Do you want to overwrite working configuration from disk?"
-          )
-          .then(async (res) => {
-            if (!res) {
-              return;
+        var auth = this.$auth;
+        await Helper.apiCall("load_service", val, auth)
+          .then((res) => {
+            if (res != "") {
+              this.output_data = res;
             }
-            var auth = this.$auth;
-            await Helper.apiCall("load_service", val, auth)
-              .then((res) => {
-                if (res != "") {
-                  this.output_data = res;
-                }
-                this.loadSuggestedFields();
-              })
-              .catch((e) => {
-                this.$store.commit("updateError", e);
-              });
+            this.loadSuggestedFields();
           })
           .catch((e) => {
             this.$store.commit("updateError", e);
           });
-
-        this.loadSuggestedFields();
       }
+
+      this.loadSuggestedFields();
     },
   },
   methods: {
@@ -280,7 +268,14 @@ export default {
           this.default_backend = res;
         })
         .catch((e) => {
-          this.$store.commit("updateError", e);
+          if (e.status == undefined || e.status != 481) {
+            this.$store.commit("updateError", e);
+          } else {
+            this.$store.commit(
+              "updateError",
+              "Error: Please update default backend location in Settings."
+            );
+          }
         });
     },
     loadTelegrafKey: /* istanbul ignore next */ async function () {

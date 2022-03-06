@@ -22,8 +22,8 @@
 
       <b-row>
         <b-col
-          ><b>Name</b><br />
-          <span class="helptext">Name of the service</span>
+          ><b>Exact Service Name</b><br />
+          <span class="helptext">Name of the service.</span>
         </b-col>
         <b-col>
           <b-input v-model="selected_service.name" placeholder="E.g. cpu"

@@ -295,7 +295,8 @@
             <code class="text-left">
               ---<br />
               ansible_user: "XXXXXX" <br />
-              ansible_ssh_pass: "XXXXXXX"<br /> </code
+              ansible_ssh_pass: "XXXXXXX"<br />
+              ansible_become_password: "XXXXXXX" </code
             ><br />
             <i># If SSH key is used - .yml is added automatically</i><br />
             <code class="text-left">
@@ -441,6 +442,7 @@ export default {
         item = `ansible_user: ${this.generated_ansible.ssh_username}`;
 
         item += `\nansible_ssh_pass: ${this.generated_ansible.ssh_password}\n`;
+        item += `\nansible_become_password: ${this.generated_ansible.ssh_password}\n`;
 
         if (this.generated_ansible.ssh_passphrase > "") {
           item += `\nssh_key_pass: ${this.generated_ansible.ssh_passphrase}`;

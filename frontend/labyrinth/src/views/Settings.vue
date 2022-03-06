@@ -87,7 +87,9 @@ export default {
           this.default_backend = res;
         })
         .catch((e) => {
-          this.$store.commit("updateError", e);
+          if (e.status == undefined || e.status != 481) {
+            this.$store.commit("updateError", e);
+          }
         });
     },
     saveDefaultBackend: /* istanbul ignore next */ function () {
