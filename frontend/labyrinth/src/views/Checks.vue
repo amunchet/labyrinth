@@ -1,7 +1,6 @@
 <template>
   <b-container class="text-left">
     <h2>Create/Edit a Service</h2>
-
     <b-modal id="add_service" title="Add/Edit Service" @ok="saveCheck">
       <template #modal-footer="{ ok, cancel }">
         <div style="width: 100%">
@@ -26,7 +25,9 @@
           <span class="helptext">Name of the service.</span>
         </b-col>
         <b-col>
-          <b-input v-model="selected_service.name" placeholder="E.g. cpu"
+          <b-input 
+          :state="!$v.selected_service.name.$invalid"
+          v-model="selected_service.name" placeholder="E.g. cpu"
         /></b-col>
       </b-row>
       <b-row>
@@ -37,6 +38,7 @@
         <b-col>
           <b-input
             disabled
+            
             v-model="selected_service.type"
             placeholder="E.g. check"
         /></b-col>
@@ -48,6 +50,8 @@
         </b-col>
         <b-col>
           <b-input
+            
+            :state="!$v.selected_service.metric.$invalid"
             v-model="selected_service.metric"
             placeholder="E.g. usage_user"
         /></b-col>
@@ -61,6 +65,7 @@
         </b-col>
         <b-col>
           <b-input
+          :state="!$v.selected_service.field.$invalid"
             v-model="selected_service.field"
             placeholder="E.g. usage_user"
         /></b-col>
@@ -74,6 +79,7 @@
           <b-select
             :options="comparison_types"
             v-model="selected_service.comparison"
+            :state="!$v.selected_service.comparison.$invalid"
           />
         </b-col>
       </b-row>
@@ -83,7 +89,7 @@
           <span class="helptext">Target value of the service</span>
         </b-col>
         <b-col>
-          <b-input v-model="selected_service.value" placeholder="E.g. 100"
+          <b-input v-model="selected_service.value" :state="!$v.selected_service.value.$invalid" placeholder="E.g. 100"
         /></b-col>
       </b-row>
     </b-modal>
@@ -179,6 +185,7 @@
 </template>
 <script>
 import Helper from "@/helper";
+import {required} from 'vuelidate/lib/validators'
 export default {
   data() {
     return {
@@ -202,6 +209,16 @@ export default {
       metrics: [],
       checksLoaded: true,
     };
+  },
+  validations: {
+    selected_service: {
+      type: { required },
+      name: { required },
+      metric: {required},
+      field: { required},
+      comparison: {required},
+      value: {required}
+    }
   },
   methods: {
     deleteService: /* istanbul ignore next */ function (name) {
@@ -255,6 +272,12 @@ export default {
     },
     saveCheck: /* istanbul ignore next */ function (e) {
       e.preventDefault();
+
+      if(this.$v.selected_service.$invalid){
+        this.$store.commit("updateError", "Error: Please correct fields before submitting")
+        return -1
+      }
+
       var auth = this.$auth;
       var formData = new FormData();
       formData.append("data", JSON.stringify(this.selected_service));

@@ -1,9 +1,4 @@
 ---
-- hosts: localhost
-  tasks:
-    - name: Remove password file
-      raw: rm -rf /src/test/ansible/vault.pass
-
 - hosts: all
   become: no
   gather_facts: no
