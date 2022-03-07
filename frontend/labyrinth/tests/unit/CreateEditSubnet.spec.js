@@ -7,7 +7,10 @@ import Vue from "vue";
 import store from "@/store";
 import Instance from "@/components/CreateEditSubnet.vue";
 
+import Vuelidate from "vuelidate"
+
 Vue.use(store);
+Vue.use(Vuelidate)
 
 config.mocks["$auth"] = {
   profile: {
