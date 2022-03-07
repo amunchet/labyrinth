@@ -4,7 +4,12 @@
       <b-col>Subnet</b-col>
       <b-col>
         <b v-if="!isNew">{{ subnet.subnet }}</b>
-        <b-input v-else v-model="subnet.subnet"  placeholder="E.g. 192.168.0" :state="!$v.subnet.subnet.$invalid" />
+        <b-input
+          v-else
+          v-model="subnet.subnet"
+          placeholder="E.g. 192.168.0"
+          :state="!$v.subnet.subnet.$invalid"
+        />
       </b-col>
     </b-row>
     <b-row>
@@ -78,7 +83,7 @@
 </template>
 <script>
 import Helper from "@/helper";
-import {required} from 'vuelidate/lib/validators'
+import { required } from "vuelidate/lib/validators";
 export default {
   name: "CreateEditSubnet",
   props: ["inp_subnet"],
@@ -106,9 +111,9 @@ export default {
     subnet: {
       subnet: {
         required,
-        ipValidation: (val) => Helper.validateIP(val, 3)
-      }
-    }
+        ipValidation: (val) => Helper.validateIP(val, 3),
+      },
+    },
   },
   methods: {
     listIcons: /* istanbul ignore next */ function () {
@@ -128,7 +133,10 @@ export default {
     },
     saveSubnet: /* istanbul ignore next */ function () {
       if (this.subnet.subnet == "" || this.$v.subnet.$invalid) {
-        this.$store.commit("updateError", "Error: Please enter a correct subnet name");
+        this.$store.commit(
+          "updateError",
+          "Error: Please enter a correct subnet name"
+        );
         return -1;
       }
       var auth = this.$auth;

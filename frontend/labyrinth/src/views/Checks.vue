@@ -25,9 +25,10 @@
           <span class="helptext">Name of the service.</span>
         </b-col>
         <b-col>
-          <b-input 
-          :state="!$v.selected_service.name.$invalid"
-          v-model="selected_service.name" placeholder="E.g. cpu"
+          <b-input
+            :state="!$v.selected_service.name.$invalid"
+            v-model="selected_service.name"
+            placeholder="E.g. cpu"
         /></b-col>
       </b-row>
       <b-row>
@@ -38,7 +39,6 @@
         <b-col>
           <b-input
             disabled
-            
             v-model="selected_service.type"
             placeholder="E.g. check"
         /></b-col>
@@ -50,7 +50,6 @@
         </b-col>
         <b-col>
           <b-input
-            
             :state="!$v.selected_service.metric.$invalid"
             v-model="selected_service.metric"
             placeholder="E.g. usage_user"
@@ -65,7 +64,7 @@
         </b-col>
         <b-col>
           <b-input
-          :state="!$v.selected_service.field.$invalid"
+            :state="!$v.selected_service.field.$invalid"
             v-model="selected_service.field"
             placeholder="E.g. usage_user"
         /></b-col>
@@ -89,7 +88,10 @@
           <span class="helptext">Target value of the service</span>
         </b-col>
         <b-col>
-          <b-input v-model="selected_service.value" :state="!$v.selected_service.value.$invalid" placeholder="E.g. 100"
+          <b-input
+            v-model="selected_service.value"
+            :state="!$v.selected_service.value.$invalid"
+            placeholder="E.g. 100"
         /></b-col>
       </b-row>
     </b-modal>
@@ -185,7 +187,7 @@
 </template>
 <script>
 import Helper from "@/helper";
-import {required} from 'vuelidate/lib/validators'
+import { required } from "vuelidate/lib/validators";
 export default {
   data() {
     return {
@@ -214,11 +216,11 @@ export default {
     selected_service: {
       type: { required },
       name: { required },
-      metric: {required},
-      field: { required},
-      comparison: {required},
-      value: {required}
-    }
+      metric: { required },
+      field: { required },
+      comparison: { required },
+      value: { required },
+    },
   },
   methods: {
     deleteService: /* istanbul ignore next */ function (name) {
@@ -273,9 +275,12 @@ export default {
     saveCheck: /* istanbul ignore next */ function (e) {
       e.preventDefault();
 
-      if(this.$v.selected_service.$invalid){
-        this.$store.commit("updateError", "Error: Please correct fields before submitting")
-        return -1
+      if (this.$v.selected_service.$invalid) {
+        this.$store.commit(
+          "updateError",
+          "Error: Please correct fields before submitting"
+        );
+        return -1;
       }
 
       var auth = this.$auth;

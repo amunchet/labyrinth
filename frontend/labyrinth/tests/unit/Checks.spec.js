@@ -6,9 +6,9 @@ import { config, shallowMount } from "@vue/test-utils";
 import Vue from "vue";
 import store from "@/store";
 import Instance from "@/views/Checks.vue";
-import Vuelidate from "vuelidate"
+import Vuelidate from "vuelidate";
 
-Vue.use(Vuelidate)
+Vue.use(Vuelidate);
 Vue.use(store);
 
 config.mocks["$auth"] = {
