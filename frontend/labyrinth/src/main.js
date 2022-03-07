@@ -31,8 +31,8 @@ import AuthPlugin from "./plugins/auth";
 Vue.use(AuthPlugin);
 
 // Vuelidate
-import Vuelidate from 'vuelidate'
-Vue.use(Vuelidate)
+import Vuelidate from "vuelidate";
+Vue.use(Vuelidate);
 
 new Vue({
   router,
