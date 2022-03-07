@@ -1,5 +1,6 @@
 <template>
   <b-modal id="create_edit_host" title="Create/Edit Host" size="lg">
+
     <template #modal-footer="{ cancel }">
       <div style="width: 100%">
         <b-button class="float-left" variant="danger" @click="deleteHost()"
@@ -30,7 +31,7 @@
       <b-row>
         <b-col> IP </b-col>
         <b-col>
-          <b-input v-model="host.ip" />
+          <b-input v-model="host.ip" :state="!$v.host.ip.$invalid" placeholder="E.g. 192.168.0.1"/>
         </b-col>
       </b-row>
       <b-row>
@@ -47,7 +48,7 @@
         ><b-col>Group </b-col><b-col><b-input v-model="host.group" /></b-col
       ></b-row>
       <b-row
-        ><b-col>Subnet</b-col><b-col><b-input v-model="host.subnet" /></b-col
+        ><b-col>Subnet</b-col><b-col><b-input v-model="host.subnet" placeholder="E.g. 192.168.0" :state="!$v.host.subnet.$invalid" /></b-col
       ></b-row>
       <b-row
         ><b-col>Icon</b-col
@@ -269,6 +270,9 @@
 <script>
 import Helper from "@/helper";
 import Checks from "@/views/Checks";
+
+import {required} from 'vuelidate/lib/validators'
+
 export default {
   name: "CreateEditHost",
   components: {
@@ -361,6 +365,12 @@ export default {
       var auth = this.$auth;
       var formData = new FormData();
 
+      if(this.$v.host.$invalid){
+        this.$store.commit("updateError", "Error: Please correct fields before saving.")
+        return -1
+      }
+
+
       var host = JSON.parse(JSON.stringify(this.host));
       host["services"] = host["services"].map((x) => x["name"]);
       formData.append("data", JSON.stringify(host));
@@ -388,7 +398,6 @@ export default {
           if (host.mac == "") {
             url = host.ip;
           }
-          console.log(host);
           Helper.apiDelete("host", url, auth)
             .then((res) => {
               this.$store.commit("updateError", res);
@@ -412,6 +421,19 @@ export default {
       this.$store.commit("updateError", e);
     }
   },
+  validations: {
+    host: {
+      ip: {
+        required,
+        ipValidation: (val) => Helper.validateIP(val)
+      }, 
+      subnet: {
+        required,
+        ipValidation: (val)=>Helper.validateIP(val, 3)
+      }
+    }
+  },
+
 };
 </script>
 <style lang="scss" scoped>

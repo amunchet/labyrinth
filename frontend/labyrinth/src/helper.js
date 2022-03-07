@@ -6,9 +6,8 @@ const devel_port = "8101";
 
 export default {
   name: "Helper",
-  validateIP(ip){
+  validateIP(ip, count=4){
     try{
-
       var nonnumber = ip.replace(/\./g, '').replace(/[0-9]/g, "")
       if (nonnumber.length > 0){
         return false
@@ -16,11 +15,12 @@ export default {
       
       
       var splits = ip.split(".")
-      if (splits.length != 4){
+      if (splits.length != count){
+        
         return false
       }
 
-      for (var i = 0; i<4; i++){
+      for (var i = 0; i<count; i++){
         var temp = parseInt(splits[i])
         if (isNaN(temp)){
           return false

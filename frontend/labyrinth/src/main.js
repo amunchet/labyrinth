@@ -30,6 +30,10 @@ import AuthPlugin from "./plugins/auth";
 // Install the authentication plugin here
 Vue.use(AuthPlugin);
 
+// Vuelidate
+import Vuelidate from 'vuelidate'
+Vue.use(Vuelidate)
+
 new Vue({
   router,
   store,
