@@ -194,7 +194,7 @@
               <b-button
                 class="float-right"
                 variant="primary"
-                style="width: 100%;"
+                style="width: 100%"
                 @click="
                   () => {
                     loading_generated_vault_file = true;
