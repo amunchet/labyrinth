@@ -3,104 +3,217 @@
     <b-modal
       id="add_vault"
       title="Manually Add Vault File"
-      size="lg"
+      size="xl"
       @ok="saveAnsibleVault"
     >
-      <p>
-        <span class="text-danger text-underline"
-          >WARNING: This is not a good idea.</span
-        >
-        A better idea is to create a vault file offline and then upload it. It's
-        not a great idea to trust a random NPM package to not steal your network
-        secrets. Use this only in testing or a lab environment.
-      </p>
+      <b-row class="text-left">
+        <b-col>
+          To create ansible vault files, use the following command:
+          <code> ansible-vault create [FILENAME] </code><br />
+          <i>New Vault Password: XXXXXXX</i>
+          <br />
+          [Edit file]
+        </b-col>
+      </b-row>
 
-      <b-row>
-        <b-col> </b-col>
-      </b-row>
-      <b-row>
-        <b-col> Type: </b-col>
-        <b-col
-          ><b-select
-            v-model="generated_ansible.type"
-            :options="['Username and Password', 'SSH Key']"
-        /></b-col>
-      </b-row>
-      <b-row>
-        <b-col> Ansible Vault Password: </b-col>
-        <b-col>
-          <b-input type="password" v-model="generated_ansible.vault_password" />
-        </b-col>
-      </b-row>
-      <b-row>
-        <b-col> Filename </b-col>
-        <b-col>
-          <b-input
-            v-model="generated_ansible.filename"
-            placeholder="Ansible Vault filename (e.g. password.yml)"
-          />
-        </b-col>
-      </b-row>
       <hr />
-      <b-row v-if="generated_ansible.type == 'Username and Password'">
-        <b-col>
-          Username:
-          <b-input
-            v-model="generated_ansible.ssh_username"
-            placeholder="Ansible username (e.g. root)"
-          />
-        </b-col>
-        <b-col>
-          Password:
-          <b-input type="password" v-model="generated_ansible.ssh_password" />
+      <b-row>
+        <b-col class="border-right">
+          <h4>Upload Ansible Vault File</h4>
+          <b-row
+            ><b-col>
+              Become password needs to be in the following format: <br />
+              <code class="text-left">
+                ---<br />
+                ansible_user: "XXXXXX" <br />
+                ansible_ssh_pass: "XXXXXXX"<br />
+                ansible_become_password: "XXXXXXX" </code
+              ><br />
+              <i># If SSH key is used - .yml is added automatically</i><br />
+              <code class="text-left">
+                ssh_key_file: /src/uploads/ssh/XXXXXX.yml<br />
+                ssh_key_pass: XXXXXXX
+              </code>
+            </b-col>
+          </b-row>
+          <b-row>
+            <b-col>
+              Upload Become File:
+              <b-form-file
+                v-model="become_file"
+                placeholder="..."
+                drop-placeholder="Drop here..."
+              ></b-form-file>
+              <b-col cols="1">
+                <b-button
+                  variant="link"
+                  class="m-0 mt-2 p-0 float-left"
+                  @click="
+                    () => {
+                      files_list['become'] = '';
+                      become_file = [];
+                    }
+                  "
+                >
+                  <font-awesome-icon icon="times" size="1x" />
+                </b-button>
+              </b-col>
+            </b-col>
+          </b-row>
           <hr />
-          SSH Key Passphrase:
-          <b-input type="password" v-model="generated_ansible.ssh_passphrase" />
-
-          SSH Key:
-          <b-select
-            v-if="files_list['ssh'] != undefined"
-            v-model="generated_ansible.ssh_key_file"
-            :options="files_list['ssh']"
-          />
-          <div v-else class="m-2">
-            <b-spinner />
-          </div>
+          <h4>Upload SSH Key</h4>
+          <b-row>
+            <b-col>
+              SSH Key - must have a passphrase
+              <!--
+          <b-col cols="3" class="text-center">
+            <b-button
+              class=""
+              variant="warning"
+              @click="
+                () => {
+                  generated_ansible = { type: 'SSH Key' };
+                  generated_vault_file = '';
+                  $bvModal.show('add_vault');
+                }
+              "
+            >
+              <font-awesome-icon icon="plus" size="1x" />
+            </b-button>
+          </b-col>
+          -->
+              <b-form-file
+                class="float-left"
+                v-model="ssh_key_file"
+                placeholder="..."
+                drop-placeholder="Drop here..."
+              ></b-form-file>
+              <br />
+              <b-button
+                variant="link"
+                class="m-0 mt-2 p-0 float-left"
+                @click="
+                  () => {
+                    files_list['ssh'] = '';
+                    ssh_key_file = [];
+                  }
+                "
+              >
+                <font-awesome-icon icon="times" size="1x" />
+              </b-button>
+            </b-col>
+          </b-row>
         </b-col>
-      </b-row>
-
-      <b-row v-if="generated_ansible.type == 'SSH Key'">
         <b-col>
-          SSH Key <br />
-          <b-textarea
-            style="height: 150px"
-            v-model="generated_ansible.ssh_key"
-          />
-        </b-col>
-      </b-row>
-      <b-row>
-        <b-col>
-          <b-button
-            class="float-right"
-            variant="primary"
-            @click="
-              () => {
-                loading_generated_vault_file = true;
-                $forceUpdate();
-                generateAnsibleVault();
-              }
-            "
-          >
-            Generate Ansible File
-          </b-button>
-        </b-col>
-      </b-row>
-      <b-row>
-        <b-col v-if="!loading_generated_vault_file">
-          {{ generated_vault_file }}
-        </b-col>
-        <b-col v-else>
-          <b-spinner class="m-2" />
+          <h4>Manual Entry of Ansible File Information</h4>
+          <p>
+            <span class="text-danger text-underline"
+              >WARNING: This is not a good idea.</span
+            >
+            A better idea is to create a vault file offline and then upload it.
+            It's not a great idea to trust a random NPM package to not steal
+            your network secrets. Use this only in testing or a lab environment.
+          </p>
+
+          <b-row>
+            <b-col> </b-col>
+          </b-row>
+          <b-row>
+            <b-col cols="2"> Type: </b-col>
+            <b-col
+              ><b-select
+                v-model="generated_ansible.type"
+                :options="['Username and Password', 'SSH Key']"
+            /></b-col>
+          </b-row>
+          <b-row>
+            <b-col cols="4">
+              Ansible&nbsp;Vault&nbsp;Password:&nbsp;&nbsp;</b-col
+            >
+            <b-col>
+              <b-input
+                type="password"
+                v-model="generated_ansible.vault_password"
+              />
+            </b-col>
+          </b-row>
+          <b-row>
+            <b-col cols="2"> Filename </b-col>
+            <b-col>
+              <b-input
+                v-model="generated_ansible.filename"
+                placeholder="Ansible Vault filename (e.g. password.yml)"
+              />
+            </b-col>
+          </b-row>
+          <hr />
+          <b-row v-if="generated_ansible.type == 'Username and Password'">
+            <b-col>
+              Username:
+              <b-input
+                v-model="generated_ansible.ssh_username"
+                placeholder="Ansible username (e.g. root)"
+              />
+            </b-col>
+            <b-col>
+              Password:
+              <b-input
+                type="password"
+                v-model="generated_ansible.ssh_password"
+              />
+              <hr />
+              SSH Key Passphrase:
+              <b-input
+                type="password"
+                v-model="generated_ansible.ssh_passphrase"
+              />
+
+              SSH Key:
+              <b-select
+                v-if="files_list['ssh'] != undefined"
+                v-model="generated_ansible.ssh_key_file"
+                :options="files_list['ssh']"
+              />
+              <div v-else class="m-2">
+                <b-spinner />
+              </div>
+            </b-col>
+          </b-row>
+
+          <b-row v-if="generated_ansible.type == 'SSH Key'">
+            <b-col>
+              SSH Key <br />
+              <b-textarea
+                style="height: 150px"
+                v-model="generated_ansible.ssh_key"
+              />
+            </b-col>
+          </b-row>
+          <b-row>
+            <b-col>
+              <b-button
+                class="float-right"
+                variant="primary"
+                @click="
+                  () => {
+                    loading_generated_vault_file = true;
+                    $forceUpdate();
+                    generateAnsibleVault();
+                  }
+                "
+              >
+                Generate Ansible File
+              </b-button>
+            </b-col>
+          </b-row>
+          <b-row>
+            <b-col v-if="!loading_generated_vault_file">
+              {{ generated_vault_file }}
+            </b-col>
+            <b-col v-else>
+              <b-spinner class="m-2" />
+            </b-col>
+          </b-row>
         </b-col>
       </b-row>
     </b-modal>
@@ -147,6 +260,7 @@
         <div class="mb-4 mt-2" v-if="!isTesting">
           Host:
           <b-select
+            :state="selected_host != ''"
             v-model="selected_host"
             :options="hosts"
             :enabled="isTesting"
@@ -161,6 +275,47 @@
             <b-spinner class="m-2" />
           </div>
         </div>
+      </b-col>
+    </b-row>
+    <hr />
+    <b-row class="text-left">
+      <b-col>
+        <h4>Deployment Files</h4>
+        These must be encrypted vault files. Select the ones you need (for
+        example, you might be deploying without SSH keys)
+      </b-col>
+    </b-row>
+    <b-row>
+      <b-col>
+        Select uploaded Become Password file:
+        <b-select
+          v-if="files_list['become'] != undefined"
+          :options="files_list['become']"
+          v-model="selected['become']"
+          :state="selected['become'] != ''"
+        />
+        <b-spinner v-else class="m-2" />
+        <br />
+        <b-button
+          class="mt-2"
+          variant="primary"
+          @click="
+            () => {
+              generated_ansible = { type: 'Username and Password' };
+              generated_vault_file = '';
+
+              $bvModal.show('add_vault');
+            }
+          "
+        >
+          <font-awesome-icon icon="plus" size="1x" />&nbsp;Add Ansible Vault
+          File
+        </b-button>
+      </b-col>
+    </b-row>
+
+    <b-row>
+      <b-col>
         <h5 class="mt-2">Ansible playbook</h5>
         <hr />
         <p>
@@ -170,6 +325,7 @@
         </p>
         <b-row>
           <b-col cols="10">
+            Playbook: <br />
             <b-select
               class="mt-2 mb-2"
               v-if="files_list['ansible'] != undefined"
@@ -178,6 +334,7 @@
             />
           </b-col>
           <b-col cols="2" class="pt-2">
+            <br />
             <b-button
               variant="primary"
               class="float-right"
@@ -192,6 +349,15 @@
             </b-button>
           </b-col>
         </b-row>
+
+        <div>
+          Vault Password:
+          <b-input type="password" v-model="vault_password" />
+        </div>
+        <hr />
+      </b-col>
+      <b-col>
+        <h5>Ansible Playbook Contents</h5>
         <b-textarea
           v-model="playbook_contents"
           v-if="loadings.playbook == undefined || loadings.playbook == 0"
@@ -214,149 +380,36 @@
             <b-spinner />
           </div>
         </div>
-
-        <div>
-          Vault Password:
-          <b-input type="password" v-model="vault_password" />
-        </div>
-        <hr />
-
-        <b-button v-if="isTesting" variant="success" @click="runPlaybook()"
-          >Deploy to sampleclient</b-button
-        >
-        <b-button v-else variant="primary" @click="runPlaybook()"
-          >Deploy to hosts</b-button
-        >
-        <br />
-        <div
-          class="playbook_result"
-          v-html="$sanitize(playbook_result)"
-          v-if="playbook_result && playbook_loaded"
-        ></div>
-        <b-spinner class="m-2" v-if="!playbook_loaded" />
-      </b-col>
-      <b-col>
-        <h4>Deployment Files</h4>
-        These must be encrypted vault files. Select the ones you need (for
-        example, you might be deploying without SSH keys)
-        <hr />
-
-        <b-row> <b-col> Become Password </b-col> </b-row
-        ><b-row>
-          <b-col>
-            <b-select
-              v-if="files_list['become'] != undefined"
-              :options="files_list['become']"
-              v-model="selected['become']"
-            />
-            <b-spinner v-else class="m-2" />
-            <br />
-            <b-button
-              class="mt-2"
-              variant="warning"
-              @click="
-                () => {
-                  generated_ansible = { type: 'Username and Password' };
-                  generated_vault_file = '';
-
-                  $bvModal.show('add_vault');
-                }
-              "
-            >
-              <font-awesome-icon icon="plus" size="1x" />
-            </b-button>
-          </b-col>
-          <b-col>
-            <b-form-file
-              v-model="become_file"
-              placeholder="..."
-              drop-placeholder="Drop here..."
-            ></b-form-file>
-          </b-col>
-          <b-col cols="1">
-            <b-button
-              variant="link"
-              class="m-0 mt-2 p-0 float-left"
-              @click="
-                () => {
-                  files_list['become'] = '';
-                  become_file = [];
-                }
-              "
-            >
-              <font-awesome-icon icon="times" size="1x" />
-            </b-button>
-          </b-col>
-        </b-row>
-        <b-row>
-          <b-col>
-            <hr />
-            Become password needs to be in the following format: <br />
-            <code class="text-left">
-              ---<br />
-              ansible_user: "XXXXXX" <br />
-              ansible_ssh_pass: "XXXXXXX"<br />
-              ansible_become_password: "XXXXXXX" </code
-            ><br />
-            <i># If SSH key is used - .yml is added automatically</i><br />
-            <code class="text-left">
-              ssh_key_file: /src/uploads/ssh/XXXXXX.yml<br />
-              ssh_key_pass: XXXXXXX
-            </code>
-          </b-col>
-        </b-row>
-        <hr />
-        <b-row> <b-col> SSH Key - must have a passphrase</b-col> </b-row
-        ><b-row>
-          <!--
-          <b-col cols="3" class="text-center">
-            <b-button
-              class=""
-              variant="warning"
-              @click="
-                () => {
-                  generated_ansible = { type: 'SSH Key' };
-                  generated_vault_file = '';
-                  $bvModal.show('add_vault');
-                }
-              "
-            >
-              <font-awesome-icon icon="plus" size="1x" />
-            </b-button>
-          </b-col>
-          -->
-          <b-col>
-            <b-form-file
-              class="float-left"
-              v-model="ssh_key_file"
-              placeholder="..."
-              drop-placeholder="Drop here..."
-            ></b-form-file> </b-col
-          ><b-col cols="1">
-            <b-button
-              variant="link"
-              class="m-0 mt-2 p-0 float-left"
-              @click="
-                () => {
-                  files_list['ssh'] = '';
-                  ssh_key_file = [];
-                }
-              "
-            >
-              <font-awesome-icon icon="times" size="1x" />
-            </b-button>
-          </b-col>
-        </b-row>
-        <hr />
-        <div class="text-left">
-          To create ansible vault files, use the following command:
-          <code> ansible-vault create [FILENAME] </code><br />
-          <i>New Vault Password: XXXXXXX</i>
-
-          [Edit file]
-        </div>
       </b-col>
     </b-row>
+    <hr />
+    <div>
+      <b-button
+        size="lg"
+        style="width: 100%"
+        v-if="isTesting"
+        variant="success"
+        @click="runPlaybook()"
+        >Deploy to sampleclient</b-button
+      >
+      <b-button
+        size="lg"
+        style="width: 100%"
+        v-else
+        variant="primary"
+        @click="runPlaybook()"
+        >Deploy to hosts</b-button
+      >
+      <br />
+      <div
+        class="playbook_result"
+        v-html="$sanitize(playbook_result)"
+        v-if="playbook_result && playbook_loaded"
+      ></div>
+
+      <b-spinner class="m-2" v-if="!playbook_loaded" />
+    </div>
+    <hr />
   </b-container>
 </template>
 <script>
