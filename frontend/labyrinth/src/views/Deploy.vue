@@ -2,7 +2,7 @@
   <b-container>
     <b-modal
       id="add_vault"
-      title="Manually Add Vault File"
+      title="Add Vault File"
       size="xl"
       @ok="saveAnsibleVault"
     >
@@ -194,6 +194,7 @@
               <b-button
                 class="float-right"
                 variant="primary"
+                style="width: 100%;"
                 @click="
                   () => {
                     loading_generated_vault_file = true;
