@@ -194,7 +194,7 @@
               <b-button
                 class="float-right"
                 variant="primary"
-                style="width: 100%;"
+                style="width: 100%"
                 @click="
                   () => {
                     loading_generated_vault_file = true;
@@ -309,9 +309,16 @@
             }
           "
         >
-          <font-awesome-icon icon="plus" size="1x" />&nbsp;Add Ansible Vault
-          File
+          + Add Ansible Vault File
         </b-button>
+      </b-col>
+      <b-col>
+        Vault Password:<br />
+        <b-input
+          :state="vault_password != ''"
+          type="password"
+          v-model="vault_password"
+        />
       </b-col>
     </b-row>
 
@@ -324,63 +331,62 @@
           ansible vault files. An example of a correct location would be<br />
           <code>- /src/uploads/become/password.yml</code>
         </p>
-        <b-row>
-          <b-col cols="10">
-            Playbook: <br />
-            <b-select
-              class="mt-2 mb-2"
-              v-if="files_list['ansible'] != undefined"
-              :options="files_list['ansible']"
-              v-model="selected_playbook"
-            />
-          </b-col>
-          <b-col cols="2" class="pt-2">
-            <br />
-            <b-button
-              variant="primary"
-              class="float-right"
-              @click="
-                () => {
-                  new_ansible_file = '';
-                  $bvModal.show('new_playbook');
-                }
-              "
-            >
-              <font-awesome-icon icon="plus" />
-            </b-button>
-          </b-col>
-        </b-row>
-
-        <div>
-          Vault Password:
-          <b-input type="password" v-model="vault_password" />
-        </div>
-        <hr />
       </b-col>
+    </b-row>
+    <b-row>
       <b-col>
-        <h5>Ansible Playbook Contents</h5>
-        <b-textarea
-          v-model="playbook_contents"
-          v-if="loadings.playbook == undefined || loadings.playbook == 0"
+        Playbook: <br />
+        <b-select
+          class="mt-2 mb-2"
+          v-if="files_list['ansible'] != undefined"
+          :options="files_list['ansible']"
+          :state="selected_playbook != ''"
+          v-model="selected_playbook"
         />
-        <div v-else class="mt-2 text-center">
-          <b-spinner class="ml-auto mr-auto mt-4" />
-        </div>
-        <div class="overflow-hidden mt-2">
-          <b-button
-            variant="success"
-            class="mb-2 float-right"
-            @click="savePlaybook()"
-            v-if="
-              loadings.save_playbook == undefined || loadings.save_playbook == 0
-            "
-          >
-            <font-awesome-icon icon="save" size="1x" />
-          </b-button>
-          <div class="mb-2 mt-2 float-right" v-else>
-            <b-spinner />
-          </div>
-        </div>
+      </b-col>
+      <b-col cols="3" class="pt-2">
+        <br />
+        <b-button
+          style="width: 100%"
+          variant="primary"
+          @click="
+            () => {
+              new_ansible_file = '';
+              $bvModal.show('new_playbook');
+            }
+          "
+        >
+          + Add New Playbook
+        </b-button>
+      </b-col>
+    </b-row>
+
+    <hr />
+    <b-row>
+      <b-col>
+    <h5 class="text-left">Ansible Playbook Contents</h5>
+    <b-textarea
+      v-model="playbook_contents"
+      v-if="loadings.playbook == undefined || loadings.playbook == 0"
+    />
+    <div v-else class="mt-2 text-center">
+      <b-spinner class="ml-auto mr-auto mt-4" />
+    </div>
+    <div class="overflow-hidden mt-2">
+      <b-button
+        variant="success"
+        class="mb-2 float-right"
+        @click="savePlaybook()"
+        v-if="
+          loadings.save_playbook == undefined || loadings.save_playbook == 0
+        "
+      >
+        <font-awesome-icon icon="save" size="1x" />&nbsp; Save Playbook
+      </b-button>
+      <div class="mb-2 mt-2 float-right" v-else>
+        <b-spinner />
+      </div>
+    </div>
       </b-col>
     </b-row>
     <hr />
