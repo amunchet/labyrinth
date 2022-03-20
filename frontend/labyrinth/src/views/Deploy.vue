@@ -364,29 +364,29 @@
     <hr />
     <b-row>
       <b-col>
-    <h5 class="text-left">Ansible Playbook Contents</h5>
-    <b-textarea
-      v-model="playbook_contents"
-      v-if="loadings.playbook == undefined || loadings.playbook == 0"
-    />
-    <div v-else class="mt-2 text-center">
-      <b-spinner class="ml-auto mr-auto mt-4" />
-    </div>
-    <div class="overflow-hidden mt-2">
-      <b-button
-        variant="success"
-        class="mb-2 float-right"
-        @click="savePlaybook()"
-        v-if="
-          loadings.save_playbook == undefined || loadings.save_playbook == 0
-        "
-      >
-        <font-awesome-icon icon="save" size="1x" />&nbsp; Save Playbook
-      </b-button>
-      <div class="mb-2 mt-2 float-right" v-else>
-        <b-spinner />
-      </div>
-    </div>
+        <h5 class="text-left">Ansible Playbook Contents</h5>
+        <b-textarea
+          v-model="playbook_contents"
+          v-if="loadings.playbook == undefined || loadings.playbook == 0"
+        />
+        <div v-else class="mt-2 text-center">
+          <b-spinner class="ml-auto mr-auto mt-4" />
+        </div>
+        <div class="overflow-hidden mt-2">
+          <b-button
+            variant="success"
+            class="mb-2 float-right"
+            @click="savePlaybook()"
+            v-if="
+              loadings.save_playbook == undefined || loadings.save_playbook == 0
+            "
+          >
+            <font-awesome-icon icon="save" size="1x" />&nbsp; Save Playbook
+          </b-button>
+          <div class="mb-2 mt-2 float-right" v-else>
+            <b-spinner />
+          </div>
+        </div>
       </b-col>
     </b-row>
     <hr />
