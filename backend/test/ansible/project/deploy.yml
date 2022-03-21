@@ -1,7 +1,7 @@
 hosts: localhost
 tasks:
 - name: Remove password file
-  raw: rm -rf /src/test/ansible/vault.pass
+  raw: "rm -rf /src/test/ansible/vault.pass"
 ---
 hosts: all
 become: false
@@ -10,7 +10,7 @@ vars_files:
 - /src/test/ansible/vars/vault.yml
 tasks:
 - name: Ensure python installed
-  raw: apt update && apt -y install python gnupg2 curl wget
+  raw: "apt update && apt -y install python gnupg2 curl wget"
 ---
 hosts: all
 become: true
@@ -19,9 +19,9 @@ vars_files:
 - /src/test/ansible/vars/vault.yml
 tasks:
 - name: Add Repo key
-  raw: wget -qO- https://repos.influxdata.com/influxdb.key | apt-key add -
+  raw: "wget -qO- https://repos.influxdata.com/influxdb.key | apt-key add -"
 - name: Add InfluxDB repo
-  raw: echo "deb https://repos.influxdata.com/debian buster stable" | tee /etc/apt/sources.list.d/influxdb.list
+  raw: "echo "deb https://repos.influxdata.com/debian buster stable" | tee /etc/apt/sources.list.d/influxdb.list"
 - name: Telegraf installation
   apt:
     name: telegraf
@@ -43,4 +43,4 @@ tasks:
 - name: Set up Telegraf Cron
   ansible.builtin.cron:
     name: Telegraf
-    job: /usr/bin/telegraf --once
+    job: "/usr/bin/telegraf --once"
