@@ -259,7 +259,7 @@
           </div>
         </div>
         <div class="mb-4 mt-2" v-if="!isTesting">
-          Host:
+          Single Host:
           <b-select
             :state="selected_host != ''"
             v-model="selected_host"
@@ -277,13 +277,28 @@
           </div>
         </div>
       </b-col>
+      <b-col v-if="!isTesting">
+        <h4>Deploy to Group</h4>
+        <b-row>
+          <b-col>
+            Subnet:
+          <b-select />
+          </b-col>
+          <b-col>
+            Group:
+            <b-select />
+          </b-col>
+        </b-row>
+      </b-col>
     </b-row>
     <hr />
     <b-row class="text-left">
       <b-col>
         <h4>Deployment Files</h4>
-        These must be encrypted vault files. Select the ones you need (for
-        example, you might be deploying without SSH keys)
+        <ul>
+        <li>These must be encrypted vault files (using <code>ansible-vault</code>). </li>
+        <li>Please note that this file will be added to <code>vars_files</code> sections in your ansible playbook automatically.</li>
+        </ul>
       </b-col>
     </b-row>
     <b-row>
@@ -298,7 +313,7 @@
         <b-spinner v-else class="m-2" />
         <br />
         <b-button
-          class="mt-2"
+          class="mt-3"
           variant="primary"
           @click="
             () => {
@@ -321,16 +336,10 @@
         />
       </b-col>
     </b-row>
-
+    <hr />
     <b-row>
       <b-col>
         <h5 class="mt-2">Ansible playbook</h5>
-        <hr />
-        <p>
-          Remember to change your <code>vars_files</code> to your uploaded
-          ansible vault files. An example of a correct location would be<br />
-          <code>- /src/uploads/become/password.yml</code>
-        </p>
       </b-col>
     </b-row>
     <b-row>
@@ -416,7 +425,6 @@
 
       <b-spinner class="m-2" v-if="!playbook_loaded" />
     </div>
-    <hr />
   </b-container>
 </template>
 <script>
