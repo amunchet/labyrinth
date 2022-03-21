@@ -50,7 +50,12 @@ def test_save_ansible_file(setup):
     assert a[1] == 200
 
     with open("/src/uploads/ansible/test.yml") as f:
-        assert lines.replace("/src/test/ansible/vars/vault.yml", "/src/uploads/become/vault.yml")== f.read()
+        assert (
+            lines.replace(
+                "/src/test/ansible/vars/vault.yml", "/src/uploads/become/vault.yml"
+            )
+            == f.read()
+        )
 
     # Broken file - check if valid
     with open("/src/test/sample_dashboard.json") as f:
