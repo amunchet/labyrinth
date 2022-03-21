@@ -238,70 +238,85 @@
     </b-modal>
     <b-row>
       <b-col>
-        <div class="overflow-hidden">
-          <h2 v-if="!isTesting" class="float-left">Deploy</h2>
-          <h2 class="float-left text-success" v-else>TESTING</h2>
-          <div class="float-right mt-1">
-            <b-button
-              variant="success"
-              v-if="!isTesting"
+        <b-card no-body> 
+          <b-tabs pills card>
+            <b-tab
+              title="Deploy to Single Host"
+              class="pl-5 pr-5"
               @click="
                 () => {
-                  isTesting = !isTesting;
+                  isTesting = false;
+                }
+              "
+              active
+            >
+              Single Host:
+              <b-select
+                :state="selected_host != ''"
+                v-model="selected_host"
+                :options="hosts"
+                :enabled="isTesting"
+              />
+            </b-tab>
+
+            <b-tab
+              title="Deploy to Group"
+              @click="
+                () => {
+                  isTesting = false;
+                }
+              "
+            >
+              <b-row>
+                <b-col>
+                  Subnet:
+                  <b-select />
+                </b-col>
+                <b-col>
+                  Group:
+                  <b-select />
+                </b-col>
+              </b-row>
+            </b-tab>
+
+            <b-tab
+              title="Deployment Testing"
+              class="bg-dark text-success"
+              @click="
+                () => {
+                  isTesting = true;
                   selected_host = sample_ip;
                 }
               "
-              >Enter Test Mode</b-button
             >
-            <b-button variant="primary" v-else @click="isTesting = !isTesting"
-              >Enter Production Mode</b-button
-            >
-          </div>
-        </div>
-        <div class="mb-4 mt-2" v-if="!isTesting">
-          Single Host:
-          <b-select
-            :state="selected_host != ''"
-            v-model="selected_host"
-            :options="hosts"
-            :enabled="isTesting"
-          />
-        </div>
-        <div v-else class="mb-4 mt-2">
-          <div v-if="!sample_loading">
-            Host: <br /><b>sampleclient - ({{ sample_ip }})</b> <br />Backend ip
-            is {{ ip }}
-          </div>
-          <div v-else>
-            <b-spinner class="m-2" />
-          </div>
-        </div>
-      </b-col>
-      <b-col v-if="!isTesting">
-        <h4>Deploy to Group</h4>
-        <b-row>
-          <b-col>
-            Subnet:
-          <b-select />
-          </b-col>
-          <b-col>
-            Group:
-            <b-select />
-          </b-col>
-        </b-row>
-      </b-col>
-    </b-row>
-    <hr />
-    <b-row class="text-left">
-      <b-col>
-        <h4>Deployment Files</h4>
-        <ul>
-        <li>These must be encrypted vault files (using <code>ansible-vault</code>). </li>
-        <li>Please note that this file will be added to <code>vars_files</code> sections in your ansible playbook automatically.</li>
-        </ul>
+              <h4>TESTING MODE</h4>
+              Host: <br /><b>sampleclient - ({{ sample_ip }})</b> <br />Backend
+              ip is {{ ip }}
+            </b-tab>
+          </b-tabs>
+        </b-card>
       </b-col>
     </b-row>
     <b-row>
+      <b-col>
+    <b-card class="text-left">
+      <b-row>
+      <b-col>
+        <h4>Deployment Files</h4>
+        <ul>
+          <li>
+            These must be encrypted vault files (using
+            <code>ansible-vault</code>).
+          </li>
+          <li>
+            Please note that this file will be added to
+            <code>vars_files</code> sections in your ansible playbook
+            automatically.
+          </li>
+        </ul>
+      </b-col>
+      </b-row>
+      <b-row>
       <b-col>
         Select uploaded Become Password file:
         <b-select
@@ -314,7 +329,7 @@
         <br />
         <b-button
           class="mt-3"
-          variant="primary"
+          variant="success"
           @click="
             () => {
               generated_ansible = { type: 'Username and Password' };
@@ -336,10 +351,14 @@
         />
       </b-col>
     </b-row>
-    <hr />
+    </b-card>
+      </b-col>
+    </b-row>
+    <b-row><b-col>
+    <b-card>
     <b-row>
       <b-col>
-        <h5 class="mt-2">Ansible playbook</h5>
+        <h4 class="">Ansible playbook</h4>
       </b-col>
     </b-row>
     <b-row>
@@ -357,7 +376,7 @@
         <br />
         <b-button
           style="width: 100%"
-          variant="primary"
+          variant="success"
           @click="
             () => {
               new_ansible_file = '';
@@ -373,7 +392,7 @@
     <hr />
     <b-row>
       <b-col>
-        <h5 class="text-left">Ansible Playbook Contents</h5>
+        <span class="text-left">Ansible Playbook Contents</span>
         <b-textarea
           v-model="playbook_contents"
           v-if="loadings.playbook == undefined || loadings.playbook == 0"
@@ -398,7 +417,9 @@
         </div>
       </b-col>
     </b-row>
-    <hr />
+
+    </b-card>
+    </b-col></b-row>
     <div>
       <b-button
         size="lg"
