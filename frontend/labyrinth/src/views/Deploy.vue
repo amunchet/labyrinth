@@ -407,7 +407,7 @@
         @click="runPlaybook()"
         >Deploy to hosts</b-button
       >
-      <br />
+      <hr />
       <div
         class="playbook_result"
         v-html="$sanitize(playbook_result)"
@@ -749,7 +749,8 @@ export default {
 
 .playbook_result {
   height: 400px;
-  max-width: 500px;
+  width: 100%;
+  text-align: left;
   overflow-y: scroll;
   margin-top: 2rem;
   background-color: lightgrey;

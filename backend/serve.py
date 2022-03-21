@@ -15,6 +15,7 @@ import pymongo
 import redis
 import toml
 import requests
+import yaml
 
 import metrics as mc
 import watcher
@@ -940,12 +941,13 @@ def get_ansible_file(fname):
         return f.read(), 200
 
 
-@app.route("/save_ansible_file/<fname>/", methods=["POST"])
+@app.route("/save_ansible_file/<fname>/<vars_file>", methods=["POST"])
 @requires_auth_admin
-def save_ansible_file(fname, inp_data=""):
+def save_ansible_file(fname, inp_data="", vars_file=""):
     """
     Save Ansible File
         - Have to check if it's a valid ansible file (from `ansible_helper`)
+        - Handle `vars_files` in hosts
     """
     if inp_data != "":
         data = inp_data
@@ -955,6 +957,22 @@ def save_ansible_file(fname, inp_data=""):
         return "Invalid request", 417
 
     filename = "/src/uploads/ansible/{}.yml".format(fname.replace(".yml", ""))
+
+    # Check YAML file
+    if vars_file != "":
+        try:
+            parsed = yaml.safe_load(data)
+        except yaml.YAMLError as exc:
+            return "YAML Read Error: {}".format(exc), 471
+
+        for item in parsed:
+            item["vars_files"] = ["/src/uploads/ansible/{}.yml".format(vars_file)]
+
+        try:
+            data = yaml.safe_dump(parsed)
+        except yaml.YAMLError as exc:
+            return "YAML Dump Error: {}".format(exc), 471
+
     x = ansible_helper.check_file(filename=fname, raw=data, file_type="ansible")
     if type(x) == type([]) and x[0]:
         return "Success", 200

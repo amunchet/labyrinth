@@ -46,7 +46,7 @@ def test_save_ansible_file(setup):
     with open("/src/uploads/ansible/deploy.yml") as f:
         lines = f.read()
 
-    a = unwrap(save_ansible_file)(inp_data=lines, fname="test")
+    a = unwrap(save_ansible_file)(inp_data=lines, fname="test", vars_file="vault")
     assert a[1] == 200
 
     with open("/src/uploads/ansible/test.yml") as f:
