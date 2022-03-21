@@ -966,7 +966,7 @@ def save_ansible_file(fname, inp_data="", vars_file=""):
             return "YAML Read Error: {}".format(exc), 471
 
         for item in parsed:
-            item["vars_files"] = ["/src/uploads/ansible/{}.yml".format(vars_file)]
+            item["vars_files"] = ["/src/uploads/become/{}.yml".format(vars_file)]
 
         try:
             data = yaml.safe_dump(parsed, sort_keys=False)
