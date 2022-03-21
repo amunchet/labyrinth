@@ -1,54 +1,46 @@
+hosts: localhost
+tasks:
+- name: Remove password file
+  raw: rm -rf /src/test/ansible/vault.pass
 ---
-- hosts: localhost
-  tasks:
-    - name: Remove password file
-      raw: rm -rf /src/test/ansible/vault.pass
-
-- hosts: all
-  become: no
-  gather_facts: no
-  vars_files:
-    - /src/test/ansible/vars/vault.yml
-  tasks:
-  - name: Ensure python installed
-    raw: apt update && apt -y install python gnupg2 curl wget
-
-- hosts: all
-  become: yes
-  gather_facts: yes
-
-  vars_files:
-    - /src/test/ansible/vars/vault.yml
-  tasks:
-  - name: Add Repo key
-    raw: wget -qO- https://repos.influxdata.com/influxdb.key | apt-key add -
-
-  - name: Add InfluxDB repo
-    raw: echo "deb https://repos.influxdata.com/debian buster stable" | tee /etc/apt/sources.list.d/influxdb.list
-  
-  - name: Telegraf installation
-    apt:
-      name: telegraf
-      update_cache: yes
-      state: present
-  - name: Cron installation
-    apt:
-      name: cron
-      update_cache: yes
-      state: present
-
-  - name: Telegraf Configuration Copy
-    copy:
-      src: "/src/uploads/telegraf/{{inventory_hostname}}.conf"
-      dest: /etc/telegraf/telegraf.conf
-  
-  - name: Stop Telegraf service
-    raw: service telegraf stop
-
-  - name: Start Cron
-    raw: service cron start
-
-  - name: Set up Telegraf Cron
-    ansible.builtin.cron:
-      name: "Telegraf"
-      job: "/usr/bin/telegraf --once"
+hosts: all
+become: false
+gather_facts: false
+vars_files:
+- /src/test/ansible/vars/vault.yml
+tasks:
+- name: Ensure python installed
+  raw: apt update && apt -y install python gnupg2 curl wget
+---
+hosts: all
+become: true
+gather_facts: true
+vars_files:
+- /src/test/ansible/vars/vault.yml
+tasks:
+- name: Add Repo key
+  raw: wget -qO- https://repos.influxdata.com/influxdb.key | apt-key add -
+- name: Add InfluxDB repo
+  raw: echo "deb https://repos.influxdata.com/debian buster stable" | tee /etc/apt/sources.list.d/influxdb.list
+- name: Telegraf installation
+  apt:
+    name: telegraf
+    update_cache: true
+    state: present
+- name: Cron installation
+  apt:
+    name: cron
+    update_cache: true
+    state: present
+- name: Telegraf Configuration Copy
+  copy:
+    src: /src/uploads/telegraf/{{inventory_hostname}}.conf
+    dest: /etc/telegraf/telegraf.conf
+- name: Stop Telegraf service
+  raw: service telegraf stop
+- name: Start Cron
+  raw: service cron start
+- name: Set up Telegraf Cron
+  ansible.builtin.cron:
+    name: Telegraf
+    job: /usr/bin/telegraf --once

@@ -969,7 +969,7 @@ def save_ansible_file(fname, inp_data="", vars_file=""):
             item["vars_files"] = ["/src/uploads/ansible/{}.yml".format(vars_file)]
 
         try:
-            data = yaml.safe_dump(parsed)
+            data = yaml.safe_dump(parsed, sort_keys=False)
         except yaml.YAMLError as exc:
             return "YAML Dump Error: {}".format(exc), 471
 
