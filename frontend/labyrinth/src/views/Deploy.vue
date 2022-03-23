@@ -268,14 +268,22 @@
               "
             >
               <b-row>
-                {{ips}}
+                {{ ips }}
                 <b-col>
                   Subnet:
-                  <b-select :state="selected_subnet != ''" v-model="selected_subnet" :options="subnets"/>
+                  <b-select
+                    :state="selected_subnet != ''"
+                    v-model="selected_subnet"
+                    :options="subnets"
+                  />
                 </b-col>
                 <b-col>
                   Group:
-                  <b-select :state="selected_group != ''" v-model="selected_group" :options="groups"/>
+                  <b-select
+                    :state="selected_group != ''"
+                    v-model="selected_group"
+                    :options="groups"
+                  />
                 </b-col>
               </b-row>
             </b-tab>
@@ -528,17 +536,16 @@ export default {
       }
     },
 
-    selected_subnet: /* istanbul ignore next */ function(val){
-      if(val != ""){
-        this.loadGroups()
+    selected_subnet: /* istanbul ignore next */ function (val) {
+      if (val != "") {
+        this.loadGroups();
       }
     },
-    selected_group: /* istanbul ignore next */ function(val){
-      if(val != ""){
-        this.loadGroupMembers()
+    selected_group: /* istanbul ignore next */ function (val) {
+      if (val != "") {
+        this.loadGroupMembers();
       }
-    }
-
+    },
   },
   methods: {
     generateAnsibleVault: async function () {
@@ -748,30 +755,40 @@ export default {
           this.$store.commit("updateError", e);
         });
     },
-    loadSubnets: /* istanbul ignore next */ function(){
-      var auth = this.$auth
-      Helper.apiCall("subnets", "", auth).then(res=>{
-        this.subnets = res
-      }).catch(e=>{
-        this.$store.commit("updateError", e)
-      })
+    loadSubnets: /* istanbul ignore next */ function () {
+      var auth = this.$auth;
+      Helper.apiCall("subnets", "", auth)
+        .then((res) => {
+          this.subnets = res;
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
     },
-    loadGroups: /* istanbul ignore next */ function(){
-      var auth = this.$auth
-      Helper.apiCall("group", this.selected_subnet, auth).then(res=>{
-        this.groups = res
-      }).catch(e=>{
-        this.$store.commit("updateError", e)
-      })
+    loadGroups: /* istanbul ignore next */ function () {
+      var auth = this.$auth;
+      Helper.apiCall("group", this.selected_subnet, auth)
+        .then((res) => {
+          this.groups = res;
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
     },
 
-    loadGroupMembers: /* istanbul ignore next */ function(){
-      var auth = this.$auth
-      Helper.apiCall("group", this.selected_subnet + "/" + this.selected_group, auth).then(res=>{
-        this.ips = res
-      }).catch(e=>{
-        this.$store.commit("updateError", e)
-      })
+    loadGroupMembers: /* istanbul ignore next */ function () {
+      var auth = this.$auth;
+      Helper.apiCall(
+        "group",
+        this.selected_subnet + "/" + this.selected_group,
+        auth
+      )
+        .then((res) => {
+          this.ips = res;
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
     },
 
     loadHosts: /* istanbul ignore next */ function () {
@@ -801,7 +818,7 @@ export default {
       this.loadFilesList("totp");
 
       this.loadIP();
-      this.loadSubnets()
+      this.loadSubnets();
 
       this.loadHosts();
     } catch (e) {
