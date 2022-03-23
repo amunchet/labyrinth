@@ -268,13 +268,14 @@
               "
             >
               <b-row>
+                {{ips}}
                 <b-col>
                   Subnet:
-                  <b-select />
+                  <b-select :state="selected_subnet != ''" v-model="selected_subnet" :options="subnets"/>
                 </b-col>
                 <b-col>
                   Group:
-                  <b-select />
+                  <b-select :state="selected_group != ''" v-model="selected_group" :options="groups"/>
                 </b-col>
               </b-row>
             </b-tab>
@@ -480,6 +481,12 @@ export default {
       files_list: {},
 
       hosts: [],
+      subnets: [],
+      groups: [],
+      ips: [],
+
+      selected_subnet: "",
+      selected_group: "",
       selected_host: "",
 
       vault_password: "",
@@ -520,6 +527,18 @@ export default {
         this.loadPlaybook(val);
       }
     },
+
+    selected_subnet: /* istanbul ignore next */ function(val){
+      if(val != ""){
+        this.loadGroups()
+      }
+    },
+    selected_group: /* istanbul ignore next */ function(val){
+      if(val != ""){
+        this.loadGroupMembers()
+      }
+    }
+
   },
   methods: {
     generateAnsibleVault: async function () {
@@ -729,6 +748,32 @@ export default {
           this.$store.commit("updateError", e);
         });
     },
+    loadSubnets: /* istanbul ignore next */ function(){
+      var auth = this.$auth
+      Helper.apiCall("subnets", "", auth).then(res=>{
+        this.subnets = res
+      }).catch(e=>{
+        this.$store.commit("updateError", e)
+      })
+    },
+    loadGroups: /* istanbul ignore next */ function(){
+      var auth = this.$auth
+      Helper.apiCall("group", this.selected_subnet, auth).then(res=>{
+        this.groups = res
+      }).catch(e=>{
+        this.$store.commit("updateError", e)
+      })
+    },
+
+    loadGroupMembers: /* istanbul ignore next */ function(){
+      var auth = this.$auth
+      Helper.apiCall("group", this.selected_subnet + "/" + this.selected_group, auth).then(res=>{
+        this.ips = res
+      }).catch(e=>{
+        this.$store.commit("updateError", e)
+      })
+    },
+
     loadHosts: /* istanbul ignore next */ function () {
       var auth = this.$auth;
       Helper.apiCall("hosts", "", auth)
@@ -756,6 +801,7 @@ export default {
       this.loadFilesList("totp");
 
       this.loadIP();
+      this.loadSubnets()
 
       this.loadHosts();
     } catch (e) {
