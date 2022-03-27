@@ -380,10 +380,18 @@ def list_subnets_groups(subnet):
     """
     Lists groups present in a subnet
     """
-    z = [y for y in set([ x["group"] for x in mongo_client["labyrinth"]["hosts"].find({
-        "subnet" : subnet
-    }) if "group" in x])]
+    z = [
+        y
+        for y in set(
+            [
+                x["group"]
+                for x in mongo_client["labyrinth"]["hosts"].find({"subnet": subnet})
+                if "group" in x
+            ]
+        )
+    ]
     return json.dumps(z, default=str), 200
+
 
 @app.route("/group/<subnet>/<group>")
 @requires_auth_read
@@ -391,12 +399,19 @@ def list_subnets_group_members(subnet, group):
     """
     Lists group members present in a subnet
     """
-    z = [y for y in set([ x["ip"] for x in mongo_client["labyrinth"]["hosts"].find({
-        "subnet" : subnet,
-        "group" : group
-    }) if "group" in x])]
+    z = [
+        y
+        for y in set(
+            [
+                x["ip"]
+                for x in mongo_client["labyrinth"]["hosts"].find(
+                    {"subnet": subnet, "group": group}
+                )
+                if "group" in x
+            ]
+        )
+    ]
     return json.dumps(z, default=str), 200
-
 
 
 @app.route("/group/monitor/<subnet>/<name>/<status>")
