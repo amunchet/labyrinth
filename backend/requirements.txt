@@ -11,6 +11,7 @@ redis
 pid
 ansible
 ansible-runner
+pyyaml
 
 # Development tools
 pytest
