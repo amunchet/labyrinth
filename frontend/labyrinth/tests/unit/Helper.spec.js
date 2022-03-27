@@ -31,14 +31,13 @@ describe("Helper", () => {
     expect(Helper.getURL()).toBe("/api/");
   });
 
-  test("validateIP", ()=>{
-    expect(Helper.validateIP("192.168.0.1")).toBeTruthy()
-    expect(Helper.validateIP("254.254.254.254")).toBeTruthy()
+  test("validateIP", () => {
+    expect(Helper.validateIP("192.168.0.1")).toBeTruthy();
+    expect(Helper.validateIP("254.254.254.254")).toBeTruthy();
 
-    expect(Helper.validateIP("255.254.254.254")).not.toBeTruthy()
-    expect(Helper.validateIP("192.0.1")).not.toBeTruthy()
-    expect(Helper.validateIP("asdfasdfsa")).not.toBeTruthy()
-    expect(Helper.validateIP("192.168.0.123asdfasdf")).not.toBeTruthy()
-  })
-
+    expect(Helper.validateIP("255.254.254.254")).not.toBeTruthy();
+    expect(Helper.validateIP("192.0.1")).not.toBeTruthy();
+    expect(Helper.validateIP("asdfasdfsa")).not.toBeTruthy();
+    expect(Helper.validateIP("192.168.0.123asdfasdf")).not.toBeTruthy();
+  });
 });
