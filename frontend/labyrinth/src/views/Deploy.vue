@@ -236,6 +236,7 @@
         </b-row>
       </b-container>
     </b-modal>
+
     <b-row>
       <b-col>
         <b-card no-body>
@@ -246,6 +247,9 @@
               @click="
                 () => {
                   isTesting = false;
+                  ips = [];
+                  selected_subnet = '';
+                  selected_group = '';
                 }
               "
               active
@@ -268,7 +272,6 @@
               "
             >
               <b-row>
-                {{ ips }}
                 <b-col>
                   Subnet:
                   <b-select
@@ -295,6 +298,9 @@
                 () => {
                   isTesting = true;
                   selected_host = sample_ip;
+                  ips = [];
+                  selected_group = '';
+                  selected_subnet = '';
                 }
               "
             >
@@ -452,8 +458,23 @@
       <div
         class="playbook_result"
         v-html="$sanitize(playbook_result)"
-        v-if="playbook_result && playbook_loaded"
+        v-if="playbook_result && playbook_loaded && ips == []"
       ></div>
+
+      <div v-if="ips != []">
+        <div v-for="(item, idx) in ips" v-bind:key="idx">
+          <h4 class="text-left">{{ item }} Results</h4>
+          <div
+            class="playbook_result"
+            v-if="playbook_results[item] != undefined"
+            v-html="$sanitize(playbook_results[item])"
+          ></div>
+          <div class="overflow-hidden" v-else>
+          <b-spinner class="m-1 float-left"  />
+          </div>
+          <hr />
+        </div>
+      </div>
 
       <b-spinner class="m-2" v-if="!playbook_loaded" />
     </div>
@@ -505,6 +526,7 @@ export default {
       playbook_loaded: true,
 
       playbook_result: "",
+      playbook_results: {},
 
       loadings: {},
 
@@ -689,7 +711,7 @@ export default {
         });
     },
 
-    runPlaybook: /* istanbul ignore next */ function () {
+    runPlaybook: /* istanbul ignore next */ async function () {
       if (this.selected["become"] == "") {
         this.$store.commit(
           "updateError",
@@ -697,7 +719,35 @@ export default {
         );
         return false;
       }
+
       var auth = this.$auth;
+
+      if (this.ips != []) {
+
+        this.ips.forEach((host) => {
+
+          var formData = new FormData();
+          var data = {
+            hosts: host,
+            playbook: this.selected_playbook.replace(".yml", ""),
+            vault_password: this.vault_password,
+            become_file: this.selected["become"].replace(".yml", ""),
+            ssh_key: this.selected["ssh"],
+          };
+          formData.append("data", JSON.stringify(data));
+          this.$forceUpdate()
+          Helper.apiPost("ansible_runner", "", "", auth, formData)
+            .then((res) => {
+              this.playbook_results[host] = res;
+              this.$forceUpdate()
+            })
+            .catch((e) => {
+              this.$store.commit("updateError", e);
+            });
+        });
+        return true;
+      }
+
       var formData = new FormData();
       var host = this.selected_host;
 
