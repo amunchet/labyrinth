@@ -268,6 +268,7 @@
               @click="
                 () => {
                   isTesting = false;
+                  selected_host = null
                 }
               "
             >
@@ -312,7 +313,9 @@
         </b-card>
       </b-col>
     </b-row>
-    <b-row>
+    <b-row
+      v-if="selected_host || ips.length > 0"
+    >
       <b-col>
         <b-card class="text-left">
           <b-row>
@@ -370,6 +373,7 @@
       </b-col>
     </b-row>
     <b-row
+      v-if="(selected_host || ips.length > 0) && selected['become']  && vault_password "
       ><b-col>
         <b-card>
           <b-row>
@@ -437,7 +441,11 @@
           </b-row>
         </b-card> </b-col
     ></b-row>
-    <div>
+    <div
+      v-if="
+      (selected_host || ips.length > 0) && selected['become']  && vault_password &&
+      selected_playbook"
+    >
       <b-button
         size="lg"
         style="width: 100%"
@@ -452,16 +460,16 @@
         v-else
         variant="primary"
         @click="runPlaybook()"
-        >Deploy to hosts</b-button
+        >Deploy to host<span v-if="ips.length != 0">s</span></b-button
       >
       <hr />
       <div
-        class="playbook_result"
+        class="playbook_result mb-4"
         v-html="$sanitize(playbook_result)"
-        v-if="playbook_result && playbook_loaded && ips == []"
+        v-if="running && playbook_result && playbook_loaded && ips.length == 0"
       ></div>
 
-      <div v-if="ips != []">
+      <div v-if="ips != [] && running">
         <div v-for="(item, idx) in ips" v-bind:key="idx">
           <h4 class="text-left">{{ item }} Results</h4>
           <div
@@ -529,6 +537,8 @@ export default {
       playbook_results: {},
 
       loadings: {},
+
+      running: false,
 
       isTesting: false,
       options: [
@@ -721,8 +731,8 @@ export default {
       }
 
       var auth = this.$auth;
-
-      if (this.ips != []) {
+      this.running = true
+      if (this.ips.length > 0) {
 
         this.ips.forEach((host) => {
 
