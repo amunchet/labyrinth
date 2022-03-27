@@ -268,7 +268,7 @@
               @click="
                 () => {
                   isTesting = false;
-                  selected_host = null
+                  selected_host = null;
                 }
               "
             >
@@ -313,9 +313,7 @@
         </b-card>
       </b-col>
     </b-row>
-    <b-row
-      v-if="selected_host || ips.length > 0"
-    >
+    <b-row v-if="selected_host || ips.length > 0">
       <b-col>
         <b-card class="text-left">
           <b-row>
@@ -373,7 +371,11 @@
       </b-col>
     </b-row>
     <b-row
-      v-if="(selected_host || ips.length > 0) && selected['become']  && vault_password "
+      v-if="
+        (selected_host || ips.length > 0) &&
+        selected['become'] &&
+        vault_password
+      "
       ><b-col>
         <b-card>
           <b-row>
@@ -443,8 +445,11 @@
     ></b-row>
     <div
       v-if="
-      (selected_host || ips.length > 0) && selected['become']  && vault_password &&
-      selected_playbook"
+        (selected_host || ips.length > 0) &&
+        selected['become'] &&
+        vault_password &&
+        selected_playbook
+      "
     >
       <b-button
         size="lg"
@@ -478,7 +483,7 @@
             v-html="$sanitize(playbook_results[item])"
           ></div>
           <div class="overflow-hidden" v-else>
-          <b-spinner class="m-1 float-left"  />
+            <b-spinner class="m-1 float-left" />
           </div>
           <hr />
         </div>
@@ -731,11 +736,9 @@ export default {
       }
 
       var auth = this.$auth;
-      this.running = true
+      this.running = true;
       if (this.ips.length > 0) {
-
         this.ips.forEach((host) => {
-
           var formData = new FormData();
           var data = {
             hosts: host,
@@ -745,11 +748,11 @@ export default {
             ssh_key: this.selected["ssh"],
           };
           formData.append("data", JSON.stringify(data));
-          this.$forceUpdate()
+          this.$forceUpdate();
           Helper.apiPost("ansible_runner", "", "", auth, formData)
             .then((res) => {
               this.playbook_results[host] = res;
-              this.$forceUpdate()
+              this.$forceUpdate();
             })
             .catch((e) => {
               this.$store.commit("updateError", e);

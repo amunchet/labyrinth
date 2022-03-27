@@ -113,10 +113,10 @@ export default {
         if (parsed_val != undefined && parsed_val != "" && parsed_val != " ") {
           if (parsed_val.indexOf("401") != -1) {
             parsed_val = "Error: Logged out.  Please login again.";
-            try{
-            this.$auth.logOut()
-            }catch(e){
-              this.$store.commit("updateError", e)
+            try {
+              this.$auth.logOut();
+            } catch (e) {
+              this.$store.commit("updateError", e);
             }
           }
 
