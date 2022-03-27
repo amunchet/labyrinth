@@ -113,6 +113,7 @@ export default {
         if (parsed_val != undefined && parsed_val != "" && parsed_val != " ") {
           if (parsed_val.indexOf("401") != -1) {
             parsed_val = "Error: Logged out.  Please login again.";
+            this.$auth.logOut()
           }
 
           if (this.$bvToast != undefined && prev.indexOf(val) == -1) {
