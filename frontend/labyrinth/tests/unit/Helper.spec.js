@@ -40,4 +40,8 @@ describe("Helper", () => {
     expect(Helper.validateIP("asdfasdfsa")).not.toBeTruthy();
     expect(Helper.validateIP("192.168.0.123asdfasdf")).not.toBeTruthy();
   });
+  test("capitalize", ()=>
+  {
+    expect(Helper.capitalize("addd").toBe("Addd"))
+  })
 });
