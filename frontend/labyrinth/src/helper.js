@@ -6,6 +6,9 @@ const devel_port = "8101";
 
 export default {
   name: "Helper",
+  capitalize: function (string) {
+    return string.charAt(0).toUpperCase() + string.slice(1);
+  },
   validateIP(ip, count = 4) {
     try {
       var nonnumber = ip.replace(/\./g, "").replace(/[0-9]/g, "");

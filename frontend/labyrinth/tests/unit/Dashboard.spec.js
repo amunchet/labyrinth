@@ -70,27 +70,77 @@ describe("Dashboard.vue", () => {
       "text-right subnet blue"
     );
   });
-  test("findTop - connector calculations", async () => {
-    wrapper.vm.$data.connector_count = 1;
-    wrapper.vm.$refs = {
-      start_0: [
-        {
-          $el: {
-            offsetTop: 5,
-            offsetHeight: 10,
-          },
-        },
-      ],
-      end_1: [
-        {
-          offsetTop: 20,
-        },
-      ],
-    };
-
-    wrapper.vm.findTop();
-    await wrapper.vm.$forceUpdate();
-    expect(wrapper.vm.$data.connectorBottom).toStrictEqual([1]);
-  });
   test("$refs", () => {});
+
+  test("prepareOriginsLinks", () => {
+    // Function to list out a structure that Connector can loop over
+
+    let subnets;
+
+    subnets = [
+      {
+        subnet: "10.0.0",
+        origin: {
+          ip: "10.0.0.1",
+          icon: "default",
+        },
+        links: {
+          ip: "192.168.0.1",
+          color: "orange",
+        },
+      },
+      {
+        subnet: "192.168.0",
+        origin: {
+          ip: "192.168.0.1",
+          icon: "default",
+        },
+        links: {
+          ip: "192.168.1.1",
+          color: "red",
+        },
+      },
+      {
+        subnet: "192.168.1",
+        origin: {
+          ip: "192.168.1.1",
+          icon: "default",
+        },
+      },
+      {
+        subnet: "192.168.2",
+        origin: {
+          ip: "192.168.2.1",
+          icon: "default",
+        },
+        links: {
+          ip: "192.168.1.1",
+          color: "green",
+        },
+      },
+    ];
+
+    var expected = [
+      {
+        color: "orange",
+        top_1: "10.0.0.1",
+        top_2: "192.168.0.1",
+        left: 0,
+      },
+      {
+        color: "red",
+        top_1: "192.168.0.1",
+        top_2: "192.168.1.1",
+        left: 20,
+      },
+      {
+        color: "green",
+        top_1: "192.168.2.1",
+        top_2: "192.168.1.1",
+        left: 40,
+      },
+    ];
+
+    expect(wrapper.vm.prepareOriginsLinks(subnets)).toStrictEqual(expected);
+  });
 });

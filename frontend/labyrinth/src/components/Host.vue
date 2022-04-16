@@ -10,7 +10,10 @@
         .{{ ip.split(".")[ip.split(".").length - 1] }}
       </div>
 
-      <div v-if="host != '' && host.length > 15" class="title">
+      <div
+        v-if="host != undefined && host != '' && host.length > 15"
+        class="title"
+      >
         {{ host.substr(0, 15) }}...
       </div>
       <div v-else-if="host != ''" class="title">{{ host }}</div>

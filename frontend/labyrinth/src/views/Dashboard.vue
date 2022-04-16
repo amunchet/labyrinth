@@ -11,22 +11,45 @@
       :selected_subnet="selected_subnet"
       @updated="loadData()"
     />
-
     <!-- Main page -->
+
+    <hr />
+
     <div v-if="!loading">
       <div class="outer_left">
-        <Connector
+        <!-- set verticals to some number to see the connector -->
+        <!-- old: 
           :verticals="connectorBottom[0]"
-          horizontals="1"
-          color="orange"
-          :style="
-            'top: ' +
-            offsetTop[0] +
-            'px; left: ' +
-            32 +
-            'px; position: absolute; float: left;'
-          "
+        -->
+
+        <div v-for="(item, idx) in originLinks" v-bind:key="idx">
+          <Connector
+            v-if="
+              $refs['start_' + item.top_1] != undefined &&
+              $refs['start_' + item.top_2] != undefined
+            "
+            :color="item.color"
+            horizontal_width="100"
+            :top_1="$refs['start_' + item.top_1][0].offsetTop"
+            :top_2="$refs['start_' + item.top_2][0].offsetTop"
+            :left="item.left"
+            :key="
+              $refs['start_' + item.top_1] +
+              $refs['start_' + item.top_2] +
+              item.color
+            "
+          />
+        </div>
+        <!--
+        <Connector
+          horizontal_width="100px"  # This is how long the horizontal component is
+          left  = "20px"      # Left offset (for more than 1 connector)
+          top_1 = "200px"     # One of the top points
+          top_2 = "150px"     # The other top point - can be greater or less
+          color = "orange"    # Whatever the color is 
+
         />
+        -->
       </div>
       <div class="outer_right">
         <b-button
@@ -53,21 +76,11 @@
               (subnet.links.ip != undefined && subnet.links.ip != '')
             "
           >
-            <div class="corner" :ref="'end_' + i">
-              <Host
-                :ip="subnet.origin.ip"
-                :icon="subnet.origin.icon"
-                show_ports="0"
-              />
-            </div>
-            <div class="routes">
-              <Host
-                :ip="subnet.links.ip"
-                show_ports="0"
-                passed_class="main"
-                :ref="'start_' + i"
-                :icon="subnet.links.icon"
-              />
+            <div class="corner pt-3" :ref="'start_' + subnet.origin.ip">
+              <img
+                :src="'/icons/' + capitalize(subnet.origin.icon) + '.svg'"
+              /><br />
+              {{ subnet.origin.ip }}
             </div>
           </div>
           <div class="right">
@@ -82,7 +95,7 @@
             >
               {{ subnet.subnet }}
             </h2>
-            <div class="flexed">
+            <div class="flexed" v-if="subnet.groups != undefined">
               <div
                 class="grouped"
                 v-for="(group, j) in subnet.groups"
@@ -164,8 +177,6 @@ export default {
       loading: false,
 
       offsetTop: [],
-      connectorBottom: [],
-      connector_count: 1,
       full_data: [],
 
       selected_subnet: "",
@@ -174,6 +185,8 @@ export default {
 
       dragged_ip: "",
       selected_group: "",
+
+      originLinks: [],
     };
   },
   components: {
@@ -185,6 +198,7 @@ export default {
     GroupModal,
   },
   methods: {
+    capitalize: Helper.capitalize,
     onDrop: /* istanbul ignore next */ function (name) {
       var auth = this.$auth;
       Helper.apiCall(
@@ -208,7 +222,17 @@ export default {
       }
       await Helper.apiCall("dashboard", url, auth)
         .then((res) => {
-          this.full_data = res;
+          this.full_data = res.sort((a, b) => {
+            if (a.subnet > b.subnet) {
+              return 1;
+            }
+            if (a.subnet == b.subnet) {
+              return 0;
+            }
+            return -1;
+          });
+
+          this.originLinks = this.prepareOriginsLinks(this.full_data);
 
           for (var i = 0; i < this.full_data.length; i++) {
             var temp = this.full_data[i];
@@ -235,7 +259,6 @@ export default {
             this.loadData(false);
           }, 2000);
           this.loading = false;
-          this.findTop();
         })
         .catch((e) => {
           setTimeout(() => {
@@ -258,36 +281,33 @@ export default {
         return "text-right subnet " + subnet.color + "";
       }
     },
-    // NOTE: I'm not sure how to test this function, since it relies on external DOM
-    findTop: /* istanbul ignore next */ function () {
-      try {
-        for (var i = 0; i < this.connector_count; i++) {
-          var height = this.$refs["start_" + i][0].$el.offsetHeight;
+    prepareOriginsLinks: function (subnets) {
+      var retval = [];
+      const width = 20;
+      subnets = subnets.filter(
+        (x) =>
+          x.links != undefined &&
+          x.origin != undefined &&
+          x.origin.ip != undefined &&
+          x.origin.ip != "" &&
+          x.links.ip != undefined &&
+          x.links.ip != ""
+      );
 
-          this.offsetTop[i] =
-            this.$refs["start_" + i][0].$el.offsetTop - 0.25 * height;
-          var bottom = this.$refs["end_" + (i + 1)][0].offsetTop * 1;
-
-          this.connectorBottom[i] =
-            Math.ceil((bottom - this.offsetTop[i]) / 50) * 1;
-        }
-        this.$forceUpdate();
-      } catch (e) {
-        setTimeout(this.findTop, 50);
-      }
+      subnets.forEach((x, idx) => {
+        retval.push({
+          color: x.links.color != undefined ? x.links.color : "",
+          top_1: x.origin.ip,
+          top_2: x.links.ip,
+          left: idx * width,
+        });
+      });
+      return retval;
     },
   },
-  watch: {
-    $refs: {
-      start_1: /* istanbul ignore next */ function (val) {
-        if (val.$el != undefined) {
-          this.findTop();
-        }
-      },
-    },
-  },
+
   created: function () {
-    window.addEventListener("resize", this.findTop);
+    //window.addEventListener("resize", this.findTop);
   },
   mounted: function () {
     try {
@@ -360,8 +380,8 @@ h2.subnet:hover {
   text-decoration: underline;
 }
 .outer_left {
-  width: 10%;
-  min-width: 100px;
+  width: 5%;
+  min-width: 75px;
   float: left;
 }
 
@@ -384,8 +404,8 @@ h2.subnet:hover {
 }
 
 .left {
-  width: 15%;
-  min-width: 150px;
+  width: 5%;
+  min-width: 140px;
   float: left;
   min-height: 300px;
 }
@@ -400,7 +420,7 @@ h2.subnet:hover {
   top: 0;
   left: 0;
   border-radius: 0 0 3rem 0;
-  min-width: 150px;
+  min-width: 75px;
   background-color: #fafafe;
   box-shadow: 10px 10px 39px -12px rgba(0, 0, 0, 0.75);
   -webkit-box-shadow: 10px 10px 39px -12px rgba(0, 0, 0, 0.75);
@@ -414,6 +434,7 @@ h2.subnet:hover {
 .grouped {
   border-radius: 1rem;
   width: 30%;
+  width: 400px !important;
   margin: 1%;
   text-align: center;
   background-color: #dfdfde;
