@@ -84,7 +84,7 @@
   </div>
 </template>
 <script>
-import Helper from '@/helper'
+import Helper from "@/helper";
 export default {
   data() {
     return {};
@@ -138,30 +138,33 @@ export default {
       }
     },
   },
-  mounted: /* istanbul ignore next */ function(){
-    var auth = this.$auth;
-    if (window.location.href.indexOf("callback") == -1) {
-      Helper.apiCall("secure", "", auth)
-        .then(() => {
-        })
-        .catch((e) => {
-          var output = "" + e;
-          console.log(output)
-          var page = window.location.href;
-          if (
-            output.indexOf("471") != -1 &&
-            (page == undefined || page.indexOf("callback") == -1)
-          ) {
-            this.$auth.logOut();
-            this.$auth.login();
-          } else {
-            this.$bvToast.toast("" + e, {
-              title: "Error",
-              variant: "danger",
-              solid: true,
-            });
-          }
-        });
+  mounted: /* istanbul ignore next */ function () {
+    try {
+      var auth = this.$auth;
+      if (window.location.href.indexOf("callback") == -1) {
+        Helper.apiCall("secure", "", auth)
+          .then(() => {})
+          .catch((e) => {
+            var output = "" + e;
+            console.log(output);
+            var page = window.location.href;
+            if (
+              output.indexOf("471") != -1 &&
+              (page == undefined || page.indexOf("callback") == -1)
+            ) {
+              this.$auth.logOut();
+              this.$auth.login();
+            } else {
+              this.$bvToast.toast("" + e, {
+                title: "Error",
+                variant: "danger",
+                solid: true,
+              });
+            }
+          });
+      }
+    } catch (e) {
+      this.$store.commit("updateError", e);
     }
   },
   created: /* istanbul ignore next */ function () {
