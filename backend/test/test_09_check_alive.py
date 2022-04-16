@@ -10,6 +10,7 @@ This is probably going to be parallelized in Go at some point
 
 import alive
 
+
 def test_alive_ping():
     """
     Detects alive from ping
@@ -24,6 +25,7 @@ def test_alive_port():
         - sampleclient, 22
     """
     assert not alive.check_port("127.0.0.1", 22)
+
 
 def test_alive_cron():
     """

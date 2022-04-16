@@ -25,12 +25,13 @@ def ping(host):
     """
 
     # Option for the number of packets as a function of
-    param = '-n' if platform.system().lower()=='windows' else '-c'
+    param = "-n" if platform.system().lower() == "windows" else "-c"
 
     # Building the command. Ex: "ping -c 1 google.com"
-    command = ['ping', param, '1', '-W', '1', host]
+    command = ["ping", param, "1", "-W", "1", host]
 
     return subprocess.call(command) == 0
+
 
 def check_port(host, port):
     """
@@ -42,11 +43,11 @@ def check_port(host, port):
                 return True
             else:
                 return False
-    except Exception: 
+    except Exception:
         return False
 
 
-def check_all_hosts(): 
+def check_all_hosts():
     """
     Pulls in all hosts and checks them all
     """
@@ -62,12 +63,12 @@ def check_all_hosts():
                 continue
 
             host_name = host["ip"]
-            
+
             alive_type = "Ping Check"
             if "check_alive_port" in host and "check_alive_port" != "":
                 alive_type = "Port Check"
 
-            if "monitor" in host and host["monitor"]: 
+            if "monitor" in host and host["monitor"]:
                 if alive_type == "Ping Check":
                     result = ping(host_name)
                 else:
@@ -76,7 +77,9 @@ def check_all_hosts():
                 summary = "{} did not respond to {}.".format(host_name, alive_type)
 
                 if not result:
-                    watcher.send_alert("Check Alive", alive_type, host_name, summary=summary)
+                    watcher.send_alert(
+                        "Check Alive", alive_type, host_name, summary=summary
+                    )
 
 
 if __name__ == "__main__":

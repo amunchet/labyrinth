@@ -64,12 +64,12 @@
           ><b-input
             v-model="host.check_alive_port"
             placeholder="E.g. 22 for SSH"
-            />
-            <span class="text-small">
-              Leave blank to ping host for alive check.  Requires Monitor.
-            </span>
-            </b-col
-      ></b-row>
+          />
+          <span class="text-small">
+            Leave blank to ping host for alive check. Requires Monitor.
+          </span>
+        </b-col></b-row
+      >
 
       <b-row
         ><b-col>Icon</b-col
@@ -468,7 +468,7 @@ h4 {
 .overflow-scroll {
   overflow-x: scroll;
 }
-.text-small{
+.text-small {
   font-size: 9pt;
   color: grey;
 }
