@@ -111,17 +111,7 @@
               <img :src="'/icons/' + capitalize(subnet.origin.icon) +'.svg'" /><br />
               {{subnet.origin.ip}}
             </div>
-            <div class="routes">
-              <!-- Removed 
-                :ref="'start_' + i"
-                -->
-              <Host
-                :ip="subnet.links.ip"
-                show_ports="0"
-                passed_class="main"
-                :icon="subnet.links.icon"
-              />
-            </div>
+            
           </div>
           <div class="right">
             <h2
