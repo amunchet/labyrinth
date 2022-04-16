@@ -1,6 +1,6 @@
 * * * * * /bin/bash /cron/run.sh > /var/log/finder
 */10 * * * * /bin/bash /cron/watcher.sh > /var/log/watcher
-*/2 * * * * /bin/bash /cron/alive.sh > /var/log/watcher
+*/2 * * * * /bin/bash /cron/alive.sh > /var/log/alive
 
 
 # Must have Blank line before EOF
