@@ -59,6 +59,19 @@
             :state="!$v.host.subnet.$invalid" /></b-col
       ></b-row>
       <b-row
+        ><b-col>Check TCP Port</b-col
+        ><b-col
+          ><b-input
+            v-model="host.check_alive_port"
+            placeholder="E.g. 22 for SSH"
+            />
+            <span class="text-small">
+              Leave blank to ping host for alive check.  Requires Monitor.
+            </span>
+            </b-col
+      ></b-row>
+
+      <b-row
         ><b-col>Icon</b-col
         ><b-col><b-select :options="icons" v-model="host.icon" /></b-col
       ></b-row>
@@ -454,5 +467,9 @@ h4 {
 }
 .overflow-scroll {
   overflow-x: scroll;
+}
+.text-small{
+  font-size: 9pt;
+  color: grey;
 }
 </style>

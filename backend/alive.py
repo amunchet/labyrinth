@@ -64,7 +64,7 @@ def check_all_hosts():
             host_name = host["ip"]
             
             alive_type = "Ping Check"
-            if "check_alive_port" in host:
+            if "check_alive_port" in host and "check_alive_port" != "":
                 alive_type = "Port Check"
 
             if "monitor" in host and host["monitor"]: 
