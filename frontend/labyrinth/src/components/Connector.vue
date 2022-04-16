@@ -3,7 +3,7 @@
     class="connector"
     :style="
       'top: ' +
-      1 * smaller +
+      (1 * smaller + 25)+
       'px; left: ' +
       left +
       'px; position: absolute; float: left;'
@@ -13,7 +13,7 @@
     <svg
       height="50"
       :width="horizontal_width"
-      style="position: relative; top: 66.5px; left: 50px"
+      style="position: relative; left: 50px"
     >
       <line
         x1="0"
@@ -33,6 +33,7 @@
       fill="transparent"
       stroke-width="5"
       :stroke="set_color"
+      style="position: relative; top:-67px;"
     >
       <circle cx="50" cy="50" r="30" />
     </svg>
@@ -42,8 +43,8 @@
     <svg
       height="50"
       width="40"
-      style="margin-left: 16.5px"
-      v-for="idx in 1 * Math.floor((larger - smaller - 50) / 50)"
+      style="position:relative; margin-left: 16.5px; top:-67px;"
+      v-for="idx in 1 * Math.floor((larger - smaller - 25) / 50)"
       v-bind:key="idx"
     >
       <line
@@ -64,6 +65,7 @@
       height="47.5"
       stroke-width="5"
       :stroke="set_color"
+      style="position:relative; top:-67px;"
     >
       <circle cx="50" cy="0" r="30" />
     </svg>
@@ -72,7 +74,7 @@
     <svg
       height="50"
       :width="horizontal_width"
-      style="position: relative; left: 50px; bottom: 20px"
+      style="position: relative; left: 50px; top: -87px;"
     >
       <line
         x1="0"
