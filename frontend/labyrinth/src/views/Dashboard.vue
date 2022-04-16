@@ -22,26 +22,17 @@
           :verticals="connectorBottom[0]"
         -->
         
-        <Connector
-          v-if="$refs.start_1 != undefined && $refs.start_2 != undefined"
-          color="green"
-          horizontal_width="100"
-          :top_1="$refs.start_0[0].offsetTop"
-          :top_2="$refs.start_1[0].offsetTop"
-          left="20"
-          :key="$refs.start_0[0].offsetTop && $refs.start_1[0].offsetTop"
-
-        />
-        <Connector
-          v-if="$refs.start_1 != undefined && $refs.start_2 != undefined"
-          color="orange"
-          horizontal_width="100"
-          :top_1="$refs.start_0[0].offsetTop"
-          :top_2="$refs.start_2[0].offsetTop"
-          left="40"
-          :key="$refs.start_0[0].offsetTop && $refs.start_2[0].offsetTop"
-
-        />
+        <div v-for="(item, idx) in originLinks" v-bind:key="idx">
+          <Connector
+            v-if="$refs['start_' + item.top_1] != undefined && $refs['start_' + item.top_2] != undefined"
+            :color="item.color"
+            horizontal_width = "100"
+            :top_1="$refs['start_' + item.top_1][0].offsetTop"
+            :top_2="$refs['start_' + item.top_2][0].offsetTop"
+            :left="item.left"
+            :key="$refs['start_' + item.top_1] + $refs['start_' + item.top_2] + item.color"
+          />
+        </div>
         <!--
         <Connector
           horizontal_width="100px"  # This is how long the horizontal component is
@@ -78,13 +69,7 @@
               (subnet.links.ip != undefined && subnet.links.ip != '')
             "
           >
-            <div class="corner" :ref="'start_' + i">
-              <Host
-                :ip="subnet.origin.ip"
-                :icon="subnet.origin.icon"
-                show_ports="0"
-              />
-              <br />
+            <div class="corner pt-3" :ref="'start_' + subnet.origin.ip">
               <img :src="'/icons/' + capitalize(subnet.origin.icon) +'.svg'" /><br />
               {{subnet.origin.ip}}
             </div>
@@ -102,7 +87,7 @@
             >
               {{ subnet.subnet }}
             </h2>
-            <div class="flexed">
+            <div class="flexed" v-if="subnet.groups != undefined">
               <div
                 class="grouped"
                 v-for="(group, j) in subnet.groups"
@@ -192,6 +177,8 @@ export default {
 
       dragged_ip: "",
       selected_group: "",
+
+      originLinks: [],
     };
   },
   components: {
@@ -236,6 +223,8 @@ export default {
             }
             return -1;
           })
+
+          this.originLinks = this.prepareOriginsLinks(this.full_data)
 
           for (var i = 0; i < this.full_data.length; i++) {
             var temp = this.full_data[i];
@@ -283,6 +272,21 @@ export default {
       } else {
         return "text-right subnet " + subnet.color + "";
       }
+    },
+    prepareOriginsLinks: function(subnets){
+      var retval = []
+      const width = 20
+      subnets = subnets.filter(x=>x.links != undefined && x.origin != undefined && x.origin.ip != undefined && x.origin.ip != "" && x.links.ip != undefined && x.links.ip != "")
+
+      subnets.forEach((x, idx)=>{
+        retval.push({
+          color: x.links.color != undefined ? x.links.color : '',
+          top_1 : x.origin.ip,
+          top_2 : x.links.ip,
+          left: idx * width
+        })
+      })
+      return retval
     },
     
   },

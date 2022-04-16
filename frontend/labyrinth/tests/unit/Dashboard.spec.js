@@ -142,7 +142,7 @@ describe("Dashboard.vue", () => {
       }
     ]
 
-    expect(wrapper.vm.prepareOriginsLinks(subnets)).toBe(expected)
+    expect(wrapper.vm.prepareOriginsLinks(subnets)).toStrictEqual(expected)
 
   })
 
