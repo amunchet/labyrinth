@@ -21,16 +21,23 @@
         <!-- old: 
           :verticals="connectorBottom[0]"
         -->
-        
+
         <div v-for="(item, idx) in originLinks" v-bind:key="idx">
           <Connector
-            v-if="$refs['start_' + item.top_1] != undefined && $refs['start_' + item.top_2] != undefined"
+            v-if="
+              $refs['start_' + item.top_1] != undefined &&
+              $refs['start_' + item.top_2] != undefined
+            "
             :color="item.color"
-            horizontal_width = "100"
+            horizontal_width="100"
             :top_1="$refs['start_' + item.top_1][0].offsetTop"
             :top_2="$refs['start_' + item.top_2][0].offsetTop"
             :left="item.left"
-            :key="$refs['start_' + item.top_1] + $refs['start_' + item.top_2] + item.color"
+            :key="
+              $refs['start_' + item.top_1] +
+              $refs['start_' + item.top_2] +
+              item.color
+            "
           />
         </div>
         <!--
@@ -70,10 +77,11 @@
             "
           >
             <div class="corner pt-3" :ref="'start_' + subnet.origin.ip">
-              <img :src="'/icons/' + capitalize(subnet.origin.icon) +'.svg'" /><br />
-              {{subnet.origin.ip}}
+              <img
+                :src="'/icons/' + capitalize(subnet.origin.icon) + '.svg'"
+              /><br />
+              {{ subnet.origin.ip }}
             </div>
-            
           </div>
           <div class="right">
             <h2
@@ -222,9 +230,9 @@ export default {
               return 0;
             }
             return -1;
-          })
+          });
 
-          this.originLinks = this.prepareOriginsLinks(this.full_data)
+          this.originLinks = this.prepareOriginsLinks(this.full_data);
 
           for (var i = 0; i < this.full_data.length; i++) {
             var temp = this.full_data[i];
@@ -273,24 +281,31 @@ export default {
         return "text-right subnet " + subnet.color + "";
       }
     },
-    prepareOriginsLinks: function(subnets){
-      var retval = []
-      const width = 20
-      subnets = subnets.filter(x=>x.links != undefined && x.origin != undefined && x.origin.ip != undefined && x.origin.ip != "" && x.links.ip != undefined && x.links.ip != "")
+    prepareOriginsLinks: function (subnets) {
+      var retval = [];
+      const width = 20;
+      subnets = subnets.filter(
+        (x) =>
+          x.links != undefined &&
+          x.origin != undefined &&
+          x.origin.ip != undefined &&
+          x.origin.ip != "" &&
+          x.links.ip != undefined &&
+          x.links.ip != ""
+      );
 
-      subnets.forEach((x, idx)=>{
+      subnets.forEach((x, idx) => {
         retval.push({
-          color: x.links.color != undefined ? x.links.color : '',
-          top_1 : x.origin.ip,
-          top_2 : x.links.ip,
-          left: idx * width
-        })
-      })
-      return retval
+          color: x.links.color != undefined ? x.links.color : "",
+          top_1: x.origin.ip,
+          top_2: x.links.ip,
+          left: idx * width,
+        });
+      });
+      return retval;
     },
-    
   },
-  
+
   created: function () {
     //window.addEventListener("resize", this.findTop);
   },

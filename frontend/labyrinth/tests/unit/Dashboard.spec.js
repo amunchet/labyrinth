@@ -15,8 +15,8 @@ config.mocks["$auth"] = {
     picture: "Test.jpg",
   },
   idToken: 1,
-  login: function () { },
-  getAccessToken: function () { },
+  login: function () {},
+  getAccessToken: function () {},
 };
 
 config.mocks["loaded"] = true;
@@ -70,56 +70,55 @@ describe("Dashboard.vue", () => {
       "text-right subnet blue"
     );
   });
-  test("$refs", () => { });
-
+  test("$refs", () => {});
 
   test("prepareOriginsLinks", () => {
     // Function to list out a structure that Connector can loop over
-    
-    let subnets
+
+    let subnets;
 
     subnets = [
       {
         subnet: "10.0.0",
         origin: {
           ip: "10.0.0.1",
-          icon: "default"
+          icon: "default",
         },
         links: {
           ip: "192.168.0.1",
-          color: "orange"
+          color: "orange",
         },
       },
       {
         subnet: "192.168.0",
         origin: {
           ip: "192.168.0.1",
-          icon: "default"
+          icon: "default",
         },
-        links : {
+        links: {
           ip: "192.168.1.1",
-          color: "red"
-        }
+          color: "red",
+        },
       },
       {
         subnet: "192.168.1",
         origin: {
           ip: "192.168.1.1",
-          icon: "default"
-        }
+          icon: "default",
+        },
       },
       {
         subnet: "192.168.2",
         origin: {
           ip: "192.168.2.1",
-          icon: "default"
+          icon: "default",
         },
         links: {
           ip: "192.168.1.1",
-          color: "green"
-        }
-      }
-    ]
+          color: "green",
+        },
+      },
+    ];
 
     var expected = [
       {
@@ -132,18 +131,16 @@ describe("Dashboard.vue", () => {
         color: "red",
         top_1: "192.168.0.1",
         top_2: "192.168.1.1",
-        left: 20
+        left: 20,
       },
       {
         color: "green",
         top_1: "192.168.2.1",
         top_2: "192.168.1.1",
         left: 40,
-      }
-    ]
+      },
+    ];
 
-    expect(wrapper.vm.prepareOriginsLinks(subnets)).toStrictEqual(expected)
-
-  })
-
+    expect(wrapper.vm.prepareOriginsLinks(subnets)).toStrictEqual(expected);
+  });
 });

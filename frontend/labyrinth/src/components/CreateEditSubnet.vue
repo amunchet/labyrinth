@@ -19,11 +19,11 @@
     <hr />
 
     <h6>Origin</h6>
-    <i
-      >
-      These settings control the origin host, which sits at the top left of the subnet and can show visual connection to other subnets.  Leave Origin IP blank to hide.
-    </i
-    >
+    <i>
+      These settings control the origin host, which sits at the top left of the
+      subnet and can show visual connection to other subnets. Leave Origin IP
+      blank to hide.
+    </i>
     <hr />
     <b-row>
       <b-col> Origin IP </b-col>
@@ -41,11 +41,10 @@
     <hr />
 
     <h6>Network Link</h6>
-    <i
-      >
-      This connects one subnets origin host to another.  This is purely cosmetic.  Leave Link IP blank to disable.
-    </i
-    >
+    <i>
+      This connects one subnets origin host to another. This is purely cosmetic.
+      Leave Link IP blank to disable.
+    </i>
     <hr />
     <b-row>
       <b-col> Link IP </b-col>

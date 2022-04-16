@@ -3,7 +3,7 @@
     class="connector"
     :style="
       'top: ' +
-      (1 * smaller + 25)+
+      (1 * smaller + 25) +
       'px; left: ' +
       left +
       'px; position: absolute; float: left;'
@@ -33,7 +33,7 @@
       fill="transparent"
       stroke-width="5"
       :stroke="set_color"
-      style="position: relative; top:-67.5px;"
+      style="position: relative; top: -67.5px"
     >
       <circle cx="50" cy="50" r="30" />
     </svg>
@@ -43,7 +43,7 @@
     <svg
       height="50"
       width="40"
-      style="position:relative; margin-left: 17.49px; top:-67.5px;"
+      style="position: relative; margin-left: 17.49px; top: -67.5px"
       v-for="idx in Math.floor((larger - smaller - 25) / 50)"
       v-bind:key="idx"
     >
@@ -65,7 +65,7 @@
       height="47.5"
       stroke-width="5"
       :stroke="set_color"
-      style="position:relative; top:-67.5px;"
+      style="position: relative; top: -67.5px"
     >
       <circle cx="50" cy="0" r="30" />
     </svg>
@@ -74,7 +74,7 @@
     <svg
       height="50"
       :width="horizontal_width"
-      style="position: relative; left: 50px; top: -87.45px;"
+      style="position: relative; left: 50px; top: -87.45px"
     >
       <line
         x1="0"
@@ -91,13 +91,7 @@
 import styles from "@/assets/variables.scss";
 export default {
   name: "Connector",
-  props: [
-    "color",
-    "horizontal_width",
-    "left",
-    "top_1",
-    "top_2",
-  ],
+  props: ["color", "horizontal_width", "left", "top_1", "top_2"],
   computed: {
     larger: function () {
       if (this.top_1 != undefined && this.top_2 != undefined) {
@@ -118,7 +112,7 @@ export default {
     };
   },
   created() {
-      this.set_color = styles[this.color];
+    this.set_color = styles[this.color];
   },
 };
 </script>
