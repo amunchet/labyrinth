@@ -85,7 +85,7 @@ describe("Dashboard.vue", () => {
           ip: "10.0.0.1",
           icon: "default"
         },
-        link: {
+        links: {
           ip: "192.168.0.1",
           color: "orange"
         },
@@ -96,7 +96,7 @@ describe("Dashboard.vue", () => {
           ip: "192.168.0.1",
           icon: "default"
         },
-        link : {
+        links : {
           ip: "192.168.1.1",
           color: "red"
         }
@@ -114,7 +114,7 @@ describe("Dashboard.vue", () => {
           ip: "192.168.2.1",
           icon: "default"
         },
-        link: {
+        links: {
           ip: "192.168.1.1",
           color: "green"
         }
