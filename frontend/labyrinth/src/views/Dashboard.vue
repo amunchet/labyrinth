@@ -12,24 +12,67 @@
       @updated="loadData()"
     />
     <!-- Main page -->
+
+    {{
+      full_data.map((x) => {
+        return {
+          subnet: x.subnet,
+          orign: x.origin,
+          link: x.links,
+        };
+      })
+    }}
+    <hr />
+    {{ Object.keys($refs) }}
+    <hr />
+    {{ connectorBottom }}
+
+    <hr />
+    Connector count: {{ connector_count }}
+<span v-if="$refs['start_1'] != undefined">
+        ZZZZZZZZZZ{{$refs.start_1[0].offsetTop}}ZZZZZZZ
+        ZZZZZZZZZZ{{$refs.start_0[0].offsetTop}}ZZZZZZZ
+        ZZZZZZZZZZ{{$refs.start_0[0].clientHeight}}ZZZZZZZ
+
+
+        </span>
     <div v-if="!loading">
       <div class="outer_left">
         <!-- set verticals to some number to see the connector -->
         <!-- old: 
           :verticals="connectorBottom[0]"
         -->
+        
         <Connector
-          horizontals="2"
-          verticals="18"
-          color="orange"
-          :style="
-            'top: ' +
-            offsetTop[0] +
-            'px; left: ' +
-            32 +
-            'px; position: absolute; float: left;'
-          "
+          v-if="$refs.start_1 != undefined && $refs.start_2 != undefined"
+          color="green"
+          horizontal_width="100"
+          :top_1="$refs.start_0[0].offsetTop"
+          :top_2="$refs.start_1[0].offsetTop"
+          left="20"
+          :key="$refs.start_0[0].offsetTop && $refs.start_1[0].offsetTop"
+
         />
+        <Connector
+          v-if="$refs.start_1 != undefined && $refs.start_2 != undefined"
+          color="orange"
+          horizontal_width="100"
+          :top_1="$refs.start_0[0].offsetTop"
+          :top_2="$refs.start_2[0].offsetTop"
+          left="40"
+          :key="$refs.start_0[0].offsetTop && $refs.start_2[0].offsetTop"
+
+        />
+        <!--
+        <Connector
+          horizontal_width="100px"  # This is how long the horizontal component is
+          left  = "20px"      # Left offset (for more than 1 connector)
+          top_1 = "200px"     # One of the top points
+          top_2 = "150px"     # The other top point - can be greater or less
+          color = "orange"    # Whatever the color is 
+
+        />
+        -->
       </div>
       <div class="outer_right">
         <b-button
@@ -46,7 +89,15 @@
         </b-button>
         <div
           :class="findClass(subnet)"
-          v-for="(subnet, i) in full_data"
+          v-for="(subnet, i) in full_data.sort((a, b) => {
+            if (a.subnet > b.subnet) {
+              return 1;
+            }
+            if (a.subnet == b.subnet) {
+              return 0;
+            }
+            return -1;
+          })"
           v-bind:key="i"
         >
           <div
@@ -56,7 +107,7 @@
               (subnet.links.ip != undefined && subnet.links.ip != '')
             "
           >
-            <div class="corner" :ref="'end_' + i">
+            <div class="corner" :ref="'start_' + i">
               <Host
                 :ip="subnet.origin.ip"
                 :icon="subnet.origin.icon"
@@ -67,11 +118,13 @@
               192.168.0.1
             </div>
             <div class="routes">
+              <!-- Removed 
+                :ref="'start_' + i"
+                -->
               <Host
                 :ip="subnet.links.ip"
                 show_ports="0"
                 passed_class="main"
-                :ref="'start_' + i"
                 :icon="subnet.links.icon"
               />
             </div>
@@ -268,18 +321,19 @@ export default {
     findTop: /* istanbul ignore next */ function () {
       try {
         for (var i = 0; i < this.connector_count; i++) {
-          var height = this.$refs["start_" + i][0].$el.offsetHeight;
+          var height = this.$refs["start_" + i][0].offsetHeight;
 
           this.offsetTop[i] =
-            this.$refs["start_" + i][0].$el.offsetTop - 0.25 * height;
-          var bottom = this.$refs["end_" + (i + 1)][0].offsetTop * 1;
+            this.$refs["start_" + i][0].offsetTop - 0.25 * height;
+          var bottom = this.$refs["start_" + (i + 1)][0].offsetTop * 1;
 
           this.connectorBottom[i] =
             Math.ceil((bottom - this.offsetTop[i]) / 50) * 1;
         }
         this.$forceUpdate();
       } catch (e) {
-        setTimeout(this.findTop, 50);
+        console.log(e);
+        //setTimeout(this.findTop, 50);
       }
     },
   },
@@ -298,7 +352,6 @@ export default {
   mounted: function () {
     try {
       this.loadData(1);
-      console.log(this.$refs)
     } catch (e) {
       this.$store.commit("updateError", e);
     }
