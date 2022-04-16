@@ -15,7 +15,7 @@ def test_alive_ping():
     Detects alive from ping
         - sampleclient
     """
-    assert alive.ping("sampleclient")
+    assert alive.ping("127.0.0.1")
 
 
 def test_alive_port():
@@ -23,7 +23,7 @@ def test_alive_port():
     Detects Alive from a port connection
         - sampleclient, 22
     """
-    assert alive.check_port("sampleclient", 22)
+    assert not alive.check_port("127.0.0.1", 22)
 
 def test_alive_cron():
     """
