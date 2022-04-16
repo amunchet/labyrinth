@@ -29,13 +29,7 @@
 
     <hr />
     Connector count: {{ connector_count }}
-<span v-if="$refs['start_1'] != undefined">
-        ZZZZZZZZZZ{{$refs.start_1[0].offsetTop}}ZZZZZZZ
-        ZZZZZZZZZZ{{$refs.start_0[0].offsetTop}}ZZZZZZZ
-        ZZZZZZZZZZ{{$refs.start_0[0].clientHeight}}ZZZZZZZ
 
-
-        </span>
     <div v-if="!loading">
       <div class="outer_left">
         <!-- set verticals to some number to see the connector -->
@@ -114,8 +108,8 @@
                 show_ports="0"
               />
               <br />
-              <img src="/icons/Linux.svg" />
-              192.168.0.1
+              <img :src="'/icons/' + capitalize(subnet.origin.icon) +'.svg'" /><br />
+              {{subnet.origin.ip}}
             </div>
             <div class="routes">
               <!-- Removed 
@@ -244,6 +238,7 @@ export default {
     GroupModal,
   },
   methods: {
+    capitalize: Helper.capitalize,
     onDrop: /* istanbul ignore next */ function (name) {
       var auth = this.$auth;
       Helper.apiCall(
