@@ -11,13 +11,16 @@
       :selected_subnet="selected_subnet"
       @updated="loadData()"
     />
-
     <!-- Main page -->
     <div v-if="!loading">
       <div class="outer_left">
-        <Connector
+        <!-- set verticals to some number to see the connector -->
+        <!-- old: 
           :verticals="connectorBottom[0]"
-          horizontals="1"
+        -->
+        <Connector
+          horizontals="2"
+          verticals="18"
           color="orange"
           :style="
             'top: ' +
@@ -59,6 +62,9 @@
                 :icon="subnet.origin.icon"
                 show_ports="0"
               />
+              <br />
+              <img src="/icons/Linux.svg" />
+              192.168.0.1
             </div>
             <div class="routes">
               <Host
@@ -292,6 +298,7 @@ export default {
   mounted: function () {
     try {
       this.loadData(1);
+      console.log(this.$refs)
     } catch (e) {
       this.$store.commit("updateError", e);
     }
@@ -360,8 +367,8 @@ h2.subnet:hover {
   text-decoration: underline;
 }
 .outer_left {
-  width: 10%;
-  min-width: 100px;
+  width: 5%;
+  min-width: 75px;
   float: left;
 }
 
@@ -384,8 +391,8 @@ h2.subnet:hover {
 }
 
 .left {
-  width: 15%;
-  min-width: 150px;
+  width: 5%;
+  min-width: 140px;
   float: left;
   min-height: 300px;
 }
@@ -400,7 +407,7 @@ h2.subnet:hover {
   top: 0;
   left: 0;
   border-radius: 0 0 3rem 0;
-  min-width: 150px;
+  min-width: 75px;
   background-color: #fafafe;
   box-shadow: 10px 10px 39px -12px rgba(0, 0, 0, 0.75);
   -webkit-box-shadow: 10px 10px 39px -12px rgba(0, 0, 0, 0.75);
@@ -414,6 +421,7 @@ h2.subnet:hover {
 .grouped {
   border-radius: 1rem;
   width: 30%;
+  width: 400px !important;
   margin: 1%;
   text-align: center;
   background-color: #dfdfde;
