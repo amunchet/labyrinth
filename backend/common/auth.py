@@ -180,10 +180,13 @@ def _requires_auth(f, permission="", error_func=""):  # pragma: no cover
                         issuer="https://" + AUTH0_DOMAIN + "/",
                     )
                 except jwt.ExpiredSignatureError:
+                    """
                     raise AuthError(
                         {"code": "token_expired", "description": "token is expired"},
                         401,
                     )
+                    """
+                    return error_func(code=471, *args, **kwargs)
                 except jwt.JWTClaimsError as exc:
                     print(exc)
                     raise AuthError(

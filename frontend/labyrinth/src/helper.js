@@ -95,10 +95,7 @@ export default {
             return response.data;
           })
           .catch((e) => {
-            if (e.response != undefined) {
-              throw e.response;
-            }
-            throw e;
+            throw "Error " + e.response.status + ": " + e.response.data;
           });
       })
       .catch((e) => {

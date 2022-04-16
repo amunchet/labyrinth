@@ -17,6 +17,7 @@ RUN   apt-get update && apt-get -y install python3 \
         sshpass \
         git \
         cron \
+        iputils-ping \
 	tzdata
 
 

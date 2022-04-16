@@ -15,6 +15,7 @@ RUN   apt-get update && apt-get -y install python3 \
         ansible \
         sshpass \
         git \
+        iputils-ping \
 	tzdata
 
 

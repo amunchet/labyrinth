@@ -1,26 +1,25 @@
 <!-- src/components/Callback.vue -->
 
 <template>
-  <div>
-    <p>Loading...</p>
-  </div>
+  <div></div>
 </template>
 
 <script>
 export default {
   methods: {
-    handleLoginEvent() /* istanbul ignore next */ {
+    handleLoginEvent() {
       //console.log(data);
+      /* istanbul ignore next */
       this.$router.push("/");
+      window.location.href =
+        window.location.href + "?callback=1&date=" + Date.now();
     },
   },
-  created() /* istanbul ignore next */ {
+  created: async function () {
     try {
-      this.$auth.handleAuthentication();
-      this.$store.commit("setLogin");
-      this.$forceUpdate();
+      await this.$auth.handleAuthentication();
     } catch (e) {
-      this.$store.commit("updateError", e);
+      console.log(e);
     }
   },
   mounted() {},
