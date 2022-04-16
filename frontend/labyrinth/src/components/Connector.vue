@@ -1,15 +1,24 @@
 <template>
-  <div class="connector">
+  <div
+    class="connector"
+    :style="
+      'top: ' +
+      1 * smaller +
+      'px; left: ' +
+      left +
+      'px; position: absolute; float: left;'
+    "
+  >
     <!-- Repeated Top connector -->
     <svg
       height="50"
-      :width="50 * horizontals"
+      :width="horizontal_width"
       style="position: relative; top: 66.5px; left: 50px"
     >
       <line
         x1="0"
         y1="0"
-        :x2="50 * horizontals"
+        :x2="horizontal_width"
         y2="0"
         :stroke="set_color"
         stroke-width="10"
@@ -34,7 +43,7 @@
       height="50"
       width="40"
       style="margin-left: 16.5px"
-      v-for="idx in 1 * verticals"
+      v-for="idx in 1 * Math.floor((larger - smaller - 50) / 50)"
       v-bind:key="idx"
     >
       <line
@@ -62,13 +71,13 @@
     <!-- Repeated Bottom connector -->
     <svg
       height="50"
-      :width="50 * horizontals"
+      :width="horizontal_width"
       style="position: relative; left: 50px; bottom: 20px"
     >
       <line
         x1="0"
         y1="0"
-        :x2="50 * horizontals"
+        :x2="horizontal_width"
         y2="0"
         :stroke="set_color"
         stroke-width="10"
@@ -80,7 +89,30 @@
 import styles from "@/assets/variables.scss";
 export default {
   name: "Connector",
-  props: ["verticals", "horizontals", "color"],
+  props: [
+    "verticals",
+    "horizontals",
+    "color",
+
+    "horizontal_width",
+    "left",
+    "top_1",
+    "top_2",
+  ],
+  computed: {
+    larger: function () {
+      if (this.top_1 != undefined && this.top_2 != undefined) {
+        return this.top_1 > this.top_2 ? this.top_1 : this.top_2;
+      }
+      return 0;
+    },
+    smaller: function () {
+      if (this.top_1 != undefined && this.top_2 != undefined) {
+        return this.top_1 < this.top_2 ? this.top_1 : this.top_2;
+      }
+      return 0;
+    },
+  },
   data() {
     return {
       set_color: "",
