@@ -17,41 +17,14 @@
       <b-col><b-select :options="colors" v-model="subnet.color" /></b-col>
     </b-row>
     <hr />
-    <h6>Network Link</h6>
-    <i
-      >This is for additional subnets that are routed through a router on this
-      subnet</i
-    >
-    <b-row>
-      <b-col> Link IP </b-col>
-      <b-col v-if="subnet.links">
-        <b-input v-model="subnet.links.ip" />
-      </b-col>
-    </b-row>
-    <b-row>
-      <b-col> Link Icon </b-col>
-      <b-col v-if="subnet.links">
-        <b-select :options="icons" v-model="subnet.links.icon" />
-      </b-col> </b-row
-    ><b-row>
-      <b-col> Ref </b-col>
-      <b-col v-if="subnet.links">
-        <b-input v-model="subnet.links.ref" />
-      </b-col>
-    </b-row>
-    <b-row>
-      <b-col>Color</b-col>
-      <b-col v-if="subnet.links"
-        ><b-select :options="colors" v-model="subnet.links.color"
-      /></b-col>
-    </b-row>
-    <hr />
+
     <h6>Origin</h6>
     <i
-      >This is the router that allows entry into this subnet. It may be the
-      local machine itself (127.0.0.1)</i
+      >
+      These settings control the origin host, which sits at the top left of the subnet and can show visual connection to other subnets.  Leave Origin IP blank to hide.
+    </i
     >
-
+    <hr />
     <b-row>
       <b-col> Origin IP </b-col>
       <b-col v-if="subnet.origin">
@@ -65,6 +38,27 @@
       </b-col>
     </b-row>
 
+    <hr />
+
+    <h6>Network Link</h6>
+    <i
+      >
+      This connects one subnets origin host to another.  This is purely cosmetic.  Leave Link IP blank to disable.
+    </i
+    >
+    <hr />
+    <b-row>
+      <b-col> Link IP </b-col>
+      <b-col v-if="subnet.links">
+        <b-input v-model="subnet.links.ip" />
+      </b-col>
+    </b-row>
+    <b-row>
+      <b-col>Color</b-col>
+      <b-col v-if="subnet.links"
+        ><b-select :options="colors" v-model="subnet.links.color"
+      /></b-col>
+    </b-row>
     <template #modal-footer="{ cancel }">
       <div style="width: 100%">
         <b-button class="float-left" variant="danger" @click="deleteSubnet()"
