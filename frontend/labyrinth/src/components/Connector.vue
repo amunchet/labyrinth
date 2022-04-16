@@ -33,7 +33,7 @@
       fill="transparent"
       stroke-width="5"
       :stroke="set_color"
-      style="position: relative; top:-67px;"
+      style="position: relative; top:-67.5px;"
     >
       <circle cx="50" cy="50" r="30" />
     </svg>
@@ -43,7 +43,7 @@
     <svg
       height="50"
       width="40"
-      style="position:relative; margin-left: 16.5px; top:-67px;"
+      style="position:relative; margin-left: 17.49px; top:-67.5px;"
       v-for="idx in Math.floor((larger - smaller - 25) / 50)"
       v-bind:key="idx"
     >
@@ -65,7 +65,7 @@
       height="47.5"
       stroke-width="5"
       :stroke="set_color"
-      style="position:relative; top:-67px;"
+      style="position:relative; top:-67.5px;"
     >
       <circle cx="50" cy="0" r="30" />
     </svg>
@@ -74,7 +74,7 @@
     <svg
       height="50"
       :width="horizontal_width"
-      style="position: relative; left: 50px; top: -87px;"
+      style="position: relative; left: 50px; top: -87.45px;"
     >
       <line
         x1="0"
@@ -118,11 +118,7 @@ export default {
     };
   },
   created() {
-    try{
       this.set_color = styles[this.color];
-    }catch(e){ 
-      this.$store.commit("updateError", e);
-    }
   },
 };
 </script>
