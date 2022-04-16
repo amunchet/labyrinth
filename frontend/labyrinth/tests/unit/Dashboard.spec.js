@@ -15,8 +15,8 @@ config.mocks["$auth"] = {
     picture: "Test.jpg",
   },
   idToken: 1,
-  login: function () {},
-  getAccessToken: function () {},
+  login: function () { },
+  getAccessToken: function () { },
 };
 
 config.mocks["loaded"] = true;
@@ -92,5 +92,14 @@ describe("Dashboard.vue", () => {
     await wrapper.vm.$forceUpdate();
     expect(wrapper.vm.$data.connectorBottom).toStrictEqual([1]);
   });
-  test("$refs", () => {});
+  test("$refs", () => { });
+
+
+  test("prepareOriginsLinks", ()=>{
+    // Function to list out a structure that Connector can loop over
+
+
+
+  })
+
 });
