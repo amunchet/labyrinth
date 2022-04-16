@@ -298,7 +298,7 @@ export default {
   mounted: function () {
     try {
       this.loadData(1);
-      console.log(this.$refs)
+      console.log(this.$refs);
     } catch (e) {
       this.$store.commit("updateError", e);
     }
