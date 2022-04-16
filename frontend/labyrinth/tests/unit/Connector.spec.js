@@ -1,5 +1,5 @@
 // TEMPLATE FILE - Copy this file
-import { config, shallowMount } from "@vue/test-utils";
+import { config, mount} from "@vue/test-utils";
 
 //import { render } from '@vue/server-test-utils'
 
@@ -24,11 +24,18 @@ config.mocks["loaded"] = true;
 let wrapper;
 
 beforeEach(() => {
-  wrapper = shallowMount(Instance, {
+  wrapper = mount(Instance, {
     propsData: {
       verticals: 5,
       horizontal: 7,
       color: "green",
+
+    horizontal_width: "100",
+    left: "100",
+    top_1: 100,
+    top_2: 200,
+
+
       onChange() {
         //console.log('select changed')
       },

@@ -42,6 +42,6 @@ describe("Helper", () => {
   });
   test("capitalize", ()=>
   {
-    expect(Helper.capitalize("addd").toBe("Addd"))
+    expect(Helper.capitalize("addd")).toBe("Addd")
   })
 });

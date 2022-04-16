@@ -44,7 +44,7 @@
       height="50"
       width="40"
       style="position:relative; margin-left: 16.5px; top:-67px;"
-      v-for="idx in 1 * Math.floor((larger - smaller - 25) / 50)"
+      v-for="idx in Math.floor((larger - smaller - 25) / 50)"
       v-bind:key="idx"
     >
       <line
@@ -92,10 +92,7 @@ import styles from "@/assets/variables.scss";
 export default {
   name: "Connector",
   props: [
-    "verticals",
-    "horizontals",
     "color",
-
     "horizontal_width",
     "left",
     "top_1",
@@ -121,7 +118,11 @@ export default {
     };
   },
   created() {
-    this.set_color = styles[this.color];
+    try{
+      this.set_color = styles[this.color];
+    }catch(e){ 
+      this.$store.commit("updateError", e);
+    }
   },
 };
 </script>
