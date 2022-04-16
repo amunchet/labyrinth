@@ -13,22 +13,7 @@
     />
     <!-- Main page -->
 
-    {{
-      full_data.map((x) => {
-        return {
-          subnet: x.subnet,
-          orign: x.origin,
-          link: x.links,
-        };
-      })
-    }}
     <hr />
-    {{ Object.keys($refs) }}
-    <hr />
-    {{ connectorBottom }}
-
-    <hr />
-    Connector count: {{ connector_count }}
 
     <div v-if="!loading">
       <div class="outer_left">
@@ -83,15 +68,7 @@
         </b-button>
         <div
           :class="findClass(subnet)"
-          v-for="(subnet, i) in full_data.sort((a, b) => {
-            if (a.subnet > b.subnet) {
-              return 1;
-            }
-            if (a.subnet == b.subnet) {
-              return 0;
-            }
-            return -1;
-          })"
+          v-for="(subnet, i) in full_data"
           v-bind:key="i"
         >
           <div
@@ -207,8 +184,6 @@ export default {
       loading: false,
 
       offsetTop: [],
-      connectorBottom: [],
-      connector_count: 1,
       full_data: [],
 
       selected_subnet: "",
@@ -252,7 +227,15 @@ export default {
       }
       await Helper.apiCall("dashboard", url, auth)
         .then((res) => {
-          this.full_data = res;
+          this.full_data = res.sort((a, b) => {
+            if (a.subnet > b.subnet) {
+              return 1;
+            }
+            if (a.subnet == b.subnet) {
+              return 0;
+            }
+            return -1;
+          })
 
           for (var i = 0; i < this.full_data.length; i++) {
             var temp = this.full_data[i];
@@ -279,7 +262,6 @@ export default {
             this.loadData(false);
           }, 2000);
           this.loading = false;
-          this.findTop();
         })
         .catch((e) => {
           setTimeout(() => {
@@ -302,37 +284,11 @@ export default {
         return "text-right subnet " + subnet.color + "";
       }
     },
-    // NOTE: I'm not sure how to test this function, since it relies on external DOM
-    findTop: /* istanbul ignore next */ function () {
-      try {
-        for (var i = 0; i < this.connector_count; i++) {
-          var height = this.$refs["start_" + i][0].offsetHeight;
-
-          this.offsetTop[i] =
-            this.$refs["start_" + i][0].offsetTop - 0.25 * height;
-          var bottom = this.$refs["start_" + (i + 1)][0].offsetTop * 1;
-
-          this.connectorBottom[i] =
-            Math.ceil((bottom - this.offsetTop[i]) / 50) * 1;
-        }
-        this.$forceUpdate();
-      } catch (e) {
-        console.log(e);
-        //setTimeout(this.findTop, 50);
-      }
-    },
+    
   },
-  watch: {
-    $refs: {
-      start_1: /* istanbul ignore next */ function (val) {
-        if (val.$el != undefined) {
-          this.findTop();
-        }
-      },
-    },
-  },
+  
   created: function () {
-    window.addEventListener("resize", this.findTop);
+    //window.addEventListener("resize", this.findTop);
   },
   mounted: function () {
     try {
