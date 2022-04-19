@@ -64,6 +64,8 @@ export default {
     },
     handleDrop: function (e) {
 
+
+
       var box_top = this.$refs.outer_1.offsetTop;
       var box_left = this.$refs.outer_1.offsetLeft;
 
@@ -85,16 +87,16 @@ export default {
       };
 
       if (structure.x < box_left) {
-        this.offsetX = box_left;
-      } else if (structure.x > box_left + box_width) {
-        this.offsetX = box_left + box_width - dragging_box_width;
+        this.offsetX = 0;
+      } else if (structure.x > box_left + box_width - dragging_box_width) {
+        this.offsetX = box_width - dragging_box_width;
       } else {
         this.offsetX = structure.x - box_left;
       }
 
       if (structure.y < box_top) {
         this.offsetY = 0;
-      } else if (structure.y > box_height + box_top) {
+      } else if (structure.y > box_height + box_top - dragging_box_height) {
         this.offsetY = box_height - dragging_box_height;
       } else {
         this.offsetY = structure.y - box_top;
@@ -108,7 +110,7 @@ export default {
 .outer {
   width: 500px;
   height: 500px;
-  margin-left: 10;
+  margin: auto;
   border: 1px solid red;
 }
 .inner {
