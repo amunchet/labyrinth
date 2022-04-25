@@ -4,10 +4,13 @@ ENV DEBIAN_FRONTEND noninteractive
 RUN apt update && \
 	apt -y install \ 
 		npm \
-		dos2unix
+		dos2unix \
+        wget
 
 
-RUN npm install -g npm@latest
+RUN npm cache clean -f
+RUN npm install -g n
+RUN n stable
 
 RUN npm cache clean -f
 RUN npm install -g vue

@@ -1,5 +1,5 @@
 global:
-  smtp_smarthost: 'SMARTHOST'
+  smtp_smarthost: 'SMARTHOST:25'
   smtp_from: 'MAILFROM'
   smtp_auth_username: 'SMTPUSER'
   smtp_auth_password: 'SMTPPASSWORD'
