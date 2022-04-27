@@ -88,15 +88,16 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: temp
 
   mongo-express:
-    image: mongo-express
+    image: mongo-express:latest
     restart: always
     networks:
       - labyrinth
     ports:
-      - 127.0.0.1:8089:8081
+      - 8071:8081
     environment:
       ME_CONFIG_MONGODB_ADMINUSERNAME: root
       ME_CONFIG_MONGODB_ADMINPASSWORD: temp
+      ME_CONFIG_MONGODB_URL: mongodb://root:temp@mongo:27017/
 
 
   # Redis
