@@ -24,8 +24,11 @@ jobs:
       - name: List Docker logs
         run: docker logs labyrinth_alertmanager_1
       
+      - name: Copy .env.sample to backend
+        run: cp backend/.env.sample backend/.env
+
       - name: Backend Tests
-        run: AUTH0DOMAIN="asdfasd" API_IDENTIFIER="adfasdf" bash backend/run_tests.sh
+        run: bash backend/run_tests.sh
       
 
   frontend-tests:
