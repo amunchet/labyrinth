@@ -433,8 +433,8 @@ h2.subnet:hover {
 }
 .grouped {
   border-radius: 1rem;
-  width: 30%;
-  width: 400px !important;
+  /* width: 30%; */
+  /* width: 400px !important; */
   margin: 1%;
   text-align: center;
   background-color: #dfdfde;
