@@ -2,35 +2,35 @@
   <div>
     <b-button v-b-modal.modal-1>Open</b-button>
     <b-modal id="modal-1" size="xl">
-    Scratch drag and drop
-    {{ offsetX }}, {{ offsetY }}
-    <div class="ml-4 mt-4" @dragover="(e) => e.preventDefault()">
-      <div class="outer" ref="outer_1">
-        <div
-          class="inner"
-          draggable
-          ref="inner_1"
-          @dragstart="handleDragStart"
-          @dragend="handleDrop"
-          :style="
-            'position:relative; left: ' +
-            offsetX +
-            'px; top: ' +
-            offsetY +
-            'px;'
-          "
-          :key="offsetX + offsetY"
-        >
-          &nbsp;
+      Scratch drag and drop
+      {{ offsetX }}, {{ offsetY }}
+      <div class="ml-4 mt-4" @dragover="(e) => e.preventDefault()">
+        <div class="outer" ref="outer_1">
+          <div
+            class="inner"
+            draggable
+            ref="inner_1"
+            @dragstart="handleDragStart"
+            @dragend="handleDrop"
+            :style="
+              'position:relative; left: ' +
+              offsetX +
+              'px; top: ' +
+              offsetY +
+              'px;'
+            "
+            :key="offsetX + offsetY"
+          >
+            &nbsp;
+          </div>
         </div>
       </div>
-    </div>
-    <b-col>
-      1. Allow upload of photos. (CRUD of them as well)<br />
-      2. Allow addition of hosts (and edit how they appear) - subnets, services
-      too? <br />
-      3. Naming and Managing the dashboards
-    </b-col>
+      <b-col>
+        1. Allow upload of photos. (CRUD of them as well)<br />
+        2. Allow addition of hosts (and edit how they appear) - subnets,
+        services too? <br />
+        3. Naming and Managing the dashboards
+      </b-col>
     </b-modal>
   </div>
 </template>
