@@ -1215,6 +1215,7 @@ def dashboard(val="", report=False):
         rc.set("dashboard_time", str(time.time()))
     return json.dumps(subnets, default=str), 200
 
+
 ## Custom Dashboards
 @app.route("/custom_dashboards")
 @app.route("/custom_dashboards/<dashboard>")
@@ -1225,11 +1226,12 @@ def list_custom_dashboards(dashboard=""):
     """
     criteria = {}
     if dashboard:
-        criteria = {"name" : dashboard}
+        criteria = {"name": dashboard}
     a = list(mongo_client["labyrinth"]["dashboards"].find(criteria))
     if not a:
         return "Not found", 404
     return json.dumps(a, default=str), 200
+
 
 @app.route("/custom_dashboard/<dashboard>", methods=["POST"])
 @requires_auth_write
@@ -1240,12 +1242,13 @@ def create_edit_custom_dashboard(dashboard, data=""):
     if data == "":
         data = json.loads(request.form.get("data"), default=str)
 
-    mongo_client["labyrinth"]["dashboards"].delete_many({"name" : dashboard})
+    mongo_client["labyrinth"]["dashboards"].delete_many({"name": dashboard})
 
     data["name"] = dashboard
 
     mongo_client["labyrinth"]["dashboards"].insert_one(data)
     return "Success", 200
+
 
 @app.route("/custom_dashboard/<dashboard>", methods=["DELETE"])
 @requires_auth_write
@@ -1253,8 +1256,9 @@ def delete_custom_dashboard(dashboard):
     """
     Deletes a custom dashboard
     """
-    mongo_client["labyrinth"]["dashboards"].delete_many({"name" : dashboard})
+    mongo_client["labyrinth"]["dashboards"].delete_many({"name": dashboard})
     return "Success", 200
+
 
 ### Custom Dashboards Images
 @app.route("/custom_dashboard_images")
@@ -1266,6 +1270,7 @@ def custom_dashboard_list_images():
     if os.path.exists("/src/uploads/images"):
         return json.dumps(os.listdir("/src/uploads/images"), default=str), 200
     return json.dumps([]), 200
+
 
 @app.route("/custom_dashboard_images/<dashboard_image>", methods=["DELETE"])
 @requires_auth_write
@@ -1279,8 +1284,9 @@ def custom_dashboard_delete_image(dashboard_image):
 
     if os.path.exists("/src/uploads/images/{}".format(dashboard_image)):
         os.remove("/src/uploads/images/{}".format(dashboard_image))
-    
+
     return "Success", 200
+
 
 @app.route("/custom_dashboard_images/<filename>", methods=["POST"])
 @requires_auth_write
@@ -1295,7 +1301,6 @@ def custom_dashboard_image_upload(filename, override=""):
         file = request.files["file"]
         filename = request.form["filename"]
 
-
     if not os.path.exists("/src/uploads"):
         os.mkdir("/src/uploads")
 
@@ -1303,7 +1308,7 @@ def custom_dashboard_image_upload(filename, override=""):
         os.mkdir("/src/uploads/images")
 
     if override:
-        filename = override 
+        filename = override
     elif file:
         filename = secure_filename(file.filename)
         file.save("/tmp/{}".format(filename))
@@ -1313,12 +1318,12 @@ def custom_dashboard_image_upload(filename, override=""):
     except Exception:
         return "Invalid file", 484
 
-    shutil.move(
-        "/tmp/{}".format(filename), "/src/uploads/images/{}".format(filename)
-    )
+    shutil.move("/tmp/{}".format(filename), "/src/uploads/images/{}".format(filename))
     return "Success", 200
 
+
 # Metric
+
 
 @app.route("/metrics/<int:count>", methods=["GET"])
 @requires_auth_read
@@ -1406,8 +1411,6 @@ def insert_metric(inp=""):
         mongo_client["labyrinth"]["metrics"].insert_one(item)
 
     return "Success", 200
-
-
 
 
 if __name__ == "__main__":  # pragma: no cover
