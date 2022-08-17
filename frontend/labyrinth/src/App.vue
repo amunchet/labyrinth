@@ -79,7 +79,6 @@
       </b-navbar>
     </div>
     <hr class="m-2" />
-    <br />
     <router-view />
   </div>
 </template>
