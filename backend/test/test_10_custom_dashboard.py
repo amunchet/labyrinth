@@ -36,6 +36,9 @@ def test_create_edit_custom_dashboard(setup):
     """
     Creates of edits a custom dashboard main structure
         - Any edits of hosts/services will happen on frontend (e.g. moving X,Y around)
+
+        - All images
+        - Plugins (Services, hosts, etc.)
     """
     a = serve.mongo_client["labyrinth"]["dashboards"].find({"name" : "TESTTEST"})
     assert not list(a) 
@@ -83,6 +86,12 @@ def test_image_upload(setup):
 def test_image_delete(setup):
     """
     Deletes an uploaded image
+        - Probably want to check if it's in a custom dashboard
+    """
+
+def test_image_rotate(setup):
+    """
+    Rotates an image
     """
 
 def test_images_list(setup):

@@ -1,26 +1,32 @@
 {
     "name" : "TESTTEST",
-    "photo": "dashboard_234dafaadsf.jpg",
-    
-    "width" : 500,
-    "height" : 500,
-
-    "scale" : true,
-
-    "subphotos" : [{
-        "photo" : "dashboard_sub_asdfsadf.jpg",
-        "x" : 123,
-        "y" : 738
-    }],
-
-    "hosts" : [{
-        "subnet" : "10.0.0",
-        "host" : "10.0.0.1",
-        
-        "display" : "horizontal",
-        "services" : "all",
-        "x" : 75,
-        "y" : 67
-    }]
+    "images" : [
+        {
+            "photo": "dashboard_234dafaadsf.jpg",
+            "width" : 500,
+            "height" : 500,
+            "x" : 0,
+            "y" : 0,
+            "scale" : true
+        },
+        {
+            "photo" : "dashboard_sub_asdfsadf.jpg",
+            "width" : 100,
+            "height" : 200,
+            "x" : 123,
+            "y" : 23443
+        }
+    ],
+    "hosts" : [
+        {
+            "subnet" : "10.0.0",
+            "host" : "10.0.0.1",
+            
+            "display" : "horizontal",
+            "services" : "all",
+            "x" : 75,
+            "y" : 67
+        }
+    ]
 
 }
