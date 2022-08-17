@@ -12,6 +12,11 @@
             <Telegraf />
           </div>
         </b-tab>
+        <b-tab title="Custom Dashboards" lazy>
+          <div class="main">
+            <CustomDashboards />
+          </div>
+        </b-tab>
       </b-tabs>
     </b-card>
   </b-container>
@@ -19,12 +24,14 @@
 <script>
 import Icons from "@/views/Settings/Icons";
 import Telegraf from "@/views/Settings/Telegraf";
+import CustomDashboards from "@/views/Settings/CustomDashboards";
 export default {
   name: "Settings",
 
   components: {
     Icons,
     Telegraf,
+    CustomDashboards,
   },
 };
 </script>
