@@ -2,7 +2,7 @@
     "name" : "TESTTEST",
     "images" : [
         {
-            "photo": "dashboard_234dafaadsf.jpg",
+            "photo": "floorplan.jpg",
             "width" : 500,
             "height" : 500,
             "x" : 0,
@@ -10,7 +10,7 @@
             "scale" : true
         },
         {
-            "photo" : "dashboard_sub_asdfsadf.jpg",
+            "photo" : "dell-rack.png",
             "width" : 100,
             "height" : 200,
             "x" : 123,
