@@ -2,30 +2,7 @@
   <div class="text-left ml-4">
     <b-row>
       <b-col class="sub">
-        <h3>Icons</h3>
-        <div class="flex">
-          <div v-for="(item, idx) in icons" v-bind:key="idx" class="box">
-            <div class="overflow-hidden">
-              <font-awesome-icon
-                icon="times"
-                size="1x"
-                class="cursor float-right"
-                @click="deleteIcon()"
-              />
-            </div>
-            <img :src="'/icons/' + item + '.svg'" :alt="item + ' icon'" />
-            <div class="box_text">
-              {{ item }}
-            </div>
-          </div>
-          <div class="box pt-4 bg-success cursor text-white">
-            <div class="mt-4 cursor">+ Upload New Icon (TODO)</div>
-          </div>
-        </div>
-        <hr />
-
-        <h3>Colors/Themes</h3>
-        TODO: Coming Soon
+        <Icons />
       </b-col>
 
       <b-col class="sub">
@@ -61,6 +38,7 @@
 </template>
 <script>
 import Helper from "@/helper";
+import Icons from "@/views/Settings/Icons";
 export default {
   name: "Settings",
   data() {
@@ -69,17 +47,10 @@ export default {
       default_backend: "",
     };
   },
+  components: {
+    Icons,
+  },
   methods: {
-    loadIcons: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
-      Helper.apiCall("icons", "", auth)
-        .then((res) => {
-          this.icons = res;
-        })
-        .catch((e) => {
-          this.$store.commit("updateError", e);
-        });
-    },
     loadDefaultBackend: /* istanbul ignore next */ function () {
       var auth = this.$auth;
       Helper.apiCall("settings", "default_telegraf_backend", auth)
@@ -107,14 +78,10 @@ export default {
           this.$store.commit("updateError", e);
         });
     },
-    deleteIcon: /* istanbul ignore next */ function () {
-      alert("TODO: Delete icon");
-    },
   },
   mounted: function () {
     try {
       this.loadDefaultBackend();
-      this.loadIcons();
     } catch (e) {
       this.$store.commit("updateError", e);
     }
