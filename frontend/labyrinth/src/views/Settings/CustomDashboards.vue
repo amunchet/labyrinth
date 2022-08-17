@@ -1,6 +1,5 @@
 <template>
   <div>
-    <b-button v-b-modal.modal-1>Open</b-button>
     <b-modal id="modal-1" size="xl">
       <v-stage ref="stage" :config="stageSize" class="border-black">
         <v-layer ref="layer">
@@ -18,6 +17,17 @@
         </v-layer>
       </v-stage>
     </b-modal>
+
+    <b-row>
+      <b-col>
+        <h4>Dashboards</h4>
+
+        <b-button v-b-modal.modal-1>Open</b-button>
+      </b-col>
+      <b-col>
+        <h4>Dashboard Images</h4>
+      </b-col>
+    </b-row>
   </div>
 </template>
 
@@ -46,7 +56,7 @@ export default {
 };
 </script>
 <style scoped>
-.border-black{
+.border-black {
   border: 1px solid black;
 }
 </style>
