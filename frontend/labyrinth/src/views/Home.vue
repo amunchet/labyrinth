@@ -12,7 +12,7 @@
     <hr />
     Scratch drag and drop
     {{ offsetX }}, {{ offsetY }}
-    <div class="ml-4 mt-4" @dragover="(e)=>e.preventDefault()">
+    <div class="ml-4 mt-4" @dragover="(e) => e.preventDefault()">
       <div class="outer" ref="outer_1">
         <div
           class="inner"
@@ -33,11 +33,12 @@
         </div>
       </div>
     </div>
-      <b-col>
-        1.  Allow upload of photos. (CRUD of them as well)<br />
-        2.  Allow addition of hosts (and edit how they appear) - subnets, services too? <br />
-        3.  Naming and Managing the dashboards
-      </b-col>
+    <b-col>
+      1. Allow upload of photos. (CRUD of them as well)<br />
+      2. Allow addition of hosts (and edit how they appear) - subnets, services
+      too? <br />
+      3. Naming and Managing the dashboards
+    </b-col>
   </div>
 </template>
 
@@ -58,14 +59,10 @@ export default {
   },
   methods: {
     handleDragStart: function (e) {
-
       this.where_in_box_clicked_x = e.offsetX;
-      this.where_in_box_clicked_y =  e.offsetY
+      this.where_in_box_clicked_y = e.offsetY;
     },
     handleDrop: function (e) {
-
-
-
       var box_top = this.$refs.outer_1.offsetTop;
       var box_left = this.$refs.outer_1.offsetLeft;
 
@@ -117,14 +114,14 @@ export default {
   height: 100px;
   background-color: black;
   width: 100px;
-    cursor: move; /* fallback if grab cursor is unsupported */
-    cursor: grab;
-    cursor: -moz-grab;
-    cursor: -webkit-grab;
+  cursor: move; /* fallback if grab cursor is unsupported */
+  cursor: grab;
+  cursor: -moz-grab;
+  cursor: -webkit-grab;
 }
-.inner:active{
-      cursor: grabbing;
-    cursor: -moz-grabbing;
-    cursor: -webkit-grabbing;
+.inner:active {
+  cursor: grabbing;
+  cursor: -moz-grabbing;
+  cursor: -webkit-grabbing;
 }
 </style>
