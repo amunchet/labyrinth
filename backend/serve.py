@@ -1261,7 +1261,7 @@ def delete_custom_dashboard(dashboard):
 
 
 ### Custom Dashboards Images
-@app.route("/custom_dashboard_images")
+@app.route("/custom_dashboard_images/", methods=["GET"])
 @requires_auth_read
 def custom_dashboard_list_images():
     """
@@ -1288,18 +1288,16 @@ def custom_dashboard_delete_image(dashboard_image):
     return "Success", 200
 
 
-@app.route("/custom_dashboard_images/<filename>", methods=["POST"])
+@app.route("/custom_dashboard_images/", methods=["POST"])
 @requires_auth_write
-def custom_dashboard_image_upload(filename, override=""):
+def custom_dashboard_image_upload(override=""):
     """
     Custom Dashboard Image Upload
     """
     if override == "":
-        if "file" not in request.files or "filename" not in request.form:
+        if "file" not in request.files:
             return "No file included", 407
-
         file = request.files["file"]
-        filename = request.form["filename"]
 
     if not os.path.exists("/src/uploads"):
         os.mkdir("/src/uploads")
