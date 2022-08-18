@@ -1,19 +1,82 @@
 <template>
   <div>
-    <b-modal id="modal-1" size="xl">
-      <v-stage ref="stage" :config="stageSize" class="border-black">
-        <v-layer ref="layer">
-          <v-text
+    <b-modal id="modal-1" size="xl" title="Custom Dashboard Drawing">
+      <b-row>
+        <b-col> Select Background image: </b-col>
+        <b-col>
+          <b-select
+            :options="available_images"
+            v-model="drawing.background_image"
+          />
+        </b-col>
+      </b-row>
+      <hr />
+      <b-row>
+        <b-col>
+          Select Subnet <br />
+          <b-select />
+        </b-col>
+        <b-col>
+          Select Group <br />
+          <b-select />
+        </b-col>
+        <b-col>
+          Select Host <br />
+          <b-select />
+        </b-col>
+      </b-row>
+      <b-row>
+        <b-col>
+          <b-button> Add New Service </b-button>
+        </b-col>
+        <b-col> </b-col>
+        <b-col>
+          <b-button>Reset all Rotations</b-button>
+          <b-button>Remove Host</b-button>
+        </b-col>
+      </b-row>
+      <hr />
+
+      <v-stage
+        class="border-black"
+        ref="stage"
+        :config="stageSize"
+        @mousedown="handleStageMouseDown"
+        @touchstart="handleStageMouseDown"
+      >
+        <v-layer ref="background">
+          <v-image
+            :config="{
+              image: computed_image,
+            }"
+            v-if="computed_image"
+          />
+        </v-layer>
+
+        <v-layer ref="foreground">
+          <v-image
+            v-for="item in rectangles"
+            :key="item.id"
+            :config="item"
+            @transformend="handleTransformEnd"
             @dragstart="handleDragStart"
             @dragend="handleDragEnd"
-            :config="{
-              text: 'Draggable Text',
-              x: 50,
-              y: 50,
-              draggable: true,
-              fill: isDragging ? 'green' : 'black',
-            }"
-          />
+          >
+          </v-image>
+          <div v-for="item in rectangles" :key="item.id">
+            <v-text
+              v-if="!moving"
+              :config="{
+                text: item.name,
+                fontSize: 30,
+                fill: blue,
+                x: item.x + 10,
+                y: item.y + 10,
+                rotation: item.rotation,
+              }"
+            />
+          </div>
+          <v-transformer ref="transformer" />
         </v-layer>
       </v-stage>
     </b-modal>
@@ -33,6 +96,7 @@
         "
       />
     </b-modal>
+
     <b-row>
       <b-col>
         <h4>Dashboards</h4>
@@ -60,7 +124,7 @@
                 '/api/custom_dashboard_images/' + $auth.accessToken + '/' + item
               "
               width="100px"
-            />
+            /><br />
             <b-button
               variant="link"
               class="text-danger m-0 p-0 mt-2"
@@ -103,6 +167,7 @@
 
 <script>
 import Helper from "@/helper";
+import Konva from "konva";
 
 const width = window.innerWidth;
 const height = window.innerHeight;
@@ -114,12 +179,44 @@ export default {
         width: width,
         height: height,
       },
-      isDragging: false,
+
+      rectangles: [
+        {
+          rotation: 0,
+          x: 10,
+          y: 10,
+          scaleX: 1,
+          scaleY: 1,
+          name: "rect1",
+          draggable: true,
+        },
+      ],
+      selectedShapeName: "",
+      moving: false,
+
+      drawing: {
+        background_image: "",
+      },
 
       selected_image: "",
       available_images: [],
       new_image: "",
     };
+  },
+  computed: {
+    computed_image: function () {
+      var temp = this.drawing.background_image;
+      if (this.drawing.background_image != "") {
+        var image = new window.Image();
+        var url =
+          "/api/custom_dashboard_images/" + this.$auth.accessToken + "/";
+        console.log(temp);
+
+        image.src = url.concat(temp);
+        return image;
+      }
+      return false;
+    },
   },
   watch: {
     new_image: /* istanbul ignore next */ function (val) {
@@ -129,16 +226,95 @@ export default {
   mounted: /* istanbul ignore next */ function () {
     try {
       this.loadImages();
+
+      var image = new window.Image();
+      image.src =
+        "/api/custom_dashboard_images/" +
+        this.$auth.accessToken +
+        "/" +
+        "sample.png";
+
+      this.rectangles[0].image = image;
     } catch (e) {
       this.$store.commit("updateError", e);
     }
   },
   methods: {
-    handleDragStart() {
-      this.isDragging = true;
+    handleDragStart(e) {
+      console.log(e);
+      this.moving = true;
+      this.$forceUpdate();
     },
-    handleDragEnd() {
-      this.isDragging = false;
+    handleDragEnd(e) {
+      console.log(e);
+      this.moving = false;
+      this.rectangles[e.target.index] = e.target.attrs;
+      this.$forceUpdate();
+    },
+    handleTransformEnd(e) {
+      // shape is transformed, let us save new attrs back to the node
+      // find element in our state
+      const rect = this.rectangles.find(
+        (r) => r.name === this.selectedShapeName
+      );
+      // update the state
+      rect.x = e.target.x();
+      rect.y = e.target.y();
+      rect.rotation = e.target.rotation();
+      rect.scaleX = e.target.scaleX();
+      rect.scaleY = e.target.scaleY();
+
+      // change fill
+      rect.fill = Konva.Util.getRandomColor();
+
+      this.rectangles[e.target.index] = e.target.attrs;
+      this.$forceUpdate();
+    },
+    handleStageMouseDown(e) {
+      // clicked on stage - clear selection
+      if (e.target === e.target.getStage()) {
+        this.selectedShapeName = "";
+        this.updateTransformer();
+
+        return;
+      }
+
+      // clicked on transformer - do nothing
+      const clickedOnTransformer =
+        e.target.getParent().className === "Transformer";
+      if (clickedOnTransformer) {
+        return;
+      }
+
+      // find clicked rect by its name
+      const name = e.target.name();
+      const rect = this.rectangles.find((r) => r.name === name);
+      if (rect) {
+        this.selectedShapeName = name;
+      } else {
+        this.selectedShapeName = "";
+      }
+      this.updateTransformer();
+    },
+    updateTransformer() {
+      // here we need to manually attach or detach Transformer node
+      const transformerNode = this.$refs.transformer.getNode();
+      const stage = transformerNode.getStage();
+      const { selectedShapeName } = this;
+
+      const selectedNode = stage.findOne("." + selectedShapeName);
+      // do nothing if selected node is already attached
+      if (selectedNode === transformerNode.node()) {
+        return;
+      }
+
+      if (selectedNode) {
+        // attach to another node
+        transformerNode.nodes([selectedNode]);
+      } else {
+        // remove transformer
+        transformerNode.nodes([]);
+      }
     },
 
     loadImages: /* istanbul ignore next */ function () {
@@ -204,7 +380,7 @@ export default {
 }
 .box {
   border: 1px solid lightgrey;
-  width: 25%;
+  min-width: 25%;
   margin: 1rem;
   padding: 1rem;
   text-align: center;
