@@ -35,7 +35,7 @@ import Vuelidate from "vuelidate";
 Vue.use(Vuelidate);
 
 // Konva
-import VueKonva from 'vue-konva';
+import VueKonva from "vue-konva";
 Vue.use(VueKonva);
 
 new Vue({
