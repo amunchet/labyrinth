@@ -26,7 +26,7 @@ import services as svcs
 
 from common import auth
 from common.test import unwrap
-from flask import Flask, request, Response
+from flask import Flask, request, Response, send_file
 from werkzeug.utils import secure_filename
 from flask_cors import CORS
 from PIL import Image
@@ -1269,7 +1269,18 @@ def custom_dashboard_list_images():
     """
     if os.path.exists("/src/uploads/images"):
         return json.dumps(os.listdir("/src/uploads/images"), default=str), 200
+    
+        
     return json.dumps([]), 200
+
+@app.route("/custom_dashboard_images/<override_token>/<filename>")
+def custom_dashboard_return_image(override_token, filename):
+    """
+    Returns a specific image file
+    """
+    if os.path.exists("/src/uploads/images") and filename in os.listdir("/src/uploads/images"):
+        return send_file(os.path.join("/src/uploads/images/", filename))
+    return "Not found", 404
 
 
 @app.route("/custom_dashboard_images/<dashboard_image>", methods=["DELETE"])
