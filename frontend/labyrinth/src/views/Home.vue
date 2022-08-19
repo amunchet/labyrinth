@@ -8,14 +8,19 @@
       <b-avatar class="mb-2" :src="$auth.profile.picture" size="5rem" />
       <h4>Welcome, {{ $auth.profile.name }}</h4>
     </div>
+    <hr />
+    <CustomDashboardsView />
   </div>
 </template>
 
 <script>
 // @ is an alias to /src
+import CustomDashboardsView from '@/components/CustomDashboardsView'
 
 export default {
   name: "Home",
-  components: {},
+  components: {
+    CustomDashboardsView
+  },
 };
 </script>
