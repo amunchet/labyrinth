@@ -1217,7 +1217,7 @@ def dashboard(val="", report=False):
 
 
 ## Custom Dashboards
-@app.route("/custom_dashboards")
+@app.route("/custom_dashboards/")
 @app.route("/custom_dashboards/<dashboard>")
 @requires_auth_read
 def list_custom_dashboards(dashboard=""):
@@ -1229,7 +1229,7 @@ def list_custom_dashboards(dashboard=""):
         criteria = {"name": dashboard}
     a = list(mongo_client["labyrinth"]["dashboards"].find(criteria))
     if not a:
-        return "Not found", 404
+        return "No Dashboards created yet.", 404
     return json.dumps(a, default=str), 200
 
 
@@ -1240,7 +1240,7 @@ def create_edit_custom_dashboard(dashboard, data=""):
     Creates/Edits a Custom Dashboard
     """
     if data == "":
-        data = json.loads(request.form.get("data"), default=str)
+        data = json.loads(request.form.get("data"))
 
     mongo_client["labyrinth"]["dashboards"].delete_many({"name": dashboard})
 

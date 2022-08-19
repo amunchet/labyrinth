@@ -1,6 +1,15 @@
 <template>
   <div>
-    <b-modal id="modal-1" size="xl" title="Custom Dashboard Drawing">
+    <b-modal
+      id="modal-1"
+      size="fullscreen"
+      title="Custom Dashboard"
+      @ok="saveCustomDashboard"
+    >
+    <b-row class="mb-2">
+      <b-col>Custom Dashboard Name</b-col>
+      <b-col><b-input lazy v-model="drawing.name" placeholder="Enter Custom Dashboard Name" /> </b-col>
+      </b-row>
       <b-row>
         <b-col> Select Background image: </b-col>
         <b-col>
@@ -14,25 +23,44 @@
       <b-row>
         <b-col>
           Select Subnet <br />
-          <b-select />
+          <b-select v-model="selected_subnet" :options="subnets" />
         </b-col>
         <b-col>
           Select Group <br />
-          <b-select />
+          <b-select v-model="selected_group" :options="groups" />
         </b-col>
         <b-col>
           Select Host <br />
-          <b-select />
+          <b-select v-model="selected_host" :options="hosts" />
         </b-col>
       </b-row>
       <b-row>
         <b-col>
-          <b-button> Add New Service </b-button>
+          <b-button @click="addHost"> Add New Service </b-button>
         </b-col>
         <b-col> </b-col>
         <b-col>
-          <b-button>Reset all Rotations</b-button>
-          <b-button>Remove Host</b-button>
+          <b-button
+          @click="()=>{
+            var found = drawing.components.find(x=>x.name == selectedShapeName)
+            if(found){
+              found.rotation = 0
+            }
+            $forceUpdate()
+            }"
+          >Reset all Rotations</b-button>
+          <b-button
+            @click="
+              () => {
+                drawing.components = drawing.components.filter(
+                  (x) => x.name != selectedShapeName
+                );
+                selectedShapeName = ''
+                $forceUpdate();
+              }
+            "
+            >Remove Host</b-button
+          >
         </b-col>
       </b-row>
       <hr />
@@ -55,7 +83,7 @@
 
         <v-layer ref="foreground">
           <v-image
-            v-for="item in rectangles"
+            v-for="item in drawing.components"
             :key="item.id"
             :config="item"
             @transformend="handleTransformEnd"
@@ -63,15 +91,15 @@
             @dragend="handleDragEnd"
           >
           </v-image>
-          <div v-for="item in rectangles" :key="item.id">
+          <div v-for="item in drawing.components" :key="item.id">
             <v-text
               v-if="!moving"
               :config="{
                 text: item.name,
-                fontSize: 30,
+                fontSize: 23,
                 fill: blue,
                 x: item.x + 10,
-                y: item.y + 10,
+                y: item.y + 20,
                 rotation: item.rotation,
               }"
             />
@@ -102,6 +130,10 @@
         <h4>Dashboards</h4>
 
         <b-button v-b-modal.modal-1>Open</b-button>
+
+        <b-table :items="custom_dashboards" bordered striped >
+        </b-table>
+
       </b-col>
       <b-col>
         <h4>Dashboard Images</h4>
@@ -180,27 +212,28 @@ export default {
         height: height,
       },
 
-      rectangles: [
-        {
-          rotation: 0,
-          x: 10,
-          y: 10,
-          scaleX: 1,
-          scaleY: 1,
-          name: "rect1",
-          draggable: true,
-        },
-      ],
       selectedShapeName: "",
       moving: false,
 
       drawing: {
         background_image: "",
+        components: [],
       },
 
       selected_image: "",
       available_images: [],
       new_image: "",
+
+      subnets: [],
+      selected_subnet: "",
+
+      groups: [],
+      selected_group: "",
+
+      hosts: [],
+      selected_host: "",
+
+      custom_dashboards: [],
     };
   },
   computed: {
@@ -210,7 +243,6 @@ export default {
         var image = new window.Image();
         var url =
           "/api/custom_dashboard_images/" + this.$auth.accessToken + "/";
-        console.log(temp);
 
         image.src = url.concat(temp);
         return image;
@@ -222,39 +254,50 @@ export default {
     new_image: /* istanbul ignore next */ function (val) {
       this.uploadHelper(val);
     },
+
+    selected_subnet: /* istanbul ignore next */ function (val) {
+      if (val != "") {
+        this.loadGroups(val);
+      } else {
+        this.groups = [];
+      }
+      this.hosts = [];
+    },
+    selected_group: /* istanbul ignore next */ function (val) {
+      this.hosts = [];
+      if (val != "") {
+        this.loadHosts(val);
+      }
+    },
   },
   mounted: /* istanbul ignore next */ function () {
     try {
+      this.loadSubnets();
       this.loadImages();
-
-      var image = new window.Image();
-      image.src =
-        "/api/custom_dashboard_images/" +
-        this.$auth.accessToken +
-        "/" +
-        "sample.png";
-
-      this.rectangles[0].image = image;
+      this.loadCustomDashboards();
     } catch (e) {
       this.$store.commit("updateError", e);
     }
   },
   methods: {
     handleDragStart(e) {
+      console.log("Drag start");
       console.log(e);
       this.moving = true;
       this.$forceUpdate();
     },
     handleDragEnd(e) {
+      console.log("Drag end");
       console.log(e);
       this.moving = false;
-      this.rectangles[e.target.index] = e.target.attrs;
+      this.drawing.components[e.target.index] = e.target.attrs;
       this.$forceUpdate();
     },
     handleTransformEnd(e) {
+      console.log("Transform end");
       // shape is transformed, let us save new attrs back to the node
       // find element in our state
-      const rect = this.rectangles.find(
+      const rect = this.drawing.components.find(
         (r) => r.name === this.selectedShapeName
       );
       // update the state
@@ -267,10 +310,11 @@ export default {
       // change fill
       rect.fill = Konva.Util.getRandomColor();
 
-      this.rectangles[e.target.index] = e.target.attrs;
+      this.drawing.components[e.target.index] = e.target.attrs;
       this.$forceUpdate();
     },
     handleStageMouseDown(e) {
+      console.log("Handle Stage Mouse DOwn");
       // clicked on stage - clear selection
       if (e.target === e.target.getStage()) {
         this.selectedShapeName = "";
@@ -288,7 +332,7 @@ export default {
 
       // find clicked rect by its name
       const name = e.target.name();
-      const rect = this.rectangles.find((r) => r.name === name);
+      const rect = this.drawing.components.find((r) => r.name === name);
       if (rect) {
         this.selectedShapeName = name;
       } else {
@@ -297,6 +341,7 @@ export default {
       this.updateTransformer();
     },
     updateTransformer() {
+      console.log("Update Tranform");
       // here we need to manually attach or detach Transformer node
       const transformerNode = this.$refs.transformer.getNode();
       const stage = transformerNode.getStage();
@@ -315,6 +360,59 @@ export default {
         // remove transformer
         transformerNode.nodes([]);
       }
+    },
+
+    addHost: function () {
+      var image = new window.Image();
+      image.src = "img/dashboards/" + "host.png";
+
+      var new_rect = {
+        rotation: 0,
+        x: 10,
+        y: 10,
+        scaleX: 1,
+        scaleY: 1,
+        name: this.selected_host,
+        subnet: this.selected_subnet,
+        group: this.selected_group,
+        type: "host",
+        draggable: true,
+        image: image,
+      };
+
+      this.drawing.components.push(new_rect);
+      this.$forceUpdate();
+    },
+
+    loadSubnets: /* istanbul ignore next */ function () {
+      var auth = this.$auth;
+      Helper.apiCall("subnets", "", auth)
+        .then((res) => {
+          this.subnets = res;
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
+    },
+    loadGroups: /* istanbul ignore next */ function (selected_subnet) {
+      var auth = this.$auth;
+      Helper.apiCall("group", selected_subnet, auth)
+        .then((res) => {
+          this.groups = res;
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
+    },
+    loadHosts: /* istanbul ignore next */ function (selected_group) {
+      var auth = this.$auth;
+      Helper.apiCall("group", this.selected_subnet + "/" + selected_group, auth)
+        .then((res) => {
+          this.hosts = res;
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
     },
 
     loadImages: /* istanbul ignore next */ function () {
@@ -371,13 +469,34 @@ export default {
           this.$store.commit("updateError", e);
         });
     },
+    loadCustomDashboards: /* istanbul ignore next */ function(){
+      var auth = this.$auth
+      Helper.apiCall("custom_dashboards", "", auth).then(res=>{
+        this.custom_dashboards = res
+      }).catch(e=>{
+        this.$store.commit("updateError", e)
+      })
+    },
+    saveCustomDashboard: /* istanbul ignore next */ function (e){
+      e.preventDefault()
+
+      var auth = this.$auth
+      var formData = new FormData();
+      formData.append("data", JSON.stringify(this.drawing))
+
+      Helper.apiPost("custom_dashboard", "", this.drawing.name, auth, formData).then(()=> {
+        this.loadCustomDashboards()
+        this.$bvModal.hide("modal-1")
+      }).catch(e=>{
+        this.$store.commit("updateError",e)
+      })
+      
+
+    },
   },
 };
 </script>
 <style scoped>
-.border-black {
-  border: 1px solid black;
-}
 .box {
   border: 1px solid lightgrey;
   min-width: 25%;
@@ -388,5 +507,8 @@ export default {
 }
 .text-left {
   text-align: left !important;
+}
+/deep/ .modal-fullscreen{
+  max-width: 90% !important;
 }
 </style>
