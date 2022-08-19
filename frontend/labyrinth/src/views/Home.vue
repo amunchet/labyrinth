@@ -10,6 +10,7 @@
     </div>
     <hr />
     <CustomDashboardsView />
+    <br />
   </div>
 </template>
 
