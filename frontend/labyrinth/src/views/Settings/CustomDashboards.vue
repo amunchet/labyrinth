@@ -6,9 +6,15 @@
       title="Custom Dashboard"
       @ok="saveCustomDashboard"
     >
-    <b-row class="mb-2">
-      <b-col>Custom Dashboard Name</b-col>
-      <b-col><b-input lazy v-model="drawing.name" placeholder="Enter Custom Dashboard Name" /> </b-col>
+      <b-row class="mb-2">
+        <b-col>Custom Dashboard Name</b-col>
+        <b-col
+          ><b-input
+            lazy
+            v-model="drawing.name"
+            placeholder="Enter Custom Dashboard Name"
+          />
+        </b-col>
       </b-row>
       <b-row>
         <b-col> Select Background image: </b-col>
@@ -36,26 +42,31 @@
       </b-row>
       <b-row>
         <b-col>
-          <b-button @click="addHost"> Add New Service </b-button>
+          <b-button @click="addHost()"> Add New Service </b-button>
         </b-col>
         <b-col> </b-col>
         <b-col>
           <b-button
-          @click="()=>{
-            var found = drawing.components.find(x=>x.name == selectedShapeName)
-            if(found){
-              found.rotation = 0
-            }
-            $forceUpdate()
-            }"
-          >Reset all Rotations</b-button>
+            @click="
+              () => {
+                var found = drawing.components.find(
+                  (x) => x.name == selectedShapeName
+                );
+                if (found) {
+                  found.rotation = 0;
+                }
+                $forceUpdate();
+              }
+            "
+            >Reset all Rotations</b-button
+          >
           <b-button
             @click="
               () => {
                 drawing.components = drawing.components.filter(
                   (x) => x.name != selectedShapeName
                 );
-                selectedShapeName = ''
+                selectedShapeName = '';
                 $forceUpdate();
               }
             "
@@ -129,11 +140,55 @@
       <b-col>
         <h4>Dashboards</h4>
 
-        <b-button v-b-modal.modal-1>Open</b-button>
+        <b-button v-b-modal.modal-1 class="float-right mb-2" variant="success"  >+ Add Dashboard</b-button>
 
-        <b-table :items="custom_dashboards" bordered striped >
+        <b-table
+          :items="custom_dashboards"
+          bordered
+          striped
+          :fields="['name', 'components', 'background_image', '_']"
+        >
+          <template v-slot:cell(components)="row">
+            <b-table
+              :items="
+                row.item.components.map((x) => {
+                  return {
+                    name: x.name,
+                    subnet: x.subnet,
+                  };
+                })
+              "
+              striped
+            />
+          </template>
+          <template v-slot:cell(background_image)="row">
+            <b-img
+            width="100px"
+              :src="
+                '/api/custom_dashboard_images/' +
+                $auth.accessToken +
+                '/' +
+                row.item.background_image
+              "
+            />
+          </template>
+          <template v-slot:cell(_)="row">
+            <b-button
+            @click="()=>{
+                drawing.background_image = row.item.background_image
+                drawing.name = row.item.name
+                drawing.components = []
+                row.item.components.forEach(item=>{
+                  addHost(item.x, item.y, item.scaleX, item.scaleY, item.rotation, item.name, item.subnet, item.group)
+                })
+                $forceUpdate();
+                $bvModal.show('modal-1')
+              }"
+            >
+              Edit
+              </b-button>
+            </template>
         </b-table>
-
       </b-col>
       <b-col>
         <h4>Dashboard Images</h4>
@@ -190,7 +245,7 @@
             }
           "
         >
-          <font-awesome-icon icon="times" size="1x" />
+          <font-awesome-icon icon="times" size="1x" /> Clear Upload 
         </b-button>
       </b-col>
     </b-row>
@@ -333,6 +388,7 @@ export default {
       // find clicked rect by its name
       const name = e.target.name();
       const rect = this.drawing.components.find((r) => r.name === name);
+      console.log(name)
       if (rect) {
         this.selectedShapeName = name;
       } else {
@@ -362,19 +418,46 @@ export default {
       }
     },
 
-    addHost: function () {
+    addHost: function (x, y, scaleX, scaleY, rotation, name, subnet, group){
       var image = new window.Image();
       image.src = "img/dashboards/" + "host.png";
 
+      if(x == undefined){
+        x = 10
+      }
+      if(y == undefined){
+        y = 10
+      }
+      if(scaleX == undefined){
+        scaleX = 1
+      }
+      if(scaleY == undefined){
+        scaleY = 1
+      }
+      if(rotation == undefined){
+        rotation = 0
+      }
+
+      if(name == undefined) {
+        name = this.selected_host
+      }
+
+      if(subnet == undefined){
+        subnet = this.selected_subnet
+      }
+      if(group == undefined){ 
+        group = this.selected_group
+      }
+
       var new_rect = {
-        rotation: 0,
-        x: 10,
-        y: 10,
-        scaleX: 1,
-        scaleY: 1,
-        name: this.selected_host,
-        subnet: this.selected_subnet,
-        group: this.selected_group,
+        rotation: rotation,
+        x: x,
+        y: y,
+        scaleX: scaleX,
+        scaleY: scaleY,
+        name: name,
+        subnet: subnet,
+        group: group,
         type: "host",
         draggable: true,
         image: image,
@@ -469,29 +552,31 @@ export default {
           this.$store.commit("updateError", e);
         });
     },
-    loadCustomDashboards: /* istanbul ignore next */ function(){
-      var auth = this.$auth
-      Helper.apiCall("custom_dashboards", "", auth).then(res=>{
-        this.custom_dashboards = res
-      }).catch(e=>{
-        this.$store.commit("updateError", e)
-      })
+    loadCustomDashboards: /* istanbul ignore next */ function () {
+      var auth = this.$auth;
+      Helper.apiCall("custom_dashboards", "", auth)
+        .then((res) => {
+          this.custom_dashboards = res;
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
     },
-    saveCustomDashboard: /* istanbul ignore next */ function (e){
-      e.preventDefault()
+    saveCustomDashboard: /* istanbul ignore next */ function (e) {
+      e.preventDefault();
 
-      var auth = this.$auth
+      var auth = this.$auth;
       var formData = new FormData();
-      formData.append("data", JSON.stringify(this.drawing))
+      formData.append("data", JSON.stringify(this.drawing));
 
-      Helper.apiPost("custom_dashboard", "", this.drawing.name, auth, formData).then(()=> {
-        this.loadCustomDashboards()
-        this.$bvModal.hide("modal-1")
-      }).catch(e=>{
-        this.$store.commit("updateError",e)
-      })
-      
-
+      Helper.apiPost("custom_dashboard", "", this.drawing.name, auth, formData)
+        .then(() => {
+          this.loadCustomDashboards();
+          this.$bvModal.hide("modal-1");
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
     },
   },
 };
@@ -508,7 +593,7 @@ export default {
 .text-left {
   text-align: left !important;
 }
-/deep/ .modal-fullscreen{
+/deep/ .modal-fullscreen {
   max-width: 90% !important;
 }
 </style>

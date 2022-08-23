@@ -1,7 +1,5 @@
 <template>
   <b-container class="text-center">
-    <h4>Custom Dashboard Views</h4>
-    <hr />
     <b-row>
       <b-col cols="2">
         <b-select :options="custom_dashboards" v-model="selected_dashboard" />
