@@ -8,12 +8,16 @@
     <hr />
 
     <b-container>
-    <div
-      class="outer"
-      :style="'background-image: url(' + generateBackgroundImage() + ');'"
-    >
-      <img :src="generateBackgroundImage()" style="visibility: hidden;" />
-      <div v-for="(host, k) in computed_filtered_data" v-bind:key="k" :style="generateHostStyle(host)">
+      <div
+        class="outer"
+        :style="'background-image: url(' + generateBackgroundImage() + ');'"
+      >
+        <img :src="generateBackgroundImage()" style="visibility: hidden" />
+        <div
+          v-for="(host, k) in computed_filtered_data"
+          v-bind:key="k"
+          :style="generateHostStyle(host)"
+        >
           <Host
             :ip="host.ip"
             passed_class="main"
@@ -33,8 +37,8 @@
             "
             :host="host.host"
           />
+        </div>
       </div>
-    </div>
     </b-container>
   </b-container>
 </template>
@@ -65,13 +69,19 @@ export default {
   },
   computed: {
     computed_filtered_data: function () {
-      if (this.selected_dashboard && this.selected_dashboard.components) {
-        var temp = {};
-        this.selected_dashboard.components.forEach((x) => {
-          temp[x.subnet + x.name] = 1;
-        });
+      try {
+        if (this.selected_dashboard && this.selected_dashboard.components) {
+          var temp = {};
+          this.selected_dashboard.components.forEach((x) => {
+            temp[x.subnet + x.name] = 1;
+          });
 
-        return this.full_data.filter((x) => temp[x.subnet + x.ip] != undefined);
+          return this.full_data.filter(
+            (x) => temp[x.subnet + x.ip] != undefined
+          );
+        }
+      } catch (e) {
+        return [];
       }
       return [];
     },
@@ -82,11 +92,22 @@ export default {
       var offsets = this.selected_dashboard.components.filter(
         (x) => x.name == host.ip && x.subnet == host.subnet
       );
-      if(offsets.length > 0){
-        console.log(offsets)
-        return "position:relative; height:0; left:" + offsets[0].x + "px; top:" + offsets[0].y + "px; transform: scale(" + offsets[0].scaleX + ", " + offsets[0].scaleY + ") rotate(" + offsets[0].rotation + "deg); float: left;"
+      if (offsets.length > 0) {
+        return (
+          "position:relative; height:0; left:" +
+          offsets[0].x +
+          "px; top:" +
+          offsets[0].y +
+          "px; transform: scale(" +
+          offsets[0].scaleX +
+          ", " +
+          offsets[0].scaleY +
+          ") rotate(" +
+          offsets[0].rotation +
+          "deg); float: left;"
+        );
       }
-      return ""
+      return "";
     },
     generateBackgroundImage: function () {
       var url =
@@ -106,6 +127,13 @@ export default {
               text: x.name,
               value: x,
             };
+          });
+
+          res.forEach((x) => {
+            if (x.default) {
+              this.selected_dashboard = x;
+              this.$forceUpdate();
+            }
           });
         })
         .catch((e) => {
@@ -151,11 +179,11 @@ export default {
 };
 </script>
 <style lang="scss" scoped>
-.outer{
+.outer {
   background-repeat: no-repeat;
   margin: auto;
 }
-.main{
+.main {
   background-color: white;
 }
 </style>

@@ -6,7 +6,7 @@
       title="Custom Dashboard"
       @ok="saveCustomDashboard"
     >
-      <b-row class="mb-2">
+      <b-row class="mb-2 mt-2">
         <b-col>Custom Dashboard Name</b-col>
         <b-col
           ><b-input
@@ -16,7 +16,7 @@
           />
         </b-col>
       </b-row>
-      <b-row>
+      <b-row class="mb-2 mt-2">
         <b-col> Select Background image: </b-col>
         <b-col>
           <b-select
@@ -25,8 +25,22 @@
           />
         </b-col>
       </b-row>
+      <b-row class="mb-2 mt-2">
+        <b-col>
+          Set as Default?
+          </b-col>
+        <b-col>
+          <b-form-checkbox
+            size="lg"
+            v-model="drawing.default"
+            name="check-button"
+            switch
+          >
+          </b-form-checkbox>
+        </b-col>
+      </b-row>
       <hr />
-      <b-row>
+      <b-row class="mb-2">
         <b-col>
           Select Subnet <br />
           <b-select v-model="selected_subnet" :options="subnets" />
@@ -42,7 +56,10 @@
       </b-row>
       <b-row>
         <b-col>
-          <b-button @click="addHost()"> Add New Service </b-button>
+          <b-button @click="addHost()" variant="primary"
+          :disabled="!(selected_subnet && selected_group && selected_host)"
+          
+          >+ Add New Service </b-button>
         </b-col>
         <b-col> </b-col>
         <b-col>
@@ -58,6 +75,8 @@
                 $forceUpdate();
               }
             "
+            class=" float-right ml-1"
+            variant="primary"
             >Reset all Rotations</b-button
           >
           <b-button
@@ -70,6 +89,8 @@
                 $forceUpdate();
               }
             "
+            variant="warning"
+            class="ml-1 mr-1 float-right"
             >Remove Host</b-button
           >
         </b-col>
@@ -140,7 +161,9 @@
       <b-col>
         <h4>Dashboards</h4>
 
-        <b-button v-b-modal.modal-1 class="float-right mb-2" variant="success"  >+ Add Dashboard</b-button>
+        <b-button v-b-modal.modal-1 class="float-right mb-2" variant="success"
+          >+ Add Dashboard</b-button
+        >
 
         <b-table
           :items="custom_dashboards"
@@ -148,6 +171,13 @@
           striped
           :fields="['name', 'components', 'background_image', '_']"
         >
+          <template v-slot:cell(name)="row">
+            {{row.item.name}}
+            <div v-if="row.item.default">
+                <font-awesome-icon class="text-success" icon="check" size="1x" />
+                
+              </div>
+            </template>
           <template v-slot:cell(components)="row">
             <b-table
               :items="
@@ -163,7 +193,7 @@
           </template>
           <template v-slot:cell(background_image)="row">
             <b-img
-            width="100px"
+              width="100px"
               :src="
                 '/api/custom_dashboard_images/' +
                 $auth.accessToken +
@@ -174,20 +204,33 @@
           </template>
           <template v-slot:cell(_)="row">
             <b-button
-            @click="()=>{
-                drawing.background_image = row.item.background_image
-                drawing.name = row.item.name
-                drawing.components = []
-                row.item.components.forEach(item=>{
-                  addHost(item.x, item.y, item.scaleX, item.scaleY, item.rotation, item.name, item.subnet, item.group)
-                })
-                $forceUpdate();
-                $bvModal.show('modal-1')
-              }"
+              @click="
+                () => {
+                  drawing.background_image = row.item.background_image;
+                  drawing.name = row.item.name;
+                  drawing.components = [];
+                  drawing.default = row.item.default
+                  row.item.components.forEach((item) => {
+                    addHost(
+                      item.x,
+                      item.y,
+                      item.scaleX,
+                      item.scaleY,
+                      item.rotation,
+                      item.name,
+                      item.subnet,
+                      item.group
+                    );
+                  });
+                  $forceUpdate();
+                  $bvModal.show('modal-1');
+                }
+              "
+              variant="link"
             >
-              Edit
-              </b-button>
-            </template>
+            <font-awesome-icon icon="edit" size="1x" />
+            </b-button>
+          </template>
         </b-table>
       </b-col>
       <b-col>
@@ -245,7 +288,7 @@
             }
           "
         >
-          <font-awesome-icon icon="times" size="1x" /> Clear Upload 
+          <font-awesome-icon icon="times" size="1x" /> Clear Upload
         </b-button>
       </b-col>
     </b-row>
@@ -388,7 +431,7 @@ export default {
       // find clicked rect by its name
       const name = e.target.name();
       const rect = this.drawing.components.find((r) => r.name === name);
-      console.log(name)
+      console.log(name);
       if (rect) {
         this.selectedShapeName = name;
       } else {
@@ -418,35 +461,35 @@ export default {
       }
     },
 
-    addHost: function (x, y, scaleX, scaleY, rotation, name, subnet, group){
+    addHost: function (x, y, scaleX, scaleY, rotation, name, subnet, group) {
       var image = new window.Image();
       image.src = "img/dashboards/" + "host.png";
 
-      if(x == undefined){
-        x = 10
+      if (x == undefined) {
+        x = 10;
       }
-      if(y == undefined){
-        y = 10
+      if (y == undefined) {
+        y = 10;
       }
-      if(scaleX == undefined){
-        scaleX = 1
+      if (scaleX == undefined) {
+        scaleX = 1;
       }
-      if(scaleY == undefined){
-        scaleY = 1
+      if (scaleY == undefined) {
+        scaleY = 1;
       }
-      if(rotation == undefined){
-        rotation = 0
-      }
-
-      if(name == undefined) {
-        name = this.selected_host
+      if (rotation == undefined) {
+        rotation = 0;
       }
 
-      if(subnet == undefined){
-        subnet = this.selected_subnet
+      if (name == undefined) {
+        name = this.selected_host;
       }
-      if(group == undefined){ 
-        group = this.selected_group
+
+      if (subnet == undefined) {
+        subnet = this.selected_subnet;
+      }
+      if (group == undefined) {
+        group = this.selected_group;
       }
 
       var new_rect = {
