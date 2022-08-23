@@ -17,7 +17,7 @@ config.mocks["$auth"] = {
   idToken: 1,
   login: function () {},
   getAccessToken: function () {},
-  handleAuthentication: function(){},
+  handleAuthentication: function () {},
 };
 
 config.mocks["loaded"] = true;

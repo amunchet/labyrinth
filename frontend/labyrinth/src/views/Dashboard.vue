@@ -385,8 +385,6 @@ h2.subnet:hover {
   float: left;
 }
 
-
-
 .outer {
   background-color: #efefed;
   min-height: 300px;

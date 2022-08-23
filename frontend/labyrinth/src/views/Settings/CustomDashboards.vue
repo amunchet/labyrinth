@@ -26,9 +26,7 @@
         </b-col>
       </b-row>
       <b-row class="mb-2 mt-2">
-        <b-col>
-          Set as Default?
-          </b-col>
+        <b-col> Set as Default? </b-col>
         <b-col>
           <b-form-checkbox
             size="lg"
@@ -56,10 +54,12 @@
       </b-row>
       <b-row>
         <b-col>
-          <b-button @click="addHost()" variant="primary"
-          :disabled="!(selected_subnet && selected_group && selected_host)"
-          
-          >+ Add New Service </b-button>
+          <b-button
+            @click="addHost()"
+            variant="primary"
+            :disabled="!(selected_subnet && selected_group && selected_host)"
+            >+ Add New Service
+          </b-button>
         </b-col>
         <b-col> </b-col>
         <b-col>
@@ -75,7 +75,7 @@
                 $forceUpdate();
               }
             "
-            class=" float-right ml-1"
+            class="float-right ml-1"
             variant="primary"
             >Reset all Rotations</b-button
           >
@@ -172,12 +172,11 @@
           :fields="['name', 'components', 'background_image', '_']"
         >
           <template v-slot:cell(name)="row">
-            {{row.item.name}}
+            {{ row.item.name }}
             <div v-if="row.item.default">
-                <font-awesome-icon class="text-success" icon="check" size="1x" />
-                
-              </div>
-            </template>
+              <font-awesome-icon class="text-success" icon="check" size="1x" />
+            </div>
+          </template>
           <template v-slot:cell(components)="row">
             <b-table
               :items="
@@ -209,7 +208,7 @@
                   drawing.background_image = row.item.background_image;
                   drawing.name = row.item.name;
                   drawing.components = [];
-                  drawing.default = row.item.default
+                  drawing.default = row.item.default;
                   row.item.components.forEach((item) => {
                     addHost(
                       item.x,
@@ -228,7 +227,7 @@
               "
               variant="link"
             >
-            <font-awesome-icon icon="edit" size="1x" />
+              <font-awesome-icon icon="edit" size="1x" />
             </b-button>
           </template>
         </b-table>
