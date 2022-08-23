@@ -2,6 +2,7 @@ flask
 flask-cors
 flask-socketio
 gunicorn
+gevent
 python-dotenv
 python-jose
 pymongo
