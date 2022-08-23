@@ -55,6 +55,7 @@ beforeEach(() => {
       "b-input",
       "b-row",
       "b-col",
+      "b-form-checkbox",
       "b-table",
       "b-tab",
       "b-tabs",

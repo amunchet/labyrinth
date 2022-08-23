@@ -5,7 +5,7 @@ import { config, shallowMount } from "@vue/test-utils";
 
 import Vue from "vue";
 import store from "@/store";
-import Instance from "@/components/Callback.vue";
+import Instance from "@/views/Settings/CustomDashboards";
 
 Vue.use(store);
 
@@ -17,7 +17,6 @@ config.mocks["$auth"] = {
   idToken: 1,
   login: function () {},
   getAccessToken: function () {},
-  handleAuthentication: function () {},
 };
 
 config.mocks["loaded"] = true;
@@ -59,6 +58,14 @@ beforeEach(() => {
       "b-textarea",
       "b-avatar",
       "b-form-file",
+      "b-img",
+      "b-modal",
+      "v-layer",
+      "v-stage",
+      "b-form-checkbox",
+      "v-transformer",
+      "v-image",
+      "v-text",
     ],
   });
 });
@@ -67,8 +74,48 @@ afterEach(() => {
   wrapper.destroy();
 });
 
-describe("Callback.vue", () => {
+describe("CustomDashboards", () => {
   test("is a Vue instance", () => {
     expect(wrapper.isVueInstance).toBeTruthy();
+  });
+  test("handleTransformEnd", () => {
+    wrapper.vm.$data.selectedShapeName = "TESTNAME";
+  });
+  test("handleStageMouseDown", () => {
+    wrapper.vm.handleStageMouseDown({
+      target: {
+        getStage: () => {},
+        getParent: () => {
+          return {
+            className: "Transformer",
+          };
+        },
+      },
+    });
+  });
+
+  test("updateTransformer", () => {
+    wrapper.vm.$refs.transformer = {
+      getNode: function () {
+        return {
+          getStage: function () {
+            return {
+              findOne: function (item) {
+                return item;
+              },
+            };
+          },
+          node: () => {
+            return "Something else";
+          },
+          nodes: function () {},
+        };
+      },
+    };
+    wrapper.vm.updateTransformer();
+  });
+  test("addHost", () => {
+    wrapper.vm.addHost();
+    wrapper.vm.addHost(0, 0, 0, 0, 0, "test", "test_subnet", "test_group");
   });
 });

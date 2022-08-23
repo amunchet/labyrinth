@@ -47,6 +47,7 @@ beforeEach(() => {
       "b-modal",
       "b-button",
       "b-select",
+      "b-card",
       "b-input",
       "b-row",
       "b-col",

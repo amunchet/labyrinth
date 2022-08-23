@@ -5,7 +5,7 @@ import { config, shallowMount } from "@vue/test-utils";
 
 import Vue from "vue";
 import store from "@/store";
-import Instance from "@/components/Callback.vue";
+import Instance from "@/views/Settings/Icons";
 
 Vue.use(store);
 
@@ -17,7 +17,6 @@ config.mocks["$auth"] = {
   idToken: 1,
   login: function () {},
   getAccessToken: function () {},
-  handleAuthentication: function () {},
 };
 
 config.mocks["loaded"] = true;
@@ -59,6 +58,12 @@ beforeEach(() => {
       "b-textarea",
       "b-avatar",
       "b-form-file",
+      "b-img",
+      "b-modal",
+      "v-layer",
+      "v-stage",
+      "b-form-checkbox",
+      "v-transformer",
     ],
   });
 });
@@ -67,7 +72,7 @@ afterEach(() => {
   wrapper.destroy();
 });
 
-describe("Callback.vue", () => {
+describe("CustomDashboards", () => {
   test("is a Vue instance", () => {
     expect(wrapper.isVueInstance).toBeTruthy();
   });

@@ -1,0 +1,42 @@
+{
+    "name": "TESTTEST",
+    "background_image": "dell-rack.png",
+    "components": [
+        {
+            "rotation": 0,
+            "x": 463,
+            "y": 148,
+            "scaleX": 1,
+            "scaleY": 1,
+            "name": "172.19.0.1",
+            "subnet": "172.19.0",
+            "group": "linux",
+            "type": "host",
+            "draggable": true,
+            "image": {},
+            "offsetX": 0,
+            "offsetY": 0,
+            "skewX": 0,
+            "skewY": 0
+        },
+        {
+            "rotation": 40.349815150113145,
+            "x": 973.2875049856871,
+            "y": 95.32490330389177,
+            "scaleX": 0.9999999999999999,
+            "scaleY": 1.0000000000000007,
+            "name": "172.19.0.3",
+            "subnet": "172.19.0",
+            "group": "linux",
+            "type": "host",
+            "draggable": true,
+            "image": {},
+            "offsetX": 0,
+            "offsetY": 0,
+            "skewX": 2.7755575615628904e-16,
+            "skewY": 0,
+            "fill": "#9d1dd3"
+        }
+    ]
+    
+}

@@ -1,7 +1,9 @@
 <template>
   <div class="dashboard">
     <!-- Modals -->
-    <CreateEditSubnet :inp_subnet="selected_subnet" @update="loadData()" />
+    <div class="overflow-hidden mb-4 pb-2">
+      <CreateEditSubnet :inp_subnet="selected_subnet" @update="loadData()" />
+    </div>
 
     <CreateEditHost :inp_host="selected_host" @update="loadData()" />
     <HostMetric @update="loadData()" :data="selected_metric" />
@@ -12,8 +14,6 @@
       @updated="loadData()"
     />
     <!-- Main page -->
-
-    <hr />
 
     <div v-if="!loading">
       <div class="outer_left">
@@ -309,16 +309,16 @@ export default {
   created: function () {
     //window.addEventListener("resize", this.findTop);
   },
-  mounted: function () {
+  mounted: async function () {
     try {
-      this.loadData(1);
+      await this.loadData(1);
     } catch (e) {
       this.$store.commit("updateError", e);
     }
   },
 };
 </script>
-<style lang="scss">
+<style lang="scss" scoped>
 @import "@/assets/variables.scss";
 
 body,
@@ -383,13 +383,6 @@ h2.subnet:hover {
   width: 5%;
   min-width: 75px;
   float: left;
-}
-
-.flexed {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: start;
-  align-items: stretch;
 }
 
 .outer {
