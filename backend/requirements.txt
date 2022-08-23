@@ -12,6 +12,7 @@ pid
 ansible
 ansible-runner
 pyyaml
+pillow
 
 # Development tools
 pytest

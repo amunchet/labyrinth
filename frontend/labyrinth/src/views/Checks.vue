@@ -1,5 +1,5 @@
 <template>
-  <b-container class="text-left">
+  <b-container class="text-left mt-3">
     <h2>Create/Edit a Service</h2>
     <b-modal id="add_service" title="Add/Edit Service" @ok="saveCheck">
       <template #modal-footer="{ ok, cancel }">

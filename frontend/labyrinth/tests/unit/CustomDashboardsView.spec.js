@@ -5,7 +5,7 @@ import { config, shallowMount } from "@vue/test-utils";
 
 import Vue from "vue";
 import store from "@/store";
-import Instance from "@/components/Callback.vue";
+import Instance from "@/components/CustomDashboardsView.vue";
 
 Vue.use(store);
 
@@ -17,7 +17,6 @@ config.mocks["$auth"] = {
   idToken: 1,
   login: function () {},
   getAccessToken: function () {},
-  handleAuthentication: function () {},
 };
 
 config.mocks["loaded"] = true;
@@ -67,8 +66,52 @@ afterEach(() => {
   wrapper.destroy();
 });
 
-describe("Callback.vue", () => {
+describe("CustomDashboardsView.vue", () => {
   test("is a Vue instance", () => {
     expect(wrapper.isVueInstance).toBeTruthy();
   });
+
+  test("computed_filtered_data", async () => {
+    wrapper.vm.$data.selected_dashboard = {
+      components: [
+        {
+          name: "test_name",
+          subnet: "255.255.255",
+        },
+        {
+          name: "second_name",
+          subnet: "255.255.254",
+        },
+      ],
+    };
+    wrapper.vm.$data.full_data = [
+      {
+        subnet: "255.255.255",
+        ip: "test_name",
+      },
+      {
+        subnet: "255.255.254",
+        ip: "second_name",
+      },
+      {
+        subnet: "123.123.123",
+        ip: "NOTSEEN",
+      },
+    ];
+
+    await wrapper.vm.$forceUpdate();
+    expect(wrapper.vm.computed_filtered_data).toStrictEqual([
+      {
+        ip: "test_name",
+        subnet: "255.255.255",
+      },
+      {
+        ip: "second_name",
+        subnet: "255.255.254",
+      },
+    ]);
+  });
+
+  test("generateHostStyle", () => {});
+  test("generateBackgroundImage", () => {});
 });

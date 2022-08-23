@@ -12,10 +12,10 @@ RUN   apt-get update && apt-get -y install python3 \
         libssl-dev \
         nmap \
         openssh-client \
-        ansible \
         sshpass \
         git \
         iputils-ping \
+        wget \
 	tzdata
 
 

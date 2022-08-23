@@ -1,5 +1,5 @@
 <template>
-  <b-container>
+  <b-container class="mt-3">
     <b-tabs content-class="mt-3" lazy>
       <b-tab title="Active Alerts" active class="text-left">
         <p>List of active alerts.</p>

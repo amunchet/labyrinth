@@ -79,7 +79,6 @@
       </b-navbar>
     </div>
     <hr class="m-2" />
-    <br />
     <router-view />
   </div>
 </template>
@@ -221,5 +220,11 @@ export default {
 }
 #nav-collapse {
   margin-left: 75px;
+}
+.flexed {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: start;
+  align-items: stretch;
 }
 </style>

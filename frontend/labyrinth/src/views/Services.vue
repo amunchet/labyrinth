@@ -1,5 +1,5 @@
 <template>
-  <b-container style="min-width: 90%">
+  <b-container style="min-width: 90%" class="mt-3">
     <b-modal
       id="test_configuration_file"
       title="Test Configuration File"

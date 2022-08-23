@@ -12,6 +12,7 @@ import datetime
 import time
 
 import pymongo
+
 import redis
 import toml
 import requests
@@ -25,9 +26,10 @@ import services as svcs
 
 from common import auth
 from common.test import unwrap
-from flask import Flask, request, Response
+from flask import Flask, request, Response, send_file
 from werkzeug.utils import secure_filename
 from flask_cors import CORS
+from PIL import Image
 
 import ansible_helper
 
@@ -1212,6 +1214,123 @@ def dashboard(val="", report=False):
         rc.set("dashboard", json.dumps(subnets, default=str))
         rc.set("dashboard_time", str(time.time()))
     return json.dumps(subnets, default=str), 200
+
+
+## Custom Dashboards
+@app.route("/custom_dashboards/")
+@app.route("/custom_dashboards/<dashboard>")
+@requires_auth_read
+def list_custom_dashboards(dashboard=""):
+    """
+    Lists Custom Dashboards or single dashboard
+    """
+    criteria = {}
+    if dashboard:
+        criteria = {"name": dashboard}
+    a = list(mongo_client["labyrinth"]["dashboards"].find(criteria))
+    if not a:
+        return "No Dashboards created yet.", 404
+    return json.dumps(a, default=str), 200
+
+
+@app.route("/custom_dashboard/<dashboard>", methods=["POST"])
+@requires_auth_write
+def create_edit_custom_dashboard(dashboard, data=""):
+    """
+    Creates/Edits a Custom Dashboard
+    """
+    if data == "":
+        data = json.loads(request.form.get("data"))
+
+    mongo_client["labyrinth"]["dashboards"].delete_many({"name": dashboard})
+
+    data["name"] = dashboard
+
+    mongo_client["labyrinth"]["dashboards"].insert_one(data)
+    return "Success", 200
+
+
+@app.route("/custom_dashboard/<dashboard>", methods=["DELETE"])
+@requires_auth_write
+def delete_custom_dashboard(dashboard):
+    """
+    Deletes a custom dashboard
+    """
+    mongo_client["labyrinth"]["dashboards"].delete_many({"name": dashboard})
+    return "Success", 200
+
+
+### Custom Dashboards Images
+@app.route("/custom_dashboard_images/", methods=["GET"])
+@requires_auth_read
+def custom_dashboard_list_images():
+    """
+    Lists available images for Custom Dashboards
+    """
+    if os.path.exists("/src/uploads/images"):
+        return json.dumps(os.listdir("/src/uploads/images"), default=str), 200
+
+    return json.dumps([]), 200
+
+
+@app.route("/custom_dashboard_images/<override_token>/<filename>")
+def custom_dashboard_return_image(override_token, filename):
+    """
+    Returns a specific image file
+    """
+    if os.path.exists("/src/uploads/images") and filename in os.listdir(
+        "/src/uploads/images"
+    ):
+        return send_file(os.path.join("/src/uploads/images/", filename))
+    return "Not found", 404
+
+
+@app.route("/custom_dashboard_images/<dashboard_image>", methods=["DELETE"])
+@requires_auth_write
+def custom_dashboard_delete_image(dashboard_image):
+    """
+    Deletes a Custom Dashboard Image
+    """
+    dir_list = os.listdir("/src/uploads/images")
+    if dashboard_image not in dir_list:
+        return "Not Found", 404
+
+    if os.path.exists("/src/uploads/images/{}".format(dashboard_image)):
+        os.remove("/src/uploads/images/{}".format(dashboard_image))
+
+    return "Success", 200
+
+
+@app.route("/custom_dashboard_images/", methods=["POST"])
+@requires_auth_write
+def custom_dashboard_image_upload(override=""):
+    """
+    Custom Dashboard Image Upload
+    """
+    if override == "":  # pragma: no cover
+        if "file" not in request.files:
+            return "No file included", 407
+        file = request.files["file"]
+
+    if not os.path.exists("/src/uploads"):
+        os.mkdir("/src/uploads")
+
+    if not os.path.exists("/src/uploads/images"):
+        os.mkdir("/src/uploads/images")
+
+    if override:
+        filename = override
+    elif file:  # pragma: no cover
+        filename = secure_filename(file.filename)
+        file.save("/tmp/{}".format(filename))
+
+    try:
+        Image.open("/tmp/{}".format(filename)).verify()
+    except Exception:
+        return "Invalid file", 484
+
+    shutil.move("/tmp/{}".format(filename), "/src/uploads/images/{}".format(filename))
+    return "Success", 200
 
 
 # Metric

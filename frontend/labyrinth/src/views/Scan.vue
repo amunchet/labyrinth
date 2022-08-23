@@ -1,7 +1,6 @@
 <template>
-  <b-container>
-    <h3>Settings</h3>
-    <hr />
+  <b-container class="mt-4">
+
     <b-row>
       <b-col class="text-left">
         <b-button variant="success" @click="startScan()"
@@ -80,9 +79,9 @@ export default {
         });
     },
   },
-  mounted: /* istanbul ignore next */ function () {
+  mounted: /* istanbul ignore next */ async function () {
     try {
-      this.loadData();
+      await this.loadData();
     } catch (e) {
       this.$store.commit("updateError", e);
     }
