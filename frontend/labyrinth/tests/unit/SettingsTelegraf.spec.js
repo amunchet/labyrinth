@@ -5,7 +5,7 @@ import { config, shallowMount } from '@vue/test-utils'
 
 import Vue from "vue";
 import store from '@/store'
-import Instance from "@/components/CustomDashboardsView.vue";
+import Instance from "@/views/Settings/Telegraf";
 
 Vue.use(store)
 
@@ -21,7 +21,11 @@ config.mocks['$auth'] = {
 
 config.mocks['loaded'] = true
 
+let state
+let auth
 let wrapper
+let created
+
 
 beforeEach(() => {
     wrapper = shallowMount(Instance, {
@@ -57,7 +61,13 @@ beforeEach(() => {
             'b-container',
             'b-textarea',
             'b-avatar',
-            'b-form-file'
+            'b-form-file',
+            'b-img',
+            'b-modal',
+            'v-layer',
+            'v-stage',
+            'b-form-checkbox',
+            'v-transformer'
         ]
     })
 })
@@ -66,57 +76,8 @@ afterEach(() => {
     wrapper.destroy()
 })
 
-describe('CustomDashboardsView.vue', () => {
+describe('CustomDashboards', () => {
     test('is a Vue instance', () => {
         expect(wrapper.isVueInstance).toBeTruthy()
-    })
-
-    test("computed_filtered_data", async ()=>{
-        wrapper.vm.$data.selected_dashboard = {
-            components: [
-                {
-                    name: "test_name",
-                    subnet: "255.255.255"
-                },
-                {
-                    name: "second_name",
-                    subnet: "255.255.254"
-                }
-            ]
-        }
-        wrapper.vm.$data.full_data = [
-            {
-                subnet: "255.255.255",
-                ip: "test_name"
-            },
-            {
-                subnet: "255.255.254",
-                ip: "second_name"
-            },
-            {
-                subnet: "123.123.123",
-                ip: "NOTSEEN"
-
-            }
-        ]
-
-        await wrapper.vm.$forceUpdate()
-        expect(wrapper.vm.computed_filtered_data).toStrictEqual([
-            {
-                ip: "test_name",
-                subnet: "255.255.255"
-            },
-            {
-                ip: "second_name",
-                subnet: "255.255.254"
-            }
-        ])
-    })
-
-    test("generateHostStyle", ()=>{
-
-    })
-    test("generateBackgroundImage", ()=>{
-
     })
 })

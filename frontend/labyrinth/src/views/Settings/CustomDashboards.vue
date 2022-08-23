@@ -26,9 +26,7 @@
         </b-col>
       </b-row>
       <b-row class="mb-2 mt-2">
-        <b-col>
-          Set as Default?
-          </b-col>
+        <b-col> Set as Default? </b-col>
         <b-col>
           <b-form-checkbox
             size="lg"
@@ -56,10 +54,12 @@
       </b-row>
       <b-row>
         <b-col>
-          <b-button @click="addHost()" variant="primary"
-          :disabled="!(selected_subnet && selected_group && selected_host)"
-          
-          >+ Add New Service </b-button>
+          <b-button
+            @click="addHost()"
+            variant="primary"
+            :disabled="!(selected_subnet && selected_group && selected_host)"
+            >+ Add New Service
+          </b-button>
         </b-col>
         <b-col> </b-col>
         <b-col>
@@ -75,7 +75,7 @@
                 $forceUpdate();
               }
             "
-            class=" float-right ml-1"
+            class="float-right ml-1"
             variant="primary"
             >Reset all Rotations</b-button
           >
@@ -119,8 +119,19 @@
             :key="item.id"
             :config="item"
             @transformend="handleTransformEnd"
-            @dragstart="handleDragStart"
-            @dragend="handleDragEnd"
+            @dragstart="
+              () => {
+                moving = true;
+                $forceUpdate();
+              }
+            "
+            @dragend="
+              (e) => {
+                moving = false;
+                drawing.components[e.target.index] = e.target.attrs;
+                $forceUpdate();
+              }
+            "
           >
           </v-image>
           <div v-for="item in drawing.components" :key="item.id">
@@ -172,12 +183,11 @@
           :fields="['name', 'components', 'background_image', '_']"
         >
           <template v-slot:cell(name)="row">
-            {{row.item.name}}
+            {{ row.item.name }}
             <div v-if="row.item.default">
-                <font-awesome-icon class="text-success" icon="check" size="1x" />
-                
-              </div>
-            </template>
+              <font-awesome-icon class="text-success" icon="check" size="1x" />
+            </div>
+          </template>
           <template v-slot:cell(components)="row">
             <b-table
               :items="
@@ -209,7 +219,7 @@
                   drawing.background_image = row.item.background_image;
                   drawing.name = row.item.name;
                   drawing.components = [];
-                  drawing.default = row.item.default
+                  drawing.default = row.item.default;
                   row.item.components.forEach((item) => {
                     addHost(
                       item.x,
@@ -228,7 +238,7 @@
               "
               variant="link"
             >
-            <font-awesome-icon icon="edit" size="1x" />
+              <font-awesome-icon icon="edit" size="1x" />
             </b-button>
           </template>
         </b-table>
@@ -297,7 +307,6 @@
 
 <script>
 import Helper from "@/helper";
-import Konva from "konva";
 
 const width = window.innerWidth;
 const height = window.innerHeight;
@@ -378,19 +387,6 @@ export default {
     }
   },
   methods: {
-    handleDragStart(e) {
-      console.log("Drag start");
-      console.log(e);
-      this.moving = true;
-      this.$forceUpdate();
-    },
-    handleDragEnd(e) {
-      console.log("Drag end");
-      console.log(e);
-      this.moving = false;
-      this.drawing.components[e.target.index] = e.target.attrs;
-      this.$forceUpdate();
-    },
     handleTransformEnd(e) {
       console.log("Transform end");
       // shape is transformed, let us save new attrs back to the node
@@ -406,13 +402,12 @@ export default {
       rect.scaleY = e.target.scaleY();
 
       // change fill
-      rect.fill = Konva.Util.getRandomColor();
+      //rect.fill = Konva.Util.getRandomColor();
 
       this.drawing.components[e.target.index] = e.target.attrs;
       this.$forceUpdate();
     },
     handleStageMouseDown(e) {
-      console.log("Handle Stage Mouse DOwn");
       // clicked on stage - clear selection
       if (e.target === e.target.getStage()) {
         this.selectedShapeName = "";
@@ -431,7 +426,6 @@ export default {
       // find clicked rect by its name
       const name = e.target.name();
       const rect = this.drawing.components.find((r) => r.name === name);
-      console.log(name);
       if (rect) {
         this.selectedShapeName = name;
       } else {
@@ -439,8 +433,7 @@ export default {
       }
       this.updateTransformer();
     },
-    updateTransformer() {
-      console.log("Update Tranform");
+    updateTransformer:  function() {
       // here we need to manually attach or detach Transformer node
       const transformerNode = this.$refs.transformer.getNode();
       const stage = transformerNode.getStage();
@@ -448,7 +441,7 @@ export default {
 
       const selectedNode = stage.findOne("." + selectedShapeName);
       // do nothing if selected node is already attached
-      if (selectedNode === transformerNode.node()) {
+      if (selectedNode === transformerNode.node()) /* istanbul ignore next */ {
         return;
       }
 
