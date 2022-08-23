@@ -1,7 +1,9 @@
 <template>
   <div class="dashboard">
     <!-- Modals -->
+    <div class="overflow-hidden mb-4 pb-2">
     <CreateEditSubnet :inp_subnet="selected_subnet" @update="loadData()" />
+    </div>
 
     <CreateEditHost :inp_host="selected_host" @update="loadData()" />
     <HostMetric @update="loadData()" :data="selected_metric" />
@@ -12,8 +14,6 @@
       @updated="loadData()"
     />
     <!-- Main page -->
-
-    <hr />
 
     <div v-if="!loading">
       <div class="outer_left">
