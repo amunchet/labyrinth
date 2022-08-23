@@ -318,7 +318,7 @@ export default {
   },
 };
 </script>
-<style lang="scss">
+<style lang="scss" scoped>
 @import "@/assets/variables.scss";
 
 body,
@@ -385,12 +385,7 @@ h2.subnet:hover {
   float: left;
 }
 
-.flexed {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: start;
-  align-items: stretch;
-}
+
 
 .outer {
   background-color: #efefed;

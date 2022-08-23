@@ -221,4 +221,10 @@ export default {
 #nav-collapse {
   margin-left: 75px;
 }
+.flexed {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: start;
+  align-items: stretch;
+}
 </style>
