@@ -84,8 +84,7 @@ def test_list_and_delete_custom_dashboards(setup):
     Lists all custom dashboards
     """
     a = unwrap(serve.list_custom_dashboards)()
-    assert a[1] == 200
-    assert [x for x in json.loads(a[0]) if "name" in x and x["name"] == "TESTTEST"] == []
+    assert a[1] == 404
 
     test_create_edit_custom_dashboard(setup)
 
