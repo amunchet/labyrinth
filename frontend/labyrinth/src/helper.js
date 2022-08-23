@@ -23,14 +23,14 @@ export default {
 
       for (var i = 0; i < count; i++) {
         var temp = parseInt(splits[i]);
-        if (isNaN(temp)) {
+        if (isNaN(temp)) { /* istanbul ignore next */
           return false;
         }
         if (temp < 0 || temp > 254) {
           return false;
         }
       }
-    } catch (e) {
+    } catch (e) { /* istanbul ignore next */
       return false;
     }
     return true;
@@ -68,7 +68,7 @@ export default {
   },
   getURL() {
     var full_url = "";
-    if (window.location.host.indexOf(devel_port) != -1) {
+    if (window.location.host.indexOf(devel_port) != -1) { /* istanbul ignore next */
       full_url = local_backend;
     } else {
       full_url = "/api/";
