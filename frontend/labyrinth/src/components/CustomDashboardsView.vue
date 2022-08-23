@@ -1,10 +1,6 @@
 <template>
-  <div>
+  <b-container class="text-center">
     <h4>Custom Dashboard Views</h4>
-    <hr />
-    {{ selected_dashboard }}
-    <hr />
-    {{full_data}}
     <hr />
     <b-row>
       <b-col cols="2">
@@ -13,16 +9,46 @@
     </b-row>
     <hr />
 
-    <div class="main" :style="'background-image: url(' + generateBackgroundImage() + ');'">
-      <img :src="generateBackgroundImage()" style="visibility:hidden" />
+    <b-container>
+    <div
+      class="outer"
+      :style="'background-image: url(' + generateBackgroundImage() + ');'"
+    >
+      <img :src="generateBackgroundImage()" style="visibility: hidden;" />
+      <div v-for="(host, k) in computed_filtered_data" v-bind:key="k" :style="generateHostStyle(host)">
+          <Host
+            :ip="host.ip"
+            passed_class="main"
+            :icon="host.icon"
+            :services="host.services"
+            @hostClicked="() => (selected_host = host)"
+            :cpu="host.cpu_check"
+            :mem="host.mem_check"
+            :hd="host.hd_check"
+            :monitor="host.monitor"
+            @service="
+              (val) => {
+                selected_metric = val;
+                selected_metric['ip'] = host.ip;
+                $forceUpdate();
+              }
+            "
+            :host="host.host"
+          />
+      </div>
     </div>
-
-  </div>
+    </b-container>
+  </b-container>
 </template>
 <script>
 import Helper from "@/helper";
+import Host from "@/components/Host";
+
 export default {
   name: "CustomDashboardViews",
+  components: {
+    Host,
+  },
   data() {
     return {
       custom_dashboards: [],
@@ -34,14 +60,42 @@ export default {
   mounted: /* istanbul ignore next */ function () {
     try {
       this.loadCustomDashboards();
-      this.loadData()
+      this.loadData();
     } catch (e) {
       this.$store.commit("updateError", e);
     }
   },
+  computed: {
+    computed_filtered_data: function () {
+      if (this.selected_dashboard && this.selected_dashboard.components) {
+        var temp = {};
+        this.selected_dashboard.components.forEach((x) => {
+          temp[x.subnet + x.name] = 1;
+        });
+
+        return this.full_data.filter((x) => temp[x.subnet + x.ip] != undefined);
+      }
+      return [];
+    },
+  },
   methods: {
-    generateBackgroundImage: function(){
-      var url = '/api/custom_dashboard_images/' + this.$auth.accessToken + "/" + this.selected_dashboard.background_image 
+    generateHostStyle: function (host) {
+      // Generates the offsets from the given host data
+      var offsets = this.selected_dashboard.components.filter(
+        (x) => x.name == host.ip && x.subnet == host.subnet
+      );
+      if(offsets.length > 0){
+        console.log(offsets)
+        return "position:relative; height:0; left:" + offsets[0].x + "px; top:" + offsets[0].y + "px; transform: scale(" + offsets[0].scaleX + ", " + offsets[0].scaleY + ") rotate(" + offsets[0].rotation + "deg); float: left;"
+      }
+      return ""
+    },
+    generateBackgroundImage: function () {
+      var url =
+        "/api/custom_dashboard_images/" +
+        this.$auth.accessToken +
+        "/" +
+        this.selected_dashboard.background_image;
 
       return url;
     },
@@ -69,38 +123,20 @@ export default {
       }
       await Helper.apiCall("dashboard", url, auth)
         .then((res) => {
-          this.full_data = res.sort((a, b) => {
-            if (a.subnet > b.subnet) {
-              return 1;
-            }
-            if (a.subnet == b.subnet) {
-              return 0;
-            }
-            return -1;
-          });
-
-
-          for (var i = 0; i < this.full_data.length; i++) {
-            var temp = this.full_data[i];
-            if (temp.groups != undefined) {
-              temp.groups.sort((prev, next) => {
-                if (prev.name == "") {
-                  return 1;
+          var temp = [];
+          res.forEach((subnet) => {
+            if (subnet.groups != undefined) {
+              subnet.groups.forEach((subnet) => {
+                if (subnet.hosts != undefined) {
+                  subnet.hosts.forEach((host) => {
+                    temp.push(host);
+                  });
                 }
-                if (next.name == "") {
-                  return -1;
-                }
-
-                if (prev.starred) {
-                  return -1;
-                }
-                if (next.starred) {
-                  return 1;
-                }
-                return prev.name > next.name;
               });
             }
-          }
+          });
+          this.full_data = temp;
+
           setTimeout(() => {
             this.loadData(false);
           }, 2000);
@@ -117,7 +153,11 @@ export default {
 };
 </script>
 <style lang="scss" scoped>
-.main{
+.outer{
   background-repeat: no-repeat;
+  margin: auto;
+}
+.main{
+  background-color: white;
 }
 </style>
