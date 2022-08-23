@@ -64,7 +64,9 @@ beforeEach(() => {
             'v-layer',
             'v-stage',
             'b-form-checkbox',
-            'v-transformer'
+            'v-transformer',
+            'v-image',
+            'v-text'
         ]
     })
 })
@@ -101,7 +103,7 @@ describe('CustomDashboards', () => {
                     getStage: function(){
                         return {
                             findOne: function(item){
-
+                                return item
                             }
                         }
                     },
