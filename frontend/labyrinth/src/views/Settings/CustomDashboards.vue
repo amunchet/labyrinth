@@ -433,7 +433,7 @@ export default {
       }
       this.updateTransformer();
     },
-    updateTransformer:  function() {
+    updateTransformer: function () {
       // here we need to manually attach or detach Transformer node
       const transformerNode = this.$refs.transformer.getNode();
       const stage = transformerNode.getStage();
@@ -441,8 +441,8 @@ export default {
 
       const selectedNode = stage.findOne("." + selectedShapeName);
       // do nothing if selected node is already attached
-      if (selectedNode === transformerNode.node()) /* istanbul ignore next */ {
-        return;
+      if (selectedNode === transformerNode.node()) {
+        /* istanbul ignore next */ return;
       }
 
       if (selectedNode) {

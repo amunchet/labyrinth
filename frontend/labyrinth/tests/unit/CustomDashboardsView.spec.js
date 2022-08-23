@@ -66,57 +66,52 @@ afterEach(() => {
   wrapper.destroy();
 });
 
-describe('CustomDashboardsView.vue', () => {
-    test('is a Vue instance', () => {
-        expect(wrapper.isVueInstance).toBeTruthy()
-    })
+describe("CustomDashboardsView.vue", () => {
+  test("is a Vue instance", () => {
+    expect(wrapper.isVueInstance).toBeTruthy();
+  });
 
-    test("computed_filtered_data", async ()=>{
-        wrapper.vm.$data.selected_dashboard = {
-            components: [
-                {
-                    name: "test_name",
-                    subnet: "255.255.255"
-                },
-                {
-                    name: "second_name",
-                    subnet: "255.255.254"
-                }
-            ]
-        }
-        wrapper.vm.$data.full_data = [
-            {
-                subnet: "255.255.255",
-                ip: "test_name"
-            },
-            {
-                subnet: "255.255.254",
-                ip: "second_name"
-            },
-            {
-                subnet: "123.123.123",
-                ip: "NOTSEEN"
+  test("computed_filtered_data", async () => {
+    wrapper.vm.$data.selected_dashboard = {
+      components: [
+        {
+          name: "test_name",
+          subnet: "255.255.255",
+        },
+        {
+          name: "second_name",
+          subnet: "255.255.254",
+        },
+      ],
+    };
+    wrapper.vm.$data.full_data = [
+      {
+        subnet: "255.255.255",
+        ip: "test_name",
+      },
+      {
+        subnet: "255.255.254",
+        ip: "second_name",
+      },
+      {
+        subnet: "123.123.123",
+        ip: "NOTSEEN",
+      },
+    ];
 
-            }
-        ]
+    await wrapper.vm.$forceUpdate();
+    expect(wrapper.vm.computed_filtered_data).toStrictEqual([
+      {
+        ip: "test_name",
+        subnet: "255.255.255",
+      },
+      {
+        ip: "second_name",
+        subnet: "255.255.254",
+      },
+    ]);
+  });
 
-        await wrapper.vm.$forceUpdate()
-        expect(wrapper.vm.computed_filtered_data).toStrictEqual([
-            {
-                ip: "test_name",
-                subnet: "255.255.255"
-            },
-            {
-                ip: "second_name",
-                subnet: "255.255.254"
-            }
-        ])
-    })
-
-    test("generateHostStyle", ()=>{
-
-    })
-    test("generateBackgroundImage", ()=>{
-
-    })
-})
+  test("generateHostStyle", () => {});
+  test("generateBackgroundImage", () => {});
+});
