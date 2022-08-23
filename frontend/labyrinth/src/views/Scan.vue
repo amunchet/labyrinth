@@ -1,6 +1,5 @@
 <template>
   <b-container class="mt-4">
-
     <b-row>
       <b-col class="text-left">
         <b-button variant="success" @click="startScan()"
