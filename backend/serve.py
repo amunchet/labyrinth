@@ -1305,7 +1305,7 @@ def custom_dashboard_image_upload(override=""):
     """
     Custom Dashboard Image Upload
     """
-    if override == "":
+    if override == "": # pragma: no cover
         if "file" not in request.files:
             return "No file included", 407
         file = request.files["file"]
@@ -1318,7 +1318,7 @@ def custom_dashboard_image_upload(override=""):
 
     if override:
         filename = override
-    elif file:
+    elif file: # pragma: no cover
         filename = secure_filename(file.filename)
         file.save("/tmp/{}".format(filename))
 

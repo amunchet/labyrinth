@@ -68,7 +68,7 @@ def test_create_edit_custom_dashboard(setup):
 
     # Check that we edit on the same name, not create new
     temp = deepcopy(SAMPLE_DASHBOARD)
-    temp["hosts"][0]["display"] = "vertical"
+    temp["components"][0]["rotation"] = "vertical"
 
     a = unwrap(serve.create_edit_custom_dashboard)("TESTTEST", data=temp)
     assert a[1] == 200
@@ -76,7 +76,7 @@ def test_create_edit_custom_dashboard(setup):
     a = list(serve.mongo_client["labyrinth"]["dashboards"].find({"name": "TESTTEST"}))
     assert len(a) == 1
     print(a)
-    assert a[0]["hosts"][0]["display"] == "vertical"
+    assert a[0]["components"][0]["rotation"] == "vertical"
 
 
 def test_list_and_delete_custom_dashboards(setup):
@@ -84,7 +84,8 @@ def test_list_and_delete_custom_dashboards(setup):
     Lists all custom dashboards
     """
     a = unwrap(serve.list_custom_dashboards)()
-    assert a[1] == 404
+    assert a[1] == 200
+    assert [x for x in json.loads(a[0]) if "name" in x and x["name"] == "TESTTEST"] == []
 
     test_create_edit_custom_dashboard(setup)
 
@@ -108,8 +109,9 @@ def test_list_and_delete_custom_dashboards(setup):
     assert a[1] == 200
 
     a = unwrap(serve.list_custom_dashboards)()
-    assert a[1] == 404
 
+    assert a[1] == 200
+    assert [x for x in json.loads(a[0]) if "name" in x and x["name"] == "TESTTEST"] == []
 
 # Images
 def test_image_upload(setup):
@@ -122,12 +124,12 @@ def test_image_upload(setup):
     assert not os.path.exists("/src/uploads/images")
 
     a = unwrap(serve.custom_dashboard_image_upload)(
-        override="floorplan.jpg", filename="floorplan.jpg"
+        override="floorplan.jpg"
     )
     assert a[1] == 200
 
     a = unwrap(serve.custom_dashboard_image_upload)(
-        override="broken.jpg", filename="floorplan.jpg"
+        override="broken.jpg"
     )
     assert a[1] == 484
 
@@ -153,7 +155,7 @@ def test_images_list(setup):
     assert json.loads(a[0]) == []
 
     a = unwrap(serve.custom_dashboard_image_upload)(
-        override="floorplan.jpg", filename="floorplan.jpg"
+        override="floorplan.jpg"
     )
     assert a[1] == 200
 
