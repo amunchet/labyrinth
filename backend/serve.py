@@ -1269,16 +1269,18 @@ def custom_dashboard_list_images():
     """
     if os.path.exists("/src/uploads/images"):
         return json.dumps(os.listdir("/src/uploads/images"), default=str), 200
-    
-        
+
     return json.dumps([]), 200
+
 
 @app.route("/custom_dashboard_images/<override_token>/<filename>")
 def custom_dashboard_return_image(override_token, filename):
     """
     Returns a specific image file
     """
-    if os.path.exists("/src/uploads/images") and filename in os.listdir("/src/uploads/images"):
+    if os.path.exists("/src/uploads/images") and filename in os.listdir(
+        "/src/uploads/images"
+    ):
         return send_file(os.path.join("/src/uploads/images/", filename))
     return "Not found", 404
 
@@ -1305,7 +1307,7 @@ def custom_dashboard_image_upload(override=""):
     """
     Custom Dashboard Image Upload
     """
-    if override == "": # pragma: no cover
+    if override == "":  # pragma: no cover
         if "file" not in request.files:
             return "No file included", 407
         file = request.files["file"]
@@ -1318,7 +1320,7 @@ def custom_dashboard_image_upload(override=""):
 
     if override:
         filename = override
-    elif file: # pragma: no cover
+    elif file:  # pragma: no cover
         filename = secure_filename(file.filename)
         file.save("/tmp/{}".format(filename))
 

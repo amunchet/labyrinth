@@ -110,7 +110,7 @@ def test_list_and_delete_custom_dashboards(setup):
     a = unwrap(serve.list_custom_dashboards)()
 
     assert a[1] == 404
-    
+
 
 # Images
 def test_image_upload(setup):
@@ -122,14 +122,10 @@ def test_image_upload(setup):
 
     assert not os.path.exists("/src/uploads/images")
 
-    a = unwrap(serve.custom_dashboard_image_upload)(
-        override="floorplan.jpg"
-    )
+    a = unwrap(serve.custom_dashboard_image_upload)(override="floorplan.jpg")
     assert a[1] == 200
 
-    a = unwrap(serve.custom_dashboard_image_upload)(
-        override="broken.jpg"
-    )
+    a = unwrap(serve.custom_dashboard_image_upload)(override="broken.jpg")
     assert a[1] == 484
 
     assert os.path.exists("/src/uploads/images/floorplan.jpg")
@@ -153,9 +149,7 @@ def test_images_list(setup):
     assert a[1] == 200
     assert json.loads(a[0]) == []
 
-    a = unwrap(serve.custom_dashboard_image_upload)(
-        override="floorplan.jpg"
-    )
+    a = unwrap(serve.custom_dashboard_image_upload)(override="floorplan.jpg")
     assert a[1] == 200
 
     a = unwrap(serve.custom_dashboard_list_images)()

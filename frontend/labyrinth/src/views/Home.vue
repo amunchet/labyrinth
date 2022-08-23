@@ -16,12 +16,12 @@
 
 <script>
 // @ is an alias to /src
-import CustomDashboardsView from '@/components/CustomDashboardsView'
+import CustomDashboardsView from "@/components/CustomDashboardsView";
 
 export default {
   name: "Home",
   components: {
-    CustomDashboardsView
+    CustomDashboardsView,
   },
 };
 </script>
