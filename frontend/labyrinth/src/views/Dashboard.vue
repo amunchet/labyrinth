@@ -309,9 +309,9 @@ export default {
   created: function () {
     //window.addEventListener("resize", this.findTop);
   },
-  mounted: function () {
+  mounted: async function () {
     try {
-      this.loadData(1);
+      await this.loadData(1);
     } catch (e) {
       this.$store.commit("updateError", e);
     }

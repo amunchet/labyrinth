@@ -80,9 +80,9 @@ export default {
         });
     },
   },
-  mounted: /* istanbul ignore next */ function () {
+  mounted: /* istanbul ignore next */ async function () {
     try {
-      this.loadData();
+      await this.loadData();
     } catch (e) {
       this.$store.commit("updateError", e);
     }

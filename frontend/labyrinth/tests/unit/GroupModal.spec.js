@@ -46,6 +46,7 @@ beforeEach(() => {
       "font-awesome-icon",
       "b-modal",
       "b-button",
+      "b-form-checkbox",
       "b-select",
       "b-input",
       "b-row",
