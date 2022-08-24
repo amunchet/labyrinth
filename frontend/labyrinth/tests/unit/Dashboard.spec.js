@@ -64,12 +64,7 @@ describe("Dashboard.vue", () => {
     expect(wrapper.vm.findClass("")).toBe("outer");
     expect(wrapper.vm.findClass({ color: "blue" })).toBe("outer blue-bg");
   });
-  test("findTitleClass", () => {
-    expect(wrapper.vm.findTitleClass("")).toBe("text-right subnet");
-    expect(wrapper.vm.findTitleClass({ color: "blue" })).toBe(
-      "text-right subnet blue"
-    );
-  });
+  
   test("$refs", () => {});
 
   test("prepareOriginsLinks", () => {

@@ -168,6 +168,7 @@
             ></div>
             <div 
             v-if="theme && theme.text"
+            class='text-center'
             :style="'color: ' + theme.text.hex + ';'">Sample Text</div>
           </div>
         </b-col>
@@ -352,8 +353,10 @@ export default {
   cursor: pointer;
 }
 .preview {
+  margin-top: 1rem;
   min-height: 150px;
   min-width: 150px;
+  border-radius: 1rem;
 }
 .preview-connection {
   margin-top: 30px;

@@ -13,8 +13,16 @@
       </b-col>
     </b-row>
     <b-row>
-      <b-col>Color</b-col>
-      <b-col><b-select :options="colors" v-model="subnet.color" /></b-col>
+      <b-col>Theme</b-col>
+      <b-col
+        ><b-select
+          :options="
+            themes.map((x) => {
+              return { text: x.name, value: x.name };
+            })
+          "
+          v-model="subnet.color"
+      /></b-col>
     </b-row>
     <hr />
 
@@ -55,7 +63,7 @@
     <b-row>
       <b-col>Color</b-col>
       <b-col v-if="subnet.links"
-        ><b-select :options="colors" v-model="subnet.links.color"
+        ><b-select :options="themes.map(x=>x.name)" v-model="subnet.links.color"
       /></b-col>
     </b-row>
     <template #modal-footer="{ cancel }">
@@ -82,6 +90,7 @@ export default {
   props: ["inp_subnet"],
   data() {
     return {
+      themes: [],
       subnet: {
         subnet: "",
         origin: {
@@ -96,7 +105,6 @@ export default {
         },
       },
       icons: [],
-      colors: [],
       isNew: true,
     };
   },
@@ -109,6 +117,17 @@ export default {
     },
   },
   methods: {
+    loadThemes: /* istanbul ignore next */ function () {
+      var auth = this.$auth;
+      Helper.apiCall("themes", "", auth)
+        .then((res) => {
+          this.themes = res;
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
+    },
+
     listIcons: /* istanbul ignore next */ function () {
       var auth = this.$auth;
       Helper.apiCall("icons", "", auth)
@@ -193,9 +212,8 @@ export default {
   },
   mounted: function () {
     try {
-      this.colors = Helper.listColors();
-
       this.listIcons();
+      this.loadThemes()
     } catch (e) {
       this.$store.commit("updateError", e);
     }

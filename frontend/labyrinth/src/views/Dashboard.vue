@@ -65,7 +65,8 @@
           <font-awesome-icon icon="plus" size="1x" /> New Subnet
         </b-button>
         <div
-          :class="findClass(subnet)"
+          class="outer"
+          :style="findClass(subnet)"
           v-for="(subnet, i) in full_data"
           v-bind:key="i"
         >
@@ -91,7 +92,8 @@
                   selected_subnet = subnet;
                 }
               "
-              :class="findTitleClass(subnet)"
+              :style="findClass(subnet, 1)"
+              class="text-right subnet"
             >
               {{ subnet.subnet }}
             </h2>
@@ -187,6 +189,8 @@ export default {
       selected_group: "",
 
       originLinks: [],
+
+      themes: [],
     };
   },
   components: {
@@ -199,6 +203,16 @@ export default {
   },
   methods: {
     capitalize: Helper.capitalize,
+    loadThemes: /* istanbul ignore next */ function () {
+      var auth = this.$auth;
+      Helper.apiCall("themes", "", auth)
+        .then((res) => {
+          this.themes = res;
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
+    },
     onDrop: /* istanbul ignore next */ function (name) {
       var auth = this.$auth;
       Helper.apiCall(
@@ -267,20 +281,31 @@ export default {
           this.$store.commit("updateError", e);
         });
     },
-    findClass: function (subnet) {
-      if (subnet.color == undefined) {
-        return "outer";
+    findClass: function (subnet, isTitle) {
+      if (subnet.color == undefined || this.themes == []) {
+        return "";
       } else {
-        return "outer " + subnet.color + "-bg";
+        var found_theme = this.themes.find((x) => x.name == subnet.color);
+        if (!found_theme) {
+          return "";
+        }
+        try {
+          var retval =
+            "background-color: " +
+            found_theme.background.hex +
+            "; color: " +
+            found_theme.text.hex +
+            ";";
+          if (!isTitle) {
+            retval += "border: 1px solid " + found_theme.border.hex + ";";
+          }
+          return retval;
+        } catch (e) {
+          return "";
+        }
       }
     },
-    findTitleClass: function (subnet) {
-      if (subnet.color == undefined) {
-        return "text-right subnet";
-      } else {
-        return "text-right subnet " + subnet.color + "";
-      }
-    },
+
     prepareOriginsLinks: function (subnets) {
       var retval = [];
       const width = 20;
@@ -296,7 +321,7 @@ export default {
 
       subnets.forEach((x, idx) => {
         retval.push({
-          color: x.links.color != undefined ? x.links.color : "",
+          color:  "black",
           top_1: x.origin.ip,
           top_2: x.links.ip,
           left: idx * width,
@@ -311,6 +336,7 @@ export default {
   },
   mounted: async function () {
     try {
+      this.loadThemes();
       await this.loadData(1);
     } catch (e) {
       this.$store.commit("updateError", e);
