@@ -63,7 +63,9 @@
     <b-row>
       <b-col>Theme</b-col>
       <b-col v-if="subnet.links"
-        ><b-select :options="themes.map(x=>x.name)" v-model="subnet.links.color"
+        ><b-select
+          :options="themes.map((x) => x.name)"
+          v-model="subnet.links.color"
       /></b-col>
     </b-row>
     <template #modal-footer="{ cancel }">
@@ -213,7 +215,7 @@ export default {
   mounted: function () {
     try {
       this.listIcons();
-      this.loadThemes()
+      this.loadThemes();
     } catch (e) {
       this.$store.commit("updateError", e);
     }

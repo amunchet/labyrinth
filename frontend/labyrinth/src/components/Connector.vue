@@ -111,7 +111,7 @@ export default {
     };
   },
   created() {
-    this.set_color = this.color
+    this.set_color = this.color;
   },
 };
 </script>
