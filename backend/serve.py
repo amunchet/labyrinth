@@ -944,7 +944,17 @@ def list_themes():
                 mongo_client["labyrinth"]["themes"].insert_one(item)
 
     #  Return all of them
-    return json.dumps(sorted(list(mongo_client["labyrinth"]["themes"].find({})), key=lambda x: x["name"]), default=str), 200
+    return (
+        json.dumps(
+            sorted(
+                list(mongo_client["labyrinth"]["themes"].find({})),
+                key=lambda x: x["name"],
+            ),
+            default=str,
+        ),
+        200,
+    )
+
 
 @app.route("/themes/", methods=["POST"])
 @requires_auth_admin
