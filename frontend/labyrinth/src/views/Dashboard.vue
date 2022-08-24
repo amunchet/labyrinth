@@ -40,16 +40,7 @@
             "
           />
         </div>
-        <!--
-        <Connector
-          horizontal_width="100px"  # This is how long the horizontal component is
-          left  = "20px"      # Left offset (for more than 1 connector)
-          top_1 = "200px"     # One of the top points
-          top_2 = "150px"     # The other top point - can be greater or less
-          color = "orange"    # Whatever the color is 
-
-        />
-        -->
+        
       </div>
       <div class="outer_right">
         <b-button
@@ -293,11 +284,13 @@ export default {
           var retval =
             "background-color: " +
             found_theme.background.hex +
-            "; color: " +
-            found_theme.text.hex +
-            ";";
+            ";" 
           if (!isTitle) {
             retval += "border: 1px solid " + found_theme.border.hex + ";";
+          }else{
+            retval += "color: " +
+            found_theme.text.hex +
+            ";";
           }
           return retval;
         } catch (e) {
@@ -320,8 +313,18 @@ export default {
       );
 
       subnets.forEach((x, idx) => {
+        var found = this.themes.find(y=>x.links.color != undefined && y.name == x.links.color)
+        if(!found){
+          found = "white"
+        }else{
+          if(found.connection != undefined && found.connection.hex != undefined){
+            found = found.connection.hex
+          }else{
+            found = "white"
+          }
+        }
         retval.push({
-          color:  "black",
+          color:  found,
           top_1: x.origin.ip,
           top_2: x.links.ip,
           left: idx * width,
@@ -414,7 +417,6 @@ h2.subnet:hover {
 .outer {
   background-color: #efefed;
   min-height: 300px;
-  overflow: hidden;
   margin: auto;
   margin-left: 100px;
   margin-right: 1%;
@@ -436,8 +438,8 @@ h2.subnet:hover {
 }
 .corner {
   position: relative;
-  top: 0;
-  left: 0;
+  top: -1px;
+  left: -1px;
   border-radius: 0 0 3rem 0;
   min-width: 75px;
   background-color: #fafafe;

@@ -57,11 +57,11 @@
                 </b-avatar>
                 <b-avatar size="2rem" v-else></b-avatar>
               </template>
-              <b-dropdown-item href="settings" v-if="$auth.profile != null">
+              <b-dropdown-item class="mt-1" href="settings" v-if="$auth.profile != null">
                 <font-awesome-icon class="mr-2" icon="cog" size="1x" />Settings
               </b-dropdown-item>
               <b-dropdown-item disabled v-if="$auth.profile != null">
-                <hr />
+                <hr class="m-1 p-0" />
               </b-dropdown-item>
               <b-dropdown-item
                 href="#"

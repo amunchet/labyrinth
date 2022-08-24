@@ -88,7 +88,6 @@
   </div>
 </template>
 <script>
-import styles from "@/assets/variables.scss";
 export default {
   name: "Connector",
   props: ["color", "horizontal_width", "left", "top_1", "top_2"],
@@ -112,7 +111,7 @@ export default {
     };
   },
   created() {
-    this.set_color = styles[this.color];
+    this.set_color = this.color
   },
 };
 </script>

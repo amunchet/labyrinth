@@ -61,7 +61,7 @@
       </b-col>
     </b-row>
     <b-row>
-      <b-col>Color</b-col>
+      <b-col>Theme</b-col>
       <b-col v-if="subnet.links"
         ><b-select :options="themes.map(x=>x.name)" v-model="subnet.links.color"
       /></b-col>
