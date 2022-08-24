@@ -32,13 +32,13 @@
         <b-col class="text-right mt-2">
           <b-button variant="primary">+Add New Theme</b-button>
         </b-col>
-        </b-row>
+      </b-row>
       <hr />
-      <b-row class="text-left mb-2 " >
+      <b-row class="text-left mb-2">
         <b-col>Background Color</b-col>
         <b-col><b-input /></b-col>
-        </b-row>
-      <b-row class="text-left mb-2 " >
+      </b-row>
+      <b-row class="text-left mb-2">
         <b-col>Border Color</b-col>
         <b-col><b-input v-model="color.hex" />
         <color-picker v-model="color"/>
