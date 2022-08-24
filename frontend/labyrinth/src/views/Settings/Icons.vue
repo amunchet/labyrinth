@@ -17,11 +17,20 @@
             {{ item }}
           </div>
         </div>
-        <div class="box pt-4 bg-success cursor text-white"  @click="openUpload()">
+        <div
+          class="box pt-4 bg-success cursor text-white"
+          @click="openUpload()"
+        >
           <font-awesome-icon icon="file-upload" variant="sucess" size="2x" />
           <div class="mt-3 cursor">
-            <b>+ New Icon</b> 
-            <b-form-file ref="uploadFile" v-model="file" class="mt-3" plain style="display:none;">
+            <b>+ New Icon</b>
+            <b-form-file
+              ref="uploadFile"
+              v-model="file"
+              class="mt-3"
+              plain
+              style="display: none"
+            >
             </b-form-file>
           </div>
         </div>
@@ -262,22 +271,14 @@ export default {
       this.$forceUpdate();
     },
     file: /* istanbul ignore next */ function (val) {
-      if(val){
+      if (val) {
         var auth = this.$auth;
         var formData = new FormData();
         formData.append("file", val);
-        Helper.apiPost(
-          "icon",
-          "",
-          "",
-          auth,
-          formData,
-          true
-        )
+        Helper.apiPost("icon", "", "", auth, formData, true)
           .then(() => {
-
-            this.file = null
-            this.loadIcons()
+            this.file = null;
+            this.loadIcons();
           })
           .catch((e) => {
             if (("" + e).indexOf("521") != -1) {
@@ -294,7 +295,7 @@ export default {
   },
   methods: {
     openUpload: /* istanbul ignore next */ function () {
-      this.$refs.uploadFile.$el.click()
+      this.$refs.uploadFile.$el.click();
     },
     loadIcons: /* istanbul ignore next */ function () {
       var auth = this.$auth;
@@ -313,17 +314,18 @@ export default {
           if (!res) {
             return;
           }
-          var auth = this.$auth
-          Helper.apiDelete("icon", val, auth).then(()=>{
-            this.loadIcons()
-          }).catch(e=>{
-            this.$store.commit("updateError", e)
-          })
-
-        }).catch(e=>{
-          this.$store.commit("updateError", e)
+          var auth = this.$auth;
+          Helper.apiDelete("icon", val, auth)
+            .then(() => {
+              this.loadIcons();
+            })
+            .catch((e) => {
+              this.$store.commit("updateError", e);
+            });
         })
-
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
     },
 
     loadThemes: /* istanbul ignore next */ function () {

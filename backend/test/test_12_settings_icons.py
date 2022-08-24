@@ -98,6 +98,7 @@ def test_delete_icon(setup):
 
     assert not os.path.exists(temp_file)
 
+
 def test_create_edit_icon(setup):
     """
     Creates/Edits an icon

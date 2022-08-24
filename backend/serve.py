@@ -924,16 +924,14 @@ def upload_icon(override=""):  # pragma: no cover
     """
     Upload an icon
     """
-    if override == "": # pragma: no cover
+    if override == "":  # pragma: no cover
         file = request.files["file"]
-        filename = secure_filename(file.filename) 
+        filename = secure_filename(file.filename)
         file.save("/public/icons/{}".format(filename))
     else:
         shutil.move(override, "/public/icons/{}".format(override.split("/")[-1]))
-    
+
     return "Success", 200
-
-
 
 
 # Theme
