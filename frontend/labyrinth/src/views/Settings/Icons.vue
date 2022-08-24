@@ -353,7 +353,6 @@ export default {
   cursor: pointer;
 }
 .preview {
-  margin-top: 1rem;
   min-height: 150px;
   min-width: 150px;
   border-radius: 1rem;
