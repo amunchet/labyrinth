@@ -945,7 +945,7 @@ def list_themes():
 
 
     #  Return all of them
-    return json.dumps(list(mongo_client["labyrinth"]["themes"].find({})), default=str), 200
+    return json.dumps(sorted(list(mongo_client["labyrinth"]["themes"].find({})), key=lambda x: x["name"]), default=str), 200
 
 @app.route("/themes/", methods=["POST"])
 @requires_auth_admin
@@ -954,7 +954,7 @@ def create_edit_theme(data=""):
     Creates/edits a theme
     """
     if data == "":
-        data = request.form.get("data")
+        data = json.loads(request.form.get("data"))
 
     # Delete any with the same name
     if "name" not in data:

@@ -4,7 +4,7 @@
       <b-tabs card pills>
         <b-tab title="Visuals" lazy>
           <div class="main">
-            <Icons />
+            <Icons :time="set_time" @reload="()=>set_time = Date.now()" />
           </div>
         </b-tab>
         <b-tab title="Telegraf" lazy>
@@ -27,7 +27,11 @@ import Telegraf from "@/views/Settings/Telegraf";
 import CustomDashboards from "@/views/Settings/CustomDashboards";
 export default {
   name: "Settings",
-
+  data(){
+    return{
+      set_time: Date.now()
+    }
+  },
   components: {
     Icons,
     Telegraf,

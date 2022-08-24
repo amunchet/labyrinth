@@ -27,7 +27,18 @@
       <b-row class="text-left">
         <b-col>Color Theme Name: </b-col>
         <b-col>
-          <b-select v-if="!new_theme" v-model="theme.name" />
+          <b-select
+            :options="
+              themes.map((x) => {
+                return {
+                  text: x.name,
+                  value: x,
+                };
+              })
+            "
+            v-if="!new_theme"
+            v-model="selected_theme"
+          />
           <b-input v-else v-model="theme.name" />
         </b-col>
       </b-row>
@@ -40,18 +51,28 @@
             @click="() => (new_theme = true)"
             >+Add New Theme</b-button
           >
-          <b-button v-else variant="link" @click="() => (new_theme = false)"
+          <b-button
+            v-else
+            variant="link"
+            @click="
+              () => {
+                new_theme = false;
+                selected_theme = '';
+                loadThemes();
+              }
+            "
             >Cancel</b-button
           >
         </b-col>
       </b-row>
       <hr />
+      <div> 
       <b-row class="text-left mb-2">
         <b-col cols="4">Background Color</b-col>
         <b-col
-          ><b-input v-model="theme.background.hex" />
+          ><b-input v-if="theme && theme.background" v-model="theme.background.hex" />
           <color-picker
-            v-if="theme.show.background"
+            v-if="theme && theme.show && theme.show.background"
             class="mt-2 mb-2"
             v-model="theme.background"
           />
@@ -69,9 +90,9 @@
       <b-row class="text-left mb-2">
         <b-col cols="4">Border Color</b-col>
         <b-col
-          ><b-input v-model="theme.border.hex" />
+          ><b-input v-if="theme && theme.border" v-model="theme.border.hex" />
           <color-picker
-            v-if="theme.show.border"
+            v-if="theme && theme.show && theme.show.border"
             class="mt-2 mb-2"
             v-model="theme.border"
           />
@@ -88,9 +109,9 @@
       <b-row class="text-left mb-2">
         <b-col cols="4">Text Color</b-col>
         <b-col
-          ><b-input v-model="theme.text.hex" />
+          ><b-input v-if="theme && theme.text" v-model="theme.text.hex" />
           <color-picker
-            v-if="theme.show.text"
+            v-if="theme && theme.show && theme.show.text"
             class="mt-2 mb-2"
             v-model="theme.text"
           />
@@ -108,9 +129,9 @@
       <b-row class="text-left mb-2">
         <b-col cols="4">Connection Color</b-col>
         <b-col
-          ><b-input v-model="theme.connection.hex" />
+          ><b-input v-if="theme && theme.connection" v-model="theme.connection.hex" />
           <color-picker
-            v-if="theme.show.connection"
+            v-if="theme && theme.show && theme.show.connection"
             class="mt-2 mb-2"
             v-model="theme.connection"
           />
@@ -131,6 +152,7 @@
           >Preview: <br />
           <div
             class="preview"
+            v-if="theme && theme.background && theme.border"
             :style="
               'background-color: ' +
               theme.background.hex +
@@ -141,27 +163,35 @@
           >
             <div
               class="preview-connection"
+              v-if="theme && theme.connection"
               :style="'background-color: ' + theme.connection.hex + ';'"
             ></div>
-            <div :style="'color: ' + theme.text.hex + ';'">Sample Text</div>
+            <div 
+            v-if="theme && theme.text"
+            :style="'color: ' + theme.text.hex + ';'">Sample Text</div>
           </div>
         </b-col>
       </b-row>
       <hr />
       <b-row>
         <b-col class="text-left">
-          <b-button class="text-danger ml-0 mr-0 pl-0 pr-0" variant="link">
+          <b-button
+            class="text-danger ml-0 mr-0 pl-0 pr-0"
+            @click="deleteTheme()"
+            variant="link"
+          >
             <font-awesome-icon class="mr-2" icon="times" size="1x" />Delete
             Theme</b-button
           >
         </b-col>
         <b-col class="text-right">
-          <b-button variant="success">
+          <b-button variant="success" @click="saveTheme()">
             <font-awesome-icon icon="save" size="1x" />&nbsp; Save
             Theme</b-button
           >
         </b-col>
       </b-row>
+      </div>
     </b-col>
   </b-row>
 </template>
@@ -173,9 +203,14 @@ export default {
   components: {
     "color-picker": Chrome,
   },
+  props: ["time"],
   data() {
     return {
       icons: [],
+
+      themes: [],
+      selected_theme: "",
+
       color: "#ababad",
       default_backend: "",
 
@@ -203,7 +238,14 @@ export default {
       },
     };
   },
-
+  watch: {
+    selected_theme: function (val) {
+      if (val != ""){ 
+        this.theme = val
+      }
+      this.$forceUpdate();
+    },
+  },
   methods: {
     loadIcons: /* istanbul ignore next */ function () {
       var auth = this.$auth;
@@ -218,10 +260,66 @@ export default {
     deleteIcon: /* istanbul ignore next */ function () {
       alert("TODO: Delete icon");
     },
+
+    loadThemes: /* istanbul ignore next */ function () {
+      var auth = this.$auth;
+      Helper.apiCall("themes", "", auth)
+        .then((res) => {
+          this.themes = res;
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
+    },
+    saveTheme: /* istanbul ignore next */ function () {
+      var auth = this.$auth;
+      var formData = new FormData();
+      Object.keys(this.theme.show).forEach((x) => {
+        this.theme.show[x] = false;
+      });
+      if(this.theme["_id"] != undefined){
+        delete this.theme["_id"]
+      }
+
+      this.$forceUpdate();
+      formData.append("data", JSON.stringify(this.theme));
+      Helper.apiPost("themes", "", "", auth, formData)
+        .then((res) => {
+          this.$store.commit("updateError", res)
+          this.new_theme = false
+          this.loadThemes()
+          this.$emit("reload")
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
+    },
+    deleteTheme: /* istanbul ignore next */ function () {
+      var auth = this.$auth;
+      this.$bvModal
+        .msgBoxConfirm("Are you sure you want to delete this host?")
+        .then((res) => {
+          if (!res) {
+            return;
+          }
+          Helper.apiDelete("themes", this.selected_theme.name, auth)
+            .then((res) => {
+              this.$store.commit("updateError", res);
+              this.loadThemes();
+            })
+            .catch((e) => {
+              this.$store.commit("updateError", e);
+            });
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
+    },
   },
   mounted: function () {
     try {
       this.loadIcons();
+      this.loadThemes();
     } catch (e) {
       this.$store.commit("updateError", e);
     }
