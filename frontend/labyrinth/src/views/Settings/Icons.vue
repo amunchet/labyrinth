@@ -240,7 +240,7 @@ export default {
     };
   },
   watch: {
-    selected_theme: function (val) {
+    selected_theme: /* istanbul ignore next */ function (val) {
       if (val != ""){ 
         this.theme = val
       }

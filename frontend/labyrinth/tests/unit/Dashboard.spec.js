@@ -61,8 +61,34 @@ describe("Dashboard.vue", () => {
     expect(wrapper.isVueInstance).toBeTruthy();
   });
   test("findClass", () => {
-    expect(wrapper.vm.findClass("")).toBe("outer");
-    expect(wrapper.vm.findClass({ color: "blue" })).toBe("outer blue-bg");
+    expect(wrapper.vm.findClass("")).toBe("");
+
+    wrapper.vm.$data.themes = [
+      {
+        name: "TEST",
+      }
+    ]
+    expect(wrapper.vm.findClass({color: "TESTXXX"})).toBe(""); 
+    expect(wrapper.vm.findClass({color: "TEST"})).toBe(""); // No additional information
+
+    wrapper.vm.$data.themes = [
+      {
+        name: "TEST",
+        background: {
+          hex: "black"
+        },
+        border: {
+          hex: "red"
+        },
+        text: {
+          hex: "green"
+        }
+      }
+    ]
+    
+    expect(wrapper.vm.findClass({color: "TEST"})).toStrictEqual("background-color: black;border: 1px solid red;")
+    expect(wrapper.vm.findClass({color: "TEST"}, 1)).toStrictEqual("background-color: black;color: green;")
+
   });
   
   test("$refs", () => {});
@@ -115,6 +141,15 @@ describe("Dashboard.vue", () => {
       },
     ];
 
+    wrapper.vm.$data.themes = [
+      {
+        name: "orange",
+        connection: {
+          hex: "orange"
+        }
+      }
+    ]
+
     var expected = [
       {
         color: "orange",
@@ -123,13 +158,13 @@ describe("Dashboard.vue", () => {
         left: 0,
       },
       {
-        color: "red",
+        color: "white",
         top_1: "192.168.0.1",
         top_2: "192.168.1.1",
         left: 20,
       },
       {
-        color: "green",
+        color: "white",
         top_1: "192.168.2.1",
         top_2: "192.168.1.1",
         left: 40,
