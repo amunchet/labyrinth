@@ -9,7 +9,7 @@
               icon="times"
               size="1x"
               class="cursor float-right"
-              @click="deleteIcon()"
+              @click="deleteIcon(item)"
             />
           </div>
           <img :src="'/icons/' + item + '.svg'" :alt="item + ' icon'" />
@@ -17,8 +17,13 @@
             {{ item }}
           </div>
         </div>
-        <div class="box pt-4 bg-success cursor text-white">
-          <div class="mt-4 cursor">+ Upload New Icon (TODO)</div>
+        <div class="box pt-4 bg-success cursor text-white"  @click="openUpload()">
+          <font-awesome-icon icon="file-upload" variant="sucess" size="2x" />
+          <div class="mt-3 cursor">
+            <b>+ New Icon</b> 
+            <b-form-file ref="uploadFile" v-model="file" class="mt-3" plain style="display:none;">
+            </b-form-file>
+          </div>
         </div>
       </div>
     </b-col>
@@ -66,132 +71,141 @@
         </b-col>
       </b-row>
       <hr />
-      <div> 
-      <b-row class="text-left mb-2">
-        <b-col cols="4">Background Color</b-col>
-        <b-col
-          ><b-input v-if="theme && theme.background" v-model="theme.background.hex" />
-          <color-picker
-            v-if="theme && theme.show && theme.show.background"
-            class="mt-2 mb-2"
-            v-model="theme.background"
-          />
-        </b-col>
+      <div>
+        <b-row class="text-left mb-2">
+          <b-col cols="4">Background Color</b-col>
+          <b-col
+            ><b-input
+              v-if="theme && theme.background"
+              v-model="theme.background.hex"
+            />
+            <color-picker
+              v-if="theme && theme.show && theme.show.background"
+              class="mt-2 mb-2"
+              v-model="theme.background"
+            />
+          </b-col>
 
-        <b-col cols="2">
-          <b-button
-            variant="warning"
-            @click="theme.show.background = !theme.show.background"
-          >
-            <font-awesome-icon icon="palette" size="1x" />
-          </b-button>
-        </b-col>
-      </b-row>
-      <b-row class="text-left mb-2">
-        <b-col cols="4">Border Color</b-col>
-        <b-col
-          ><b-input v-if="theme && theme.border" v-model="theme.border.hex" />
-          <color-picker
-            v-if="theme && theme.show && theme.show.border"
-            class="mt-2 mb-2"
-            v-model="theme.border"
-          />
-        </b-col>
-        <b-col cols="2">
-          <b-button
-            variant="warning"
-            @click="theme.show.border = !theme.show.border"
-          >
-            <font-awesome-icon icon="palette" size="1x" />
-          </b-button>
-        </b-col>
-      </b-row>
-      <b-row class="text-left mb-2">
-        <b-col cols="4">Text Color</b-col>
-        <b-col
-          ><b-input v-if="theme && theme.text" v-model="theme.text.hex" />
-          <color-picker
-            v-if="theme && theme.show && theme.show.text"
-            class="mt-2 mb-2"
-            v-model="theme.text"
-          />
-        </b-col>
+          <b-col cols="2">
+            <b-button
+              variant="warning"
+              @click="theme.show.background = !theme.show.background"
+            >
+              <font-awesome-icon icon="palette" size="1x" />
+            </b-button>
+          </b-col>
+        </b-row>
+        <b-row class="text-left mb-2">
+          <b-col cols="4">Border Color</b-col>
+          <b-col
+            ><b-input v-if="theme && theme.border" v-model="theme.border.hex" />
+            <color-picker
+              v-if="theme && theme.show && theme.show.border"
+              class="mt-2 mb-2"
+              v-model="theme.border"
+            />
+          </b-col>
+          <b-col cols="2">
+            <b-button
+              variant="warning"
+              @click="theme.show.border = !theme.show.border"
+            >
+              <font-awesome-icon icon="palette" size="1x" />
+            </b-button>
+          </b-col>
+        </b-row>
+        <b-row class="text-left mb-2">
+          <b-col cols="4">Text Color</b-col>
+          <b-col
+            ><b-input v-if="theme && theme.text" v-model="theme.text.hex" />
+            <color-picker
+              v-if="theme && theme.show && theme.show.text"
+              class="mt-2 mb-2"
+              v-model="theme.text"
+            />
+          </b-col>
 
-        <b-col cols="2">
-          <b-button
-            variant="warning"
-            @click="theme.show.text = !theme.show.text"
-          >
-            <font-awesome-icon icon="palette" size="1x" />
-          </b-button>
-        </b-col>
-      </b-row>
-      <b-row class="text-left mb-2">
-        <b-col cols="4">Connection Color</b-col>
-        <b-col
-          ><b-input v-if="theme && theme.connection" v-model="theme.connection.hex" />
-          <color-picker
-            v-if="theme && theme.show && theme.show.connection"
-            class="mt-2 mb-2"
-            v-model="theme.connection"
-          />
-        </b-col>
-
-        <b-col cols="2">
-          <b-button
-            variant="warning"
-            @click="theme.show.connection = !theme.show.connection"
-          >
-            <font-awesome-icon icon="palette" size="1x" />
-          </b-button>
-        </b-col>
-      </b-row>
-      <hr />
-      <b-row class="text-left">
-        <b-col
-          >Preview: <br />
-          <div
-            class="preview"
-            v-if="theme && theme.background && theme.border"
-            :style="
-              'background-color: ' +
-              theme.background.hex +
-              '; border: 5px solid ' +
-              theme.border.hex +
-              ';'
-            "
-          >
-            <div
-              class="preview-connection"
+          <b-col cols="2">
+            <b-button
+              variant="warning"
+              @click="theme.show.text = !theme.show.text"
+            >
+              <font-awesome-icon icon="palette" size="1x" />
+            </b-button>
+          </b-col>
+        </b-row>
+        <b-row class="text-left mb-2">
+          <b-col cols="4">Connection Color</b-col>
+          <b-col
+            ><b-input
               v-if="theme && theme.connection"
-              :style="'background-color: ' + theme.connection.hex + ';'"
-            ></div>
-            <div 
-            v-if="theme && theme.text"
-            class='text-center'
-            :style="'color: ' + theme.text.hex + ';'">Sample Text</div>
-          </div>
-        </b-col>
-      </b-row>
-      <hr />
-      <b-row>
-        <b-col class="text-left">
-          <b-button
-            class="text-danger ml-0 mr-0 pl-0 pr-0"
-            @click="deleteTheme()"
-            variant="link"
-          >
-            <font-awesome-icon class="mr-2" icon="times" size="1x" />Delete
-            Theme</b-button
-          >
-        </b-col>
-        <b-col class="text-right">
-          <b-button variant="success" @click="saveTheme()">
-            <font-awesome-icon icon="save" size="1x" />&nbsp; Save
-            Theme</b-button
-          >
-        </b-col>
-      </b-row>
+              v-model="theme.connection.hex"
+            />
+            <color-picker
+              v-if="theme && theme.show && theme.show.connection"
+              class="mt-2 mb-2"
+              v-model="theme.connection"
+            />
+          </b-col>
+
+          <b-col cols="2">
+            <b-button
+              variant="warning"
+              @click="theme.show.connection = !theme.show.connection"
+            >
+              <font-awesome-icon icon="palette" size="1x" />
+            </b-button>
+          </b-col>
+        </b-row>
+        <hr />
+        <b-row class="text-left">
+          <b-col
+            >Preview: <br />
+            <div
+              class="preview"
+              v-if="theme && theme.background && theme.border"
+              :style="
+                'background-color: ' +
+                theme.background.hex +
+                '; border: 5px solid ' +
+                theme.border.hex +
+                ';'
+              "
+            >
+              <div
+                class="preview-connection"
+                v-if="theme && theme.connection"
+                :style="'background-color: ' + theme.connection.hex + ';'"
+              ></div>
+              <div
+                v-if="theme && theme.text"
+                class="text-center"
+                :style="'color: ' + theme.text.hex + ';'"
+              >
+                Sample Text
+              </div>
+            </div>
+          </b-col>
+        </b-row>
+        <hr />
+        <b-row>
+          <b-col class="text-left">
+            <b-button
+              class="text-danger ml-0 mr-0 pl-0 pr-0"
+              @click="deleteTheme()"
+              variant="link"
+            >
+              <font-awesome-icon class="mr-2" icon="times" size="1x" />Delete
+              Theme</b-button
+            >
+          </b-col>
+          <b-col class="text-right">
+            <b-button variant="success" @click="saveTheme()">
+              <font-awesome-icon icon="save" size="1x" />&nbsp; Save
+              Theme</b-button
+            >
+          </b-col>
+        </b-row>
       </div>
     </b-col>
   </b-row>
@@ -208,6 +222,7 @@ export default {
   data() {
     return {
       icons: [],
+      file: null,
 
       themes: [],
       selected_theme: "",
@@ -241,13 +256,46 @@ export default {
   },
   watch: {
     selected_theme: /* istanbul ignore next */ function (val) {
-      if (val != ""){ 
-        this.theme = val
+      if (val != "") {
+        this.theme = val;
       }
       this.$forceUpdate();
     },
+    file: /* istanbul ignore next */ function (val) {
+      if(val){
+        var auth = this.$auth;
+        var formData = new FormData();
+        formData.append("file", val);
+        Helper.apiPost(
+          "icon",
+          "",
+          "",
+          auth,
+          formData,
+          true
+        )
+          .then(() => {
+
+            this.file = null
+            this.loadIcons()
+          })
+          .catch((e) => {
+            if (("" + e).indexOf("521") != -1) {
+              this.$store.commit(
+                "updateError",
+                "Error: Invalid file type uploaded.  Make sure your file is the correct type (Encrypted Ansible, Telegraf Conf, etc.)"
+              );
+            } else {
+              this.$store.commit("updateError", e);
+            }
+          });
+      }
+    },
   },
   methods: {
+    openUpload: /* istanbul ignore next */ function () {
+      this.$refs.uploadFile.$el.click()
+    },
     loadIcons: /* istanbul ignore next */ function () {
       var auth = this.$auth;
       Helper.apiCall("icons", "", auth)
@@ -258,8 +306,24 @@ export default {
           this.$store.commit("updateError", e);
         });
     },
-    deleteIcon: /* istanbul ignore next */ function () {
-      alert("TODO: Delete icon");
+    deleteIcon: /* istanbul ignore next */ function (val) {
+      this.$bvModal
+        .msgBoxConfirm("Are you sure you want to delete this icon?")
+        .then((res) => {
+          if (!res) {
+            return;
+          }
+          var auth = this.$auth
+          Helper.apiDelete("icon", val, auth).then(()=>{
+            this.loadIcons()
+          }).catch(e=>{
+            this.$store.commit("updateError", e)
+          })
+
+        }).catch(e=>{
+          this.$store.commit("updateError", e)
+        })
+
     },
 
     loadThemes: /* istanbul ignore next */ function () {
@@ -278,18 +342,18 @@ export default {
       Object.keys(this.theme.show).forEach((x) => {
         this.theme.show[x] = false;
       });
-      if(this.theme["_id"] != undefined){
-        delete this.theme["_id"]
+      if (this.theme["_id"] != undefined) {
+        delete this.theme["_id"];
       }
 
       this.$forceUpdate();
       formData.append("data", JSON.stringify(this.theme));
       Helper.apiPost("themes", "", "", auth, formData)
         .then((res) => {
-          this.$store.commit("updateError", res)
-          this.new_theme = false
-          this.loadThemes()
-          this.$emit("reload")
+          this.$store.commit("updateError", res);
+          this.new_theme = false;
+          this.loadThemes();
+          this.$emit("reload");
         })
         .catch((e) => {
           this.$store.commit("updateError", e);
@@ -353,6 +417,7 @@ export default {
   cursor: pointer;
 }
 .preview {
+  margin-top: 1rem;
   min-height: 150px;
   min-width: 150px;
   border-radius: 1rem;
