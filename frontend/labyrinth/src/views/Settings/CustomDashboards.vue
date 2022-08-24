@@ -344,7 +344,7 @@ export default {
     };
   },
   computed: {
-    computed_image: function () {
+    computed_image: /* istanbul ignore next */ function () {
       var temp = this.drawing.background_image;
       if (this.drawing.background_image != "") {
         var image = new window.Image();
