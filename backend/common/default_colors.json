@@ -1,0 +1,197 @@
+[
+    {
+        "name": "Blue",
+        "show": {
+            "border": false,
+            "background": false,
+            "connection": false,
+            "text": false
+        },
+        "border": {
+            "hsl": {
+                "h": 0,
+                "s": 0,
+                "l": 1,
+                "a": 1
+            },
+            "hex": "#FFFFFF",
+            "hex8": "#FFFFFFFF",
+            "rgba": {
+                "r": 255,
+                "g": 255,
+                "b": 255,
+                "a": 1
+            },
+            "hsv": {
+                "h": 0,
+                "s": 0,
+                "v": 1,
+                "a": 1
+            },
+            "oldHue": 0,
+            "source": "rgba",
+            "a": 1
+        },
+        "background": {
+            "hsl": {
+                "h": 0,
+                "s": 0.7207261464337952,
+                "l": 0.42923739,
+                "a": 1
+            },
+            "hex": "#645ED1",
+            "hex8": "#BC1F1FFF",
+            "rgba": {
+                "r": 188,
+                "g": 31,
+                "b": 31,
+                "a": 1
+            },
+            "hsv": {
+                "h": 0,
+                "s": 0.8377000000000001,
+                "v": 0.7386,
+                "a": 1
+            },
+            "oldHue": 0,
+            "source": "hsva",
+            "a": 1
+        },
+        "connection": {
+            "hex": "#4B479E"
+        },
+        "text": {
+            "hex": "#efefed"
+        }
+    },
+    {
+        "name": "Green",
+        "show": {
+            "border": false,
+            "background": false,
+            "connection": false,
+            "text": false
+        },
+        "border": {
+            "hsl": {
+                "h": 0,
+                "s": 0,
+                "l": 1,
+                "a": 1
+            },
+            "hex": "#FFFFFF",
+            "hex8": "#FFFFFFFF",
+            "rgba": {
+                "r": 255,
+                "g": 255,
+                "b": 255,
+                "a": 1
+            },
+            "hsv": {
+                "h": 0,
+                "s": 0,
+                "v": 1,
+                "a": 1
+            },
+            "oldHue": 0,
+            "source": "rgba",
+            "a": 1
+        },
+        "background": {
+            "hsl": {
+                "h": 0,
+                "s": 0.7207261464337952,
+                "l": 0.42923739,
+                "a": 1
+            },
+            "hex": "#9DD192",
+            "hex8": "#BC1F1FFF",
+            "rgba": {
+                "r": 188,
+                "g": 31,
+                "b": 31,
+                "a": 1
+            },
+            "hsv": {
+                "h": 0,
+                "s": 0.8377000000000001,
+                "v": 0.7386,
+                "a": 1
+            },
+            "oldHue": 0,
+            "source": "hsva",
+            "a": 1
+        },
+        "connection": {
+            "hex": "#295221"
+        },
+        "text": {
+            "hex": "#000000"
+        }
+    },
+    {
+        "name": "Red",
+        "show": {
+            "border": false,
+            "background": false,
+            "connection": false,
+            "text": false
+        },
+        "border": {
+            "hsl": {
+                "h": 0,
+                "s": 0,
+                "l": 1,
+                "a": 1
+            },
+            "hex": "#FFFFFF",
+            "hex8": "#FFFFFFFF",
+            "rgba": {
+                "r": 255,
+                "g": 255,
+                "b": 255,
+                "a": 1
+            },
+            "hsv": {
+                "h": 0,
+                "s": 0,
+                "v": 1,
+                "a": 1
+            },
+            "oldHue": 0,
+            "source": "rgba",
+            "a": 1
+        },
+        "background": {
+            "hsl": {
+                "h": 0,
+                "s": 0.7207261464337952,
+                "l": 0.42923739,
+                "a": 1
+            },
+            "hex": "#85362E",
+            "hex8": "#BC1F1FFF",
+            "rgba": {
+                "r": 188,
+                "g": 31,
+                "b": 31,
+                "a": 1
+            },
+            "hsv": {
+                "h": 0,
+                "s": 0.8377000000000001,
+                "v": 0.7386,
+                "a": 1
+            },
+            "oldHue": 0,
+            "source": "hsva",
+            "a": 1
+        },
+        "connection": {
+            "hex": "#52211D"
+        },
+        "text": {
+            "hex": "#FFFFFF"
+        }
+    }
+]
