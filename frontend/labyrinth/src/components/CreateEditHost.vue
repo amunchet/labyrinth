@@ -348,7 +348,7 @@ export default {
           this.icons = res.map((x) => {
             return {
               text: x,
-              value: x.toLowerCase(),
+              value: x,
             };
           });
         })

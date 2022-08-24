@@ -19,7 +19,7 @@
       <div v-else-if="host != ''" class="title">{{ host }}</div>
       <div class="title" v-else>-</div>
       <div class="pt-1" style="height: 50px">
-        <img
+      <img
           v-if="
             icons.indexOf(icon.charAt(0).toUpperCase() + icon.slice(1)) != -1
           "
@@ -28,6 +28,7 @@
             myComponent[icon.charAt(0).toUpperCase() + icon.slice(1)]
           "
         />
+        <img v-else-if="icon" :src="'/icons/' + (failed_load ? 'Default' : icon)  + '.svg'" @error="failed_load = true" />
         <img v-else :src="'/icons/' + myComponent['Default']" />
       </div>
     </div>
@@ -163,6 +164,7 @@ export default {
         "Microsoft",
         "Wireless",
       ],
+      failed_load: false,
       drag_class: "",
       dragging_ip: "",
       components: {},
