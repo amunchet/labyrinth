@@ -23,7 +23,7 @@
       </div>
     </b-col>
     <b-col>
-      <h3>Colors/Themes</h3>
+      <h3>Color Themes</h3>
       <b-row class="text-left">
         <b-col>Color Theme Name: </b-col>
         <b-col>
