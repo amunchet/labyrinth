@@ -40,7 +40,6 @@
             "
           />
         </div>
-        
       </div>
       <div class="outer_right">
         <b-button
@@ -281,16 +280,11 @@ export default {
           return "";
         }
         try {
-          var retval =
-            "background-color: " +
-            found_theme.background.hex +
-            ";" 
+          var retval = "background-color: " + found_theme.background.hex + ";";
           if (!isTitle) {
             retval += "border: 1px solid " + found_theme.border.hex + ";";
-          }else{
-            retval += "color: " +
-            found_theme.text.hex +
-            ";";
+          } else {
+            retval += "color: " + found_theme.text.hex + ";";
           }
           return retval;
         } catch (e) {
@@ -313,18 +307,23 @@ export default {
       );
 
       subnets.forEach((x, idx) => {
-        var found = this.themes.find(y=>x.links.color != undefined && y.name == x.links.color)
-        if(!found){
-          found = "white"
-        }else{
-          if(found.connection != undefined && found.connection.hex != undefined){
-            found = found.connection.hex
-          }else{
-            found = "white"
+        var found = this.themes.find(
+          (y) => x.links.color != undefined && y.name == x.links.color
+        );
+        if (!found) {
+          found = "white";
+        } else {
+          if (
+            found.connection != undefined &&
+            found.connection.hex != undefined
+          ) {
+            found = found.connection.hex;
+          } else {
+            found = "white";
           }
         }
         retval.push({
-          color:  found,
+          color: found,
           top_1: x.origin.ip,
           top_2: x.links.ip,
           left: idx * width,
