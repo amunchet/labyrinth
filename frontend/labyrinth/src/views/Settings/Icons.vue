@@ -24,7 +24,40 @@
     </b-col>
     <b-col>
       <h3>Colors/Themes</h3>
-      TODO: Coming Soon
+      <b-row class="text-left">
+        <b-col>Color Theme Name: </b-col><b-col><b-select /></b-col>
+      </b-row>
+      <b-row>
+        <b-col></b-col>
+        <b-col class="text-right mt-2">
+          <b-button variant="primary">+Add New Theme</b-button>
+        </b-col>
+        </b-row>
+      <hr />
+      <b-row class="text-left mb-2 " >
+        <b-col>Background Color</b-col>
+        <b-col><b-input /></b-col>
+        </b-row>
+      <b-row class="text-left mb-2 " >
+        <b-col>Border Color</b-col>
+        <b-col><b-input /></b-col>
+        </b-row>
+      <b-row class="text-left mb-2 " >
+        <b-col>Connection Color</b-col>
+        <b-col><b-input /></b-col>
+        </b-row>
+        <hr />
+        <b-row>
+          <b-col class="text-left">
+            <b-button class="text-danger" variant="link">
+              <font-awesome-icon icon="times" size="1x" />&nbsp;Delete Theme</b-button>
+          </b-col>
+          <b-col class="text-right">
+            <b-button variant="success">
+            <font-awesome-icon icon="save" size="1x" />&nbsp;
+              Save Theme</b-button>
+            </b-col>
+        </b-row>
     </b-col>
   </b-row>
 </template>
