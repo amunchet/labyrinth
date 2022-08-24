@@ -25,6 +25,7 @@ def setup():
     tearDown()
     return "Done"
 
+
 def test_list_themes(setup):
     """
     Tests Listing themes
@@ -40,9 +41,9 @@ def test_list_themes(setup):
     assert "Blue" in c
     assert "Red" in c
 
-    
     x = list(serve.mongo_client["labyrinth"]["themes"].find({}))
     assert len(x) == 3
+
 
 def test_create_edit_theme(setup):
     """
@@ -50,24 +51,20 @@ def test_create_edit_theme(setup):
     """
 
     sample = {
-        "name" : "TEST",
-        "show" : {
-
-        },
-        "border": {
-
-        },
-        "background" : {},
-        "text" : {},
-        "connection" : {}
+        "name": "TEST",
+        "show": {},
+        "border": {},
+        "background": {},
+        "text": {},
+        "connection": {},
     }
 
-    a = unwrap(serve.create_edit_theme)({"asdfasdf" : "asdsfasd"})
+    a = unwrap(serve.create_edit_theme)({"asdfasdf": "asdsfasd"})
     assert a[1] == 485
 
     a = unwrap(serve.create_edit_theme)(sample)
     assert a[1] == 200
-    
+
     a = unwrap(serve.list_themes)()
     assert a[1] == 200
 
@@ -86,9 +83,3 @@ def test_create_edit_theme(setup):
     b = json.loads(a[0])
     c = [x["name"] for x in b]
     assert "TEST" not in c
-
-
-
-
-
-
