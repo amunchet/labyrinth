@@ -40,12 +40,20 @@
         </b-row>
       <b-row class="text-left mb-2 " >
         <b-col>Border Color</b-col>
-        <b-col><b-input /></b-col>
+        <b-col><b-input v-model="color.hex" />
+        <color-picker v-model="color"/>
+        
+        </b-col>
         </b-row>
       <b-row class="text-left mb-2 " >
         <b-col>Connection Color</b-col>
         <b-col><b-input /></b-col>
         </b-row>
+        <hr />
+        <b-row class="text-left">
+          <b-col>Preview: <br />
+          </b-col>
+          </b-row>
         <hr />
         <b-row>
           <b-col class="text-left">
@@ -63,11 +71,16 @@
 </template>
 <script>
 import Helper from "@/helper";
+import { Chrome }  from 'vue-color'
 export default {
   name: "SettingsIcons",
+  components: {
+    'color-picker' : Chrome
+  },
   data() {
     return {
       icons: [],
+      color: "#ababad",
       default_backend: "",
     };
   },
