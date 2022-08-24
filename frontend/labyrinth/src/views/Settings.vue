@@ -2,7 +2,7 @@
   <b-container class="mt-4">
     <b-card no-body>
       <b-tabs card pills>
-        <b-tab title="Icons" lazy>
+        <b-tab title="Visuals" lazy>
           <div class="main">
             <Icons />
           </div>

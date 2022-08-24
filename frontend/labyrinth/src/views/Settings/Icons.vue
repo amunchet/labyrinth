@@ -25,63 +25,182 @@
     <b-col>
       <h3>Colors/Themes</h3>
       <b-row class="text-left">
-        <b-col>Color Theme Name: </b-col><b-col><b-select /></b-col>
+        <b-col>Color Theme Name: </b-col>
+        <b-col>
+          <b-select v-if="!new_theme" v-model="theme.name" />
+          <b-input v-else v-model="theme.name" />
+        </b-col>
       </b-row>
       <b-row>
         <b-col></b-col>
         <b-col class="text-right mt-2">
-          <b-button variant="primary">+Add New Theme</b-button>
+          <b-button
+            variant="primary"
+            v-if="!new_theme"
+            @click="() => (new_theme = true)"
+            >+Add New Theme</b-button
+          >
+          <b-button v-else variant="link" @click="() => (new_theme = false)"
+            >Cancel</b-button
+          >
         </b-col>
       </b-row>
       <hr />
       <b-row class="text-left mb-2">
-        <b-col>Background Color</b-col>
-        <b-col><b-input /></b-col>
+        <b-col cols="4">Background Color</b-col>
+        <b-col
+          ><b-input v-model="theme.background.hex" />
+          <color-picker
+            v-if="theme.show.background"
+            class="mt-2 mb-2"
+            v-model="theme.background"
+          />
+        </b-col>
+
+        <b-col cols="2">
+          <b-button
+            variant="warning"
+            @click="theme.show.background = !theme.show.background"
+          >
+            <font-awesome-icon icon="palette" size="1x" />
+          </b-button>
+        </b-col>
       </b-row>
       <b-row class="text-left mb-2">
-        <b-col>Border Color</b-col>
-        <b-col><b-input v-model="color.hex" />
-        <color-picker v-model="color"/>
-        
+        <b-col cols="4">Border Color</b-col>
+        <b-col
+          ><b-input v-model="theme.border.hex" />
+          <color-picker
+            v-if="theme.show.border"
+            class="mt-2 mb-2"
+            v-model="theme.border"
+          />
         </b-col>
-        </b-row>
-      <b-row class="text-left mb-2 " >
-        <b-col>Connection Color</b-col>
-        <b-col><b-input /></b-col>
-        </b-row>
-        <hr />
-        <b-row class="text-left">
-          <b-col>Preview: <br />
-          </b-col>
-          </b-row>
-        <hr />
-        <b-row>
-          <b-col class="text-left">
-            <b-button class="text-danger" variant="link">
-              <font-awesome-icon icon="times" size="1x" />&nbsp;Delete Theme</b-button>
-          </b-col>
-          <b-col class="text-right">
-            <b-button variant="success">
-            <font-awesome-icon icon="save" size="1x" />&nbsp;
-              Save Theme</b-button>
-            </b-col>
-        </b-row>
+        <b-col cols="2">
+          <b-button
+            variant="warning"
+            @click="theme.show.border = !theme.show.border"
+          >
+            <font-awesome-icon icon="palette" size="1x" />
+          </b-button>
+        </b-col>
+      </b-row>
+      <b-row class="text-left mb-2">
+        <b-col cols="4">Text Color</b-col>
+        <b-col
+          ><b-input v-model="theme.text.hex" />
+          <color-picker
+            v-if="theme.show.text"
+            class="mt-2 mb-2"
+            v-model="theme.text"
+          />
+        </b-col>
+
+        <b-col cols="2">
+          <b-button
+            variant="warning"
+            @click="theme.show.text = !theme.show.text"
+          >
+            <font-awesome-icon icon="palette" size="1x" />
+          </b-button>
+        </b-col>
+      </b-row>
+      <b-row class="text-left mb-2">
+        <b-col cols="4">Connection Color</b-col>
+        <b-col
+          ><b-input v-model="theme.connection.hex" />
+          <color-picker
+            v-if="theme.show.connection"
+            class="mt-2 mb-2"
+            v-model="theme.connection"
+          />
+        </b-col>
+
+        <b-col cols="2">
+          <b-button
+            variant="warning"
+            @click="theme.show.connection = !theme.show.connection"
+          >
+            <font-awesome-icon icon="palette" size="1x" />
+          </b-button>
+        </b-col>
+      </b-row>
+      <hr />
+      <b-row class="text-left">
+        <b-col
+          >Preview: <br />
+          <div
+            class="preview"
+            :style="
+              'background-color: ' +
+              theme.background.hex +
+              '; border: 5px solid ' +
+              theme.border.hex +
+              ';'
+            "
+          >
+            <div
+              class="preview-connection"
+              :style="'background-color: ' + theme.connection.hex + ';'"
+            ></div>
+            <div :style="'color: ' + theme.text.hex + ';'">Sample Text</div>
+          </div>
+        </b-col>
+      </b-row>
+      <hr />
+      <b-row>
+        <b-col class="text-left">
+          <b-button class="text-danger ml-0 mr-0 pl-0 pr-0" variant="link">
+            <font-awesome-icon class="mr-2" icon="times" size="1x" />Delete
+            Theme</b-button
+          >
+        </b-col>
+        <b-col class="text-right">
+          <b-button variant="success">
+            <font-awesome-icon icon="save" size="1x" />&nbsp; Save
+            Theme</b-button
+          >
+        </b-col>
+      </b-row>
     </b-col>
   </b-row>
 </template>
 <script>
 import Helper from "@/helper";
-import { Chrome }  from 'vue-color'
+import { Chrome } from "vue-color";
 export default {
   name: "SettingsIcons",
   components: {
-    'color-picker' : Chrome
+    "color-picker": Chrome,
   },
   data() {
     return {
       icons: [],
       color: "#ababad",
       default_backend: "",
+
+      new_theme: false,
+      theme: {
+        name: "",
+        show: {
+          border: false,
+          background: false,
+          connection: false,
+          text: false,
+        },
+        border: {
+          hex: "",
+        },
+        background: {
+          hex: "",
+        },
+        connection: {
+          hex: "",
+        },
+        text: {
+          hex: "",
+        },
+      },
     };
   },
 
@@ -133,5 +252,15 @@ export default {
 }
 .cursor {
   cursor: pointer;
+}
+.preview {
+  min-height: 150px;
+  min-width: 150px;
+}
+.preview-connection {
+  margin-top: 30px;
+  margin-bottom: 30px;
+  height: 10px;
+  width: 50%;
 }
 </style>
