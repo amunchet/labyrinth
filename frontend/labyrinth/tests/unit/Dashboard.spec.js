@@ -66,31 +66,34 @@ describe("Dashboard.vue", () => {
     wrapper.vm.$data.themes = [
       {
         name: "TEST",
-      }
-    ]
-    expect(wrapper.vm.findClass({color: "TESTXXX"})).toBe(""); 
-    expect(wrapper.vm.findClass({color: "TEST"})).toBe(""); // No additional information
+      },
+    ];
+    expect(wrapper.vm.findClass({ color: "TESTXXX" })).toBe("");
+    expect(wrapper.vm.findClass({ color: "TEST" })).toBe(""); // No additional information
 
     wrapper.vm.$data.themes = [
       {
         name: "TEST",
         background: {
-          hex: "black"
+          hex: "black",
         },
         border: {
-          hex: "red"
+          hex: "red",
         },
         text: {
-          hex: "green"
-        }
-      }
-    ]
-    
-    expect(wrapper.vm.findClass({color: "TEST"})).toStrictEqual("background-color: black;border: 1px solid red;")
-    expect(wrapper.vm.findClass({color: "TEST"}, 1)).toStrictEqual("background-color: black;color: green;")
+          hex: "green",
+        },
+      },
+    ];
 
+    expect(wrapper.vm.findClass({ color: "TEST" })).toStrictEqual(
+      "background-color: black;border: 1px solid red;"
+    );
+    expect(wrapper.vm.findClass({ color: "TEST" }, 1)).toStrictEqual(
+      "background-color: black;color: green;"
+    );
   });
-  
+
   test("$refs", () => {});
 
   test("prepareOriginsLinks", () => {
@@ -145,10 +148,10 @@ describe("Dashboard.vue", () => {
       {
         name: "orange",
         connection: {
-          hex: "orange"
-        }
-      }
-    ]
+          hex: "orange",
+        },
+      },
+    ];
 
     var expected = [
       {
