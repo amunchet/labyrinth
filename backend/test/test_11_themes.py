@@ -61,12 +61,16 @@ def test_create_edit_theme(setup):
         "text" : {},
         "connection" : {}
     }
+
+    a = unwrap(serve.create_edit_theme)({"asdfasdf" : "asdsfasd"})
+    assert a[1] == 485
+
     a = unwrap(serve.create_edit_theme)(sample)
     assert a[1] == 200
     
     a = unwrap(serve.list_themes)()
-
     assert a[1] == 200
+
     b = json.loads(a[0])
     c = [x["name"] for x in b]
     assert "TEST" in c
@@ -75,6 +79,9 @@ def test_create_edit_theme(setup):
 
     a = unwrap(serve.delete_theme)("TEST")
 
+    assert a[1] == 200
+
+    a = unwrap(serve.list_themes)()
     assert a[1] == 200
     b = json.loads(a[0])
     c = [x["name"] for x in b]
