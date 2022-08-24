@@ -929,7 +929,7 @@ def upload_icon(override=""):  # pragma: no cover
         filename = secure_filename(file.filename) 
         file.save("/public/icons/{}".format(filename))
     else:
-        shutil.move(filename, "/public/icons/{}".format(filename.split("/")[-1]))
+        shutil.move(override, "/public/icons/{}".format(override.split("/")[-1]))
     
     return "Success", 200
 

@@ -116,5 +116,7 @@ def test_create_edit_icon(setup):
     a = unwrap(serve.upload_icon)(override=temp_file)
     assert a[1] == 200
 
+    a = unwrap(serve.list_icons)()
+    assert a[1] == 200
     b = json.loads(a[0])
     assert "test" in b
