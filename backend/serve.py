@@ -925,6 +925,7 @@ def create_icon():  # pragma: no cover
     Creates an icon
     """
 
+
 # Theme
 @app.route("/themes/")
 @requires_auth_read
@@ -941,11 +942,13 @@ def list_themes():
             defaults = json.load(f)
             for item in defaults:
                 mongo_client["labyrinth"]["themes"].insert_one(item)
-            
-
 
     #  Return all of them
-    return json.dumps(list(mongo_client["labyrinth"]["themes"].find({})), default=str), 200
+    return (
+        json.dumps(list(mongo_client["labyrinth"]["themes"].find({})), default=str),
+        200,
+    )
+
 
 @app.route("/themes/", methods=["POST"])
 @requires_auth_admin
@@ -960,10 +963,11 @@ def create_edit_theme(data=""):
     if "name" not in data:
         return "Invalid data", 485
 
-    mongo_client["labyrinth"]["themes"].delete_one({"name" : data["name"]})
+    mongo_client["labyrinth"]["themes"].delete_one({"name": data["name"]})
 
     mongo_client["labyrinth"]["themes"].insert_one(data)
     return "Success", 200
+
 
 @app.route("/themes/<theme_name>", methods=["DELETE"])
 @requires_auth_admin
@@ -971,8 +975,9 @@ def delete_theme(theme_name):
     """
     Deletes a theme
     """
-    mongo_client["labyrinth"]["themes"].delete_one({"name" : theme_name})
+    mongo_client["labyrinth"]["themes"].delete_one({"name": theme_name})
     return "Success", 200
+
 
 # Utilities
 
