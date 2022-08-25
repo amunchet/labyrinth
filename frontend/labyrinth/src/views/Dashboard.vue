@@ -238,7 +238,7 @@ export default {
     processGroupChart: function (group) {
       // Generates the datastructure for the doughnut chart for the group
       var output = {};
-      output.labels = ["Green", "Orange", "Red"];
+      output.labels = ["OK", "Warning", "Critical"];
 
       var total_green = 0;
       var total_orange = 0;
