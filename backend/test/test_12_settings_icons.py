@@ -19,6 +19,9 @@ def teardown():
     Removes all stored settings
     """
     serve.mongo_client["labyrinth"]["settings"].delete_many({})
+    temp_file = "/public/icons/test.svg"
+    if os.path.exists(temp_file):
+        os.remove(temp_file)
 
 
 @pytest.fixture
@@ -94,3 +97,27 @@ def test_delete_icon(setup):
     assert a[1] == 200
 
     assert not os.path.exists(temp_file)
+
+
+def test_create_edit_icon(setup):
+    """
+    Creates/Edits an icon
+    """
+    temp_file = "/tmp/test.svg"
+    if not os.path.exists(temp_file):
+        with open(temp_file, "w") as f:
+            f.write("test")
+
+    a = unwrap(serve.list_icons)()
+    assert a[1] == 200
+
+    b = json.loads(a[0])
+    assert "test" not in b
+
+    a = unwrap(serve.upload_icon)(override=temp_file)
+    assert a[1] == 200
+
+    a = unwrap(serve.list_icons)()
+    assert a[1] == 200
+    b = json.loads(a[0])
+    assert "test" in b

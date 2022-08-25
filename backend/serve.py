@@ -918,12 +918,20 @@ def delete_icon(name):
     return "Success", 200
 
 
-@app.route("/icon/<name>", methods=["POST"])
+@app.route("/icon/", methods=["POST"])
 @requires_auth_admin
-def create_icon():  # pragma: no cover
+def upload_icon(override=""):  # pragma: no cover
     """
-    Creates an icon
+    Upload an icon
     """
+    if override == "":  # pragma: no cover
+        file = request.files["file"]
+        filename = secure_filename(file.filename)
+        file.save("/public/icons/{}".format(filename))
+    else:
+        shutil.move(override, "/public/icons/{}".format(override.split("/")[-1]))
+
+    return "Success", 200
 
 
 # Theme

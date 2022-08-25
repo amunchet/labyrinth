@@ -9,7 +9,7 @@
               icon="times"
               size="1x"
               class="cursor float-right"
-              @click="deleteIcon()"
+              @click="deleteIcon(item)"
             />
           </div>
           <img :src="'/icons/' + item + '.svg'" :alt="item + ' icon'" />
@@ -17,8 +17,22 @@
             {{ item }}
           </div>
         </div>
-        <div class="box pt-4 bg-success cursor text-white">
-          <div class="mt-4 cursor">+ Upload New Icon (TODO)</div>
+        <div
+          class="box pt-4 bg-success cursor text-white"
+          @click="openUpload()"
+        >
+          <font-awesome-icon icon="file-upload" variant="sucess" size="2x" />
+          <div class="mt-3 cursor">
+            <b>+ New Icon</b>
+            <b-form-file
+              ref="uploadFile"
+              v-model="file"
+              class="mt-3"
+              plain
+              style="display: none"
+            >
+            </b-form-file>
+          </div>
         </div>
       </div>
     </b-col>
@@ -217,6 +231,7 @@ export default {
   data() {
     return {
       icons: [],
+      file: null,
 
       themes: [],
       selected_theme: "",
@@ -255,8 +270,33 @@ export default {
       }
       this.$forceUpdate();
     },
+    file: /* istanbul ignore next */ function (val) {
+      if (val) {
+        var auth = this.$auth;
+        var formData = new FormData();
+        formData.append("file", val);
+        Helper.apiPost("icon", "", "", auth, formData, true)
+          .then(() => {
+            this.file = null;
+            this.loadIcons();
+          })
+          .catch((e) => {
+            if (("" + e).indexOf("521") != -1) {
+              this.$store.commit(
+                "updateError",
+                "Error: Invalid file type uploaded.  Make sure your file is the correct type (Encrypted Ansible, Telegraf Conf, etc.)"
+              );
+            } else {
+              this.$store.commit("updateError", e);
+            }
+          });
+      }
+    },
   },
   methods: {
+    openUpload: /* istanbul ignore next */ function () {
+      this.$refs.uploadFile.$el.click();
+    },
     loadIcons: /* istanbul ignore next */ function () {
       var auth = this.$auth;
       Helper.apiCall("icons", "", auth)
@@ -267,8 +307,25 @@ export default {
           this.$store.commit("updateError", e);
         });
     },
-    deleteIcon: /* istanbul ignore next */ function () {
-      alert("TODO: Delete icon");
+    deleteIcon: /* istanbul ignore next */ function (val) {
+      this.$bvModal
+        .msgBoxConfirm("Are you sure you want to delete this icon?")
+        .then((res) => {
+          if (!res) {
+            return;
+          }
+          var auth = this.$auth;
+          Helper.apiDelete("icon", val, auth)
+            .then(() => {
+              this.loadIcons();
+            })
+            .catch((e) => {
+              this.$store.commit("updateError", e);
+            });
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
     },
 
     loadThemes: /* istanbul ignore next */ function () {
@@ -362,6 +419,7 @@ export default {
   cursor: pointer;
 }
 .preview {
+  margin-top: 1rem;
   min-height: 150px;
   min-width: 150px;
   border-radius: 1rem;
