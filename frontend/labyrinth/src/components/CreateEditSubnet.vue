@@ -24,6 +24,27 @@
           v-model="subnet.color"
       /></b-col>
     </b-row>
+    <b-row>
+      <b-col>Show Only Monitored?</b-col>
+      <b-col>
+        <b-form-checkbox size="lg" name="show-monitored" switch v-model="subnet.monitored"/>
+      </b-col>
+    </b-row>
+    <b-row>
+      <b-col>Minimize Subnet?</b-col>
+      <b-col>
+        <b-form-checkbox size="lg" name="minimized" switch v-model="subnet.minimized" />
+      </b-col>
+    </b-row>
+    <b-row>
+      <b-col> Display Mode </b-col>
+      <b-col>
+        <b-select v-model="subnet.display">
+          <option value="">All Hosts (default)</option>
+          <option value="summary">Summary View</option>
+        </b-select>
+      </b-col>
+    </b-row>
     <hr />
 
     <h6>Origin</h6>

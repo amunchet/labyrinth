@@ -74,7 +74,8 @@
               {{ subnet.origin.ip }}
             </div>
           </div>
-          <div class="right">
+          <div class="right"
+          >
             <h2
               @click="
                 () => {
@@ -87,7 +88,7 @@
             >
               {{ subnet.subnet }}
             </h2>
-            <div class="flexed" v-if="subnet.groups != undefined">
+            <div class="flexed" v-if="subnet.groups != undefined && !subnet.minimized">
               <div
                 class="grouped"
                 v-for="(group, j) in subnet.groups"
@@ -121,14 +122,50 @@
                     "
                   />
                 </div>
-                <div class="chart">
+                <div class="chart" v-if="subnet.display == 'summary'">
                   <DoughnutChart
                     :chart-data="group.chart"
                     :options="chartOptions"
                   />
                 </div>
+                <div
+                  v-if="
+                    subnet.display == 'summary' &&
+                    group.chart != undefined &&
+                    group.chart.datasets != undefined &&
+                    group.chart.datasets &&
+                    group.chart.datasets[0].data != undefined &&
+                    group.chart.datasets[0].data.length == 3
+                  "
+                >
+                  <b-table
+                    :fields="[
+                    {
+                      'key': 'OK',
+                      'thStyle' : { width: '33%'}
 
-                <div class="flexed">
+                    }, {
+                      'key' : 'Warning',
+                      'thStyle' : { width: '33%'}
+                    },
+                      , 'Critical']"
+                    bordered
+                    striped
+                    :items="[group.chart.datasets[0].data]"
+                  >
+                    <template v-slot:cell(OK)="row">
+                      {{ row.item[0] }}
+                    </template>
+                    <template v-slot:cell(Warning)="row">
+                      {{ row.item[1] }}
+                    </template>
+                    <template v-slot:cell(Critical)="row">
+                      {{ row.item[2] }}
+                    </template>
+                  </b-table>
+                </div>
+
+                <div class="flexed" v-if="subnet.display != 'summary'">
                   <Host
                     v-for="(host, k) in group.hosts"
                     v-bind:key="k"
@@ -197,6 +234,8 @@ export default {
         legend: {
           display: false,
         },
+        tooltips: {enabled: false},
+        hover: {mode: null},
       },
     };
   },
@@ -469,7 +508,7 @@ h2.subnet:hover {
 
 .outer {
   background-color: #efefed;
-  min-height: 300px;
+  min-height: 150px;
   margin: auto;
   margin-left: 100px;
   margin-right: 1%;
@@ -481,7 +520,6 @@ h2.subnet:hover {
   width: 5%;
   min-width: 140px;
   float: left;
-  min-height: 300px;
 }
 .right {
   overflow: hidden;
