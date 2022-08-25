@@ -1185,7 +1185,7 @@ def dashboard(val="", report=False):
         """
         try:
             val = ord(x[0].lower())
-            if val < 100000:
+            if val < 10000:
                 val = val + 200000
             return val
         except IndexError:
