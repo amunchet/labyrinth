@@ -71,30 +71,56 @@
         <iframe :src="frame_url" />
       </b-tab>
       <b-tab title="AlertManager Configuration File" class="text-left">
-        <i>alertmanager.yml</i>
-        <b-button @click="load()" class="mb-2 float-right" variant="primary">
+
+        <div class="overflow-hidden">
+        <div class="float-left"><i>alertmanager.yml</i></div>
+        <b-button @click="load()" class="float-right" variant="primary">
           Load AlertManager Configuration
         </b-button>
-        <b-textarea v-if="file" class="shadow-none" v-model="file" />
+          </div>
+        <!--<b-textarea v-if="file" class="shadow-none" v-model="file" />-->
+        <div class="mt-2"
+          v-if="file" 
+        >
+        <codemirror
+          bordered
+          class="border"
+          ref="code_mirror_file"
+          v-model="file"
+          :options="{
+            'tabSize' : 4,
+            'mode' : 'text/x-yaml',
+            'theme' : 'default',
+            'lineNumbers' : true,
+            'line' : true,
+          }"
+          @ready="() => {}"
+          @focus="() => {}"
+          @input="() => {}"
+        >
+        </codemirror>
+        </div>
+
+
+
         <b-spinner class="m-2 float-right" v-if="loading" />
-        <div v-else-if="file">
+        <div v-else-if="file" class="overflow-hidden">
           <b-button @click="save()" variant="success" class="mt-2 float-right">
             <font-awesome-icon icon="save" size="1x" />
           </b-button>
         </div>
-        <br /><br />
         <hr />
         <h5>Example alertmanager.yml file</h5>
-        <b-textarea v-model="sample_alertmanager" disabled />
         <codemirror
           ref="code_mirror"
           style="background-color: #e9ecef;"
+          class="border mt-2"
           disabled
           :value="sample_alertmanager"
           :options="{
             'tabSize' : 4,
             'mode' : 'text/x-yaml',
-            'theme' : 'base16-dark',
+            'theme' : 'base16-light',
             'lineNumbers' : true,
             'line' : true,
             'readOnly' : true
@@ -262,6 +288,8 @@ export default {
 };
 </script>
 <style lang="scss" scoped>
+::v-deep .cm-editor.cm-focused { outline: 2px solid cyan }
+::v-deep .cm-editor .cm-content { font-family: "Consolas" }
 iframe {
   width: 100%;
   min-height: 500px;

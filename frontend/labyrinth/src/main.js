@@ -42,6 +42,7 @@ import VueCodemirror from 'vue-codemirror'
 
 // require styles
 import 'codemirror/lib/codemirror.css'
+import 'codemirror/theme/base16-light.css'
 
 // require more codemirror resource...
 

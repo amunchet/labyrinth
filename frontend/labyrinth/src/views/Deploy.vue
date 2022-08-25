@@ -415,10 +415,26 @@
           <b-row>
             <b-col>
               <span class="text-left">Ansible Playbook Contents</span>
-              <b-textarea
-                v-model="playbook_contents"
+
+              <codemirror
                 v-if="loadings.playbook == undefined || loadings.playbook == 0"
-              />
+                bordered
+                class="border"
+                ref="code_mirror_playbook"
+                v-model="playbook_contents"
+                :options="{
+                  tabSize: 4,
+                  mode: 'text/x-yaml',
+                  theme: 'default',
+                  lineNumbers: true,
+                  line: true,
+                }"
+                @ready="() => {}"
+                @focus="() => {}"
+                @input="() => {}"
+              >
+              </codemirror>
+
               <div v-else class="mt-2 text-center">
                 <b-spinner class="ml-auto mr-auto mt-4" />
               </div>
@@ -934,5 +950,10 @@ textarea {
 }
 .green {
   color: $green;
+}
+
+::v-deep .CodeMirror {
+  min-height: 400px;
+  width: 100% !important;
 }
 </style>
