@@ -205,9 +205,13 @@ export default {
     },
     onDrop: /* istanbul ignore next */ function (name) {
       var auth = this.$auth;
+      var url = this.dragged_ip 
+      if(name != ""){
+        url += "/" + name + "/"
+      }
       Helper.apiCall(
         "host_group_rename",
-        this.dragged_ip + "/" + name + "/",
+        url,
         auth
       )
         .then(() => {

@@ -357,10 +357,10 @@ def delete_host(host):
         return "Not found", 407
     return "Success", 200
 
-
+@app.route("/host_group_rename/<ip>")
 @app.route("/host_group_rename/<ip>/<group>/")
 @requires_auth_write
-def host_group_rename(ip, group):
+def host_group_rename(ip, group=""):
     """
     Changes the specific host's group name
     """
@@ -1183,10 +1183,13 @@ def dashboard(val="", report=False):
         Sorting helper for groups
             - This fixes unicode groups (like a star)
         """
-        val = ord(x[0].lower())
-        if val < 100000:
-            val = val + 200000
-        return val
+        try:
+            val = ord(x[0].lower())
+            if val < 100000:
+                val = val + 200000
+            return val
+        except IndexError:
+            return 0
 
 
 
