@@ -7,8 +7,6 @@ The beautiful network analyzer, mapper, and monitor.
 
 <img src="frontend/labyrinth/public/img/screenshot.png"  alt="Labyrinth Screenshot" />
 
-## Build
-1.  Labyrinth is using **CVE-Search-Docker** (https://github.com/cve-search/CVE-Search-Docker) to provide vulnerability searching.  This exists as a submodule.  To correctly pull or initialize, you'll need two additional commands `git submodule init && git submodule init`.  Warning: It's a rather large folder.
 
 ## Install
 1. `sudo bash install.sh` - this will walk you through the setup needed for Auth0 information.
