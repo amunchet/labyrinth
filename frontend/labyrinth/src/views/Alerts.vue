@@ -79,6 +79,24 @@
         <hr />
         <h5>Example alertmanager.yml file</h5>
         <b-textarea v-model="sample_alertmanager" disabled />
+        <codemirror
+          ref="code_mirror"
+          style="background-color: #e9ecef;"
+          disabled
+          :value="sample_alertmanager"
+          :options="{
+            'tabSize' : 4,
+            'mode' : 'text/x-yaml',
+            'theme' : 'base16-dark',
+            'lineNumbers' : true,
+            'line' : true,
+            'readOnly' : true
+          }"
+          @ready="() => {}"
+          @focus="() => {}"
+          @input="() => {}"
+        >
+        </codemirror>
       </b-tab>
     </b-tabs>
   </b-container>
