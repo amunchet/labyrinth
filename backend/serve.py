@@ -808,6 +808,15 @@ def restart_alertmanager():
     return retval.text, retval.status_code
 
 
+@app.route("/alertmanager/test")
+@requires_auth_admin
+def alertmanager_test(): # pragma: no cover
+    """
+    Sends out a test email from alertmanager
+    """
+    a = watcher.send_alert("Test Email", "Service", "Something", summary="Summary")
+    return a.text, a.status_code
+
 # Settings
 @app.route("/telegraf_key/")
 @requires_auth_admin

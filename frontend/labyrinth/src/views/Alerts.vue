@@ -42,6 +42,13 @@
           <li>Grouping by hosts, services, summary, etc?</li>
           <li>Time until Metric is considered stale</li>
         </ul>
+        <hr />
+        <b-button
+        @click="sendTestEmail()"
+        variant="success"
+        >
+        <font-awesome-icon icon="envelope" size="1x" class="mr-2" />
+        Create Test Alert (will send email)</b-button>
       </b-tab>
       <b-tab title="Alert Manager">
         <b-row class="m-2">
@@ -119,6 +126,14 @@ export default {
     };
   },
   methods: {
+    sendTestEmail: /* istanbul ignore next */ function (){
+      var auth = this.$auth
+      Helper.apiCall("alertmanager", "test", auth).then(res=>{
+        this.$store.commit("updateError", JSON.stringify(res))
+      }).catch(e=>{
+        this.$store.commit("updateError", e)
+      })
+    },
     resolveAlert: /* istanbul ignore next */ function (val) {
       var auth = this.$auth;
       var formData = new FormData();
