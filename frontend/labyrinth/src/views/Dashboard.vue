@@ -74,8 +74,7 @@
               {{ subnet.origin.ip }}
             </div>
           </div>
-          <div class="right"
-          >
+          <div class="right">
             <h2
               @click="
                 () => {
@@ -88,7 +87,10 @@
             >
               {{ subnet.subnet }}
             </h2>
-            <div class="flexed" v-if="subnet.groups != undefined && !subnet.minimized">
+            <div
+              class="flexed"
+              v-if="subnet.groups != undefined && !subnet.minimized"
+            >
               <div
                 class="grouped"
                 v-for="(group, j) in subnet.groups"
@@ -140,15 +142,17 @@
                 >
                   <b-table
                     :fields="[
-                    {
-                      'key': 'OK',
-                      'thStyle' : { width: '33%'}
-
-                    }, {
-                      'key' : 'Warning',
-                      'thStyle' : { width: '33%'}
-                    },
-                      , 'Critical']"
+                      {
+                        key: 'OK',
+                        thStyle: { width: '33%' },
+                      },
+                      {
+                        key: 'Warning',
+                        thStyle: { width: '33%' },
+                      },
+                      ,
+                      'Critical',
+                    ]"
                     bordered
                     striped
                     :items="[group.chart.datasets[0].data]"
@@ -235,8 +239,8 @@ export default {
         legend: {
           display: false,
         },
-        tooltips: {enabled: false},
-        hover: {mode: null},
+        tooltips: { enabled: false },
+        hover: { mode: null },
       },
     };
   },

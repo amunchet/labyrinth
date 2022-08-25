@@ -150,7 +150,7 @@ export default {
     "hd",
     "host",
     "monitor",
-    "monitored_only"
+    "monitored_only",
   ],
   data() {
     return {

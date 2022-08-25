@@ -38,7 +38,7 @@ Vue.use(Vuelidate);
 import VueKonva from "vue-konva";
 Vue.use(VueKonva);
 
-import VueCodemirror from 'vue-codemirror'
+import VueCodemirror from "vue-codemirror";
 
 // require styles
 import 'codemirror/lib/codemirror.css'
@@ -47,10 +47,12 @@ import 'codemirror/theme/base16-light.css'
 // require more codemirror resource...
 
 // you can set default global options and events when use
-Vue.use(VueCodemirror, /* { 
+Vue.use(
+  VueCodemirror /* { 
   options: { theme: 'base16-dark', ... },
   events: ['scroll', ...]
-} */)
+} */
+);
 
 new Vue({
   router,
