@@ -1151,12 +1151,33 @@ def update_ip(mac, new_ip):
 
 # Dashboard
 
+def index_helper():
+    """
+    Helps with ensuring indexes are created
+    """
+
+    mongo_client["labyrinth"]["metrics"].create_index([("timestamp", pymongo.DESCENDING)])
+    mongo_client["labyrinth"]["metrics"].create_index("name")
+    mongo_client["labyrinth"]["metrics"].create_index("tags.mac")
+    mongo_client["labyrinth"]["metrics"].create_index("tags.ip")
+    mongo_client["labyrinth"]["services"].create_index("name")
+    mongo_client["labyrinth"]["hosts"].create_index("ip")
+    mongo_client["labyrinth"]["hosts"].create_index("mac")
+    mongo_client["labyrinth"]["hosts"].create_index("subnet")
+    mongo_client["labyrinth"]["settings"].create_index("name")
+
+
 
 @app.route("/dashboard/<val>")
 @app.route("/dashboard/")
 @requires_auth_read
 def dashboard(val="", report=False):
     """Dashboard"""
+
+    # Check on indexes
+    index_helper()
+
+
     # Get all the subnets
 
     rc = redis.Redis(host=os.environ.get("REDIS_HOST"))
