@@ -18,6 +18,10 @@ def test_index_helper():
         serve.mongo_client["labyrinth"]["metrics"].drop_index("timestamp_-1")
     except serve.pymongo.errors.OperationFailure:
         pass
+    try:
+        serve.mongo_client["labyrinth"]["metrics"].drop_index("metrics.timestamp_-1")
+    except serve.pymongo.errors.OperationFailure:
+        pass
     
     assert "timestamp_-1" not in str(list(serve.mongo_client["labyrinth"]["metrics"].list_indexes()))
 
