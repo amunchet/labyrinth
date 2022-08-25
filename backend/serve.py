@@ -1177,6 +1177,18 @@ def dashboard(val="", report=False):
     # Check on indexes
     index_helper()
 
+    # Sorting helper for groups
+    def group_sorting_helper(x):
+        """
+        Sorting helper for groups
+            - This fixes unicode groups (like a star)
+        """
+        val = ord(x[0].lower())
+        if val < 100000:
+            val = val + 200000
+        return val
+
+
 
     # Get all the subnets
 
@@ -1291,7 +1303,7 @@ def dashboard(val="", report=False):
         if "groups" not in subnet:
             subnet["groups"] = []
 
-        for group in groups:
+        for group in sorted(groups.keys(), key=group_sorting_helper):
             subnet["groups"].append({"name": group, "hosts": groups[group]})
         del subnet["hosts"]
 
