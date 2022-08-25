@@ -43,12 +43,10 @@
           <li>Time until Metric is considered stale</li>
         </ul>
         <hr />
-        <b-button
-        @click="sendTestEmail()"
-        variant="success"
+        <b-button @click="sendTestEmail()" variant="success">
+          <font-awesome-icon icon="envelope" size="1x" class="mr-2" />
+          Create Test Alert (will send email)</b-button
         >
-        <font-awesome-icon icon="envelope" size="1x" class="mr-2" />
-        Create Test Alert (will send email)</b-button>
       </b-tab>
       <b-tab title="Alert Manager">
         <b-row class="m-2">
@@ -88,16 +86,16 @@
         <b-textarea v-model="sample_alertmanager" disabled />
         <codemirror
           ref="code_mirror"
-          style="background-color: #e9ecef;"
+          style="background-color: #e9ecef"
           disabled
           :value="sample_alertmanager"
           :options="{
-            'tabSize' : 4,
-            'mode' : 'text/x-yaml',
-            'theme' : 'base16-dark',
-            'lineNumbers' : true,
-            'line' : true,
-            'readOnly' : true
+            tabSize: 4,
+            mode: 'text/x-yaml',
+            theme: 'base16-dark',
+            lineNumbers: true,
+            line: true,
+            readOnly: true,
           }"
           @ready="() => {}"
           @focus="() => {}"
@@ -126,13 +124,15 @@ export default {
     };
   },
   methods: {
-    sendTestEmail: /* istanbul ignore next */ function (){
-      var auth = this.$auth
-      Helper.apiCall("alertmanager", "test", auth).then(res=>{
-        this.$store.commit("updateError", JSON.stringify(res))
-      }).catch(e=>{
-        this.$store.commit("updateError", e)
-      })
+    sendTestEmail: /* istanbul ignore next */ function () {
+      var auth = this.$auth;
+      Helper.apiCall("alertmanager", "test", auth)
+        .then((res) => {
+          this.$store.commit("updateError", JSON.stringify(res));
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
     },
     resolveAlert: /* istanbul ignore next */ function (val) {
       var auth = this.$auth;

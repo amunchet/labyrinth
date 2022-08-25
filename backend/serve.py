@@ -357,6 +357,7 @@ def delete_host(host):
         return "Not found", 407
     return "Success", 200
 
+
 @app.route("/host_group_rename/<ip>")
 @app.route("/host_group_rename/<ip>/<group>/")
 @requires_auth_write
@@ -810,12 +811,13 @@ def restart_alertmanager():
 
 @app.route("/alertmanager/test")
 @requires_auth_admin
-def alertmanager_test(): # pragma: no cover
+def alertmanager_test():  # pragma: no cover
     """
     Sends out a test email from alertmanager
     """
     a = watcher.send_alert("Test Email", "Service", "Something", summary="Summary")
     return a.text, a.status_code
+
 
 # Settings
 @app.route("/telegraf_key/")
@@ -1160,12 +1162,15 @@ def update_ip(mac, new_ip):
 
 # Dashboard
 
+
 def index_helper():
     """
     Helps with ensuring indexes are created
     """
 
-    mongo_client["labyrinth"]["metrics"].create_index([("timestamp", pymongo.DESCENDING)])
+    mongo_client["labyrinth"]["metrics"].create_index(
+        [("timestamp", pymongo.DESCENDING)]
+    )
     mongo_client["labyrinth"]["metrics"].create_index("name")
     mongo_client["labyrinth"]["metrics"].create_index("tags.mac")
     mongo_client["labyrinth"]["metrics"].create_index("tags.ip")
@@ -1174,7 +1179,6 @@ def index_helper():
     mongo_client["labyrinth"]["hosts"].create_index("mac")
     mongo_client["labyrinth"]["hosts"].create_index("subnet")
     mongo_client["labyrinth"]["settings"].create_index("name")
-
 
 
 @app.route("/dashboard/<val>")
@@ -1199,8 +1203,6 @@ def dashboard(val="", report=False):
             return val
         except IndexError:
             return 0
-
-
 
     # Get all the subnets
 
