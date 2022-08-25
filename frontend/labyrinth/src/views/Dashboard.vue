@@ -178,6 +178,7 @@
                     :mem="host.mem_check"
                     :hd="host.hd_check"
                     :monitor="host.monitor"
+                    :monitored_only="subnet.monitored"
                     @dragStart="(ip) => (dragged_ip = ip)"
                     @dragEnd="dragged_ip = ''"
                     @service="
