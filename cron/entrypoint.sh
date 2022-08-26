@@ -10,5 +10,4 @@ chmod 0644 /cron/cron.d/*
 crontab /cron/cron.d/crontab
 touch /var/log/cron.log
 
-cron -f & 
-tail -f /var/log/cron.log
+cron -f 2>&1
