@@ -2,7 +2,7 @@
   <div id="app">
     <div>
       <b-navbar toggleable="lg" type="light" class="pb-0 pt-0">
-        <b-navbar-brand href="#" class="top_logo">
+        <b-navbar-brand href="/" class="top_logo">
           <img src="/logo.png" alt="Labyrinth logo" />
         </b-navbar-brand>
 
@@ -45,7 +45,7 @@
               </b-nav-item>
             </b-navbar-nav>
 
-            <b-nav-item-dropdown right class="ml-3">
+            <b-nav-item-dropdown right>
               <!-- Using 'button-content' slot -->
               <template #button-content>
                 <b-avatar

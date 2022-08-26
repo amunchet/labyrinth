@@ -574,4 +574,43 @@ h2.subnet:hover {
   text-align: center;
   margin: auto;
 }
+
+.mobile{
+  display: none !important;
+}
+@media screen and (max-width: 991px){
+  .corner{
+    width: 50%;
+    border-radius: 0.5rem;
+    margin: auto;
+    margin-top: 0.5rem;
+  }
+  .left{
+    width: 100%;
+  }
+  .right{
+    width: 100%;
+    margin-left: 0 !important;
+  }
+  .connector{ 
+    display: none;
+  }
+  .outer{
+    margin: auto !important;
+    width: 99%;
+    overflow: hidden;
+    margin-bottom: 0.5rem !important;
+  }
+  .right h2{
+    text-align: center !important;
+  }
+  .mobile{
+    display: block !important;
+  }
+  .main{
+    width: 100%;
+    max-width: 100%;
+    min-width: 100%;
+  }
+}
 </style>
