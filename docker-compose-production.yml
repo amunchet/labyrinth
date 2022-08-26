@@ -96,7 +96,8 @@ services:
   # Scanner and Watcher Cron
   samplecron:
     build: 
-      context: "cron"
+      context: .
+      dockerfile: cron/Dockerfile
       args:
         TZ: ${TZ}    
     restart: always

@@ -21,7 +21,7 @@ RUN   apt-get update && apt-get -y install python3 \
 
 
 
-COPY requirements.txt /
+COPY ../backend/requirements.txt /
 RUN pip3 install -r /requirements.txt
 
 # Cron installation
