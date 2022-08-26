@@ -149,8 +149,8 @@ def upload(type, override_token):  # pragma: no cover
         with open("/tmp/{}".format(filename), "w") as f:
             f.write(data)
 
-        if os.path.exists(
-            "/src/uploads/become/{}.yml".format(filename.replace(".yml", ""))
+        if "{}.yml".format(filename.replace(".yml", "")) in os.listdir(
+            "/src/uploads/become/"
         ):
             os.remove("/src/uploads/become/{}.yml".format(filename.replace(".yml", "")))
 
@@ -566,7 +566,7 @@ def delete_service(name):
         {"services": {"$in": [name]}}, {"$pull": {"services": name}}
     )
     # Check if snippet exists
-    if os.path.exists("/src/snippets/{}".format(name)):
+    if name in os.listdir("/src/snippets/"):
         os.remove("/src/snippets/{}".format(name))
 
     return "Success", 200
