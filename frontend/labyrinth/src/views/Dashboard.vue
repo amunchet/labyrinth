@@ -55,7 +55,7 @@
           <font-awesome-icon icon="plus" size="1x" /> New Subnet
         </b-button>
         <div
-          :class="'outer ' + (subnet.minimized ?  'minimized' : '')"
+          :class="'outer ' + (subnet.minimized ? 'minimized' : '')"
           :style="findClass(subnet)"
           v-for="(subnet, i) in full_data"
           v-bind:key="i"
@@ -579,22 +579,22 @@ h2.subnet:hover {
 }
 
 /* Minimized */
-.minimized{
+.minimized {
   min-height: 75px;
   margin-bottom: 0.25rem;
   margin-top: 0.25rem !important;
 }
-.minimized .corner{
+.minimized .corner {
   height: 70px;
   border-radius: 0.5rem;
   color: transparent;
   width: 100px;
 }
-.minimized .corner img{
+.minimized .corner img {
   height: 30px !important;
 }
 
-/* Mobile */ 
+/* Mobile */
 .mobile {
   display: none !important;
 }
