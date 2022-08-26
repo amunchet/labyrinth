@@ -21,13 +21,13 @@ RUN   apt-get update && apt-get -y install python3 \
 
 
 
-COPY ../backend/requirements.txt /
+COPY backend/requirements.txt /
 RUN pip3 install -r /requirements.txt
 
 # Cron installation
 
 
-ADD entrypoint.sh /
+ADD cron/entrypoint.sh /
 RUN dos2unix -n /entrypoint.sh /entrypoint-fixed.sh
 RUN chmod a+x /entrypoint-fixed.sh
 
