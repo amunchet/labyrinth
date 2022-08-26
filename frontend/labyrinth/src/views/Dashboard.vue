@@ -55,7 +55,7 @@
           <font-awesome-icon icon="plus" size="1x" /> New Subnet
         </b-button>
         <div
-          class="outer"
+          :class="'outer ' + (subnet.minimized ?  'minimized' : '')"
           :style="findClass(subnet)"
           v-for="(subnet, i) in full_data"
           v-bind:key="i"
@@ -370,25 +370,27 @@ export default {
         });
     },
     findClass: function (subnet, isTitle) {
-      if (subnet.color == undefined || this.themes == []) {
-        return "";
-      } else {
+      var retval = "";
+
+      // Color
+      if (subnet.color != undefined && this.themes != []) {
         var found_theme = this.themes.find((x) => x.name == subnet.color);
         if (!found_theme) {
           return "";
         }
         try {
-          var retval = "background-color: " + found_theme.background.hex + ";";
+          retval = "background-color: " + found_theme.background.hex + ";";
           if (!isTitle) {
             retval += "border: 1px solid " + found_theme.border.hex + ";";
           } else {
             retval += "color: " + found_theme.text.hex + ";";
           }
-          return retval;
         } catch (e) {
           return "";
         }
       }
+
+      return retval;
     },
 
     prepareOriginsLinks: function (subnets) {
@@ -519,6 +521,7 @@ h2.subnet:hover {
   margin-right: 1%;
   margin-top: 20px;
   border-radius: 1.25rem;
+  clear: both;
 }
 
 .left {
@@ -575,6 +578,23 @@ h2.subnet:hover {
   margin: auto;
 }
 
+/* Minimized */
+.minimized{
+  min-height: 75px;
+  margin-bottom: 0.25rem;
+  margin-top: 0.25rem !important;
+}
+.minimized .corner{
+  height: 70px;
+  border-radius: 0.5rem;
+  color: transparent;
+  width: 100px;
+}
+.minimized .corner img{
+  height: 30px !important;
+}
+
+/* Mobile */ 
 .mobile {
   display: none !important;
 }
