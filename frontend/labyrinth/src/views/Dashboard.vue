@@ -55,7 +55,7 @@
           <font-awesome-icon icon="plus" size="1x" /> New Subnet
         </b-button>
         <div
-          :class="'outer ' + (subnet.minimized ?  'minimized' : '')"
+          :class="'outer ' + (subnet.minimized ? 'minimized' : '')"
           :style="findClass(subnet)"
           v-for="(subnet, i) in full_data"
           v-bind:key="i"
@@ -315,6 +315,29 @@ export default {
       ];
       return output;
     },
+    sortSubnets: function (res) {
+      return res.sort((a, b) => {
+        var a_splits = a.subnet.split(".");
+        var b_splits = b.subnet.split(".");
+        if (a_splits.length != 3 || b_splits.length != 3) {
+          if (a.subnet == b.subnet) {
+            return 0;
+          }
+          return a.subnet > b.subnet ? 1 : 0;
+        }
+
+        var a_total = a_splits[0] * 10000 + a_splits[1] * 1000 + a_splits[2];
+        var b_total = b_splits[0] * 10000 + b_splits[1] * 1000 + b_splits[2];
+
+        if (a_total > b_total) {
+          return 1;
+        }
+        if (a_total == b_total) {
+          return 0;
+        }
+        return -1;
+      });
+    },
     loadData: /* istanbul ignore next */ async function (showLoading) {
       var auth = this.$auth;
       var url = "";
@@ -324,15 +347,7 @@ export default {
       }
       await Helper.apiCall("dashboard", url, auth)
         .then((res) => {
-          this.full_data = res.sort((a, b) => {
-            if (a.subnet > b.subnet) {
-              return 1;
-            }
-            if (a.subnet == b.subnet) {
-              return 0;
-            }
-            return -1;
-          });
+          this.full_data = this.sortSubnets(res);
 
           this.originLinks = this.prepareOriginsLinks(this.full_data);
 
@@ -519,7 +534,8 @@ h2.subnet:hover {
   margin: auto;
   margin-left: 100px;
   margin-right: 1%;
-  margin-top: 20px;
+  margin-top: 10px;
+  margin-bottom: 10px;
   border-radius: 1.25rem;
   clear: both;
 }
@@ -579,22 +595,22 @@ h2.subnet:hover {
 }
 
 /* Minimized */
-.minimized{
+.minimized {
   min-height: 75px;
   margin-bottom: 0.25rem;
   margin-top: 0.25rem !important;
 }
-.minimized .corner{
+.minimized .corner {
   height: 70px;
   border-radius: 0.5rem;
   color: transparent;
   width: 100px;
 }
-.minimized .corner img{
+.minimized .corner img {
   height: 30px !important;
 }
 
-/* Mobile */ 
+/* Mobile */
 .mobile {
   display: none !important;
 }
