@@ -87,7 +87,10 @@
             >
               {{ subnet.subnet }}
             </h2>
-            <div class="flexed" v-if="subnet.groups != undefined">
+            <div
+              class="flexed"
+              v-if="subnet.groups != undefined && !subnet.minimized"
+            >
               <div
                 class="grouped"
                 v-for="(group, j) in subnet.groups"
@@ -121,7 +124,52 @@
                     "
                   />
                 </div>
-                <div class="flexed">
+                <div class="chart" v-if="subnet.display == 'summary'">
+                  <DoughnutChart
+                    :chart-data="group.chart"
+                    :options="chartOptions"
+                  />
+                </div>
+                <div
+                  v-if="
+                    subnet.display == 'summary' &&
+                    group.chart != undefined &&
+                    group.chart.datasets != undefined &&
+                    group.chart.datasets &&
+                    group.chart.datasets[0].data != undefined &&
+                    group.chart.datasets[0].data.length == 3
+                  "
+                >
+                  <b-table
+                    :fields="[
+                      {
+                        key: 'OK',
+                        thStyle: { width: '33%' },
+                      },
+                      {
+                        key: 'Warning',
+                        thStyle: { width: '33%' },
+                      },
+                      ,
+                      'Critical',
+                    ]"
+                    bordered
+                    striped
+                    :items="[group.chart.datasets[0].data]"
+                  >
+                    <template v-slot:cell(OK)="row">
+                      {{ row.item[0] }}
+                    </template>
+                    <template v-slot:cell(Warning)="row">
+                      {{ row.item[1] }}
+                    </template>
+                    <template v-slot:cell(Critical)="row">
+                      {{ row.item[2] }}
+                    </template>
+                  </b-table>
+                </div>
+
+                <div class="flexed" v-if="subnet.display != 'summary'">
                   <Host
                     v-for="(host, k) in group.hosts"
                     v-bind:key="k"
@@ -134,6 +182,7 @@
                     :mem="host.mem_check"
                     :hd="host.hd_check"
                     :monitor="host.monitor"
+                    :monitored_only="subnet.monitored"
                     @dragStart="(ip) => (dragged_ip = ip)"
                     @dragEnd="dragged_ip = ''"
                     @service="
@@ -163,6 +212,8 @@ import CreateEditSubnet from "@/components/CreateEditSubnet";
 import CreateEditHost from "@/components/CreateEditHost";
 import HostMetric from "@/components/HostMetric";
 import GroupModal from "@/components/GroupModal.vue";
+import DoughnutChart from "@/components/charts/DoughnutChart";
+
 export default {
   data() {
     return {
@@ -181,6 +232,16 @@ export default {
       originLinks: [],
 
       themes: [],
+
+      chartOptions: {
+        responsive: true,
+        maintainAspectRatio: true,
+        legend: {
+          display: false,
+        },
+        tooltips: { enabled: false },
+        hover: { mode: null },
+      },
     };
   },
   components: {
@@ -190,6 +251,7 @@ export default {
     CreateEditHost,
     HostMetric,
     GroupModal,
+    DoughnutChart,
   },
   methods: {
     capitalize: Helper.capitalize,
@@ -205,17 +267,53 @@ export default {
     },
     onDrop: /* istanbul ignore next */ function (name) {
       var auth = this.$auth;
-      Helper.apiCall(
-        "host_group_rename",
-        this.dragged_ip + "/" + name + "/",
-        auth
-      )
+      var url = this.dragged_ip;
+      if (name != "") {
+        url += "/" + name + "/";
+      }
+      Helper.apiCall("host_group_rename", url, auth)
         .then(() => {
           this.loadData();
         })
         .catch((e) => {
           this.$store.commit("updateError", e);
         });
+    },
+    processGroupChart: function (group) {
+      // Generates the datastructure for the doughnut chart for the group
+      var output = {};
+      output.labels = ["OK", "Warning", "Critical"];
+
+      var total_green = 0;
+      var total_orange = 0;
+      var total_red = 0;
+      // Process the group
+      group.hosts.forEach((host) => {
+        if (host.services != undefined) {
+          host.services.forEach((service) => {
+            if (service.state != undefined) {
+              switch (service.state) {
+                case -1:
+                  total_orange += 1;
+                  break;
+                case true:
+                  total_green += 1;
+                  break;
+                case false:
+                  total_red += 1;
+                  break;
+              }
+            }
+          });
+        }
+      });
+      output.datasets = [
+        {
+          backgroundColor: ["#49d184", "#f5b65f", "#db7077"],
+          data: [total_green, total_orange, total_red],
+        },
+      ];
+      return output;
     },
     loadData: /* istanbul ignore next */ async function (showLoading) {
       var auth = this.$auth;
@@ -241,6 +339,7 @@ export default {
           for (var i = 0; i < this.full_data.length; i++) {
             var temp = this.full_data[i];
             if (temp.groups != undefined) {
+              // Sort the groups
               temp.groups.sort((prev, next) => {
                 if (prev.name == "") {
                   return 1;
@@ -248,15 +347,14 @@ export default {
                 if (next.name == "") {
                   return -1;
                 }
-
-                if (prev.starred) {
-                  return -1;
-                }
-                if (next.starred) {
-                  return 1;
-                }
                 return prev.name > next.name;
               });
+
+              // Build the necessary chart data
+              temp.groups.forEach((group) => {
+                group.chart = this.processGroupChart(group);
+              });
+              this.$forceUpdate();
             }
           }
           setTimeout(() => {
@@ -415,7 +513,7 @@ h2.subnet:hover {
 
 .outer {
   background-color: #efefed;
-  min-height: 300px;
+  min-height: 150px;
   margin: auto;
   margin-left: 100px;
   margin-right: 1%;
@@ -427,7 +525,6 @@ h2.subnet:hover {
   width: 5%;
   min-width: 140px;
   float: left;
-  min-height: 300px;
 }
 .right {
   overflow: hidden;
@@ -469,5 +566,51 @@ h2.subnet:hover {
   padding: 20px;
   margin: 10px;
   text-align: center;
+}
+
+.chart {
+  height: 100px;
+  width: 100px;
+  text-align: center;
+  margin: auto;
+}
+
+.mobile {
+  display: none !important;
+}
+@media screen and (max-width: 991px) {
+  .corner {
+    width: 50%;
+    border-radius: 0.5rem;
+    margin: auto;
+    margin-top: 0.5rem;
+  }
+  .left {
+    width: 100%;
+  }
+  .right {
+    width: 100%;
+    margin-left: 0 !important;
+  }
+  .connector {
+    display: none;
+  }
+  .outer {
+    margin: auto !important;
+    width: 99%;
+    overflow: hidden;
+    margin-bottom: 0.5rem !important;
+  }
+  .right h2 {
+    text-align: center !important;
+  }
+  .mobile {
+    display: block !important;
+  }
+  .main {
+    width: 100%;
+    max-width: 100%;
+    min-width: 100%;
+  }
 }
 </style>

@@ -4,6 +4,7 @@
     :class="'noselect ' + passed_class + ' ' + drag_class"
     @dragstart="drag_start(ip)"
     @dragend="drag_end"
+    v-if="!monitored_only || (monitored_only && monitor)"
   >
     <div class="top">
       <div :class="monitor ? 'number' : 'number unmonitored'">
@@ -149,6 +150,7 @@ export default {
     "hd",
     "host",
     "monitor",
+    "monitored_only",
   ],
   data() {
     return {
@@ -299,5 +301,10 @@ export default {
   border: 1px dotted #bfbfbd;
   color: darkgrey;
   padding: 0;
+}
+@media screen and (max-width: 991px) {
+  .hover {
+    max-width: 23%;
+  }
 }
 </style>

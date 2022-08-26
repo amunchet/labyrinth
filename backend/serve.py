@@ -149,8 +149,8 @@ def upload(type, override_token):  # pragma: no cover
         with open("/tmp/{}".format(filename), "w") as f:
             f.write(data)
 
-        if os.path.exists(
-            "/src/uploads/become/{}.yml".format(filename.replace(".yml", ""))
+        if "{}.yml".format(filename.replace(".yml", "")) in os.listdir(
+            "/src/uploads/become/"
         ):
             os.remove("/src/uploads/become/{}.yml".format(filename.replace(".yml", "")))
 
@@ -358,9 +358,10 @@ def delete_host(host):
     return "Success", 200
 
 
+@app.route("/host_group_rename/<ip>")
 @app.route("/host_group_rename/<ip>/<group>/")
 @requires_auth_write
-def host_group_rename(ip, group):
+def host_group_rename(ip, group=""):
     """
     Changes the specific host's group name
     """
@@ -565,7 +566,7 @@ def delete_service(name):
         {"services": {"$in": [name]}}, {"$pull": {"services": name}}
     )
     # Check if snippet exists
-    if os.path.exists("/src/snippets/{}".format(name)):
+    if name in os.listdir("/src/snippets/"):
         os.remove("/src/snippets/{}".format(name))
 
     return "Success", 200
@@ -806,6 +807,16 @@ def restart_alertmanager():
 
     retval = requests.post(url, auth=("admin", password))
     return retval.text, retval.status_code
+
+
+@app.route("/alertmanager/test")
+@requires_auth_admin
+def alertmanager_test():  # pragma: no cover
+    """
+    Sends out a test email from alertmanager
+    """
+    a = watcher.send_alert("Test Email", "Service", "Something", summary="Summary")
+    return a.text, a.status_code
 
 
 # Settings
@@ -1152,11 +1163,47 @@ def update_ip(mac, new_ip):
 # Dashboard
 
 
+def index_helper():
+    """
+    Helps with ensuring indexes are created
+    """
+
+    mongo_client["labyrinth"]["metrics"].create_index(
+        [("timestamp", pymongo.DESCENDING)]
+    )
+    mongo_client["labyrinth"]["metrics"].create_index("name")
+    mongo_client["labyrinth"]["metrics"].create_index("tags.mac")
+    mongo_client["labyrinth"]["metrics"].create_index("tags.ip")
+    mongo_client["labyrinth"]["services"].create_index("name")
+    mongo_client["labyrinth"]["hosts"].create_index("ip")
+    mongo_client["labyrinth"]["hosts"].create_index("mac")
+    mongo_client["labyrinth"]["hosts"].create_index("subnet")
+    mongo_client["labyrinth"]["settings"].create_index("name")
+
+
 @app.route("/dashboard/<val>")
 @app.route("/dashboard/")
 @requires_auth_read
 def dashboard(val="", report=False):
     """Dashboard"""
+
+    # Check on indexes
+    index_helper()
+
+    # Sorting helper for groups
+    def group_sorting_helper(x):
+        """
+        Sorting helper for groups
+            - This fixes unicode groups (like a star)
+        """
+        try:
+            val = ord(x[0].lower())
+            if val < 10000:
+                val = val + 200000
+            return val
+        except IndexError:
+            return 0
+
     # Get all the subnets
 
     rc = redis.Redis(host=os.environ.get("REDIS_HOST"))
@@ -1270,7 +1317,7 @@ def dashboard(val="", report=False):
         if "groups" not in subnet:
             subnet["groups"] = []
 
-        for group in groups:
+        for group in sorted(groups.keys(), key=group_sorting_helper):
             subnet["groups"].append({"name": group, "hosts": groups[group]})
         del subnet["hosts"]
 

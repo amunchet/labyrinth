@@ -1,6 +1,5 @@
 #!/bin/sh
 
-# TODO: Need to start the CVE docker stack as well
 
 # Need to create the SSL certs if they don't exist...
 

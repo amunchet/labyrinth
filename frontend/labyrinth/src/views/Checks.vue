@@ -123,6 +123,7 @@
       </b-row>
       <b-spinner class="m-2" v-if="servicesLoading" />
       <b-table
+        responsive
         :filter="services_filter"
         :fields="service_fields"
         :items="services"
@@ -160,6 +161,7 @@
       </b-row>
       <b-table
         :items="metrics"
+        responsive
         striped
         :filter="metrics_filter"
         :fields="['name', 'tags', 'fields', 'timestamp']"
