@@ -1041,6 +1041,5 @@ textarea {
   ::v-deep .CodeMirror {
     text-align: left;
   }
-  
 }
 </style>

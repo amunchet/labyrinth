@@ -564,6 +564,5 @@ h2 {
     margin-bottom: 0.5rem;
     text-align: center;
   }
-  
 }
 </style>
