@@ -231,4 +231,35 @@ export default {
   justify-content: start;
   align-items: stretch;
 }
+
+@media screen and (max-width: 991px) {
+  .top_logo{
+    position: initial !important;
+    top: 0;
+    left: 0;
+  }
+  .add-button{
+    position: initial !important;
+    right: 0 !important;
+  }
+  #nav-collapse{
+    margin-left: 0;
+  }
+  .navbar-nav{
+  }
+  .nav-item{
+    border: 1px solid #efefed;
+    border-radius: 0.25rem;
+    margin: 0.25rem;
+    min-width: 160px;
+    float: left;
+    background-color: #e9e9ef;
+  }
+  .nav-item a{
+    width: 100%;
+  }
+  .b-nav-dropdown{
+    margin-left: 0 !important;
+  }
+}
 </style>
