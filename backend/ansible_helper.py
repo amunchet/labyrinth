@@ -34,7 +34,7 @@ def check_file(filename, file_type, raw=""):
 
     look_file = "/src/uploads/{}/{}".format(file_type, filename)
 
-    if not os.path.exists(look_file):
+    if filename not in os.listdir("/src/uploads/{}".format(file_type)):
         look_file = "/tmp/{}".format(filename)
 
     if raw == "" and not os.path.exists(look_file):
@@ -152,7 +152,7 @@ def run_ansible(
 
     # Copy over playbook
     src_playbook = "{}/{}.yml".format(SRC_DIR, playbook)
-    if not os.path.exists(src_playbook):
+    if "{}.yml".format(playbook) not in os.listdir(SRC_DIR):
         raise Exception("No YML file found.")
 
     shutil.copy(src_playbook, "{}/project/".format(RUN_DIR))
@@ -170,7 +170,7 @@ def run_ansible(
 
     # Become file
     old_become = "{}/{}.yml".format(BECOME_DIR, become_file)
-    if not os.path.exists(old_become):
+    if "{}.yml".format(become_file) not in BECOME_DIR:
         raise Exception("Become file not found" + str(old_become))
 
     shutil.copy(old_become, "{}/vars/{}.yml".format(RUN_DIR, become_file))
@@ -193,7 +193,7 @@ def run_ansible(
         raise Exception("Done.")
     except Exception:
         # Delete Vault Password
-        if os.path.exists("{}/vault.pass".format(RUN_DIR)):
+        if "vault.pass" in os.listdir(RUN_DIR):
             os.remove("{}/vault.pass".format(RUN_DIR))
 
     if os.path.exists("/vault.pass"):
