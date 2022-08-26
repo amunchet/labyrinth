@@ -7,10 +7,10 @@
     <div v-else>
       <b-avatar class="mb-2" :src="$auth.profile.picture" size="5rem" />
       <h4>Welcome, {{ $auth.profile.name }}</h4>
-    <hr />
-    <div class="nomobile">
-    <CustomDashboardsView />
-    </div>
+      <hr />
+      <div class="nomobile">
+        <CustomDashboardsView />
+      </div>
     </div>
   </div>
 </template>
@@ -28,7 +28,7 @@ export default {
 </script>
 <style lang="scss" scoped>
 @media screen and (max-width: 991px) {
-  .nomobile{
+  .nomobile {
     display: none !important;
   }
 }
