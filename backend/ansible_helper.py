@@ -170,7 +170,7 @@ def run_ansible(
 
     # Become file
     old_become = "{}/{}.yml".format(BECOME_DIR, become_file)
-    if "{}.yml".format(become_file) not in BECOME_DIR:
+    if "{}.yml".format(become_file) not in os.listdir(BECOME_DIR):
         raise Exception("Become file not found" + str(old_become))
 
     shutil.copy(old_become, "{}/vars/{}.yml".format(RUN_DIR, become_file))
