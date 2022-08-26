@@ -128,7 +128,9 @@ services:
       
   # Sample Finder Cron
   samplecron:
-    build: "cron"
+    build: 
+      context: .
+      dockerfile: cron/Dockerfile
     volumes:
       - ./backend/:/src
       - ./cron:/cron
