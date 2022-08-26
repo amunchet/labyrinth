@@ -575,39 +575,39 @@ h2.subnet:hover {
   margin: auto;
 }
 
-.mobile{
+.mobile {
   display: none !important;
 }
-@media screen and (max-width: 991px){
-  .corner{
+@media screen and (max-width: 991px) {
+  .corner {
     width: 50%;
     border-radius: 0.5rem;
     margin: auto;
     margin-top: 0.5rem;
   }
-  .left{
+  .left {
     width: 100%;
   }
-  .right{
+  .right {
     width: 100%;
     margin-left: 0 !important;
   }
-  .connector{ 
+  .connector {
     display: none;
   }
-  .outer{
+  .outer {
     margin: auto !important;
     width: 99%;
     overflow: hidden;
     margin-bottom: 0.5rem !important;
   }
-  .right h2{
+  .right h2 {
     text-align: center !important;
   }
-  .mobile{
+  .mobile {
     display: block !important;
   }
-  .main{
+  .main {
     width: 100%;
     max-width: 100%;
     min-width: 100%;

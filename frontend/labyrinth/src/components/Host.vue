@@ -302,8 +302,8 @@ export default {
   color: darkgrey;
   padding: 0;
 }
-@media screen and (max-width: 991px){
-  .hover{
+@media screen and (max-width: 991px) {
+  .hover {
     max-width: 23%;
   }
 }
