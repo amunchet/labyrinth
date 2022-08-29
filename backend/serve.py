@@ -1238,29 +1238,31 @@ def dashboard(val="", report=False):
             if "host" in host and host["host"] != "":
                 or_clause.append({"tags.host" : host["host"]})
             """
-
+            find_clause = {
+                "$or" : or_clause
+            }
             if service.strip() == "open_ports" or service.strip() == "closed_ports":
+                find_clause["name"] = "open_ports"
                 latest_metric = mongo_client["labyrinth"]["metrics"].find_one(
-                    {
-                        "name": "open_ports",
-                        "$or": or_clause,
-                    },
+                    find_clause,
                     sort=[("timestamp", pymongo.DESCENDING)],
                 )
                 found_service = service
 
                 result = mc.judge_port(latest_metric, service, host, stale_time=10000)
             else:
-                latest_metric = mongo_client["labyrinth"]["metrics"].find_one(
-                    {
-                        "name": service,
-                        "$or": or_clause,
-                    },
-                    sort=[("timestamp", pymongo.DESCENDING)],
-                )
                 found_service = mongo_client["labyrinth"]["services"].find_one(
                     {"name": service}
                 )
+
+                find_clause["name"] = service
+
+                
+                latest_metric = mongo_client["labyrinth"]["metrics"].find_one(
+                    find_clause,
+                    sort=[("timestamp", pymongo.DESCENDING)],
+                )
+                
 
                 if latest_metric is None or found_service is None:
                     result = False
