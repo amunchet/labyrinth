@@ -501,7 +501,7 @@ def list_services(all=""):
     if all == "":
         return (
             json.dumps(
-                [x["name"] for x in mongo_client["labyrinth"]["services"].find({})],
+                [x["display_name"] for x in mongo_client["labyrinth"]["services"].find({})],
                 default=str,
             ),
             200,
@@ -1252,22 +1252,29 @@ def dashboard(val="", report=False):
                 result = mc.judge_port(latest_metric, service, host, stale_time=10000)
             else:
                 found_service = mongo_client["labyrinth"]["services"].find_one(
-                    {"name": service}
+                    {"display_name": service}
                 )
 
-                find_clause["name"] = service
+                if found_service and "display_name" in found_service:
 
-                
-                latest_metric = mongo_client["labyrinth"]["metrics"].find_one(
-                    find_clause,
-                    sort=[("timestamp", pymongo.DESCENDING)],
-                )
-                
+                    find_clause["name"] = found_service["name"]
+                    
+                    if "tag_name" in found_service and found_service["tag_name"] and "tag_value" in found_service:
+                        find_clause["tags.{}".format(found_service["tag_name"])] = found_service["tag_value"]
 
-                if latest_metric is None or found_service is None:
+                    latest_metric = mongo_client["labyrinth"]["metrics"].find_one(
+                        find_clause,
+                        sort=[("timestamp", pymongo.DESCENDING)],
+                    )
+
+
+                    if not latest_metric:
+                        result = False
+                    else:
+                        result = mc.judge(latest_metric, found_service)
+                else: 
                     result = False
-                else:
-                    result = mc.judge(latest_metric, found_service)
+                    
 
             # Alerting section - this code is tested elsewhere
             if (
@@ -1481,12 +1488,19 @@ def read_metrics(host, service="", count=10):
     Returns the latest metrics for a given host
     """
     or_clause = {"$or": [{"tags.host": host}, {"tags.ip": host}, {"tags.mac": host}]}
-    if service != "":
-        or_clause["name"] = service
 
     found_host = mongo_client["labyrinth"]["hosts"].find_one(
         {"$or": [{"mac": host}, {"ip": host}]}
     )
+    
+    found_service = mongo_client["labyrinth"]["services"].find_one(
+            {"display_name": service}
+    )
+
+    if service != "" and found_service:
+        or_clause["name"] = found_service["name"]
+        if "tag_name" in found_service and found_service["tag_name"] and "tag_value" in found_service:
+            or_clause["tags.{}".format(found_service["tag_name"])] = found_service["tag_value"]
 
     retval = [
         x
@@ -1501,9 +1515,7 @@ def read_metrics(host, service="", count=10):
                 item, service, found_host, stale_time=10000
             )
     else:
-        found_service = mongo_client["labyrinth"]["services"].find_one(
-            {"name": service}
-        )
+        
         for item in retval:
             if item is None or found_service is None:
                 item["judgement"] = False

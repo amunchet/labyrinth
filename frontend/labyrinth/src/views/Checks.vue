@@ -18,7 +18,6 @@
           <b-button @click="cancel()" class="float-right"> Cancel </b-button>
         </div>
       </template>
-      {{selected_service}}
       <b-row>
         <b-col
           ><b>Display Name</b><br />
@@ -109,9 +108,14 @@
       <hr />
       <b-row>
         <b-col>
-          Tags:
+          <b>Tags</b><hr />
+          For Example:<br /><code>cpu: cpu-total</code>
           </b-col>
           <b-col>
+            Name: <br />
+            <b-input v-model="selected_service.tag_name" />
+            Value: <br />
+            <b-input v-model="selected_service.tag_value" />
             
           </b-col>
 
