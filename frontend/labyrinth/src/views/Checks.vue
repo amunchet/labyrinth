@@ -18,7 +18,19 @@
           <b-button @click="cancel()" class="float-right"> Cancel </b-button>
         </div>
       </template>
-
+      {{selected_service}}
+      <b-row>
+        <b-col
+          ><b>Display Name</b><br />
+          <span class="helptext">Display name.  E.g. cpu-34</span>
+        </b-col>
+        <b-col>
+          <b-input
+            :state="!$v.selected_service.display_name.$invalid"
+            v-model="selected_service.display_name"
+            placeholder="E.g. cpu-32"
+        /></b-col>
+      </b-row>
       <b-row>
         <b-col
           ><b>Exact Service Name</b><br />
@@ -94,6 +106,16 @@
             placeholder="E.g. 100"
         /></b-col>
       </b-row>
+      <hr />
+      <b-row>
+        <b-col>
+          Tags:
+          </b-col>
+          <b-col>
+            
+          </b-col>
+
+        </b-row>
     </b-modal>
 
     <div class="metrics-table">
@@ -130,7 +152,7 @@
         striped
         v-else
       >
-        <template v-slot:cell(name)="row">
+        <template v-slot:cell(display_name)="row">
           <b-button
             variant="link"
             class="shadow-none"
@@ -143,8 +165,11 @@
           >
             <font-awesome-icon icon="edit" size="1x" />
           </b-button>
-          {{ row.item.name }}
+          {{ row.item.display_name }}
         </template>
+        <template v-slot:cell(value)="row">
+          {{row.item.comparison}}&nbsp;{{row.item.value}}
+          </template>
       </b-table>
     </div>
     <hr />
@@ -203,11 +228,11 @@ export default {
       services: [],
       comparison_types: ["greater", "less", "equal"],
       service_fields: [
+        "display_name",
         "name",
         "type",
         "field",
         "metric",
-        "comparison",
         "value",
       ],
       metrics: [],
@@ -216,6 +241,7 @@ export default {
   },
   validations: {
     selected_service: {
+      display_name: {required},
       type: { required },
       name: { required },
       metric: { required },
