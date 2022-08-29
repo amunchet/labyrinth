@@ -387,13 +387,13 @@ def test_group_add_service(setup):
 def test_read_service(setup):
     """Reads a given service"""
     port_service = {
-        "display_name" : "port_ssh",
-        "name": "port_ssh", 
-        "type": "port", 
-        "port": 22, 
+        "display_name": "port_ssh",
+        "name": "port_ssh",
+        "type": "port",
+        "port": 22,
         "state": "open",
-        "tag_name" : "cpu",
-        "tag_value" : "cpu-all",
+        "tag_name": "cpu",
+        "tag_value": "cpu-all",
     }
 
     # Create Service
@@ -412,22 +412,22 @@ def test_read_service(setup):
 def test_read_services(setup):
     """Lists all available services"""
     port_service = {
-        "display_name" : "port_ssh-1",
-        "name": "port_ssh", 
-        "type": "port", 
-        "port": 22, 
-        "state": "open"
+        "display_name": "port_ssh-1",
+        "name": "port_ssh",
+        "type": "port",
+        "port": 22,
+        "state": "open",
     }
     check_service = {
-        "display_name" : "check_hd-1",
+        "display_name": "check_hd-1",
         "name": "check_hd",
         "type": "check",
         "metric": "diskio",
         "field": "read_time",
         "comparison": "greater",
         "value": 1000,
-        "tag_name" : "cpu",
-        "tag_value" : "cpus-all"
+        "tag_name": "cpu",
+        "tag_value": "cpus-all",
     }
 
     # Create Service
@@ -463,22 +463,17 @@ def test_create_edit_service(setup):
         - Need to have the boolean comparison operations - and, not, or, contains, etc.
         - THESE INVOLVE SNIPPETS
     """
-    port_service = {
-        "name": "port_ssh", 
-        "type": "port", 
-        "port": 22, 
-        "state": "open"
-    }
+    port_service = {"name": "port_ssh", "type": "port", "port": 22, "state": "open"}
     check_service = {
-        "display_name" : "check_hd-1",
+        "display_name": "check_hd-1",
         "name": "check_hd",
         "type": "check",
         "metric": "diskio",
         "field": "read_time",
         "comparison": "greater",
         "value": 1000,
-        "tag_name" : "cpu",
-        "tag_value" : "cpu-all"
+        "tag_name": "cpu",
+        "tag_value": "cpu-all",
     }
 
     # Create Service

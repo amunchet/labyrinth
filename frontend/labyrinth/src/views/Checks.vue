@@ -21,7 +21,7 @@
       <b-row>
         <b-col
           ><b>Display Name</b><br />
-          <span class="helptext">Display name.  E.g. cpu-34</span>
+          <span class="helptext">Display name. E.g. cpu-34</span>
         </b-col>
         <b-col>
           <b-input
@@ -110,18 +110,25 @@
         <b-col>
           <b>Tags</b>
           <div class="helptext mt-2">
-          Additional tags to match.  Used for when there are multiple services checking different resources (i.e. multiple disks being checked for space)
+            Additional tags to match. Used for when there are multiple services
+            checking different resources (i.e. multiple disks being checked for
+            space)
           </div>
-          </b-col>
-          <b-col>
-            Name: <br />
-            <b-input class="mb-2" v-model="selected_service.tag_name" placeholder="E.g. cpu"/>
-            Value: <br />
-            <b-input v-model="selected_service.tag_value" placeholder="E.g. cpu-total"/>
-            
-          </b-col>
-
-        </b-row>
+        </b-col>
+        <b-col>
+          Name: <br />
+          <b-input
+            class="mb-2"
+            v-model="selected_service.tag_name"
+            placeholder="E.g. cpu"
+          />
+          Value: <br />
+          <b-input
+            v-model="selected_service.tag_value"
+            placeholder="E.g. cpu-total"
+          />
+        </b-col>
+      </b-row>
     </b-modal>
 
     <div class="metrics-table">
@@ -174,8 +181,8 @@
           {{ row.item.display_name }}
         </template>
         <template v-slot:cell(value)="row">
-          {{row.item.comparison}}&nbsp;{{row.item.value}}
-          </template>
+          {{ row.item.comparison }}&nbsp;{{ row.item.value }}
+        </template>
       </b-table>
     </div>
     <hr />
@@ -247,7 +254,7 @@ export default {
   },
   validations: {
     selected_service: {
-      display_name: {required},
+      display_name: { required },
       type: { required },
       name: { required },
       metric: { required },
