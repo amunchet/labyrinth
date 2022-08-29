@@ -10,6 +10,7 @@ import json
 import socket
 import datetime
 import time
+import bson
 
 import pymongo
 
@@ -501,7 +502,7 @@ def list_services(all=""):
     if all == "":
         return (
             json.dumps(
-                [x["display_name"] for x in mongo_client["labyrinth"]["services"].find({})],
+                [x["display_name"] for x in mongo_client["labyrinth"]["services"].find({}) if "display_name" in x],
                 default=str,
             ),
             200,
@@ -521,7 +522,7 @@ def read_service(name):
     """Reads a given service"""
     return (
         json.dumps(
-            [x for x in mongo_client["labyrinth"]["services"].find({"name": name})],
+            [x for x in mongo_client["labyrinth"]["services"].find({"display_name": name})],
             default=str,
         ),
         200,
@@ -542,8 +543,14 @@ def create_edit_service(service=""):
     if "name" not in data:  # pragma: no cover
         return "Invalid data", 439
 
-    if [x for x in mongo_client["labyrinth"]["services"].find({"name": data["name"]})]:
-        mongo_client["labyrinth"]["services"].delete_one({"name": data["name"]})
+    if "_id" in data:
+        del data["_id"]
+
+    if "display_name" not in data:
+        data["display_name"] = ""
+
+    if [x for x in mongo_client["labyrinth"]["services"].find({"display_name": data["display_name"]})]:
+        mongo_client["labyrinth"]["services"].delete_one({"display_name": data["display_name"]})
 
     mongo_client["labyrinth"]["services"].insert_one(data)
 
@@ -559,7 +566,7 @@ def delete_service(name):
         - Removes service from all hosts if they have it
     """
     # Delete Service
-    mongo_client["labyrinth"]["services"].delete_one({"name": name})
+    mongo_client["labyrinth"]["services"].delete_one({"display_name": name})
 
     # Check for hosts that had the service
     mongo_client["labyrinth"]["hosts"].update_many(
@@ -1256,7 +1263,6 @@ def dashboard(val="", report=False):
                 )
 
                 if found_service and "display_name" in found_service:
-
                     find_clause["name"] = found_service["name"]
                     
                     if "tag_name" in found_service and found_service["tag_name"] and "tag_value" in found_service:

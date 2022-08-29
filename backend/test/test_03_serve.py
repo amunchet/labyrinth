@@ -156,7 +156,7 @@ def test_create_edit_host(setup):
         "host": "test",
         "group": "Linux Servers",
         "icon": "linux",
-        "services": ["open_ports", "closed_ports", "check_hd"],
+        "services": ["open_ports", "closed_ports", "check_hd-1"],
         "class": "health",
         "monitor": "false",
     }
@@ -357,14 +357,14 @@ def test_group_add_service(setup):
     test_create_edit_host(setup)
     b = serve.mongo_client["labyrinth"]["hosts"].find({})
     c = [x["services"] for x in b]
-    assert ["open_ports", "closed_ports", "check_hd"] in c
+    assert ["open_ports", "closed_ports", "check_hd-1"] in c
 
     x = unwrap(serve.group_add_service)("192.168.10", "Windows Servers", "check_meow")
     assert x[1] == 200
 
     b = serve.mongo_client["labyrinth"]["hosts"].find({})
     c = [x["services"] for x in b]
-    assert ["open_ports", "closed_ports", "check_hd", "check_meow"] in c
+    assert ["open_ports", "closed_ports", "check_hd-1", "check_meow"] in c
 
     # Don't duplicate
     x = unwrap(serve.group_add_service)("192.168.10", "Windows Servers", "check_meow")
@@ -372,7 +372,7 @@ def test_group_add_service(setup):
 
     b = serve.mongo_client["labyrinth"]["hosts"].find({})
     c = [x["services"] for x in b]
-    assert ["open_ports", "closed_ports", "check_hd", "check_meow"] in c
+    assert ["open_ports", "closed_ports", "check_hd-1", "check_meow"] in c
 
     z = unwrap(serve.group_delete_service)(
         "192.168.10", "Windows Servers", "check_meow"
@@ -381,12 +381,20 @@ def test_group_add_service(setup):
 
     b = serve.mongo_client["labyrinth"]["hosts"].find({})
     c = [x["services"] for x in b]
-    assert ["open_ports", "closed_ports", "check_hd"] in c
+    assert ["open_ports", "closed_ports", "check_hd-1"] in c
 
 
 def test_read_service(setup):
     """Reads a given service"""
-    port_service = {"name": "port_ssh", "type": "port", "port": 22, "state": "open"}
+    port_service = {
+        "display_name" : "port_ssh",
+        "name": "port_ssh", 
+        "type": "port", 
+        "port": 22, 
+        "state": "open",
+        "tag_name" : "cpu",
+        "tag_value" : "cpu-all",
+    }
 
     # Create Service
     a = unwrap(serve.create_edit_service)(port_service)
@@ -403,14 +411,23 @@ def test_read_service(setup):
 
 def test_read_services(setup):
     """Lists all available services"""
-    port_service = {"name": "port_ssh", "type": "port", "port": 22, "state": "open"}
+    port_service = {
+        "display_name" : "port_ssh-1",
+        "name": "port_ssh", 
+        "type": "port", 
+        "port": 22, 
+        "state": "open"
+    }
     check_service = {
+        "display_name" : "check_hd-1",
         "name": "check_hd",
         "type": "check",
         "metric": "diskio",
         "field": "read_time",
         "comparison": "greater",
         "value": 1000,
+        "tag_name" : "cpu",
+        "tag_value" : "cpus-all"
     }
 
     # Create Service
@@ -424,14 +441,14 @@ def test_read_services(setup):
     assert a[1] == 200
     b = json.loads(a[0])
 
-    assert b == ["port_ssh", "check_hd"]
+    assert b == ["port_ssh-1", "check_hd-1"]
 
     # List all services
     a = unwrap(serve.list_services)("all")
     assert a[1] == 200
     b = json.loads(a[0])
 
-    assert [x["name"] for x in b] == ["port_ssh", "check_hd"]
+    assert [x["display_name"] for x in b] == ["port_ssh-1", "check_hd-1"]
 
 
 def test_create_edit_service(setup):
@@ -446,14 +463,22 @@ def test_create_edit_service(setup):
         - Need to have the boolean comparison operations - and, not, or, contains, etc.
         - THESE INVOLVE SNIPPETS
     """
-    port_service = {"name": "port_ssh", "type": "port", "port": 22, "state": "open"}
+    port_service = {
+        "name": "port_ssh", 
+        "type": "port", 
+        "port": 22, 
+        "state": "open"
+    }
     check_service = {
+        "display_name" : "check_hd-1",
         "name": "check_hd",
         "type": "check",
         "metric": "diskio",
         "field": "read_time",
         "comparison": "greater",
         "value": 1000,
+        "tag_name" : "cpu",
+        "tag_value" : "cpu-all"
     }
 
     # Create Service
@@ -504,7 +529,7 @@ def test_delete_service(setup):
     test_create_edit_service(setup)
 
     # Create snippet if not exists
-    filename = "/src/snippets/check_hd"
+    filename = "/src/snippets/check_hd-1"
     if not os.path.exists(filename):
         with open(filename, "w") as f:
             f.write(".")
@@ -514,7 +539,7 @@ def test_delete_service(setup):
     b = serve.mongo_client["labyrinth"]["hosts"].find({})
     c = [x for x in b]
     assert len(c) == 1
-    assert c[0]["services"] == ["open_ports", "closed_ports", "check_hd"]
+    assert c[0]["services"] == ["open_ports", "closed_ports", "check_hd-1"]
 
     b = serve.mongo_client["labyrinth"]["services"].find({})
     c = [x for x in b]
@@ -523,7 +548,7 @@ def test_delete_service(setup):
     a = unwrap(serve.delete_service)("open_ports")
     assert a[1] == 200
 
-    a = unwrap(serve.delete_service)("check_hd")
+    a = unwrap(serve.delete_service)("check_hd-1")
     assert a[1] == 200
 
     b = serve.mongo_client["labyrinth"]["services"].find({})
@@ -669,7 +694,7 @@ def test_list_dashboard(setup):
                             "services": [
                                 {"name": "open_ports", "state": False},
                                 {"name": "closed_ports", "state": False},
-                                {"name": "check_hd", "state": False},
+                                {"name": "check_hd-1", "state": False},
                             ],
                             "class": "health",
                         }
