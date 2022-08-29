@@ -718,7 +718,7 @@ export default {
       Helper.apiPost(
         "save_ansible_file/",
         this.selected_playbook.replace(".yml", ""),
-        "/" + this.selected["become"].replace(/.yml$/, ""),
+        this.selected["become"].replace(/.yml$/, ""),
         auth,
         formData
       )
