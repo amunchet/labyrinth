@@ -108,14 +108,16 @@
       <hr />
       <b-row>
         <b-col>
-          <b>Tags</b><hr />
-          For Example:<br /><code>cpu: cpu-total</code>
+          <b>Tags</b>
+          <div class="helptext mt-2">
+          Additional tags to match.  Used for when there are multiple services checking different resources (i.e. multiple disks being checked for space)
+          </div>
           </b-col>
           <b-col>
             Name: <br />
-            <b-input v-model="selected_service.tag_name" />
+            <b-input class="mb-2" v-model="selected_service.tag_name" placeholder="E.g. cpu"/>
             Value: <br />
-            <b-input v-model="selected_service.tag_value" />
+            <b-input v-model="selected_service.tag_value" placeholder="E.g. cpu-total"/>
             
           </b-col>
 
