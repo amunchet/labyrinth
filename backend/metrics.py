@@ -55,10 +55,10 @@ def judge_port(metric, service, host, stale_time=600):
         return -1
 
     if service == "open_ports":
-        return bool([1 for x in metric["fields"]["ports"] if x in host["open_ports"]])
+        return bool([1 for x in metric["fields"]["ports"] if x in host["open_ports"] if "fields" in metric and "ports" in metric["fields"]])
     else:
         return sorted([int(x) for x in host["open_ports"]]) == sorted(
-            [int(x) for x in metric["fields"]["ports"]]
+            [int(x) for x in metric["fields"]["ports"] if "fields" in metric and "ports" in metric["fields"]]
         )
 
 
