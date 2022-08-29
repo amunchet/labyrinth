@@ -362,8 +362,8 @@ export default {
         .then((res) => {
           this.services = res.map((x) => {
             return {
-              text: x.name,
-              value: x.name,
+              text: x.display_name,
+              value: x.display_name,
             };
           });
         })
