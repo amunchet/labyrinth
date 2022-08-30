@@ -35,6 +35,7 @@
     <b-textarea ref="textarea_1" disabled :value="subnet">
       {{subnet}}
     </b-textarea> 
+    <hr />
     </div>
   </b-container>
 </template>

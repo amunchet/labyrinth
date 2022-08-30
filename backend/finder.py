@@ -5,6 +5,7 @@ Auto discovery finder
 import time
 import json
 import os
+from threading import Thread
 
 import redis
 
@@ -129,7 +130,10 @@ def main():  # pragma: no cover
         # List each subnet
         subnets = json.loads(unwrap(list_subnets)()[0])
 
-        for subnet in subnets:
+        def scan_subnet(subnet):
+            """
+            Scans a subnet
+            """
             rclient.set("output-{}".format(subnet), "")
             update_redis("\nStarting {}".format(subnet), subnet)
             results = scan(subnet, lambda x: update_redis(x, subnet))
@@ -160,6 +164,19 @@ def main():  # pragma: no cover
                     update_redis("\nException occurred: " + str(exc), subnet)
 
             update_redis("Finished.\n", subnet)
+
+        threads = []
+
+        for subnet in subnets:
+            t = Thread(target=scan_subnet, args=(subnet,))
+            threads.append(t)
+        
+        for x in threads:
+            x.start()
+        
+        for x in threads:
+            x.join()
+            
 
 
 if __name__ == "__main__":
