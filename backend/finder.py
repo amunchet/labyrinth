@@ -65,8 +65,8 @@ def convert_host(input: Dict) -> Dict:
     else:
         output["mac"] = input["addresses"]["ipv4"]
     output["subnet"] = ".".join(output["ip"].split(".")[:3])
-    print(input["osmatch"])
-    if input["osmatch"]:
+    if "osmatch" in input and input["osmatch"]:
+        print(input["osmatch"])
         output["icon"] = input["osmatch"][0]["name"].split(" ")[0].lower()
 
     output["group"] = output["icon"]
