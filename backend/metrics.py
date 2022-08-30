@@ -121,7 +121,7 @@ def judge_check(metric, service):
         logger.debug("In equals comparison")
         try:
             return found == service["value"]
-        except TypeError: # pragma: no cover
+        except TypeError:  # pragma: no cover
             try:
                 return float(found) == float(service["value"])
             except ValueError:
