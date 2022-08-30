@@ -1196,6 +1196,7 @@ def index_helper():
     )
     mongo_client["labyrinth"]["metrics"].create_index("name")
     mongo_client["labyrinth"]["metrics"].create_index("tags")
+    mongo_client["labyrinth"]["metrics-latest"].create_index("tags")
     mongo_client["labyrinth"]["metrics"].create_index("tags.mac")
     mongo_client["labyrinth"]["metrics"].create_index("tags.ip")
     mongo_client["labyrinth"]["metrics"].create_index("timestamp")
@@ -1580,6 +1581,10 @@ def insert_metric(inp=""):
         return "Invalid data", 421
 
     for item in data["metrics"]:
+        if "tags" in item:
+            mongo_client["labyrinth"]["metrics-latest"].delete_many({"tags" : item["tags"]})
+            mongo_client["labyrinth"]["metrics-latest"].insert_one(item)
+
         mongo_client["labyrinth"]["metrics"].insert_one(item)
 
     return "Success", 200
@@ -1589,7 +1594,7 @@ if __name__ == "__main__":  # pragma: no cover
 
     # Check on indexes
     index_helper()
-    
+
     if len(sys.argv) > 1 and sys.argv[1] == "watcher":
         unwrap(dashboard)(report=True)
     else:
