@@ -609,7 +609,7 @@ def read_redis():
     retval = {}
     for key in keys:
         retval[key.decode("utf-8").split("-")[1]] = a.get(key).decode("utf-8")
-    
+
     return json.dumps(retval, default=str), 200
 
 
@@ -1220,7 +1220,6 @@ def index_helper():
 def dashboard(val="", report=False):
     """Dashboard"""
 
-
     # Sorting helper for groups
     def group_sorting_helper(x):
         """
@@ -1258,7 +1257,11 @@ def dashboard(val="", report=False):
     all_services = list(mongo_client["labyrinth"]["services"].find({}))
 
     # Get latest metrics
-    latest_metrics = list(mongo_client["labyrinth"]["metrics-latest"].find({}, sort=[("timestamp", pymongo.DESCENDING)]))
+    latest_metrics = list(
+        mongo_client["labyrinth"]["metrics-latest"].find(
+            {}, sort=[("timestamp", pymongo.DESCENDING)]
+        )
+    )
 
     def find_metric(service_name, host, tag_name="", tag_value=""):
         """
@@ -1267,11 +1270,25 @@ def dashboard(val="", report=False):
         for item in latest_metrics:
             name_clause = "name" in item and item["name"] == service_name.strip()
 
-            mac_clause = "tags" in item and "mac" in item["tags"] and "mac" in host and item["tags"]["mac"] == host["mac"]
-            ip_clause = "tags" in item and "ip" in item["tags"] and "ip" in host and item["tags"]["ip"] == host["ip"]
+            mac_clause = (
+                "tags" in item
+                and "mac" in item["tags"]
+                and "mac" in host
+                and item["tags"]["mac"] == host["mac"]
+            )
+            ip_clause = (
+                "tags" in item
+                and "ip" in item["tags"]
+                and "ip" in host
+                and item["tags"]["ip"] == host["ip"]
+            )
 
             if tag_name:
-                additional_tag_clause = "tags" in item and tag_name in item["tags"] and item["tags"][tag_name] == tag_value
+                additional_tag_clause = (
+                    "tags" in item
+                    and tag_name in item["tags"]
+                    and item["tags"][tag_name] == tag_value
+                )
             else:
                 additional_tag_clause = True
 
@@ -1287,18 +1304,13 @@ def dashboard(val="", report=False):
         for item in all_services:
             if item["display_name"] == name:
                 return item
-        return None           
-        
-
-
+        return None
 
     # Get the hosts latest metrics for states
     for host in [x for x in hosts if "services" in x]:
         service_results = {}
         for service in host["services"]:
             or_clause = []
-            
-
 
             if service.strip() == "open_ports" or service.strip() == "closed_ports":
                 latest_metric = find_metric("open_ports", host)
@@ -1314,9 +1326,14 @@ def dashboard(val="", report=False):
                         and found_service["tag_name"]
                         and "tag_value" in found_service
                     ):
-                        latest_metric = find_metric(found_service["name"], host, found_service["tag_name"], found_service["tag_value"])
+                        latest_metric = find_metric(
+                            found_service["name"],
+                            host,
+                            found_service["tag_name"],
+                            found_service["tag_value"],
+                        )
                     else:
-                        
+
                         latest_metric = find_metric(found_service["name"], host)
 
                     if not latest_metric:
@@ -1606,7 +1623,9 @@ def insert_metric(inp=""):
 
     for item in data["metrics"]:
         if "tags" in item and "name" in item:
-            mongo_client["labyrinth"]["metrics-latest"].delete_many({"tags" : item["tags"], "name" : item["name"]})
+            mongo_client["labyrinth"]["metrics-latest"].delete_many(
+                {"tags": item["tags"], "name": item["name"]}
+            )
             mongo_client["labyrinth"]["metrics-latest"].insert_one(item)
 
         mongo_client["labyrinth"]["metrics"].insert_one(item)

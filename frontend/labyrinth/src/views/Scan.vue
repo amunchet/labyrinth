@@ -8,7 +8,7 @@
       </b-col>
     </b-row>
     <hr />
-    
+
     <div v-for="(subnet, idx) in data" v-bind:key="idx">
       <b-progress
         v-if="idx != 0"
@@ -32,10 +32,10 @@
           >
         </b-progress-bar>
       </b-progress>
-    <b-textarea ref="textarea_1" disabled :value="subnet">
-      {{subnet}}
-    </b-textarea> 
-    <hr />
+      <b-textarea ref="textarea_1" disabled :value="subnet">
+        {{ subnet }}
+      </b-textarea>
+      <hr />
     </div>
   </b-container>
 </template>
@@ -68,7 +68,7 @@ export default {
           }
         })
         .catch(() => {
-          clearTimeout(this.timeout)
+          clearTimeout(this.timeout);
           this.timeout = setTimeout(this.loadData, 1000);
         });
     },
@@ -91,9 +91,9 @@ export default {
       this.$store.commit("updateError", e);
     }
   },
-  destroyed: function(){
-    clearTimeout(this.timeout)
-  }
+  destroyed: function () {
+    clearTimeout(this.timeout);
+  },
 };
 </script>
 <style scoped>

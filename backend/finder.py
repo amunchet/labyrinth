@@ -26,7 +26,9 @@ def scan(subnet: str, callback_fn, verbose=False) -> List:  # pragma: no cover
     scanner = ps()
     results = []
     arguments = "-sV -O -A --script vulners"
-    arguments = "-sT -n" # Removed vulners, since security scanning will be done externally
+    arguments = (
+        "-sT -n"  # Removed vulners, since security scanning will be done externally
+    )
     for line in scanner.scan(hosts=search, arguments=arguments):
         if verbose:
             callback_fn(str(line))
@@ -125,7 +127,6 @@ def main():  # pragma: no cover
         rclient.set("output-{}".format(subnet), output + str(msg))
 
     with PidFile("labyrinth-finder") as p:
-        
 
         # List each subnet
         subnets = json.loads(unwrap(list_subnets)()[0])
@@ -170,13 +171,12 @@ def main():  # pragma: no cover
         for subnet in subnets:
             t = Thread(target=scan_subnet, args=(subnet,))
             threads.append(t)
-        
+
         for x in threads:
             x.start()
-        
+
         for x in threads:
             x.join()
-            
 
 
 if __name__ == "__main__":

@@ -19,14 +19,13 @@ def setup():
     """
     serve.mongo_client["labyrinth"]["metrics"].delete_many({})
     serve.mongo_client["labyrinth"]["metrics-latest"].delete_many({})
-    serve.mongo_client["labyrinth"]["services"].delete_many({"display_name" : "test"})
-
+    serve.mongo_client["labyrinth"]["services"].delete_many({"display_name": "test"})
 
     serve.mongo_client["labyrinth"]["metrics"].insert_one({"timestamp": 1})
     serve.mongo_client["labyrinth"]["metrics"].insert_one(
         {
             "timestamp": 2,
-            "name" : "test",
+            "name": "test",
             "tags": {
                 "host": 1234,
                 "ip": 1234,
@@ -38,7 +37,7 @@ def setup():
     serve.mongo_client["labyrinth"]["metrics-latest"].insert_one(
         {
             "timestamp": 2,
-            "name" : "test",
+            "name": "test",
             "tags": {
                 "host": 1234,
                 "ip": 1234,
@@ -47,11 +46,9 @@ def setup():
         }
     )
 
-    serve.mongo_client["labyrinth"]["services"].insert_one({
-        "display_name" : "test",
-        "name" : "test"
-    })
-
+    serve.mongo_client["labyrinth"]["services"].insert_one(
+        {"display_name": "test", "name": "test"}
+    )
 
     yield "Setting up..."
     return "Finished"
@@ -67,7 +64,7 @@ def test_get_latest_metrics(setup):
     assert a[1] == 200
     b = json.loads(a[0])
     print(b)
-    assert b[0]["timestamp"] == 1 # Only once, since using latest metrics
+    assert b[0]["timestamp"] == 1  # Only once, since using latest metrics
 
 
 def test_read_metrics(setup):
