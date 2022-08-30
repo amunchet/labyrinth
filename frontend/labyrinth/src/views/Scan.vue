@@ -43,6 +43,7 @@ export default {
     return {
       data: "",
       subnet: "",
+      timeout: null,
     };
   },
   methods: {
@@ -59,11 +60,12 @@ export default {
             el = this.$refs.textarea_1.$el;
             el.scrollTop = el.scrollHeight + 500;
             this.$forceUpdate();
-            setTimeout(this.loadData, 1000);
+            this.timeout = setTimeout(this.loadData, 1000);
           }
         })
         .catch(() => {
-          setTimeout(this.loadData, 1000);
+          clearTimeout(this.timeout)
+          this.timeout = setTimeout(this.loadData, 1000);
         });
     },
     startScan: /* istanbul ignore next */ function () {
@@ -85,6 +87,9 @@ export default {
       this.$store.commit("updateError", e);
     }
   },
+  destroyed: function(){
+    clearTimeout(this.timeout)
+  }
 };
 </script>
 <style scoped>

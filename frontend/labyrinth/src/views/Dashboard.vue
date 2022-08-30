@@ -242,6 +242,8 @@ export default {
         tooltips: { enabled: false },
         hover: { mode: null },
       },
+
+      timeout: null,
     };
   },
   components: {
@@ -357,13 +359,14 @@ export default {
               this.$forceUpdate();
             }
           }
-          setTimeout(() => {
+          this.timeout = setTimeout(() => {
             this.loadData(false);
           }, 2000);
           this.loading = false;
         })
         .catch((e) => {
-          setTimeout(() => {
+          clearTimeout(this.timeout)
+          this.timeout = setTimeout(() => {
             this.loadData(false);
           }, 2000);
           this.$store.commit("updateError", e);
@@ -444,6 +447,9 @@ export default {
       this.$store.commit("updateError", e);
     }
   },
+  destroyed: function(){
+    clearTimeout(this.timeout)
+  }
 };
 </script>
 <style lang="scss" scoped>
