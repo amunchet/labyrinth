@@ -1520,10 +1520,10 @@ def last_metrics(count):
         json.dumps(
             [
                 x
-                for x in mongo_client["labyrinth"]["metrics"]
+                for x in mongo_client["labyrinth"]["metrics-latest"]
                 .find({})
-                .sort([("metrics.timestamp", pymongo.ASCENDING)])
-            ][:count],
+                .sort([("metrics-latest.timestamp", pymongo.ASCENDING)])
+            ],
             default=str,
         ),
         200,
