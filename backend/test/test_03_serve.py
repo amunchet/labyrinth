@@ -11,20 +11,6 @@ import serve
 from common.test import unwrap
 
 
-def test_insecure():
-    """Try to access open resource (success) and protected (fail)"""
-
-    a = requests.get("http://localhost:7000/insecure")
-    assert a.status_code == 200
-
-
-def test_secure():
-    """Checks access to a protected resource"""
-
-    a = requests.get("http://localhost:7000/secure")
-    assert a.status_code == 401
-
-
 # Labyrinth main functions
 
 
