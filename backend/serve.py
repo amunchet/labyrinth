@@ -1213,8 +1213,6 @@ def index_helper():
 def dashboard(val="", report=False):
     """Dashboard"""
 
-    # Check on indexes
-    index_helper()
 
     # Sorting helper for groups
     def group_sorting_helper(x):
@@ -1589,6 +1587,9 @@ def insert_metric(inp=""):
 
 if __name__ == "__main__":  # pragma: no cover
 
+    # Check on indexes
+    index_helper()
+    
     if len(sys.argv) > 1 and sys.argv[1] == "watcher":
         unwrap(dashboard)(report=True)
     else:
