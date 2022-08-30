@@ -24,7 +24,9 @@ def scan(subnet: str, callback_fn, verbose=False) -> List:  # pragma: no cover
 
     scanner = ps()
     results = []
-    for line in scanner.scan(hosts=search, arguments="-sV -O -A --script vulners"):
+    arguments = "-sV -O -A --script vulners"
+    arguments = "" # Removed vulners, since security scanning will be done externally
+    for line in scanner.scan(hosts=search, arguments=arguments):
         if verbose:
             callback_fn(str(line))
         if line[1]["nmap"]["scanstats"]["uphosts"] != "0":
