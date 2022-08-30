@@ -1266,17 +1266,16 @@ def dashboard(val="", report=False):
         """
         for item in latest_metrics:
             name_clause = "name" in item and item["name"] == service_name.strip()
-            tags_clause = "tags" in item
 
-            mac_clause = "mac" in item["tags"] and "mac" in host and item["tags"]["mac"] == host["mac"]
-            ip_clause = "ip" in item["tags"] and "ip" in host and item["tags"]["ip"] == host["ip"]
+            mac_clause = "tags" in item and "mac" in item["tags"] and "mac" in host and item["tags"]["mac"] == host["mac"]
+            ip_clause = "tags" in item and "ip" in item["tags"] and "ip" in host and item["tags"]["ip"] == host["ip"]
 
             if tag_name:
-                additional_tag_clause = tag_name in item["tags"] and item["tags"][tag_name] == tag_value
+                additional_tag_clause = "tags" in item and tag_name in item["tags"] and item["tags"][tag_name] == tag_value
             else:
                 additional_tag_clause = True
 
-            if name_clause and tags_clause and (mac_clause or ip_clause) and additional_tag_clause:
+            if name_clause and (mac_clause or ip_clause) and additional_tag_clause:
                 return item
 
         return None
