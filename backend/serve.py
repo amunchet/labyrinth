@@ -1558,7 +1558,7 @@ def read_metrics(host, service="", count=10):
             or_clause["tags.{}".format(found_service["tag_name"])] = found_service[
                 "tag_value"
             ]
-    else:
+    elif service != "":
         or_clause["name"] = service
 
     retval = [
