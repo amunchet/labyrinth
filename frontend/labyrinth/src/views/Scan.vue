@@ -8,7 +8,8 @@
       </b-col>
     </b-row>
     <hr />
-    <div v-for="(subnet, idx) in data.split('Starting')" v-bind:key="idx">
+    
+    <div v-for="(subnet, idx) in data" v-bind:key="idx">
       <b-progress
         v-if="idx != 0"
         :max="100"
@@ -31,8 +32,10 @@
           >
         </b-progress-bar>
       </b-progress>
+    <b-textarea ref="textarea_1" disabled :value="subnet">
+      {{subnet}}
+    </b-textarea> 
     </div>
-    <b-textarea ref="textarea_1" disabled v-model="data" />
   </b-container>
 </template>
 <script>

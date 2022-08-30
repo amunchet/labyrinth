@@ -601,10 +601,16 @@ def delete_service(name):
 def read_redis():
     """Returns the output of the redis run"""
     a = redis.Redis(host=os.environ.get("REDIS_HOST"))
-    b = a.get("output")
-    if b:
-        return b, 200
-    return "[No output found]", 200
+
+    # List all the redis keys of the output_[subnet name]
+    keys = a.keys(pattern="output-*")
+
+    # Get each one, then send it out properly
+    retval = {}
+    for key in keys:
+        retval[key.decode("utf-8").split("-")[1]] = a.get(key).decode("utf-8")
+    
+    return json.dumps(retval, default=str), 200
 
 
 # Redis - TOML
