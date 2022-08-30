@@ -15,12 +15,17 @@ from common.test import unwrap
 def test_read_redis():
 
     a = redis.Redis(host="redis")
+    # Remove any old results
+    found_keys = a.keys(pattern="output-*")
+    for item in found_keys:
+        a.delete(item)
+
     temp = a.get("output")
-    a.set("output", "test")
+    a.set("output-10", "test")
 
     b = unwrap(serve.read_redis)()
     assert b[1] == 200
-    assert b[0] == b"test"
+    assert b[0] == '{"10": "test"}'
     if temp is not None:
         a.set("output", temp)
 

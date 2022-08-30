@@ -29,7 +29,7 @@ def tearDown():
     if os.path.exists("/tmp/broken.jpg"):
         os.remove("/tmp/broken.jpg")
 
-    serve.mongo_client["labyrinth"]["dashboards"].delete_many({"name": "TESTTEST"})
+    serve.mongo_client["labyrinth"]["dashboards"].delete_many({})
 
 
 @pytest.fixture

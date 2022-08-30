@@ -601,10 +601,16 @@ def delete_service(name):
 def read_redis():
     """Returns the output of the redis run"""
     a = redis.Redis(host=os.environ.get("REDIS_HOST"))
-    b = a.get("output")
-    if b:
-        return b, 200
-    return "[No output found]", 200
+
+    # List all the redis keys of the output_[subnet name]
+    keys = a.keys(pattern="output-*")
+
+    # Get each one, then send it out properly
+    retval = {}
+    for key in keys:
+        retval[key.decode("utf-8").split("-")[1]] = a.get(key).decode("utf-8")
+
+    return json.dumps(retval, default=str), 200
 
 
 # Redis - TOML
@@ -1196,6 +1202,7 @@ def index_helper():
     )
     mongo_client["labyrinth"]["metrics"].create_index("name")
     mongo_client["labyrinth"]["metrics"].create_index("tags")
+    mongo_client["labyrinth"]["metrics-latest"].create_index("tags")
     mongo_client["labyrinth"]["metrics"].create_index("tags.mac")
     mongo_client["labyrinth"]["metrics"].create_index("tags.ip")
     mongo_client["labyrinth"]["metrics"].create_index("timestamp")
@@ -1212,9 +1219,6 @@ def index_helper():
 @requires_auth_read
 def dashboard(val="", report=False):
     """Dashboard"""
-
-    # Check on indexes
-    index_helper()
 
     # Sorting helper for groups
     def group_sorting_helper(x):
@@ -1249,52 +1253,88 @@ def dashboard(val="", report=False):
     # Get all the hosts
     hosts = [x for x in mongo_client["labyrinth"]["hosts"].find({})]
 
+    # Get all services
+    all_services = list(mongo_client["labyrinth"]["services"].find({}))
+
+    # Get latest metrics
+    latest_metrics = list(
+        mongo_client["labyrinth"]["metrics-latest"].find(
+            {}, sort=[("timestamp", pymongo.DESCENDING)]
+        )
+    )
+
+    def find_metric(service_name, host, tag_name="", tag_value=""):
+        """
+        Finds a metric from the latest metrics list
+        """
+        for item in latest_metrics:
+            name_clause = "name" in item and item["name"] == service_name.strip()
+
+            mac_clause = (
+                "tags" in item
+                and "mac" in item["tags"]
+                and "mac" in host
+                and item["tags"]["mac"] == host["mac"]
+            )
+            ip_clause = (
+                "tags" in item
+                and "ip" in item["tags"]
+                and "ip" in host
+                and item["tags"]["ip"] == host["ip"]
+            )
+
+            if tag_name:
+                additional_tag_clause = (
+                    "tags" in item
+                    and tag_name in item["tags"]
+                    and item["tags"][tag_name] == tag_value
+                )
+            else:
+                additional_tag_clause = True
+
+            if name_clause and (mac_clause or ip_clause) and additional_tag_clause:
+                return item
+
+        return None
+
+    def find_service(name):
+        """
+        Returns the given service
+        """
+        for item in all_services:
+            if item["display_name"] == name:
+                return item
+        return None
+
     # Get the hosts latest metrics for states
     for host in [x for x in hosts if "services" in x]:
         service_results = {}
         for service in host["services"]:
             or_clause = []
-            if "mac" in host and host["mac"] != "":
-                or_clause.append({"tags.mac": host["mac"]})
-            if "ip" in host and host["ip"] != "":
-                or_clause.append({"tags.ip": host["ip"]})
 
-            # Some networks have multiple hostnames that are the same...
-            """
-            if "host" in host and host["host"] != "":
-                or_clause.append({"tags.host" : host["host"]})
-            """
-            find_clause = {"$or": or_clause}
             if service.strip() == "open_ports" or service.strip() == "closed_ports":
-                find_clause["name"] = "open_ports"
-                latest_metric = mongo_client["labyrinth"]["metrics"].find_one(
-                    find_clause,
-                    sort=[("timestamp", pymongo.DESCENDING)],
-                )
+                latest_metric = find_metric("open_ports", host)
                 found_service = service
 
                 result = mc.judge_port(latest_metric, service, host, stale_time=10000)
             else:
-                found_service = mongo_client["labyrinth"]["services"].find_one(
-                    {"display_name": service}
-                )
+                found_service = find_service(service)
 
                 if found_service and "display_name" in found_service:
-                    find_clause["name"] = found_service["name"]
-
                     if (
                         "tag_name" in found_service
                         and found_service["tag_name"]
                         and "tag_value" in found_service
                     ):
-                        find_clause[
-                            "tags.{}".format(found_service["tag_name"])
-                        ] = found_service["tag_value"]
+                        latest_metric = find_metric(
+                            found_service["name"],
+                            host,
+                            found_service["tag_name"],
+                            found_service["tag_value"],
+                        )
+                    else:
 
-                    latest_metric = mongo_client["labyrinth"]["metrics"].find_one(
-                        find_clause,
-                        sort=[("timestamp", pymongo.DESCENDING)],
-                    )
+                        latest_metric = find_metric(found_service["name"], host)
 
                     if not latest_metric:
                         result = False
@@ -1496,10 +1536,10 @@ def last_metrics(count):
         json.dumps(
             [
                 x
-                for x in mongo_client["labyrinth"]["metrics"]
+                for x in mongo_client["labyrinth"]["metrics-latest"]
                 .find({})
-                .sort([("metrics.timestamp", pymongo.ASCENDING)])
-            ][:count],
+                .sort([("metrics-latest.timestamp", pymongo.ASCENDING)])
+            ],
             default=str,
         ),
         200,
@@ -1534,7 +1574,7 @@ def read_metrics(host, service="", count=10):
             or_clause["tags.{}".format(found_service["tag_name"])] = found_service[
                 "tag_value"
             ]
-    else:
+    elif service != "":
         or_clause["name"] = service
 
     retval = [
@@ -1582,12 +1622,21 @@ def insert_metric(inp=""):
         return "Invalid data", 421
 
     for item in data["metrics"]:
+        if "tags" in item and "name" in item:
+            mongo_client["labyrinth"]["metrics-latest"].delete_many(
+                {"tags": item["tags"], "name": item["name"]}
+            )
+            mongo_client["labyrinth"]["metrics-latest"].insert_one(item)
+
         mongo_client["labyrinth"]["metrics"].insert_one(item)
 
     return "Success", 200
 
 
 if __name__ == "__main__":  # pragma: no cover
+
+    # Check on indexes
+    index_helper()
 
     if len(sys.argv) > 1 and sys.argv[1] == "watcher":
         unwrap(dashboard)(report=True)

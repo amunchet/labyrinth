@@ -5,6 +5,7 @@ Auto discovery finder
 import time
 import json
 import os
+from threading import Thread
 
 import redis
 
@@ -24,7 +25,11 @@ def scan(subnet: str, callback_fn, verbose=False) -> List:  # pragma: no cover
 
     scanner = ps()
     results = []
-    for line in scanner.scan(hosts=search, arguments="-sV -O -A --script vulners"):
+    arguments = "-sV -O -A --script vulners"
+    arguments = (
+        "-sT -n"  # Removed vulners, since security scanning will be done externally
+    )
+    for line in scanner.scan(hosts=search, arguments=arguments):
         if verbose:
             callback_fn(str(line))
         if line[1]["nmap"]["scanstats"]["uphosts"] != "0":
@@ -62,8 +67,8 @@ def convert_host(input: Dict) -> Dict:
     else:
         output["mac"] = input["addresses"]["ipv4"]
     output["subnet"] = ".".join(output["ip"].split(".")[:3])
-    print(input["osmatch"])
-    if input["osmatch"]:
+    if "osmatch" in input and input["osmatch"]:
+        print(input["osmatch"])
         output["icon"] = input["osmatch"][0]["name"].split(" ")[0].lower()
 
     output["group"] = output["icon"]
@@ -117,22 +122,25 @@ def main():  # pragma: no cover
 
     rclient = redis.Redis(host=(os.environ.get("REDIS_HOST") or "redis"))
 
-    def update_redis(msg):
-        output = rclient.get("output").decode("utf-8")
-        rclient.set("output", output + str(msg))
+    def update_redis(msg, subnet):
+        output = rclient.get("output-{}".format(subnet)).decode("utf-8")
+        rclient.set("output-{}".format(subnet), output + str(msg))
 
     with PidFile("labyrinth-finder") as p:
-        rclient.set("output", "")
 
         # List each subnet
         subnets = json.loads(unwrap(list_subnets)()[0])
 
-        for subnet in subnets:
-            update_redis("\nStarting {}".format(subnet))
-            results = scan(subnet, update_redis)
+        def scan_subnet(subnet):
+            """
+            Scans a subnet
+            """
+            rclient.set("output-{}".format(subnet), "")
+            update_redis("\nStarting {}".format(subnet), subnet)
+            results = scan(subnet, lambda x: update_redis(x, subnet))
 
             # For each host, if it doesn't exist, create it.
-            update_redis("\nHosts Check...")
+            update_redis("\nHosts Check...", subnet)
             for result in results:
                 host = [x for x in result["scan"].values()]
                 if not host:
@@ -144,19 +152,31 @@ def main():  # pragma: no cover
                         mac = host["addresses"]["mac"]
                     else:
                         mac = host["addresses"]["ipv4"]
-                    update_redis("\n" + str(mac))
+                    update_redis("\n" + str(mac), subnet)
                     output = unwrap(list_host)(mac)[0]
                     if output == "null":
-                        update_redis("\nCreating new host: {}".format(mac))
+                        update_redis("\nCreating new host: {}".format(mac), subnet)
                         unwrap(create_edit_host)(convert_host(host))
 
-                    update_redis("\nInserting metrics...")
+                    update_redis("\nInserting metrics...", subnet)
                     metric = unwrap(insert_metric)({"metrics": [process_scan(host)]})
-                    update_redis("\n" + str(metric))
+                    update_redis("\n" + str(metric), subnet)
                 except Exception as exc:
-                    update_redis("\nException occurred: " + str(exc))
+                    update_redis("\nException occurred: " + str(exc), subnet)
 
-        update_redis("Finished.\n")
+            update_redis("Finished.\n", subnet)
+
+        threads = []
+
+        for subnet in subnets:
+            t = Thread(target=scan_subnet, args=(subnet,))
+            threads.append(t)
+
+        for x in threads:
+            x.start()
+
+        for x in threads:
+            x.join()
 
 
 if __name__ == "__main__":
