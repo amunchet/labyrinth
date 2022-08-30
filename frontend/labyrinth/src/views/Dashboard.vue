@@ -365,7 +365,7 @@ export default {
           this.loading = false;
         })
         .catch((e) => {
-          clearTimeout(this.timeout)
+          clearTimeout(this.timeout);
           this.timeout = setTimeout(() => {
             this.loadData(false);
           }, 2000);
@@ -447,9 +447,9 @@ export default {
       this.$store.commit("updateError", e);
     }
   },
-  destroyed: function(){
-    clearTimeout(this.timeout)
-  }
+  destroyed: function () {
+    clearTimeout(this.timeout);
+  },
 };
 </script>
 <style lang="scss" scoped>

@@ -279,6 +279,7 @@ def test_delete_host(setup):
 
 # Groups
 
+
 def test_list_subnets_groups(setup):
     test_create_edit_subnet(setup)
     test_create_edit_host(setup)
@@ -287,6 +288,7 @@ def test_list_subnets_groups(setup):
     c = json.loads(b[0])
     assert c[0] == "Windows Servers"
 
+
 def test_list_subnets_group_members(setup):
     test_create_edit_subnet(setup)
     test_create_edit_host(setup)
@@ -294,7 +296,6 @@ def test_list_subnets_group_members(setup):
     assert b[1] == 200
     c = json.loads(b[0])
     assert c[0] == "192.168.10.176"
-
 
 
 def test_group_monitor(setup):
