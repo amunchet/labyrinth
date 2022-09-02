@@ -82,5 +82,5 @@ def check_all_hosts():
                     )
 
 
-if __name__ == "__main__": # pragma: no cover
+if __name__ == "__main__":  # pragma: no cover
     check_all_hosts()
