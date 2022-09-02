@@ -84,6 +84,36 @@ def test_read_metrics(setup):
     assert b[0]["timestamp"] == 2
 
 
+def test_time_judge(setup):
+    """
+    Tests time judgement
+    """
+    
+
+    metric = {
+        "fields": {
+            "old" : time.time_ns() - (1e9 * 100)
+        },
+        "name": "check_hd",
+        "tags": {"host": "aacd4239ee68"},
+        "timestamp": time.time(),
+    }
+    check_service = {
+        "display_name" : "test-1",
+        "name" : "check_hd",
+        "metric" : "old",
+        "field" : "old",
+        "comparison" : "time",
+        "value" : 200
+    }
+
+    assert metrics.judge_check(metric, check_service)
+
+    check_service["value"] = 1
+
+    assert not metrics.judge_check(metric, check_service)
+
+
 def test_metric_judge(setup):
     """
     Tests Judging a metric against a service

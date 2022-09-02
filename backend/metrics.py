@@ -75,7 +75,7 @@ def judge_port(metric, service, host, stale_time=600):
 
 def judge_check(metric, service):
     """Judges a normal check"""
-    valid_operations = ["less", "greater", "equals"]
+    valid_operations = ["less", "greater", "equals", "time"]
 
     if "name" not in service or "name" not in metric:
         logger.debug("No name.")
@@ -144,3 +144,19 @@ def judge_check(metric, service):
                 return float(found) < float(service["value"])
             except ValueError:
                 return str(found) < str(service["value"])
+
+    elif service["comparison"] == "time":
+        try:
+            current_time = time.time_ns()
+            difference = float(service["value"])
+            service_time = float(found)
+
+
+            computed = (current_time - service_time)/1e9
+
+            print(current_time, difference, service_time, computed)
+
+            return computed <= difference
+        except TypeError:
+            return False
+        pass
