@@ -1203,9 +1203,11 @@ def index_helper():
     mongo_client["labyrinth"]["metrics"].create_index("name")
     mongo_client["labyrinth"]["metrics"].create_index("tags")
     mongo_client["labyrinth"]["metrics-latest"].create_index("tags")
-    mongo_client["labyrinth"]["metrics"].create_index("tags.mac")
-    mongo_client["labyrinth"]["metrics"].create_index("tags.ip")
-    mongo_client["labyrinth"]["metrics"].create_index("timestamp")
+
+    mongo_client["labyrinth"]["metrics"].create_index([("tags.ip", pymongo.DESCENDING), ("tags.host", pymongo.DESCENDING), ("tags.mac", pymongo.DESCENDING)])
+
+
+
     mongo_client["labyrinth"]["services"].create_index("name")
     mongo_client["labyrinth"]["services"].create_index("display_name")
     mongo_client["labyrinth"]["hosts"].create_index("ip")
