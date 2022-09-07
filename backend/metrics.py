@@ -151,8 +151,7 @@ def judge_check(metric, service):
             difference = float(service["value"])
             service_time = float(found)
 
-
-            computed = (current_time - service_time)/1e9
+            computed = (current_time - service_time) / 1e9
 
             print(current_time, difference, service_time, computed)
 

@@ -1212,6 +1212,7 @@ def index_helper():
     mongo_client["labyrinth"]["hosts"].create_index("mac")
     mongo_client["labyrinth"]["hosts"].create_index("subnet")
     mongo_client["labyrinth"]["settings"].create_index("name")
+    mongo_client["labyrinth"]["metrics"].create_index([("metrics.timestamp", -1)])
 
 
 @app.route("/dashboard/<val>")
@@ -1616,7 +1617,7 @@ def insert_metric(inp=""):
     else:  # pragma: no cover
         return "Invalid data", 419
 
-    mongo_client["labyrinth"]["metrics"].create_index([("metrics.timestamp", -1)])
+    
 
     if "metrics" not in data:  # pragma: no cover
         return "Invalid data", 421

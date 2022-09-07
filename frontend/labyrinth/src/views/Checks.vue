@@ -91,8 +91,13 @@
             v-model="selected_service.comparison"
             :state="!$v.selected_service.comparison.$invalid"
           />
-          <div v-if="selected_service.comparison == 'time'" class="helptext mt-2">
-            Time means number of seconds before current time.  For example, if the metric time is 100 seconds in the past, setting a value of 101 would result in false.  A value of 99 would be true.
+          <div
+            v-if="selected_service.comparison == 'time'"
+            class="helptext mt-2"
+          >
+            Time means number of seconds before current time. For example, if
+            the metric time is 100 seconds in the past, setting a value of 101
+            would result in false. A value of 99 would be true.
           </div>
         </b-col>
       </b-row>
