@@ -1626,7 +1626,10 @@ def insert_metric(inp=""):
             mongo_client["labyrinth"]["metrics-latest"].delete_many(
                 {"tags": item["tags"], "name": item["name"]}
             )
-            mongo_client["labyrinth"]["metrics-latest"].insert_one(item)
+            try:
+                mongo_client["labyrinth"]["metrics-latest"].insert_one(item)
+            except Exception:
+                raise Exception(item)
 
         mongo_client["labyrinth"]["metrics"].insert_one(item)
 
