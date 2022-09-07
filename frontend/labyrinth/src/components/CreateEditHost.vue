@@ -337,6 +337,7 @@ export default {
         this.isNew = false;
         this.host = val;
         this.loadMetrics();
+        this.loadServices()
       }
     },
   },
