@@ -145,6 +145,7 @@
           <b-input
             class="float-left"
             v-model="services_filter"
+            lazy
             placeholder="Filter Services"
           />
         </b-col>
@@ -201,6 +202,7 @@
           <b-input
             class="mt-2 mb-2"
             v-model="metrics_filter"
+            lazy
             placeholder="Filter metrics"
           />
         </b-col>
