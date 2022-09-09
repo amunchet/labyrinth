@@ -153,7 +153,7 @@ def judge_check(metric, service):
 
             computed = (current_time - service_time) / 1e9
 
-            print(current_time, difference, service_time, computed)
+            # print(current_time, difference, service_time, computed)
 
             return computed <= difference
         except TypeError:
