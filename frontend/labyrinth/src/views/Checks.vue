@@ -25,6 +25,7 @@
         </b-col>
         <b-col>
           <b-input
+            lazy
             :state="!$v.selected_service.display_name.$invalid"
             v-model="selected_service.display_name"
             placeholder="E.g. cpu-32"
@@ -37,6 +38,7 @@
         </b-col>
         <b-col>
           <b-input
+            lazy
             :state="!$v.selected_service.name.$invalid"
             v-model="selected_service.name"
             placeholder="E.g. cpu"
@@ -49,6 +51,7 @@
         </b-col>
         <b-col>
           <b-input
+            lazy
             disabled
             v-model="selected_service.type"
             placeholder="E.g. check"
@@ -61,6 +64,7 @@
         </b-col>
         <b-col>
           <b-input
+            lazy
             :state="!$v.selected_service.metric.$invalid"
             v-model="selected_service.metric"
             placeholder="E.g. usage_user"
@@ -75,6 +79,7 @@
         </b-col>
         <b-col>
           <b-input
+            lazy
             :state="!$v.selected_service.field.$invalid"
             v-model="selected_service.field"
             placeholder="E.g. usage_user"
@@ -108,6 +113,7 @@
         </b-col>
         <b-col>
           <b-input
+            lazy
             v-model="selected_service.value"
             :state="!$v.selected_service.value.$invalid"
             placeholder="E.g. 100"
@@ -126,12 +132,14 @@
         <b-col>
           Name: <br />
           <b-input
+            lazy
             class="mb-2"
             v-model="selected_service.tag_name"
             placeholder="E.g. cpu"
           />
           Value: <br />
           <b-input
+            lazy
             v-model="selected_service.tag_value"
             placeholder="E.g. cpu-total"
           />
@@ -143,9 +151,9 @@
       <b-row class="ml-0 pl-0">
         <b-col class="ml-0 pl-0">
           <b-input
+            lazy
             class="float-left"
             v-model="services_filter"
-            lazy
             placeholder="Filter Services"
           />
         </b-col>
@@ -200,9 +208,9 @@
       <b-row class="ml-0 pl-0">
         <b-col cols="6" class="ml-0 pl-0">
           <b-input
+            lazy
             class="mt-2 mb-2"
             v-model="metrics_filter"
-            lazy
             placeholder="Filter metrics"
           />
         </b-col>
