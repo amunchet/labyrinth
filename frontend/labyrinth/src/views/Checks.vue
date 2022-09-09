@@ -146,33 +146,32 @@
         </b-col>
       </b-row>
     </b-modal>
-
+    <b-row class="ml-0 pl-0 mr-0 pr-0">
+      <b-col class="ml-0 pl-0">
+        <b-input
+          lazy
+          class="float-left"
+          v-model="services_filter"
+          placeholder="Filter Services"
+        />
+      </b-col>
+      <b-col class="mr-0 pr-0">
+        <b-button
+          @click="
+            () => {
+              selected_service = {
+                type: 'check',
+              };
+              $bvModal.show('add_service');
+            }
+          "
+          variant="success"
+          class="float-right"
+          >+ Add Service</b-button
+        >
+      </b-col>
+    </b-row>
     <div class="metrics-table">
-      <b-row class="ml-0 pl-0">
-        <b-col class="ml-0 pl-0">
-          <b-input
-            lazy
-            class="float-left"
-            v-model="services_filter"
-            placeholder="Filter Services"
-          />
-        </b-col>
-        <b-col>
-          <b-button
-            @click="
-              () => {
-                selected_service = {
-                  type: 'check',
-                };
-                $bvModal.show('add_service');
-              }
-            "
-            variant="success"
-            class="float-right"
-            >+ Add Service</b-button
-          >
-        </b-col>
-      </b-row>
       <b-spinner class="m-2" v-if="servicesLoading" />
       <b-table
         responsive
