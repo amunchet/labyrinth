@@ -205,15 +205,22 @@
     <hr />
     <h2 class="mt-2 mb-2">Latest Metrics</h2>
     <div class="metrics-table mb-2">
-      <b-row class="ml-0 pl-0">
+      <b-row class="ml-0 pl-0 mt-2 mb-2">
         <b-col cols="6" class="ml-0 pl-0">
           <b-input
             lazy
-            class="mt-2 mb-2"
             v-model="metrics_filter"
             placeholder="Filter metrics"
           />
         </b-col>
+        <b-col class="text-right">
+          <b-button
+            variant="primary"
+            @click="loadMetrics()"
+          >
+            <font-awesome-icon icon="sync" size="1x" />
+            </b-button>
+          </b-col>
       </b-row>
       <b-table
         :items="metrics"
