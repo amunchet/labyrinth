@@ -844,7 +844,9 @@ def alertmanager_test():  # pragma: no cover
     """
     Sends out a test email from alertmanager
     """
-    a = watcher.send_alert("Test Email - {}".format(time.time()), "Service", "Something", summary="Summary")
+    a = watcher.send_alert(
+        "Test Email - {}".format(time.time()), "Service", "Something", summary="Summary"
+    )
     return a.text, a.status_code
 
 
