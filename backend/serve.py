@@ -844,7 +844,9 @@ def alertmanager_test():  # pragma: no cover
     """
     Sends out a test email from alertmanager
     """
-    a = watcher.send_alert("Test Email", "Service", "Something", summary="Summary")
+    a = watcher.send_alert(
+        "Test Email - {}".format(time.time()), "Service", "Something", summary="Summary"
+    )
     return a.text, a.status_code
 
 
@@ -1204,9 +1206,13 @@ def index_helper():
     mongo_client["labyrinth"]["metrics"].create_index("tags")
     mongo_client["labyrinth"]["metrics-latest"].create_index("tags")
 
-    mongo_client["labyrinth"]["metrics"].create_index([("tags.ip", pymongo.DESCENDING), ("tags.host", pymongo.DESCENDING), ("tags.mac", pymongo.DESCENDING)])
-
-
+    mongo_client["labyrinth"]["metrics"].create_index(
+        [
+            ("tags.ip", pymongo.DESCENDING),
+            ("tags.host", pymongo.DESCENDING),
+            ("tags.mac", pymongo.DESCENDING),
+        ]
+    )
 
     mongo_client["labyrinth"]["services"].create_index("name")
     mongo_client["labyrinth"]["services"].create_index("display_name")
@@ -1618,8 +1624,6 @@ def insert_metric(inp=""):
         data = json.loads(request.data.decode("utf-8"))
     else:  # pragma: no cover
         return "Invalid data", 419
-
-    
 
     if "metrics" not in data:  # pragma: no cover
         return "Invalid data", 421
