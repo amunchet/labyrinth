@@ -638,8 +638,8 @@ h2.subnet:hover {
     max-width: 100%;
     min-width: 100%;
   }
-  .host_col{
-    width: 500px !important; 
+  .grouped{
+    width: 100% !important;
   }
 }
 </style>
