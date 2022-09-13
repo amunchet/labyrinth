@@ -638,5 +638,8 @@ h2.subnet:hover {
     max-width: 100%;
     min-width: 100%;
   }
+  .hover{
+    width: 500px !important; 
+  }
 }
 </style>
