@@ -1203,15 +1203,18 @@ def index_helper():
     mongo_client["labyrinth"]["metrics"].create_index("name")
     mongo_client["labyrinth"]["metrics"].create_index("tags")
     mongo_client["labyrinth"]["metrics-latest"].create_index("tags")
-    mongo_client["labyrinth"]["metrics"].create_index("tags.mac")
-    mongo_client["labyrinth"]["metrics"].create_index("tags.ip")
-    mongo_client["labyrinth"]["metrics"].create_index("timestamp")
+
+    mongo_client["labyrinth"]["metrics"].create_index([("tags.ip", pymongo.DESCENDING), ("tags.host", pymongo.DESCENDING), ("tags.mac", pymongo.DESCENDING)])
+
+
+
     mongo_client["labyrinth"]["services"].create_index("name")
     mongo_client["labyrinth"]["services"].create_index("display_name")
     mongo_client["labyrinth"]["hosts"].create_index("ip")
     mongo_client["labyrinth"]["hosts"].create_index("mac")
     mongo_client["labyrinth"]["hosts"].create_index("subnet")
     mongo_client["labyrinth"]["settings"].create_index("name")
+    mongo_client["labyrinth"]["metrics"].create_index([("metrics.timestamp", -1)])
 
 
 @app.route("/dashboard/<val>")
@@ -1616,7 +1619,7 @@ def insert_metric(inp=""):
     else:  # pragma: no cover
         return "Invalid data", 419
 
-    mongo_client["labyrinth"]["metrics"].create_index([("metrics.timestamp", -1)])
+    
 
     if "metrics" not in data:  # pragma: no cover
         return "Invalid data", 421
@@ -1626,7 +1629,10 @@ def insert_metric(inp=""):
             mongo_client["labyrinth"]["metrics-latest"].delete_many(
                 {"tags": item["tags"], "name": item["name"]}
             )
-            mongo_client["labyrinth"]["metrics-latest"].insert_one(item)
+            try:
+                mongo_client["labyrinth"]["metrics-latest"].insert_one(item)
+            except Exception:
+                raise Exception(item)
 
         mongo_client["labyrinth"]["metrics"].insert_one(item)
 
