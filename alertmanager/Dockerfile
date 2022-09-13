@@ -11,8 +11,8 @@ RUN apt update && apt -y install \
     python3 \
     python3-pip \
     dos2unix \
-    curl \
-    tzdata
+    tzdata \
+    curl 
 
 ADD requirements.txt /
 RUN pip3 install -r /requirements.txt
