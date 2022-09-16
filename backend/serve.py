@@ -1630,11 +1630,11 @@ def insert_metric(inp=""):
 
     for item in data["metrics"]:
         if "tags" in item and "name" in item:
-            mongo_client["labyrinth"]["metrics-latest"].delete_many(
-                {"tags": item["tags"], "name": item["name"]}
-            )
             try:
-                mongo_client["labyrinth"]["metrics-latest"].insert_one(item)
+                mongo_client["labyrinth"]["metrics-latest"].replace_one({
+                    "tags" : item["tags"],
+                    "name" : item["name"]
+                }, item, upsert=True)
             except Exception:
                 raise Exception(item)
 
