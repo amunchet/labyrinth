@@ -1218,7 +1218,7 @@ def index_helper():
     mongo_client["labyrinth"]["hosts"].create_index("mac")
     mongo_client["labyrinth"]["hosts"].create_index("subnet")
     mongo_client["labyrinth"]["settings"].create_index("name")
-    mongo_client["labyrinth"]["metrics"].create_index([("metrics.timestamp", -1)])
+    mongo_client["labyrinth"]["metrics"].create_index([("timestamp", -1)])
 
 
 @app.route("/dashboard/<val>")
@@ -1588,7 +1588,6 @@ def read_metrics(host, service="", count=10):
         x
         for x in mongo_client["labyrinth"]["metrics"]
         .find(or_clause)
-        .sort([("metrics.timestamp", pymongo.DESCENDING)])
     ]
 
     if service.strip() == "open_ports" or service.strip() == "closed_ports":
