@@ -93,13 +93,13 @@ def judge_check(metric, service):
     def find_children(key, fields):
         if "." not in key:
             if key not in fields:
-                logger.debug("Not Found in final step.")
+                # logger.debug("Not Found in final step.")
                 raise NotFoundException("Not found")
             return fields[key]
         else:
             keys = key.split(".")
             if keys[0] not in fields:
-                logger.debug("Not found in recursive step.")
+                # logger.debug("Not found in recursive step.")
                 raise NotFoundException("Not found")
             return find_children(".".join(keys[1:]), fields[keys[0]])
 
