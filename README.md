@@ -42,8 +42,9 @@ exports = async function() {
   const metrics_current  = mongodb.db("labyrinth").collection("metrics-latest");
   
   
-  return await metrics_current.aggregate([{"$merge" : "metrics"}]).toArray()
+  return await metrics_current.aggregate([{"$project" : { "_id" : 0 }}, {"$merge" : "metrics"}]).toArray()
 };
+
 
 ```
 
