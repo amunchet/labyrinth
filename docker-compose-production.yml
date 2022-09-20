@@ -13,9 +13,6 @@ services:
     networks:
       - labyrinth
     environment: 
-      MONGO_USERNAME: root
-      MONGO_PASSWORD: temp
-      MONGO_HOST: mongo
       REDIS_HOST: redis
       PRODUCTION: 1
  
@@ -108,9 +105,6 @@ services:
     networks:
       - labyrinth
     environment: 
-      MONGO_USERNAME: root
-      MONGO_PASSWORD: temp
-      MONGO_HOST: mongo
       REDIS_HOST: redis
 
 networks:

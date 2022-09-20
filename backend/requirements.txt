@@ -5,7 +5,7 @@ gunicorn
 gevent
 python-dotenv
 python-jose
-pymongo
+pymongo[srv]
 python-nmap
 ansi2html
 redis
