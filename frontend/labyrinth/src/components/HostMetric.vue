@@ -6,6 +6,7 @@
       :chart-data="datacollection"
     ></line-chart>
 
+    <div style="overflow-x: scroll;">
     <b-table
       :items="result_backwards"
       v-if="!loading"
@@ -17,6 +18,7 @@
       </template>
     </b-table>
     <b-spinner v-else />
+    </div>
   </b-modal>
 </template>
 

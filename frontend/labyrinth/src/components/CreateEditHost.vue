@@ -273,7 +273,7 @@
     </b-row>
     <b-row class="overflow-scroll" v-if="metrics.length">
       <h4>Latest Host Metrics</h4>
-      <div style="max-height: 400px; overflow-y: scroll; overflow-x: hidden">
+      <div style="max-height: 400px; overflow-y: scroll;">
         <b-table
           :fields="['name', 'fields', 'tags', 'timestamp']"
           :items="metrics"
