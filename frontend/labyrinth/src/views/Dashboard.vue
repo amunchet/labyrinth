@@ -93,7 +93,7 @@
             >
               <div
                 class="grouped"
-                v-for="(group, j) in subnet.groups"
+                v-for="(group, j) in filterMonitored(subnet.groups, subnet.monitored)"
                 v-bind:key="j"
                 @drop="onDrop(group.name)"
                 @dragover.prevent
@@ -257,6 +257,21 @@ export default {
   },
   methods: {
     capitalize: Helper.capitalize,
+    filterMonitored: function(group, subnet){
+      var temp = JSON.parse(JSON.stringify(group))
+      if(!subnet){
+        return group
+      }
+
+      return temp.filter(x=>{
+        if(x.hosts == undefined){
+          return false
+        }
+        if(x.hosts.filter(y=>y.monitor).length){
+          return true
+        }
+      })
+    },
     loadThemes: /* istanbul ignore next */ function () {
       var auth = this.$auth;
       Helper.apiCall("themes", "", auth)
@@ -638,7 +653,7 @@ h2.subnet:hover {
     max-width: 100%;
     min-width: 100%;
   }
-  .grouped{
+  .grouped {
     width: 100% !important;
   }
 }
