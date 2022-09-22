@@ -258,10 +258,11 @@ export default {
   methods: {
     capitalize: Helper.capitalize,
     filterMonitored: function(group, subnet){
-      var temp = JSON.parse(JSON.stringify(group))
       if(!subnet){
         return group
       }
+
+      var temp = JSON.parse(JSON.stringify(group))
 
       return temp.filter(x=>{
         if(x.hosts == undefined){

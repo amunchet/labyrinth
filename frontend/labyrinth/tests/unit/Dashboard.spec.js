@@ -60,6 +60,39 @@ describe("Dashboard.vue", () => {
   test("is a Vue instance", () => {
     expect(wrapper.isVueInstance).toBeTruthy();
   });
+
+  test("filterMonitor", ()=>{
+    expect(wrapper.vm.filterMonitored(undefined, false)).toBeFalsy();
+
+    var groups = [
+      {
+        "something" : 1,
+      },
+      {
+        name: "yes",
+        hosts:[
+          {
+            "monitor" : false
+          },
+          {
+            "monitor" : true
+          }
+        ]
+      },
+      {
+        name: "no",
+        hosts: [
+          {
+            "monitor" : false
+          }
+        ]
+      }
+    ]
+
+    expect(wrapper.vm.filterMonitored(groups, true)).toStrictEqual([groups[1]])
+
+  })
+
   test("findClass", () => {
     expect(wrapper.vm.findClass("")).toBe("");
 
