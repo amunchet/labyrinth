@@ -57,7 +57,7 @@
         <div
           :class="'outer ' + (subnet.minimized ? 'minimized' : '')"
           :style="findClass(subnet)"
-          v-for="(subnet, i) in full_data"
+          v-for="(subnet, i) in sortSubnets(full_data)"
           v-bind:key="i"
         >
           <div
@@ -93,7 +93,10 @@
             >
               <div
                 class="grouped"
-                v-for="(group, j) in filterMonitored(subnet.groups, subnet.monitored)"
+                v-for="(group, j) in filterMonitored(
+                  subnet.groups,
+                  subnet.monitored
+                )"
                 v-bind:key="j"
                 @drop="onDrop(group.name)"
                 @dragover.prevent
@@ -257,21 +260,48 @@ export default {
   },
   methods: {
     capitalize: Helper.capitalize,
-    filterMonitored: function(group, subnet){
-      if(!subnet){
-        return group
+    convertSubnet(subnet) {
+      try {
+        var splits = subnet.split(".");
+        if (splits.length != 3) {
+          return -1;
+        }
+        var output = (splits[0] * 100000) + (splits[1] * 1000) + (splits[2] * 10);
+        return output
+      } catch (e) {
+        return -1;
+      }
+    },
+    sortSubnets(all_items) {
+      // Returns 1 (a after b), 0 (a==b), -1 (b after a)
+      var temp = JSON.parse(JSON.stringify(all_items));
+      return temp.sort((a, b) => {
+        if (a.subnet == undefined || b.subnet == undefined) {
+          return 0;
+        }
+
+        if (this.convertSubnet(a.subnet) == this.convertSubnet(b.subnet)) {
+          return 0;
+        }
+        var outcome = this.convertSubnet(a.subnet) < this.convertSubnet(b.subnet) ? -1 : 1;
+        return outcome
+      });
+    },
+    filterMonitored: function (group, subnet) {
+      if (!subnet) {
+        return group;
       }
 
-      var temp = JSON.parse(JSON.stringify(group))
+      var temp = JSON.parse(JSON.stringify(group));
 
-      return temp.filter(x=>{
-        if(x.hosts == undefined){
-          return false
+      return temp.filter((x) => {
+        if (x.hosts == undefined) {
+          return false;
         }
-        if(x.hosts.filter(y=>y.monitor).length){
-          return true
+        if (x.hosts.filter((y) => y.monitor).length) {
+          return true;
         }
-      })
+      });
     },
     loadThemes: /* istanbul ignore next */ function () {
       var auth = this.$auth;

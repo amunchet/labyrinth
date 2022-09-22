@@ -61,6 +61,38 @@ describe("Dashboard.vue", () => {
     expect(wrapper.isVueInstance).toBeTruthy();
   });
 
+  test("sortSubnets", ()=>{
+    var subnets = [
+      {
+        "subnet" : "192.168.1"
+      },
+      {
+        "subnet" : "192.168.10"
+      },
+      {
+        "subnet" : "10.8.0"
+      },
+      {
+        "subnet" : "192.168.2"
+      }
+    ]
+    var output = [
+      {
+        "subnet" : "10.8.0"
+      },
+      {
+        "subnet" : "192.168.1"
+      },
+      {
+        "subnet" : "192.168.2"
+      },
+      {
+        "subnet" : "192.168.10"
+      },
+    ]
+    expect(wrapper.vm.sortSubnets(subnets)).toStrictEqual(output)
+  })
+
   test("filterMonitor", ()=>{
     expect(wrapper.vm.filterMonitored(undefined, false)).toBeFalsy();
 
