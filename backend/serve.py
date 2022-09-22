@@ -1266,19 +1266,23 @@ def dashboard(val="", report=False):
     all_services = list(mongo_client["labyrinth"]["services"].find({}))
 
     # Get latest metrics
-    latest_metrics = list(
-        mongo_client["labyrinth"]["metrics-latest"].find(
-            {}, sort=[("timestamp", pymongo.DESCENDING)]
-        )
-    )
+    
+    latest_metrics = {}
+    for item in mongo_client["labyrinth"]["metrics-latest"].find({}, sort=[("timestamp", pymongo.DESCENDING)]):
+        if "name" in item:
+            if item["name"] not in latest_metrics:
+                latest_metrics[item["name"]] = []
+            latest_metrics[item["name"]].append(item)
+    
 
     def find_metric(service_name, host, tag_name="", tag_value=""):
         """
         Finds a metric from the latest metrics list
         """
-        for item in latest_metrics:
-            name_clause = "name" in item and item["name"] == service_name.strip()
-
+        processed = service_name.strip()
+        if processed not in latest_metrics:
+            return None
+        for item in latest_metrics[processed]:
             mac_clause = (
                 "tags" in item
                 and "mac" in item["tags"]
@@ -1301,8 +1305,9 @@ def dashboard(val="", report=False):
             else:
                 additional_tag_clause = True
 
-            if name_clause and (mac_clause or ip_clause) and additional_tag_clause:
+            if (mac_clause or ip_clause) and additional_tag_clause:
                 return item
+    
 
         return None
 
