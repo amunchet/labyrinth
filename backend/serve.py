@@ -84,7 +84,7 @@ requires_header = functools.partial(_requires_header, permission=TELEGRAF_KEY)
 
 # Mongo Access
 mongo_client = pymongo.MongoClient(
-    "mongodb://{}:{}@{}:27017".format(
+    "mongodb+srv://{}:{}@{}".format(
         os.environ.get("MONGO_USERNAME"),
         os.environ.get("MONGO_PASSWORD"),
         os.environ.get("MONGO_HOST"),
@@ -1637,7 +1637,7 @@ def insert_metric(inp=""):
             except Exception:
                 raise Exception(item)
 
-        mongo_client["labyrinth"]["metrics"].insert_one(item)
+        # mongo_client["labyrinth"]["metrics"].insert_one(item)
 
     return "Success", 200
 
