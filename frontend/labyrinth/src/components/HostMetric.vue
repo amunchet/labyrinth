@@ -6,18 +6,41 @@
       :chart-data="datacollection"
     ></line-chart>
 
-    <div style="overflow-x: scroll;">
-    <b-table
-      :items="result_backwards"
-      v-if="!loading"
-      :fields="['name', 'tags', 'fields', 'timestamp', 'judgement']"
-    >
-      <template v-slot:cell(timestamp)="row">
-        {{ formatDate(row.item.timestamp * 1000) }}
-        {{ formatDate(row.item.timestamp * 1000, true) }}
-      </template>
-    </b-table>
-    <b-spinner v-else />
+    <div style="overflow-x: scroll">
+      <b-table
+        :items="result_backwards"
+        v-if="!loading"
+        :fields="['name', 'tags', 'fields', 'timestamp', 'judgement']"
+      >
+        <template v-slot:cell(timestamp)="row">
+          {{ formatDate(row.item.timestamp * 1000) }}
+          {{ formatDate(row.item.timestamp * 1000, true) }}
+        </template>
+
+        <template v-slot:cell(fields)="row">
+
+          <b-table :items="Object.keys(row.item.fields)" :fields="['name', 'value']" striped bordered small>
+            <template v-slot:cell(name)="x">
+              {{x.item.replace(/_/g, ' ')}}
+            </template>
+            <template v-slot:cell(value)="x">
+              {{row.item.fields[x.item]}}
+            </template>
+          </b-table>
+        </template>
+        <template v-slot:cell(tags)="row">
+          <b-table :items="Object.keys(row.item.tags)" :fields="['name', 'value']" striped bordered small>
+            <template v-slot:cell(name)="x">
+              {{x.item.replace(/_/g, ' ')}}
+            </template>
+            <template v-slot:cell(value)="x">
+              {{row.item.tags[x.item].replace(/_/g, ' ')}}
+            </template>
+          </b-table>
+
+        </template>
+      </b-table>
+      <b-spinner v-else />
     </div>
   </b-modal>
 </template>
