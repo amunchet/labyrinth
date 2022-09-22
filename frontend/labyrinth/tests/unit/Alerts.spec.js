@@ -50,6 +50,7 @@ beforeEach(() => {
       "b-input",
       "b-row",
       "b-col",
+      "codemirror",
       "b-table",
       "b-tab",
       "b-tabs",
