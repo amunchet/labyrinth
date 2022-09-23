@@ -29,7 +29,7 @@
               $refs['start_' + item.top_2] != undefined
             "
             :color="item.color"
-            horizontal_width="100"
+            horizontal_width="50"
             :top_1="$refs['start_' + item.top_1][0].offsetTop"
             :top_2="$refs['start_' + item.top_2][0].offsetTop"
             :left="item.left"
@@ -444,7 +444,7 @@ export default {
 
     prepareOriginsLinks: function (subnets) {
       var retval = [];
-      const width = 20;
+      const width = 10;
       subnets = subnets.filter(
         (x) =>
           x.links != undefined &&
