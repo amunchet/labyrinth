@@ -578,7 +578,7 @@ h2.subnet:hover {
 
 .left {
   width: 5%;
-  min-width: 140px;
+  min-width: 160px;
   float: left;
 }
 .right {
