@@ -17,9 +17,10 @@
       <b-col
         ><b-select
           :options="
-            themes.map((x) => {
+            [{text: 'None', value:''},  
+            ...themes.map((x) => {
               return { text: x.name, value: x.name };
-            })
+            })]
           "
           v-model="subnet.color"
       /></b-col>
