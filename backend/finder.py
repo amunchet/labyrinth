@@ -86,12 +86,7 @@ def process_scan(input: Dict) -> Dict:
     output = {
         "fields": {"ports": [], "ip": ""},
         "name": "open_ports",
-        "tags": {
-            "host": "",
-            "mac": "",
-            "ip": "",
-            "name" : "open_ports"
-        },
+        "tags": {"host": "", "mac": "", "ip": "", "name": "open_ports"},
         "timestamp": 0,
     }
     output["fields"]["ip"] = input["addresses"]["ipv4"]

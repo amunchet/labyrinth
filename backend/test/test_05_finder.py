@@ -268,7 +268,7 @@ def test_after_initial():
         "tags": {
             "mac": "02:42:C0:A8:00:02",
             "host": "labyrinth_sampleclient_1.labyrinth_labyrinth",
-            "name" : "open_ports"
+            "name": "open_ports",
         },
         "timestamp": time.time(),
     }

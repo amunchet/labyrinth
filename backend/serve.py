@@ -1588,11 +1588,7 @@ def read_metrics(host, service="", count=10):
     elif service != "":
         or_clause["name"] = service
 
-    retval = [
-        x
-        for x in mongo_client["labyrinth"]["metrics"]
-        .find(or_clause)
-    ]
+    retval = [x for x in mongo_client["labyrinth"]["metrics"].find(or_clause)]
 
     if service.strip() == "open_ports" or service.strip() == "closed_ports":
         for item in retval:
@@ -1636,16 +1632,15 @@ def insert_metric(inp=""):
                 item["timestamp"] = datetime.datetime.fromtimestamp(item["timestamp"])
             except Exception:
                 print("Problem with timestamp - ", sys.exc_info())
-            
-        if "tags" in item and "name" in item:    
+
+        if "tags" in item and "name" in item:
             if type(item["tags"]) == type({}):
                 item["tags"]["name"] = item["name"]
 
             try:
-                mongo_client["labyrinth"]["metrics-latest"].replace_one({
-                    "tags" : item["tags"],
-                    "name" : item["name"]
-                }, item, upsert=True)
+                mongo_client["labyrinth"]["metrics-latest"].replace_one(
+                    {"tags": item["tags"], "name": item["name"]}, item, upsert=True
+                )
             except Exception:
                 raise Exception(item)
 
