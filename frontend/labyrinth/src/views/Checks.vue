@@ -234,8 +234,7 @@
           </div>
         </template>
         <template v-slot:cell(timestamp)="cell">
-          {{ new Date(cell.item.timestamp * 1000).toLocaleDateString() }}
-          {{ new Date(cell.item.timestamp * 1000).toLocaleTimeString() }}
+          {{ ("" + cell.item.timestamp).split(".")[0] }}
         </template>
       </b-table>
       <b-spinner v-else class="m-2" />

@@ -638,14 +638,6 @@ def test_insert_metric(setup):
     for item in sample_data["metrics"][0]:
         assert c[0][item] == sample_data["metrics"][0][item]
 
-    # Tests list of indexes
-    indexes = ["metrics.timestamp_-1"]
-    x = [
-        x for x in serve.mongo_client["labyrinth"]["metrics"].index_information().keys()
-    ]
-    for item in indexes:
-        assert item in x
-
 
 def test_list_dashboard(setup):
     """
