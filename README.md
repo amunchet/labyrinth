@@ -13,6 +13,25 @@ The beautiful network analyzer, mapper, and monitor.
 2.  If you are running docker as non-root, then remove the top section from `install.sh` and re-run.
 
 ## Database Notes
+
+### Attempt 2
+I'm converting the Mongo databsae to a timeseries.  This involved the following Python code:
+
+```
+db.create_collection(collection, timeseries={ 'timeField': 'timestamp', "metaField" : "metadata"})
+```
+
+I will also resume sending metrics directly to the second table.  I'll have to set up TTL at a later date (through the Mongo Shell NOT python):
+```
+use labyrinth
+
+db.runCommand({
+   collMod: "metrics",
+   expireAfterSeconds: 2419201
+})
+```
+
+### Attempt 1
 Labyrinth is depending on a Mongo Database trigger to move metrics from `metrics-latest` to `metrics` collection.  
 
 Here is the trigger's javascript code (I'm personally running it at 15 minute intervals):
@@ -47,6 +66,9 @@ exports = async function() {
 
 
 ```
+
+
+
 
 
 ## FAQ
