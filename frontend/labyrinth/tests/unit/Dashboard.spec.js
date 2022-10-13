@@ -229,13 +229,13 @@ describe("Dashboard.vue", () => {
         color: "white",
         top_1: "192.168.0.1",
         top_2: "192.168.1.1",
-        left: 20,
+        left: 10,
       },
       {
         color: "white",
         top_1: "192.168.2.1",
         top_2: "192.168.1.1",
-        left: 40,
+        left: 20,
       },
     ];
 
