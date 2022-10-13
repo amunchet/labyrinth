@@ -1199,13 +1199,14 @@ def index_helper():
     Helps with ensuring indexes are created
     """
 
-    mongo_client["labyrinth"]["metrics"].create_index(
-        [("timestamp", pymongo.DESCENDING)]
-    )
-    mongo_client["labyrinth"]["metrics"].create_index("name")
-    mongo_client["labyrinth"]["metrics"].create_index("tags")
+    # mongo_client["labyrinth"]["metrics"].create_index(
+    #    [("timestamp", pymongo.DESCENDING)]
+    # )
+    # mongo_client["labyrinth"]["metrics"].create_index("name")
+    # mongo_client["labyrinth"]["metrics"].create_index("tags")
     mongo_client["labyrinth"]["metrics-latest"].create_index("tags")
 
+    """
     mongo_client["labyrinth"]["metrics"].create_index(
         [
             ("tags.ip", pymongo.DESCENDING),
@@ -1213,6 +1214,7 @@ def index_helper():
             ("tags.mac", pymongo.DESCENDING),
         ]
     )
+    """
 
     mongo_client["labyrinth"]["services"].create_index("name")
     mongo_client["labyrinth"]["services"].create_index("display_name")
@@ -1220,7 +1222,7 @@ def index_helper():
     mongo_client["labyrinth"]["hosts"].create_index("mac")
     mongo_client["labyrinth"]["hosts"].create_index("subnet")
     mongo_client["labyrinth"]["settings"].create_index("name")
-    mongo_client["labyrinth"]["metrics"].create_index([("timestamp", -1)])
+    # mongo_client["labyrinth"]["metrics"].create_index([("timestamp", -1)])
 
 
 @app.route("/dashboard/<val>")
@@ -1591,11 +1593,7 @@ def read_metrics(host, service="", count=10):
     elif service != "":
         or_clause["name"] = service
 
-    retval = [
-        x
-        for x in mongo_client["labyrinth"]["metrics"]
-        .find(or_clause)
-    ]
+    retval = [x for x in mongo_client["labyrinth"]["metrics"].find(or_clause)]
 
     if service.strip() == "open_ports" or service.strip() == "closed_ports":
         for item in retval:
@@ -1633,12 +1631,21 @@ def insert_metric(inp=""):
         return "Invalid data", 421
 
     for item in data["metrics"]:
-        if "tags" in item and "name" in item:
+
+        if "timestamp" in item:
             try:
-                mongo_client["labyrinth"]["metrics-latest"].replace_one({
-                    "tags" : item["tags"],
-                    "name" : item["name"]
-                }, item, upsert=True)
+                item["timestamp"] = datetime.datetime.fromtimestamp(item["timestamp"])
+            except Exception:
+                print("Problem with timestamp - ", sys.exc_info())
+
+        if "tags" in item and "name" in item:
+            if type(item["tags"]) == type({}):
+                item["tags"]["name"] = item["name"]
+
+            try:
+                mongo_client["labyrinth"]["metrics-latest"].replace_one(
+                    {"tags": item["tags"], "name": item["name"]}, item, upsert=True
+                )
             except Exception:
                 raise Exception(item)
 

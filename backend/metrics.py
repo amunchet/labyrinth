@@ -3,6 +3,7 @@
 Metrics helper functions
 """
 import time
+import datetime
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
@@ -25,6 +26,10 @@ def judge(metric, service, host="", stale_time=600):
         return False
 
     # Timestamp check
+
+    if type(metric["timestamp"]) == type(datetime.datetime.now()):
+        metric["timestamp"] = metric["timestamp"].timestamp()
+
     if (
         "timestamp" not in metric
         or (time.time() - float(metric["timestamp"])) > stale_time
@@ -49,6 +54,9 @@ def judge_port(metric, service, host, stale_time=600):
     """
     if metric is None:
         return False
+
+    if type(metric["timestamp"]) == type(datetime.datetime.now()):
+        metric["timestamp"] = metric["timestamp"].timestamp()
 
     delta = time.time() - float(metric["timestamp"])
     if "timestamp" not in metric or delta > stale_time:
