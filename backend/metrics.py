@@ -3,6 +3,7 @@
 Metrics helper functions
 """
 import time
+import datetime
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
@@ -25,6 +26,11 @@ def judge(metric, service, host="", stale_time=600):
         return False
 
     # Timestamp check
+
+    if type(metric["timestamp"]) ==  type(datetime.datetime.now()):
+        metric["timestamp"] = metric["timestamp"].timestamp()
+        
+
     if (
         "timestamp" not in metric
         or (time.time() - float(metric["timestamp"])) > stale_time
