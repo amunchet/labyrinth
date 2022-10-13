@@ -90,6 +90,7 @@ def process_scan(input: Dict) -> Dict:
             "host": "",
             "mac": "",
             "ip": "",
+            "name" : "open_ports"
         },
         "timestamp": 0,
     }
