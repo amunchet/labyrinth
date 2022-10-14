@@ -34,6 +34,7 @@ services:
       MONGO_PASSWORD: temp
       MONGO_HOST: mongo
       REDIS_HOST: redis
+      TESTBED: 1
   
 
   # NGINX Frontend server

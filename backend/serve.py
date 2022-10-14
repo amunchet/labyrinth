@@ -83,13 +83,23 @@ requires_header = functools.partial(_requires_header, permission=TELEGRAF_KEY)
 
 
 # Mongo Access
-mongo_client = pymongo.MongoClient(
-    "mongodb+srv://{}:{}@{}".format(
-        os.environ.get("MONGO_USERNAME"),
-        os.environ.get("MONGO_PASSWORD"),
-        os.environ.get("MONGO_HOST"),
+if os.getenv("GITHUB") or os.getenv("TESTBED"):
+    mongo_client = pymongo.MongoClient(
+        "mongodb://{}:{}@{}".format(
+            os.environ.get("MONGO_USERNAME"),
+            os.environ.get("MONGO_PASSWORD"),
+            os.environ.get("MONGO_HOST"),
+        )
     )
-)
+
+else:
+    mongo_client = pymongo.MongoClient(
+        "mongodb+srv://{}:{}@{}".format(
+            os.environ.get("MONGO_USERNAME"),
+            os.environ.get("MONGO_PASSWORD"),
+            os.environ.get("MONGO_HOST"),
+        )
+    )
 
 # Route definitions
 
