@@ -1659,7 +1659,7 @@ def insert_metric(inp=""):
             except Exception:
                 raise Exception(item)
 
-        # mongo_client["labyrinth"]["metrics"].insert_one(item)
+        mongo_client["labyrinth"]["metrics"].insert_one(item)
 
     return "Success", 200
 
