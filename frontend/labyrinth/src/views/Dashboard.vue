@@ -445,7 +445,7 @@ export default {
 
     prepareOriginsLinks: function (subnets) {
       var retval = [];
-      const width = 10;
+      const width = 7;
       subnets = subnets.filter(
         (x) =>
           x.links != undefined &&
