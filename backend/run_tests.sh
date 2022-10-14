@@ -13,6 +13,9 @@ if [ $? -eq 127 ]; then
     cd /src && PYTHONPATH=/src pytest --cov=/src --cov-report term-missing -vvvv --cov-fail-under=95 --cov-report=html $1 . 
 
 else
+    docker ps
+    docker logs $DOCKER_PROD_NAME
     echo "Running tests in local"
+    docker start $DOCKER_PROD_NAME
     docker exec $DOCKER_PROD_NAME sh -c "cd /src && PYTHONPATH=/src pytest --cov=/src --cov-report term-missing -vvvv --cov-fail-under=95 --cov-report=html $ARGS . "
 fi

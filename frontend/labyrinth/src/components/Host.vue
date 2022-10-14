@@ -219,8 +219,7 @@ export default {
   text-align: center;
   display: block;
   border: 1px solid #fefefd;
-  min-width: 120px;
-  max-width: 150px;
+  width: 200px;
   box-shadow: 5px 5px 30px -12px rgba(0, 0, 0, 0.75);
   -webkit-box-shadow: 5px 5px 30px -12px rgba(0, 0, 0, 0.75);
   -moz-box-shadow: 5px 5px 30px -12px rgba(0, 0, 0, 0.75);

@@ -25,6 +25,7 @@
         </b-col>
         <b-col>
           <b-input
+            lazy
             :state="!$v.selected_service.display_name.$invalid"
             v-model="selected_service.display_name"
             placeholder="E.g. cpu-32"
@@ -37,6 +38,7 @@
         </b-col>
         <b-col>
           <b-input
+            lazy
             :state="!$v.selected_service.name.$invalid"
             v-model="selected_service.name"
             placeholder="E.g. cpu"
@@ -49,6 +51,7 @@
         </b-col>
         <b-col>
           <b-input
+            lazy
             disabled
             v-model="selected_service.type"
             placeholder="E.g. check"
@@ -61,6 +64,7 @@
         </b-col>
         <b-col>
           <b-input
+            lazy
             :state="!$v.selected_service.metric.$invalid"
             v-model="selected_service.metric"
             placeholder="E.g. usage_user"
@@ -75,6 +79,7 @@
         </b-col>
         <b-col>
           <b-input
+            lazy
             :state="!$v.selected_service.field.$invalid"
             v-model="selected_service.field"
             placeholder="E.g. usage_user"
@@ -108,6 +113,7 @@
         </b-col>
         <b-col>
           <b-input
+            lazy
             v-model="selected_service.value"
             :state="!$v.selected_service.value.$invalid"
             placeholder="E.g. 100"
@@ -126,44 +132,46 @@
         <b-col>
           Name: <br />
           <b-input
+            lazy
             class="mb-2"
             v-model="selected_service.tag_name"
             placeholder="E.g. cpu"
           />
           Value: <br />
           <b-input
+            lazy
             v-model="selected_service.tag_value"
             placeholder="E.g. cpu-total"
           />
         </b-col>
       </b-row>
     </b-modal>
-
+    <b-row class="ml-0 pl-0 mr-0 pr-0">
+      <b-col class="ml-0 pl-0">
+        <b-input
+          lazy
+          class="float-left"
+          v-model="services_filter"
+          placeholder="Filter Services"
+        />
+      </b-col>
+      <b-col class="mr-0 pr-0">
+        <b-button
+          @click="
+            () => {
+              selected_service = {
+                type: 'check',
+              };
+              $bvModal.show('add_service');
+            }
+          "
+          variant="success"
+          class="float-right"
+          >+ Add Service</b-button
+        >
+      </b-col>
+    </b-row>
     <div class="metrics-table">
-      <b-row class="ml-0 pl-0">
-        <b-col class="ml-0 pl-0">
-          <b-input
-            class="float-left"
-            v-model="services_filter"
-            placeholder="Filter Services"
-          />
-        </b-col>
-        <b-col>
-          <b-button
-            @click="
-              () => {
-                selected_service = {
-                  type: 'check',
-                };
-                $bvModal.show('add_service');
-              }
-            "
-            variant="success"
-            class="float-right"
-            >+ Add Service</b-button
-          >
-        </b-col>
-      </b-row>
       <b-spinner class="m-2" v-if="servicesLoading" />
       <b-table
         responsive
@@ -195,16 +203,18 @@
     </div>
     <hr />
     <h2 class="mt-2 mb-2">Latest Metrics</h2>
+    <b-row class="ml-0 pl-0 mt-2 mb-2 mr-0 pr-0">
+      <b-col cols="6" class="ml-0 pl-0 pr-0 mr-0">
+        <b-input lazy v-model="metrics_filter" placeholder="Filter metrics" />
+      </b-col>
+      <b-col class="text-right overflow-hidden mr-0 pr-0">
+        <b-button variant="primary" @click="loadMetrics()" class="float-right">
+          <font-awesome-icon icon="sync" size="1x" />
+        </b-button>
+      </b-col>
+    </b-row>
+
     <div class="metrics-table mb-2">
-      <b-row class="ml-0 pl-0">
-        <b-col cols="6" class="ml-0 pl-0">
-          <b-input
-            class="mt-2 mb-2"
-            v-model="metrics_filter"
-            placeholder="Filter metrics"
-          />
-        </b-col>
-      </b-row>
       <b-table
         :items="metrics"
         responsive

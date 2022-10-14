@@ -60,6 +60,70 @@ describe("Dashboard.vue", () => {
   test("is a Vue instance", () => {
     expect(wrapper.isVueInstance).toBeTruthy();
   });
+
+  test("sortSubnets", () => {
+    var subnets = [
+      {
+        subnet: "192.168.1",
+      },
+      {
+        subnet: "192.168.10",
+      },
+      {
+        subnet: "10.8.0",
+      },
+      {
+        subnet: "192.168.2",
+      },
+    ];
+    var output = [
+      {
+        subnet: "10.8.0",
+      },
+      {
+        subnet: "192.168.1",
+      },
+      {
+        subnet: "192.168.2",
+      },
+      {
+        subnet: "192.168.10",
+      },
+    ];
+    expect(wrapper.vm.sortSubnets(subnets)).toStrictEqual(output);
+  });
+
+  test("filterMonitor", () => {
+    expect(wrapper.vm.filterMonitored(undefined, false)).toBeFalsy();
+
+    var groups = [
+      {
+        something: 1,
+      },
+      {
+        name: "yes",
+        hosts: [
+          {
+            monitor: false,
+          },
+          {
+            monitor: true,
+          },
+        ],
+      },
+      {
+        name: "no",
+        hosts: [
+          {
+            monitor: false,
+          },
+        ],
+      },
+    ];
+
+    expect(wrapper.vm.filterMonitored(groups, true)).toStrictEqual([groups[1]]);
+  });
+
   test("findClass", () => {
     expect(wrapper.vm.findClass("")).toBe("");
 
@@ -164,13 +228,13 @@ describe("Dashboard.vue", () => {
         color: "white",
         top_1: "192.168.0.1",
         top_2: "192.168.1.1",
-        left: 20,
+        left: 10,
       },
       {
         color: "white",
         top_1: "192.168.2.1",
         top_2: "192.168.1.1",
-        left: 40,
+        left: 20,
       },
     ];
 

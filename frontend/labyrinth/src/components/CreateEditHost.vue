@@ -273,7 +273,7 @@
     </b-row>
     <b-row class="overflow-scroll" v-if="metrics.length">
       <h4>Latest Host Metrics</h4>
-      <div style="max-height: 400px; overflow-y: scroll; overflow-x: hidden">
+      <div style="max-height: 400px; overflow-y: scroll">
         <b-table
           :fields="['name', 'fields', 'tags', 'timestamp']"
           :items="metrics"
@@ -335,7 +335,12 @@ export default {
       } else {
         this.isNew = false;
         this.host = val;
-        this.loadMetrics();
+        try {
+          this.loadMetrics();
+          this.loadServices();
+        } catch (e) {
+          this.$store.commit("updateError", e);
+        }
       }
     },
   },

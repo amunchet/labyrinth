@@ -83,13 +83,23 @@ requires_header = functools.partial(_requires_header, permission=TELEGRAF_KEY)
 
 
 # Mongo Access
-mongo_client = pymongo.MongoClient(
-    "mongodb+srv://{}:{}@{}".format(
-        os.environ.get("MONGO_USERNAME"),
-        os.environ.get("MONGO_PASSWORD"),
-        os.environ.get("MONGO_HOST"),
+if os.getenv("GITHUB") or os.getenv("TESTBED"):
+    mongo_client = pymongo.MongoClient(
+        "mongodb://{}:{}@{}".format(
+            os.environ.get("MONGO_USERNAME"),
+            os.environ.get("MONGO_PASSWORD"),
+            os.environ.get("MONGO_HOST"),
+        )
     )
-)
+
+else:
+    mongo_client = pymongo.MongoClient(
+        "mongodb+srv://{}:{}@{}".format(
+            os.environ.get("MONGO_USERNAME"),
+            os.environ.get("MONGO_PASSWORD"),
+            os.environ.get("MONGO_HOST"),
+        )
+    )
 
 # Route definitions
 
@@ -1268,14 +1278,15 @@ def dashboard(val="", report=False):
     all_services = list(mongo_client["labyrinth"]["services"].find({}))
 
     # Get latest metrics
-    
+
     latest_metrics = {}
-    for item in mongo_client["labyrinth"]["metrics-latest"].find({}, sort=[("timestamp", pymongo.DESCENDING)]):
+    for item in mongo_client["labyrinth"]["metrics-latest"].find(
+        {}, sort=[("timestamp", pymongo.DESCENDING)]
+    ):
         if "name" in item:
             if item["name"] not in latest_metrics:
                 latest_metrics[item["name"]] = []
             latest_metrics[item["name"]].append(item)
-    
 
     def find_metric(service_name, host, tag_name="", tag_value=""):
         """
@@ -1309,7 +1320,6 @@ def dashboard(val="", report=False):
 
             if (mac_clause or ip_clause) and additional_tag_clause:
                 return item
-    
 
         return None
 
@@ -1649,7 +1659,7 @@ def insert_metric(inp=""):
             except Exception:
                 raise Exception(item)
 
-        # mongo_client["labyrinth"]["metrics"].insert_one(item)
+        mongo_client["labyrinth"]["metrics"].insert_one(item)
 
     return "Success", 200
 

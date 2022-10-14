@@ -57,7 +57,7 @@
         <b-col cols="6">
           <b-select
             size="sm"
-            :options="services"
+            :options="[{ text: 'New Host', value: 'new_host' }, ...services]"
             v-model="selected_delete_service"
           />
         </b-col>
@@ -215,8 +215,8 @@ export default {
         .then((res) => {
           this.services = res.map((x) => {
             return {
-              text: x.name,
-              value: x.name,
+              text: x.display_name,
+              value: x.display_name,
             };
           });
         })

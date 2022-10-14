@@ -44,7 +44,6 @@ beforeEach(() => {
     methods: {},
     stubs: [
       "font-awesome-icon",
-      "b-modal",
       "b-button",
       "b-select",
       "b-input",
