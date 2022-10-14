@@ -14,6 +14,7 @@ ansible
 ansible-runner
 pyyaml
 pillow
+xmltodict
 
 # Development tools
 pytest

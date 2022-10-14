@@ -5,6 +5,8 @@ Auto discovery finder
 import time
 import json
 import os
+import subprocess
+import xmltodict
 from threading import Thread
 
 import redis
@@ -12,6 +14,7 @@ import redis
 from pid import PidFile
 from typing import Dict, List
 from nmap import PortScannerYield as ps
+
 
 from common.test import unwrap
 from serve import list_subnet, list_subnets, create_edit_host, list_host, insert_metric
@@ -23,12 +26,27 @@ def scan(subnet: str, callback_fn, verbose=False) -> List:  # pragma: no cover
     if len(subnet.split(".")) == 3:
         search += ".0/24"
 
+
+    # Ping version
+    ping_output = subprocess.check_output(["nmap", "-PE", "-sn", "-T5", "-oX", "-", search])
+    parsed = xmltodict.parse(ping_output)
+
+    ## Exactly one alive host will break the process
+    if type(parsed['nmaprun']['host']) == type({}):
+        parsed["nmaprun"]["host"] = [parsed['nmaprun']['host']]
+    
+    search = " ".join([x['address']['@addr'] for x in parsed['nmaprun']['host']])
+
+
     scanner = ps()
     results = []
+    
     arguments = "-sV -O -A --script vulners"
     arguments = (
-        "-sT -PU0"  # Removed vulners, since security scanning will be done externally
+        "-sT -PU0 -Pn"  # Removed vulners, since security scanning will be done externally
     )
+    callback_fn(search)
+
     for line in scanner.scan(hosts=search, arguments=arguments):
         if verbose:
             callback_fn(str(line))
