@@ -5,6 +5,7 @@ services:
     environment:
       COMPOSE_CONVERT_WINDOWS_PATHS: 1
       CHOKIDAR_USEPOLLING: "true"
+      TESTBED: 1
 
     build: ./frontend
     ports:
