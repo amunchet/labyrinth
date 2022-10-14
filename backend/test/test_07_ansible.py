@@ -14,7 +14,13 @@ import pytest
 
 from common.test import unwrap
 from ansible_helper import check_file, run_ansible
-from serve import find_ip, list_directory, get_ansible_file, save_ansible_file, new_ansible_file
+from serve import (
+    find_ip,
+    list_directory,
+    get_ansible_file,
+    save_ansible_file,
+    new_ansible_file,
+)
 
 valid_type = ["ssh", "totp", "become", "telegraf", "ansible", "other"]
 
@@ -90,13 +96,14 @@ def test_list_files():
 
     os.system("rm /src/uploads/*/_test")
 
+
 def test_create_ansible_file():
     """
     Tests creating an ansible file
     """
     if os.path.exists("/src/uploads/ansible/test-cicd.yml"):
         os.remove("/src/uploads/ansible/test-cicd.yml")
-    
+
     a = unwrap(new_ansible_file)("test-cicd.yml")
     assert a[1] == 200
 
@@ -107,6 +114,7 @@ def test_create_ansible_file():
 
     if os.path.exists("/src/uploads/ansible/test-cicd.yml"):
         os.remove("/src/uploads/ansible/test-cicd.yml")
+
 
 def test_find_ip():
     """

@@ -61,69 +61,68 @@ describe("Dashboard.vue", () => {
     expect(wrapper.isVueInstance).toBeTruthy();
   });
 
-  test("sortSubnets", ()=>{
+  test("sortSubnets", () => {
     var subnets = [
       {
-        "subnet" : "192.168.1"
+        subnet: "192.168.1",
       },
       {
-        "subnet" : "192.168.10"
+        subnet: "192.168.10",
       },
       {
-        "subnet" : "10.8.0"
+        subnet: "10.8.0",
       },
       {
-        "subnet" : "192.168.2"
-      }
-    ]
+        subnet: "192.168.2",
+      },
+    ];
     var output = [
       {
-        "subnet" : "10.8.0"
+        subnet: "10.8.0",
       },
       {
-        "subnet" : "192.168.1"
+        subnet: "192.168.1",
       },
       {
-        "subnet" : "192.168.2"
+        subnet: "192.168.2",
       },
       {
-        "subnet" : "192.168.10"
+        subnet: "192.168.10",
       },
-    ]
-    expect(wrapper.vm.sortSubnets(subnets)).toStrictEqual(output)
-  })
+    ];
+    expect(wrapper.vm.sortSubnets(subnets)).toStrictEqual(output);
+  });
 
-  test("filterMonitor", ()=>{
+  test("filterMonitor", () => {
     expect(wrapper.vm.filterMonitored(undefined, false)).toBeFalsy();
 
     var groups = [
       {
-        "something" : 1,
+        something: 1,
       },
       {
         name: "yes",
-        hosts:[
+        hosts: [
           {
-            "monitor" : false
+            monitor: false,
           },
           {
-            "monitor" : true
-          }
-        ]
+            monitor: true,
+          },
+        ],
       },
       {
         name: "no",
         hosts: [
           {
-            "monitor" : false
-          }
-        ]
-      }
-    ]
+            monitor: false,
+          },
+        ],
+      },
+    ];
 
-    expect(wrapper.vm.filterMonitored(groups, true)).toStrictEqual([groups[1]])
-
-  })
+    expect(wrapper.vm.filterMonitored(groups, true)).toStrictEqual([groups[1]]);
+  });
 
   test("findClass", () => {
     expect(wrapper.vm.findClass("")).toBe("");

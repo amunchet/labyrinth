@@ -57,7 +57,7 @@
         <b-col cols="6">
           <b-select
             size="sm"
-            :options="[{text:'New Host', value:'new_host'},...services]"
+            :options="[{ text: 'New Host', value: 'new_host' }, ...services]"
             v-model="selected_delete_service"
           />
         </b-col>

@@ -18,26 +18,36 @@
         </template>
 
         <template v-slot:cell(fields)="row">
-
-          <b-table :items="Object.keys(row.item.fields)" :fields="['name', 'value']" striped bordered small>
+          <b-table
+            :items="Object.keys(row.item.fields)"
+            :fields="['name', 'value']"
+            striped
+            bordered
+            small
+          >
             <template v-slot:cell(name)="x">
-              {{x.item.replace(/_/g, ' ')}}
+              {{ x.item.replace(/_/g, " ") }}
             </template>
             <template v-slot:cell(value)="x">
-              {{row.item.fields[x.item]}}
+              {{ row.item.fields[x.item] }}
             </template>
           </b-table>
         </template>
         <template v-slot:cell(tags)="row">
-          <b-table :items="Object.keys(row.item.tags)" :fields="['name', 'value']" striped bordered small>
+          <b-table
+            :items="Object.keys(row.item.tags)"
+            :fields="['name', 'value']"
+            striped
+            bordered
+            small
+          >
             <template v-slot:cell(name)="x">
-              {{x.item.replace(/_/g, ' ')}}
+              {{ x.item.replace(/_/g, " ") }}
             </template>
             <template v-slot:cell(value)="x">
-              {{row.item.tags[x.item].replace(/_/g, ' ')}}
+              {{ row.item.tags[x.item].replace(/_/g, " ") }}
             </template>
           </b-table>
-
         </template>
       </b-table>
       <b-spinner v-else />

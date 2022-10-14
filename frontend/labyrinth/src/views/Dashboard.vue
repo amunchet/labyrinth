@@ -266,8 +266,8 @@ export default {
         if (splits.length != 3) {
           return -1;
         }
-        var output = (splits[0] * 100000) + (splits[1] * 1000) + (splits[2] * 10);
-        return output
+        var output = splits[0] * 100000 + splits[1] * 1000 + splits[2] * 10;
+        return output;
       } catch (e) {
         return -1;
       }
@@ -283,8 +283,9 @@ export default {
         if (this.convertSubnet(a.subnet) == this.convertSubnet(b.subnet)) {
           return 0;
         }
-        var outcome = this.convertSubnet(a.subnet) < this.convertSubnet(b.subnet) ? -1 : 1;
-        return outcome
+        var outcome =
+          this.convertSubnet(a.subnet) < this.convertSubnet(b.subnet) ? -1 : 1;
+        return outcome;
       });
     },
     filterMonitored: function (group, subnet) {
