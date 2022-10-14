@@ -21,4 +21,4 @@ ADD entrypoint.sh /
 RUN dos2unix -n /entrypoint.sh /entrypoint-fixed.sh
 RUN chmod a+x /entrypoint-fixed.sh
 
-CMD exec /bin/bash -c '/entrypoint-fixed.sh && sleep inf'
+CMD exec /bin/bash -c '/entrypoint-fixed.sh'

@@ -1,8 +1,13 @@
 import axios from "axios";
 
+/*
 const local_backend =
-  "https://" + window.location.host.split(":")[0] + ":7210/api/";
+    "https://" + window.location.host.split(":")[0] + ":7210/api/";
 const devel_port = "8101";
+*/
+
+const local_backend = "https://network.north.altamontco.com/api/"
+const devel_port = ""
 
 export default {
   name: "Helper",
