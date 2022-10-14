@@ -188,7 +188,7 @@ def run_ansible(
         a = ansible_runner.run(
             private_data_dir=RUN_DIR,
             playbook="{}.yml".format(playbook),
-            cmdline="-v --vault-password-file ../vault.pass",
+            cmdline="-vvvvv --vault-password-file ../vault.pass",
         )
         raise Exception("Done.")
     except Exception:
