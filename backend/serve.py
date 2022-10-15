@@ -1650,7 +1650,7 @@ def insert_metric(inp=""):
 
         if "tags" in item and "name" in item:
             if type(item["tags"]) == type({}):
-                item["tags"]["name"] = item["name"]
+                item["tags"]["labyrinth_name"] = item["name"]
 
             try:
                 mongo_client["labyrinth"]["metrics-latest"].replace_one(
