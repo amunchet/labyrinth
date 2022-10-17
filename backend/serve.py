@@ -1603,7 +1603,7 @@ def read_metrics(host, service="", count=10):
     elif service != "":
         or_clause["tags.name"] = service
 
-    retval = [x for x in mongo_client["labyrinth"]["metrics"].find(or_clause)]
+    retval = [x for x in mongo_client["labyrinth"]["metrics"].find(or_clause).sort("timestamp", -1).limit(count)]
 
     if service.strip() == "open_ports" or service.strip() == "closed_ports":
         for item in retval:
@@ -1624,7 +1624,7 @@ def read_metrics(host, service="", count=10):
                 item["judgement"] = mc.judge(item, found_service)
 
     return (
-        json.dumps(retval[-1 * count :], default=str),
+        json.dumps(retval, default=str),
         200,
     )
 
