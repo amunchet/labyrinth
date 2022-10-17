@@ -1658,8 +1658,8 @@ def insert_metric(inp=""):
                 )
             except Exception:
                 raise Exception(item)
-
-        mongo_client["labyrinth"]["metrics"].insert_one(item)
+        if(datetime.datetime.now().minute % 5 == 0):
+            mongo_client["labyrinth"]["metrics"].insert_one(item)
 
     return "Success", 200
 
