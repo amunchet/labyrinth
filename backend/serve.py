@@ -1625,7 +1625,7 @@ def read_metrics(host, service="", count=10):
                 item["judgement"] = mc.judge(item, found_service)
 
     return (
-        json.dumps(retval, default=str),
+        json.dumps(retval[::-1], default=str),
         200,
     )
 
