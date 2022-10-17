@@ -67,7 +67,7 @@ def judge_port(metric, service, host, stale_time=600):
             [
                 1
                 for x in metric["fields"]["ports"]
-                if x in host["open_ports"]
+                if str(x) in [str(y) for y in host["open_ports"]]
                 if "fields" in metric and "ports" in metric["fields"]
             ]
         )

@@ -1591,7 +1591,7 @@ def read_metrics(host, service="", count=10):
     )
 
     if service != "" and found_service:
-        or_clause["name"] = found_service["name"]
+        or_clause["tags.name"] = found_service["name"]
         if (
             "tag_name" in found_service
             and found_service["tag_name"]
@@ -1601,7 +1601,7 @@ def read_metrics(host, service="", count=10):
                 "tag_value"
             ]
     elif service != "":
-        or_clause["name"] = service
+        or_clause["tags.name"] = service
 
     retval = [x for x in mongo_client["labyrinth"]["metrics"].find(or_clause)]
 
@@ -1610,6 +1610,11 @@ def read_metrics(host, service="", count=10):
             item["judgement"] = mc.judge_port(
                 item, service, found_host, stale_time=10000
             )
+            item["judgement_debug"] = {
+                "item" : json.dumps(item, default=str),
+                "service" : service,
+                "found_host" : found_host
+            }
     else:
 
         for item in retval:
