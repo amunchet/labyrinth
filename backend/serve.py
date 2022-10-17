@@ -1281,7 +1281,7 @@ def dashboard(val="", report=False):
 
     latest_metrics = {}
     for item in mongo_client["labyrinth"]["metrics-latest"].find(
-        {}, sort=[("timestamp", pymongo.DESCENDING)]
+        {}, sort=[("_id", pymongo.DESCENDING)]
     ):
         if "name" in item:
             if item["name"] not in latest_metrics:
@@ -1591,7 +1591,7 @@ def read_metrics(host, service="", count=10):
     )
 
     if service != "" and found_service:
-        or_clause["tags.name"] = found_service["name"]
+        or_clause["tags.labyrinth_name"] = found_service["name"]
         if (
             "tag_name" in found_service
             and found_service["tag_name"]
@@ -1601,9 +1601,10 @@ def read_metrics(host, service="", count=10):
                 "tag_value"
             ]
     elif service != "":
-        or_clause["tags.name"] = service
+        or_clause["tags.labyrinth_name"] = service
 
-    retval = [x for x in mongo_client["labyrinth"]["metrics"].find(or_clause).sort("timestamp", -1).limit(count)]
+    print(or_clause)
+    retval = [x for x in mongo_client["labyrinth"]["metrics"].find(or_clause).sort("_id", -1).limit(count)]
 
     if service.strip() == "open_ports" or service.strip() == "closed_ports":
         for item in retval:
