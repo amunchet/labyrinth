@@ -31,6 +31,9 @@ db.runCommand({
 })
 ```
 
+### Indexes
+I did a compound index of `tags.name`, `tags.host`, `tags.ip`, `tags.mac` - seemed to work very well.
+
 ### Attempt 1
 Labyrinth is depending on a Mongo Database trigger to move metrics from `metrics-latest` to `metrics` collection.  
 
