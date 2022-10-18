@@ -53,6 +53,16 @@ services:
     env_file: 
       - nginx/.env
 
+  # Redis
+  redis:
+    image: bitnami/redis:latest
+    restart: always
+    environment:
+      ALLOW_EMPTY_PASSWORD: "yes"
+    networks:
+      - labyrinth
+    # volumes:
+    #  - ./redis_data:/bitnami/redis/data
 
 networks:
   labyrinth:
