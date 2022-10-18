@@ -1650,22 +1650,36 @@ def insert_metric(inp=""):
 
         if "timestamp" in item:
             try:
-                item["timestamp"] = datetime.datetime.fromtimestamp(item["timestamp"])
+                # item["timestamp"] = datetime.datetime.fromtimestamp(item["timestamp"])
+                item["timestamp"] = datetime.datetime.now()
             except Exception:
                 print("Problem with timestamp - ", sys.exc_info())
 
         if "tags" in item and "name" in item:
+            a = redis.Redis(host=os.environ.get("REDIS_HOST"))
+            last_time = a.get("last_metric_{}".format(item["tags"]["ip"]))
+
             if type(item["tags"]) == type({}):
                 item["tags"]["labyrinth_name"] = item["name"]
+                item["tags"]["agent_name"] = socket.gethostname()
 
             try:
-                mongo_client["labyrinth"]["metrics-latest"].replace_one(
-                    {"tags": item["tags"], "name": item["name"]}, item, upsert=True
-                )
+                if last_time and (time.time() - float(last_time)) <= 15:
+                    pass
+                else:
+                    mongo_client["labyrinth"]["metrics-latest"].replace_one(
+                        {"tags": item["tags"], "name": item["name"]}, item, upsert=True
+                    )
             except Exception:
                 raise Exception(item)
-        if(datetime.datetime.now().minute % 5 == 0):
-            mongo_client["labyrinth"]["metrics"].insert_one(item)
+
+            if(datetime.datetime.now().minute % 5 == 0):
+                if last_time and (time.time() - float(last_time)) <= 60:
+                    pass
+                else:
+                    mongo_client["labyrinth"]["metrics"].insert_one(item)
+                
+                a.set("last_metric_{}".format(item["tags"]["ip"]), time.time())
 
     return "Success", 200
 
