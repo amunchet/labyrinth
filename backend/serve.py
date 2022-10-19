@@ -1656,7 +1656,7 @@ def insert_metric(inp=""):
                 print("Problem with timestamp - ", sys.exc_info())
 
         if "tags" in item and "name" in item:
-            a = redis.Redis(host=os.environ.get("REDIS_HOST"))
+            a = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
             last_time = a.get("last_metric_{}".format(item["tags"]["ip"]))
 
             if type(item["tags"]) == type({}):

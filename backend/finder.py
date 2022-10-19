@@ -34,8 +34,8 @@ def scan(subnet: str, callback_fn, verbose=False) -> List:  # pragma: no cover
     ## Exactly one alive host will break the process
     if type(parsed['nmaprun']['host']) == type({}):
         parsed["nmaprun"]["host"] = [parsed['nmaprun']['host']]
-    
-    search = " ".join([x['address']['@addr'] for x in parsed['nmaprun']['host']])
+    arr = [x['address']['@addr'] for x in parsed['nmaprun']['host']]
+    search = " ".join(arr)
 
 
     scanner = ps()
@@ -45,7 +45,7 @@ def scan(subnet: str, callback_fn, verbose=False) -> List:  # pragma: no cover
     arguments = (
         "-sT -PU0 -Pn"  # Removed vulners, since security scanning will be done externally
     )
-    callback_fn(search)
+    callback_fn(search + "\n\n" + f"Hosts Count:{len(arr)}")
 
     for line in scanner.scan(hosts=search, arguments=arguments):
         if verbose:
