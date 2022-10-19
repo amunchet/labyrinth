@@ -1575,8 +1575,9 @@ def last_metrics(count):
 @app.route("/metrics/<host>")
 @app.route("/metrics/<host>/<service>")
 @app.route("/metrics/<host>/<service>/<int:count>")
+@app.route("/metrics/<host>/<service>/<option>")
 @requires_auth_read
-def read_metrics(host, service="", count=10):
+def read_metrics(host, service="", count=10, option=""):
     """
     Returns the latest metrics for a given host
     """
@@ -1604,7 +1605,12 @@ def read_metrics(host, service="", count=10):
         or_clause["tags.labyrinth_name"] = service
 
     print(or_clause)
-    retval = [x for x in mongo_client["labyrinth"]["metrics"].find(or_clause).sort("_id", -1).limit(count)]
+
+    table = "metrics"
+    if option == "latest":
+        table = "metrics-latest"
+
+    retval = [x for x in mongo_client["labyrinth"][table].find(or_clause).sort("_id", -1).limit(count)]
 
     if service.strip() == "open_ports" or service.strip() == "closed_ports":
         for item in retval:
