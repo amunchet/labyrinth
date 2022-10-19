@@ -18,15 +18,15 @@
         height="2rem"
       >
         <b-progress-bar
-          :value="((subnet.match(/\*/g) || []).length / 255) * 100"
+          :value="((subnet.match(/\*/g) || []).length / (1 * (subnet.match(/Hosts Count:(\d+)/g) || [''])[0].replace('Hosts Count:', ''))) * 100"
         >
           <span
             ><strong>
               {{ subnet.split(".")[0].split("*")[0] }}.
-              {{ subnet.split(".")[1].split("*")[0] }}.
-              {{ subnet.split(".")[2].split("*")[0] }} |
+              {{ subnet.split(".")[1].split("*")[0] }}
+              {{ subnet.split(".")[2].split("*")[0] }}
               {{
-                (((subnet.match(/\*/g) || []).length / 255) * 100).toFixed(0)
+                (((subnet.match(/\*/g) || []).length / (1 * (subnet.match(/Hosts Count:(\d+)/g) || [''])[0].replace('Hosts Count:', ''))) * 100).toFixed(0)
               }}%</strong
             ></span
           >
