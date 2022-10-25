@@ -1261,7 +1261,7 @@ def dashboard(val="", report=False, flapping_delay=140):
 
     # Get all the subnets
 
-    rc = redis.Redis(host=os.environ.get("REDIS_HOST"))
+    rc = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
     if str(val) == "1":
         cachedboard = rc.get("dashboard")
         if cachedboard:
