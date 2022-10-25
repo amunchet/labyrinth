@@ -8,7 +8,6 @@ const devel_port = "8101";
 const local_backend = "https://network.north.altamontco.com/api/"
 const devel_port = ""
 */
-
 export default {
   name: "Helper",
   capitalize: function (string) {
@@ -132,7 +131,11 @@ export default {
         })
         .then((response) => {
           return response.data;
+        }).catch(e=>{
+            throw "Error " + e.response.status + ": " + e.response.data;
         });
+    }).catch(e=>{
+        throw e;
     });
   },
   apiPost(
