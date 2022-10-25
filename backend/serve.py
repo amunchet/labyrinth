@@ -1238,7 +1238,7 @@ def index_helper():
 @app.route("/dashboard/<val>")
 @app.route("/dashboard/")
 @requires_auth_read
-def dashboard(val="", report=False, flapping_delay=70):
+def dashboard(val="", report=False, flapping_delay=140):
     """
     Dashboard
         - This is also called to judge and send out alerts (flag `report`)
@@ -1396,11 +1396,11 @@ def dashboard(val="", report=False, flapping_delay=70):
                         json.dumps(found_service, default=str) or "",
                     )
                 
-                key_name = f"{alert_name}_{metric_name}_{host_name}".replace(" ", "")
-                if(rc.get(key_name)):
+                key_name = f"{alert_name}{metric_name}{host_name}".replace(" ", "")
+                found_key = rc.get(key_name)
+                if(found_key and time.time() - found_key < flapping_delay):
                     watcher.send_alert(alert_name, metric_name, host_name, summary=summary)
-                else:
-                    rc.set(key_name, "1", ex=flapping_delay)
+                rc.set(key_name, time.time())
 
             service_results[service] = {"name": service, "state": result}
         for item in service_results:
