@@ -1645,6 +1645,16 @@ def read_metrics(host, service="", count=10, option=""):
     )
 
 
+@app.route("/metrics/<metric_id>", methods=["DELETE"])
+@requires_auth_write
+def delete_metric(metric_id):
+    """
+    Deletes a metric id
+    """
+    object_id = bson.ObjectId(metric_id)
+    mongo_client["labyrinth"]["metrics-latest"].delete_one({"_id" : object_id})
+    return "Success", 200
+
 @app.route("/metrics/", methods=["POST"])
 @requires_header
 def insert_metric(inp=""):
@@ -1696,6 +1706,8 @@ def insert_metric(inp=""):
                 a.set("last_metric_{}".format(item["tags"]["ip"]), time.time())
 
     return "Success", 200
+
+
 
 
 if __name__ == "__main__":  # pragma: no cover
