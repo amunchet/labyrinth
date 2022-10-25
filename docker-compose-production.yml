@@ -124,6 +124,7 @@ services:
       - labyrinth
     environment: 
       REDIS_HOST: redis
+      PRODUCTION: 1
 
 networks:
   labyrinth:

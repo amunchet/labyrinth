@@ -1688,12 +1688,11 @@ def insert_metric(inp=""):
             except Exception:
                 raise Exception(item)
 
-            if(datetime.datetime.now().minute % 5 == 0):
-                if last_time and (time.time() - float(last_time)) <= 60:
-                    pass
-                else:
-                    mongo_client["labyrinth"]["metrics"].insert_one(item)
-                
+            if last_time and (time.time() - float(last_time)) <= 120:
+                pass
+            else:
+                mongo_client["labyrinth"]["metrics"].insert_one(item)
+            
                 a.set("last_metric_{}".format(item["tags"]["ip"]), time.time())
 
     return "Success", 200
