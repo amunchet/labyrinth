@@ -15,10 +15,18 @@
         v-if="!loading"
         :fields="['name', 'tags', 'fields', 'timestamp', 'judgement']"
       >
+        <template v-slot:cell(name)="row">
+          {{row.item.name}}<br />
+          <b-button @click="deleteMetric(row.item._id)" variant="link" class="text-danger mt-4 p-0 ml-0 mr-0">
+            <font-awesome-icon icon="trash" size="1x" />&nbsp;
+            Delete Metric
+            </b-button>
+
+          </template>
         <template v-slot:cell(timestamp)="row">
           {{ formatDate(row.item.timestamp * 1000) }}
           {{ formatDate(row.item.timestamp * 1000, true) }}
-        </template>
+                  </template>
 
         <template v-slot:cell(fields)="row">
           <b-table
@@ -129,7 +137,7 @@ export default {
   mounted() {},
   methods: {
     formatDate: Helper.formatDate,
-    loadLatestMetric: function(){
+    loadLatestMetric: /* istanbul ignore next */ function(){
       var auth = this.$auth
       this.loading = true
       Helper.apiCall("metrics", this.data.ip + "/" + this.data.name + "/latest", auth).then(res=>{
@@ -138,6 +146,14 @@ export default {
       }).catch(e=>{
         this.$store.commit("updateError", e)
         this.loading = false
+      })
+    },
+    deleteMetric: /* istanbul ignore next */ function(metric_id){
+      var auth = this.$auth
+      Helper.apiDelete("metrics", metric_id, auth).then(()=>{
+        this.loadLatestMetric()
+      }).catch(e=>{
+        this.$store.commit("updateError", e)
       })
     },
   },

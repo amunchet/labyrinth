@@ -1238,7 +1238,7 @@ def index_helper():
 @app.route("/dashboard/<val>")
 @app.route("/dashboard/")
 @requires_auth_read
-def dashboard(val="", report=False, flapping_delay=140):
+def dashboard(val="", report=False, flapping_delay=1300):
     """
     Dashboard
         - This is also called to judge and send out alerts (flag `report`)
