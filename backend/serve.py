@@ -1398,7 +1398,7 @@ def dashboard(val="", report=False, flapping_delay=140):
                 
                 key_name = f"{alert_name}{metric_name}{host_name}".replace(" ", "")
                 found_key = rc.get(key_name)
-                if(found_key and time.time() - found_key < flapping_delay):
+                if(found_key and time.time() - float(found_key) < flapping_delay):
                     watcher.send_alert(alert_name, metric_name, host_name, summary=summary)
                 rc.set(key_name, time.time())
 
