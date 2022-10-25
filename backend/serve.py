@@ -1238,8 +1238,12 @@ def index_helper():
 @app.route("/dashboard/<val>")
 @app.route("/dashboard/")
 @requires_auth_read
-def dashboard(val="", report=False):
-    """Dashboard"""
+def dashboard(val="", report=False, flapping_delay=70):
+    """
+    Dashboard
+        - This is also called to judge and send out alerts (flag `report`)
+        - `flapping_delay` is how long a metric must be failing before a report is sent out (in seconds)
+    """
 
     # Sorting helper for groups
     def group_sorting_helper(x):
@@ -1391,7 +1395,12 @@ def dashboard(val="", report=False):
                         json.dumps(latest_metric, default=str) or "",
                         json.dumps(found_service, default=str) or "",
                     )
-                watcher.send_alert(alert_name, metric_name, host_name, summary=summary)
+                
+                key_name = f"{alert_name}_{metric_name}_{host_name}".replace(" ", "")
+                if(rc.get(key_name)):
+                    watcher.send_alert(alert_name, metric_name, host_name, summary=summary)
+                else:
+                    rc.set(key_name, "1", ex=flapping_delay)
 
             service_results[service] = {"name": service, "state": result}
         for item in service_results:
