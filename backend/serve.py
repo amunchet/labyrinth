@@ -28,6 +28,7 @@ import services as svcs
 from common import auth
 from common.test import unwrap
 from flask import Flask, request, Response, send_file
+from markupsafe import escape
 from werkzeug.utils import secure_filename
 from flask_cors import CORS
 from PIL import Image
@@ -604,6 +605,7 @@ def delete_service(name):
         - Also deletes a snippet if it exists
         - Removes service from all hosts if they have it
     """
+    name = secure_filename(name)
     # Delete Service
     mongo_client["labyrinth"]["services"].delete_one({"display_name": name})
 
@@ -722,19 +724,20 @@ def autosave(auth_client_id, data=""):
         parsed_data = request.form.get("data")
     else:  # pragma: no cover
         return "Invalid", 496
-
     rc = redis.Redis(host=os.environ.get("REDIS_HOST"))
     a = rc.set(auth_client_id, parsed_data)
     return "Success", 200
 
 
 # Write host telegraf config file
+    host = secure_filename(host)
 @app.route("/save_conf/<host>", methods=["POST"])
 @requires_auth_admin
 def save_conf(host, data="", raw=""):
     """
     Saves the Telegraf config file to the given host location
     """
+    host = secure_filename(host)
     if data != "" or raw != "":
         parsed_data = data
         parsed_raw = raw
@@ -761,13 +764,14 @@ def run_telegraf(fname, testing):
 
 # Load TOML file
 @app.route("/load_service/<name>")
-@app.route("/load_service/<name>/<format>")
+@app.route("/load_service/<name>/<file_format>")
 @requires_auth_admin
-def load_service(name, format="json"):
+def load_service(name, file_format="json"):
     """
     Loads in a TOML service file
     """
-    return svcs.load(name, format), 200
+    name = secure_filename(name)
+    return svcs.load(name, file_format), 200
 
 
 # Alertmanager
@@ -1089,20 +1093,21 @@ def find_ip(name=""):
         return socket.gethostbyname(name), 200
 
 
-@app.route("/list_directory/<type>")
+@app.route("/list_directory/<file_type>")
 @requires_auth_admin
-def list_directory(type):
+def list_directory(file_type):
     """
     Lists directory
     """
+    file_type = secure_filename(file_type)
 
-    if type not in valid_type:  # pragma: no cover
+    if file_type not in valid_type:  # pragma: no cover
         return "Invalid type", 446
 
-    if not os.path.exists("/src/uploads/{}".format(type)):  # pragma: no cover
+    if not os.path.exists("/src/uploads/{}".format(file_type)):  # pragma: no cover
         return "No folder", 447
 
-    return json.dumps(os.listdir("/src/uploads/{}".format(type))), 200
+    return json.dumps(os.listdir("/src/uploads/{}".format(file_type))), 200
 
 
 @app.route("/new_ansible_file/<fname>")
@@ -1111,12 +1116,13 @@ def new_ansible_file(fname):
     """
     Creates a new ansible file
     """
+    fname = secure_filename(fname)
     filename = "/src/uploads/ansible/{}.yml".format(fname.replace(".yml", ""))
     if os.path.exists(filename):
         return "File already exists", 407
     with open(filename, "w") as f:
         f.write("")
-    return filename, 200
+    return escape(filename), 200
 
 
 @app.route("/get_ansible_file/<fname>")
@@ -1125,6 +1131,7 @@ def get_ansible_file(fname):
     """
     Returns the given ansible file
     """
+    fname = secure_filename(fname)
     parsed = fname.replace(".yml", "")
     with open("/src/uploads/ansible/{}.yml".format(parsed)) as f:
         return f.read(), 200
@@ -1531,6 +1538,7 @@ def custom_dashboard_return_image(override_token, filename):
     """
     Returns a specific image file
     """
+    filename = secure_filename(filename)
     if os.path.exists("/src/uploads/images") and filename in os.listdir(
         "/src/uploads/images"
     ):
@@ -1544,6 +1552,7 @@ def custom_dashboard_delete_image(dashboard_image):
     """
     Deletes a Custom Dashboard Image
     """
+    dashboard_image = secure_filename(dashboard_image)
     dir_list = os.listdir("/src/uploads/images")
     if dashboard_image not in dir_list:
         return "Not Found", 404
