@@ -924,7 +924,21 @@ def delete_setting(setting):
 
     return "Success", 200
 
-
+@app.route("/settings/restart")
+@app.route("/settings/restart/<int:code>")
+@requires_auth_admin
+def restart(code=0): # pragma: no cover
+    """
+    Restarts either the process or the docker
+    """
+    if int(code) == 0:
+        print("Exiting 0")
+        sys.exit(0)
+    elif int(code) == 4:
+        print("Exiting 4")
+        sys.exit(4)
+    else:
+        return "Invalid exit code", 400
 # Icons
 def check_extension(fname):
     """

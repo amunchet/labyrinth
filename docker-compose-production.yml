@@ -33,7 +33,7 @@ services:
     environment: 
       REDIS_HOST: redis
       PRODUCTION: 1
- 
+
   frontend:
     image: nginx:latest
     restart: always
@@ -59,7 +59,7 @@ services:
     ports:
         - "443:443"
 
- 
+
 
 
   lego:
