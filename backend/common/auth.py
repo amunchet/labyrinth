@@ -18,11 +18,11 @@ load_dotenv()
 AUTH0_DOMAIN = os.getenv("AUTH0DOMAIN")
 API_IDENTIFIER = os.getenv("APIURL")
 
-if AUTH0_DOMAIN == "" or AUTH0_DOMAIN == None:
+if AUTH0_DOMAIN == "" or AUTH0_DOMAIN is None:
     raise Exception("No Auth0 Domain specified.  Please make sure your .env is correct")
 
 
-if API_IDENTIFIER == "" or API_IDENTIFIER == None:
+if API_IDENTIFIER == "" or API_IDENTIFIER is None:
     raise Exception(
         "No Auth0 API URL specified.  Please make sure your .env is correct"
     )
