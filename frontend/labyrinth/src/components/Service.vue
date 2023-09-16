@@ -278,7 +278,7 @@ export default {
   },
   methods: {
     add: function (item, name, parent) {
-      var structure = {
+      let structure =  {
         item: item,
         name: name,
         parent: parent || "",
@@ -301,7 +301,7 @@ export default {
       this.$forceUpdate();
     },
     parsed: function (item) {
-      var structure = JSON.parse(item);
+      let structure =  JSON.parse(item);
       this.add(structure.item, structure.name, structure.parent);
     },
     loadComment: /* istanbul ignore next */ function () {

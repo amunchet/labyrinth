@@ -52,7 +52,7 @@ export default {
     },
     saveDefaultBackend: /* istanbul ignore next */ function () {
      let auth = this.$auth;
-      var formData = new FormData();
+      let formData =  new FormData();
       formData.append("name", "default_telegraf_backend");
       formData.append("value", this.default_backend);
 

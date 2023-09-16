@@ -58,7 +58,7 @@ export default {
           this.data = res;
           this.$forceUpdate();
           if (res.indexOf("Finished") == -1) {
-            var el = this.$refs.textarea_1.$el;
+            let el =  this.$refs.textarea_1.$el;
             el.scrollTop = el.scrollHeight + 500;
             this.$forceUpdate();
             el = this.$refs.textarea_1.$el;

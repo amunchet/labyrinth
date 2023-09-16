@@ -104,7 +104,7 @@ export default {
   methods: {
     changeMonitor: /* istanbul ignore next */ function (status) {
      let auth = this.$auth;
-      var url =
+      let url = 
         "monitor/" +
         this.selected_subnet.subnet +
         "/" +
@@ -123,7 +123,7 @@ export default {
     },
     changeGroupName: /* istanbul ignore next */ function () {
      let auth = this.$auth;
-      var url =
+      let url = 
         "name/" +
         this.selected_subnet.subnet +
         "/" +
@@ -141,7 +141,7 @@ export default {
     },
     changeIcons: /* istanbul ignore next */ function () {
      let auth = this.$auth;
-      var url =
+      let url = 
         "icons/" +
         this.selected_subnet.subnet +
         "/" +
@@ -159,7 +159,7 @@ export default {
     },
     addService: /* istanbul ignore next */ function () {
      let auth = this.$auth;
-      var url =
+      let url = 
         "add_service/" +
         this.selected_subnet.subnet +
         "/" +
@@ -177,7 +177,7 @@ export default {
     },
     deleteService: /* istanbul ignore next */ function () {
      let auth = this.$auth;
-      var url =
+      let url = 
         "delete_service/" +
         this.selected_subnet.subnet +
         "/" +

@@ -220,15 +220,15 @@ export default {
     add: function (data) {
       // Handle undefined at top
       this.$forceUpdate();
-      var output = JSON.parse(data);
+      let output =  JSON.parse(data);
 
       // Need to handle deep nests - assume every parent is an object, except for the arrays
 
-      var item = output.item;
-      var parent = output.parent.replace("undefined.", "") || "";
-      var name = output.name;
+      let item =  output.item;
+      let parent =  output.parent.replace("undefined.", "") || "";
+      let name =  output.name;
 
-      var temp = JSON.parse(JSON.stringify(this.output_data));
+      let temp =  JSON.parse(JSON.stringify(this.output_data));
       this.output_data = "";
       this.$forceUpdate();
 
@@ -240,14 +240,14 @@ export default {
         }, obj);
         lastObj[lastKey] = val;
       };
-      var outtie = parent + "." + name;
+      let outtie =  parent + "." + name;
 
       set(temp, outtie, item);
 
       if (temp[""] != undefined) {
-        var keys = Object.keys(temp[""]);
-        for (var i = 0; i < keys.length; i++) {
-          var next_key = keys[i];
+        let keys =  Object.keys(temp[""]);
+        for (let i =  0; i < keys.length; i++) {
+          let next_key =  keys[i];
           if (temp[next_key] == undefined) {
             temp[next_key] = temp[""][next_key];
           }
@@ -317,12 +317,12 @@ export default {
         },
       };
 
-      var found_host = this.raw_hosts.filter(
+      let found_host =  this.raw_hosts.filter(
         (x) => x.ip == this.selected_host
       )[0];
-      var found_tags = {};
-      var tag_names = ["mac", "host", "ip"];
-      for (var i = 0; i < tag_names.length; i++) {
+      let found_tags =  {};
+      let tag_names =  ["mac", "host", "ip"];
+      for (let i =  0; i < tag_names.length; i++) {
         if (
           found_host[tag_names[i]] != undefined &&
           found_host[tag_names[i]] != ""
@@ -366,7 +366,7 @@ export default {
     },
     autoSave: /* istanbul ignore next */ function () {
      let auth = this.$auth;
-      var formData = new FormData();
+      let formData =  new FormData();
       formData.append("data", JSON.stringify(this.output_data));
       Helper.apiPost("redis", "", "autosave", auth, formData).catch(() => {
         this.autoSaved = false;
@@ -410,7 +410,7 @@ export default {
     },
     saveRaw: /* istanbul ignore next */ function () {
      let auth = this.$auth;
-      var formData = new FormData();
+      let formData =  new FormData();
       formData.append("raw", this.loadedFile);
       formData.append("data", "{}");
       this.saving_conf = true;
@@ -434,7 +434,7 @@ export default {
     },
     saveConf: /* istanbul ignore next */ function () {
      let auth = this.$auth;
-      var formData = new FormData();
+      let formData =  new FormData();
       formData.append("data", JSON.stringify(this.output_data));
       this.saving_conf = true;
       Helper.apiPost("save_conf", "", this.selected_host, auth, formData)

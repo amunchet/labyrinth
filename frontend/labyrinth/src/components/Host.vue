@@ -199,7 +199,7 @@ export default {
     },
   },
   created() {
-    for (var i = 0; i < this.icons.length; i++) {
+    for (let i =  0; i < this.icons.length; i++) {
       let componentName = this.icons[i];
       this.myComponent[this.icons[i]] = componentName + ".svg";
     }
