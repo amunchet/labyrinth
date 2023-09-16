@@ -52,7 +52,7 @@ export default {
   },
   methods: {
     loadData: /* istanbul ignore next */ async function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       await Helper.apiCall("redis", "", auth)
         .then((res) => {
           this.data = res;
@@ -73,7 +73,7 @@ export default {
         });
     },
     startScan: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       Helper.apiCall("scan", "", auth)
         .then((res) => {
           this.$store.commit("updateError", res);

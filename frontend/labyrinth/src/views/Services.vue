@@ -200,7 +200,7 @@ export default {
   watch: {
     selected_host: /* istanbul ignore next */ async function (val) {
       if (val != "" && val != "TEST") {
-        var auth = this.$auth;
+       let auth = this.$auth;
         await Helper.apiCall("load_service", val, auth)
           .then((res) => {
             if (res != "") {
@@ -262,7 +262,7 @@ export default {
     },
 
     loadDefaultBackendLocation: /* istanbul ignore next */ async function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       await Helper.apiCall("settings", "default_telegraf_backend", auth)
         .then((res) => {
           this.default_backend = res;
@@ -279,7 +279,7 @@ export default {
         });
     },
     loadTelegrafKey: /* istanbul ignore next */ async function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       await Helper.apiCall("telegraf_key", "", auth)
         .then((res) => {
           this.telegraf_key = res;
@@ -334,7 +334,7 @@ export default {
     },
 
     loadStructure: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       Helper.apiCall("redis", "get_structure", auth)
         .then((res) => {
           this.data = res;
@@ -345,7 +345,7 @@ export default {
         });
     },
     putStructure: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       Helper.apiCall("redis", "put_structure", auth)
         .then((res) => {
           this.$store.commit("updateError", res);
@@ -355,7 +355,7 @@ export default {
         });
     },
     getAutosave: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       Helper.apiCall("redis", "autosave", auth)
         .then((res) => {
           this.output_data = res;
@@ -365,7 +365,7 @@ export default {
         });
     },
     autoSave: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       var formData = new FormData();
       formData.append("data", JSON.stringify(this.output_data));
       Helper.apiPost("redis", "", "autosave", auth, formData).catch(() => {
@@ -373,7 +373,7 @@ export default {
       });
     },
     listHosts: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       Helper.apiCall("hosts", "", auth)
         .then((res) => {
           this.raw_hosts = res;
@@ -389,7 +389,7 @@ export default {
         });
     },
     loadFile: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       Helper.apiCall("load_service", this.selected_host + "/text", auth)
         .then((res) => {
           this.loadedFile = res;
@@ -399,7 +399,7 @@ export default {
         });
     },
     runTest: /* istanbul ignore next */ function (outputs) {
-      var auth = this.$auth;
+     let auth = this.$auth;
       Helper.apiCall("run_conf", this.selected_host + "/" + outputs, auth)
         .then((res) => {
           this.testOutput = res;
@@ -409,7 +409,7 @@ export default {
         });
     },
     saveRaw: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       var formData = new FormData();
       formData.append("raw", this.loadedFile);
       formData.append("data", "{}");
@@ -433,7 +433,7 @@ export default {
         });
     },
     saveConf: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       var formData = new FormData();
       formData.append("data", JSON.stringify(this.output_data));
       this.saving_conf = true;

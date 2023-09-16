@@ -309,7 +309,7 @@ export default {
         this.comment = "";
         return;
       }
-      var auth = this.$auth;
+     let auth = this.$auth;
       Helper.apiCall("redis", "get_comments/" + this.comment_name, auth)
         .then((res) => {
           this.comment = res;

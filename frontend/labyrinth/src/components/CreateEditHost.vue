@@ -353,7 +353,7 @@ export default {
   },
   methods: {
     listIcons: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       Helper.apiCall("icons", "", auth)
         .then((res) => {
           this.icons = res.map((x) => {
@@ -368,7 +368,7 @@ export default {
         });
     },
     loadServices: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+      let auth = this.$auth;
       Helper.apiCall("services", "all", auth)
         .then((res) => {
           this.services = res.map((x) => {
@@ -383,7 +383,7 @@ export default {
         });
     },
     loadMetrics: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       Helper.apiCall("metrics", this.host.mac, auth)
         .then((res) => {
           this.metrics = res;
@@ -394,7 +394,7 @@ export default {
         });
     },
     saveHost: /* istanbul ignore next  */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       var formData = new FormData();
 
       if (this.$v.host.$invalid) {
@@ -428,7 +428,7 @@ export default {
     },
     deleteHost: /* istanbul ignore next */ function () {
       var host = this.host;
-      var auth = this.$auth;
+     let auth = this.$auth;
       this.$bvModal
         .msgBoxConfirm("Are you sure you want to delete this host?")
         .then((res) => {

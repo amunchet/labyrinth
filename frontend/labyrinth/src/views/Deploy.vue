@@ -642,7 +642,7 @@ export default {
     },
     saveAnsibleVault: /* istanbul ignore next */ function (e) {
       e.preventDefault();
-      var auth = this.$auth;
+     let auth = this.$auth;
       var type = "become";
       var formData = new FormData();
       formData.append("file", this.generated_vault_file);
@@ -660,7 +660,7 @@ export default {
 
     uploadHelper: /* istanbul ignore next */ function (val, type) {
       if (val) {
-        var auth = this.$auth;
+       let auth = this.$auth;
         var formData = new FormData();
         formData.append("file", val);
         Helper.apiPost(
@@ -689,7 +689,7 @@ export default {
       }
     },
     loadPlaybook: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       var loadings = this.loadings;
       this.loadings["playbook"] = 1;
       Helper.apiCall("get_ansible_file", this.selected_playbook, auth)
@@ -704,7 +704,7 @@ export default {
     },
 
     createPlaybook: /* istanbul ignore next */ function (e) {
-      var auth = this.$auth;
+     let auth = this.$auth;
       e.preventDefault();
       Helper.apiCall("new_ansible_file", this.new_ansible_file, auth)
         .then(async () => {
@@ -720,7 +720,7 @@ export default {
     savePlaybook: /* istanbul ignore next */ function () {
       this.loadings["save_playbook"] = 1;
       this.$forceUpdate();
-      var auth = this.$auth;
+     let auth = this.$auth;
       var formData = new FormData();
       formData.append("data", this.playbook_contents);
       Helper.apiPost(
@@ -759,7 +759,7 @@ export default {
         return false;
       }
 
-      var auth = this.$auth;
+     let auth = this.$auth;
       this.running = true;
       if (this.ips.length > 0) {
         this.ips.forEach((host) => {
@@ -810,7 +810,7 @@ export default {
     },
 
     loadIP: /* istanbul ignore next */ async function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       this.sample_loading = true;
       await Helper.apiCall("find_ip", "", auth)
         .then((res) => {
@@ -832,7 +832,7 @@ export default {
     },
 
     loadFilesList: /* istanbul ignore next */ async function (type) {
-      var auth = this.$auth;
+     let auth = this.$auth;
       Helper.apiCall("uploads", type, auth)
         .then((res) => {
           this.files_list[type] = res;
@@ -843,7 +843,7 @@ export default {
         });
     },
     loadSubnets: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       Helper.apiCall("subnets", "", auth)
         .then((res) => {
           this.subnets = res;
@@ -853,7 +853,7 @@ export default {
         });
     },
     loadGroups: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       Helper.apiCall("group", this.selected_subnet, auth)
         .then((res) => {
           this.groups = res;
@@ -864,7 +864,7 @@ export default {
     },
 
     loadGroupMembers: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       Helper.apiCall(
         "group",
         this.selected_subnet + "/" + this.selected_group,
@@ -879,7 +879,7 @@ export default {
     },
 
     loadHosts: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       Helper.apiCall("hosts", "", auth)
         .then((res) => {
           this.hosts = res.map((x) => {

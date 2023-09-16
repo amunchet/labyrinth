@@ -119,7 +119,7 @@ export default {
       return url;
     },
     loadCustomDashboards: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       Helper.apiCall("custom_dashboards", "", auth)
         .then((res) => {
           this.custom_dashboards = res.map((x) => {
@@ -141,7 +141,7 @@ export default {
         });
     },
     loadData: /* istanbul ignore next */ async function (showLoading) {
-      var auth = this.$auth;
+     let auth = this.$auth;
       var url = "";
       if (showLoading) {
         this.loading = true;

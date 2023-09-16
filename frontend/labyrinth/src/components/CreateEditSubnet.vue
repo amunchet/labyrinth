@@ -152,7 +152,7 @@ export default {
   },
   methods: {
     loadThemes: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       Helper.apiCall("themes", "", auth)
         .then((res) => {
           this.themes = res;
@@ -163,7 +163,7 @@ export default {
     },
 
     listIcons: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       Helper.apiCall("icons", "", auth)
         .then((res) => {
           this.icons = res.map((x) => {
@@ -185,7 +185,7 @@ export default {
         );
         return -1;
       }
-      var auth = this.$auth;
+     let auth = this.$auth;
       var formData = new FormData();
       formData.append("data", JSON.stringify(this.subnet));
       Helper.apiPost("subnet", "", "", auth, formData)
@@ -199,7 +199,7 @@ export default {
         });
     },
     deleteSubnet: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       this.$bvModal
         .msgBoxConfirm("Are you sure you want to delete this subnet?")
         .then((res) => {

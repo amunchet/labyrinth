@@ -504,7 +504,7 @@ export default {
     },
 
     loadSubnets: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       Helper.apiCall("subnets", "", auth)
         .then((res) => {
           this.subnets = res;
@@ -514,7 +514,7 @@ export default {
         });
     },
     loadGroups: /* istanbul ignore next */ function (selected_subnet) {
-      var auth = this.$auth;
+     let auth = this.$auth;
       Helper.apiCall("group", selected_subnet, auth)
         .then((res) => {
           this.groups = res;
@@ -524,7 +524,7 @@ export default {
         });
     },
     loadHosts: /* istanbul ignore next */ function (selected_group) {
-      var auth = this.$auth;
+     let auth = this.$auth;
       Helper.apiCall("group", this.selected_subnet + "/" + selected_group, auth)
         .then((res) => {
           this.hosts = res;
@@ -535,7 +535,7 @@ export default {
     },
 
     loadImages: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       Helper.apiCall("custom_dashboard_images", "", auth)
         .then((res) => {
           this.available_images = res;
@@ -546,7 +546,7 @@ export default {
     },
     uploadHelper: /* istanbul ignore next */ function (val) {
       if (val) {
-        var auth = this.$auth;
+       let auth = this.$auth;
         var formData = new FormData();
         formData.append("file", val);
         console.log(val);
@@ -568,7 +568,7 @@ export default {
       }
     },
     deleteImage: /* istanbul ignore next */ function (val) {
-      var auth = this.$auth;
+     let auth = this.$auth;
       this.$bvModal
         .msgBoxConfirm("Are you sure you want to delete this image?")
         .then((res) => {
@@ -589,7 +589,7 @@ export default {
         });
     },
     loadCustomDashboards: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       Helper.apiCall("custom_dashboards", "", auth)
         .then((res) => {
           this.custom_dashboards = res;
@@ -601,7 +601,7 @@ export default {
     saveCustomDashboard: /* istanbul ignore next */ function (e) {
       e.preventDefault();
 
-      var auth = this.$auth;
+     let auth = this.$auth;
       var formData = new FormData();
       formData.append("data", JSON.stringify(this.drawing));
 

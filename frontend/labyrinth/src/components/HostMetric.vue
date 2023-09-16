@@ -138,7 +138,7 @@ export default {
   methods: {
     formatDate: Helper.formatDate,
     loadLatestMetric: /* istanbul ignore next */ function(){
-      var auth = this.$auth
+     let auth = this.$auth
       this.loading = true
       Helper.apiCall("metrics", this.data.ip + "/" + this.data.name + "/latest", auth).then(res=>{
         this.latest_metric = res
@@ -149,7 +149,7 @@ export default {
       })
     },
     deleteMetric: /* istanbul ignore next */ function(metric_id){
-      var auth = this.$auth
+     let auth = this.$auth
       Helper.apiDelete("metrics", metric_id, auth).then(()=>{
         this.loadLatestMetric()
       }).catch(e=>{
@@ -163,7 +163,7 @@ export default {
 
         this.loadLatestMetric()
 
-        var auth = this.$auth;
+       let auth = this.$auth;
         this.loading = true;
         this.display = false;
         await Helper.apiCall(
