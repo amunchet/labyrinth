@@ -209,9 +209,10 @@ def list_uploads(file_type):
     """
     file_type = secure_filename(file_type)
     if file_type in valid_type:
-        if not os.path.exists("/src/uploads/{}".format(file_type)):
-            os.mkdir("/src/uploads/{}".format(file_type))
-        return json.dumps(os.listdir("/src/uploads/{}".format(file_type)), default=str), 200
+        fname = "/src/uploads/{}".format(file_type)
+        if not os.path.exists(fname):
+            os.mkdir(fname)
+        return json.dumps(os.listdir(fname), default=str), 200
     return "Not found", 409
 
 
