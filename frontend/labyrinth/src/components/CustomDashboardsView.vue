@@ -71,7 +71,7 @@ export default {
     computed_filtered_data: function () {
       try {
         if (this.selected_dashboard && this.selected_dashboard.components) {
-          var temp = {};
+          let temp =  {};
           this.selected_dashboard.components.forEach((x) => {
             temp[x.subnet + x.name] = 1;
           });
@@ -89,7 +89,7 @@ export default {
   methods: {
     generateHostStyle: function (host) {
       // Generates the offsets from the given host data
-      var offsets = this.selected_dashboard.components.filter(
+      let offsets =  this.selected_dashboard.components.filter(
         (x) => x.name == host.ip && x.subnet == host.subnet
       );
       if (offsets.length > 0) {
@@ -110,7 +110,7 @@ export default {
       return "";
     },
     generateBackgroundImage: function () {
-      var url =
+      let url = 
         "/api/custom_dashboard_images/" +
         this.$auth.accessToken +
         "/" +
@@ -142,14 +142,14 @@ export default {
     },
     loadData: /* istanbul ignore next */ async function (showLoading) {
      let auth = this.$auth;
-      var url = "";
+      let url =  "";
       if (showLoading) {
         this.loading = true;
         url = "1";
       }
       await Helper.apiCall("dashboard", url, auth)
         .then((res) => {
-          var temp = [];
+          let temp =  [];
           res.forEach((subnet) => {
             if (subnet.groups != undefined) {
               subnet.groups.forEach((subnet) => {

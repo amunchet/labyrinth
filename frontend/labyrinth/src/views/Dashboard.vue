@@ -263,7 +263,7 @@ export default {
   },
   computed: {
     all_ips_computed: function(){
-      var retval = new Set()
+      let retval =  new Set()
       this.full_data.forEach(subnet=>{
         if(subnet.groups){
           subnet.groups.forEach(group=>{
@@ -284,11 +284,11 @@ export default {
     capitalize: Helper.capitalize,
     convertSubnet(subnet) {
       try {
-        var splits = subnet.split(".");
+        let splits =  subnet.split(".");
         if (splits.length != 3) {
           return -1;
         }
-        var output = splits[0] * 100000 + splits[1] * 1000 + splits[2] * 10;
+        let output =  splits[0] * 100000 + splits[1] * 1000 + splits[2] * 10;
         return output;
       } catch (e) {
         return -1;
@@ -296,7 +296,7 @@ export default {
     },
     sortSubnets(all_items) {
       // Returns 1 (a after b), 0 (a==b), -1 (b after a)
-      var temp = JSON.parse(JSON.stringify(all_items));
+      let temp =  JSON.parse(JSON.stringify(all_items));
       return temp.sort((a, b) => {
         if (a.subnet == undefined || b.subnet == undefined) {
           return 0;
@@ -305,7 +305,7 @@ export default {
         if (this.convertSubnet(a.subnet) == this.convertSubnet(b.subnet)) {
           return 0;
         }
-        var outcome =
+        let outcome = 
           this.convertSubnet(a.subnet) < this.convertSubnet(b.subnet) ? -1 : 1;
         return outcome;
       });
@@ -315,7 +315,7 @@ export default {
         return group;
       }
 
-      var temp = JSON.parse(JSON.stringify(group));
+      let temp =  JSON.parse(JSON.stringify(group));
 
       return temp.filter((x) => {
         if (x.hosts == undefined) {
@@ -338,7 +338,7 @@ export default {
     },
     onDrop: /* istanbul ignore next */ function (name) {
      let auth = this.$auth;
-      var url = this.dragged_ip;
+      let url =  this.dragged_ip;
       if (name != "") {
         url += "/" + name + "/";
       }
@@ -352,12 +352,12 @@ export default {
     },
     processGroupChart: function (group) {
       // Generates the datastructure for the doughnut chart for the group
-      var output = {};
+      let output =  {};
       output.labels = ["OK", "Warning", "Critical"];
 
-      var total_green = 0;
-      var total_orange = 0;
-      var total_red = 0;
+      let total_green =  0;
+      let total_orange =  0;
+      let total_red =  0;
       // Process the group
       group.hosts.forEach((host) => {
         if (host.services != undefined) {
@@ -388,7 +388,7 @@ export default {
     },
     loadData: /* istanbul ignore next */ async function (showLoading) {
      let auth = this.$auth;
-      var url = "";
+      let url =  "";
       if (showLoading) {
         this.loading = true;
         url = "1";
@@ -407,8 +407,8 @@ export default {
 
           this.originLinks = this.prepareOriginsLinks(this.full_data);
 
-          for (var i = 0; i < this.full_data.length; i++) {
-            var temp = this.full_data[i];
+          for (let i =  0; i < this.full_data.length; i++) {
+            let temp =  this.full_data[i];
             if (temp.groups != undefined) {
               // Sort the groups
               temp.groups.sort((prev, next) => {
@@ -442,11 +442,11 @@ export default {
         });
     },
     findClass: function (subnet, isTitle) {
-      var retval = "";
+      let retval =  "";
 
       // Color
       if (subnet.color != undefined && this.themes != []) {
-        var found_theme = this.themes.find((x) => x.name == subnet.color);
+        let found_theme = this.themes.find((x) => x.name == subnet.color);
         if (!found_theme) {
           return "";
         }
@@ -466,7 +466,7 @@ export default {
     },
 
     prepareOriginsLinks: function (subnets) {
-      var retval = [];
+      let retval =  [];
       const width = 7;
       subnets = subnets.filter(
         (x) =>
@@ -479,7 +479,7 @@ export default {
       );
 
       subnets.forEach((x, idx) => {
-        var found = this.themes.find(
+        let found =  this.themes.find(
           (y) => x.links.color != undefined && y.name == x.links.color
         );
         if (!found) {

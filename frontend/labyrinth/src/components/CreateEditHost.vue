@@ -395,7 +395,7 @@ export default {
     },
     saveHost: /* istanbul ignore next  */ function () {
      let auth = this.$auth;
-      var formData = new FormData();
+      let formData =  new FormData();
 
       if (this.$v.host.$invalid) {
         this.$store.commit(
@@ -413,7 +413,7 @@ export default {
         return -1;
       }
 
-      var host = JSON.parse(JSON.stringify(this.host));
+      let host =  JSON.parse(JSON.stringify(this.host));
       host["services"] = host["services"].map((x) => x["name"]);
       formData.append("data", JSON.stringify(host));
       Helper.apiPost("host", "", "", auth, formData)
@@ -427,7 +427,7 @@ export default {
         });
     },
     deleteHost: /* istanbul ignore next */ function () {
-      var host = this.host;
+      let host =  this.host;
      let auth = this.$auth;
       this.$bvModal
         .msgBoxConfirm("Are you sure you want to delete this host?")
@@ -436,7 +436,7 @@ export default {
             return;
           }
 
-          var url = host.mac;
+          let url =  host.mac;
           if (host.mac == "") {
             url = host.ip;
           }

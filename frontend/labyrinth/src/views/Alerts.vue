@@ -157,7 +157,7 @@ export default {
     },
     resolveAlert: /* istanbul ignore next */ function (val) {
      let auth = this.$auth;
-      var formData = new FormData();
+      let formData =  new FormData();
       formData.append("data", JSON.stringify(val));
       Helper.apiPost("alertmanager", "", "alert", auth, formData)
         .then((res) => {
@@ -219,7 +219,7 @@ export default {
 
     save: /* istanbul ignore next */ function () {
      let auth = this.$auth;
-      var formData = new FormData();
+      let formData =  new FormData();
       formData.append("data", this.file);
       this.loading = true;
       Helper.apiPost("alertmanager", "", "", auth, formData)

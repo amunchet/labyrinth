@@ -610,7 +610,7 @@ export default {
   },
   methods: {
     generateAnsibleVault: async function () {
-      var a = new Vault({ password: this.generated_ansible.vault_password });
+      let a =  new Vault({ password: this.generated_ansible.vault_password });
       this.loading_generated_vault_file = true;
 
       let item;
@@ -643,8 +643,8 @@ export default {
     saveAnsibleVault: /* istanbul ignore next */ function (e) {
       e.preventDefault();
      let auth = this.$auth;
-      var type = "become";
-      var formData = new FormData();
+      let type =  "become";
+      let formData =  new FormData();
       formData.append("file", this.generated_vault_file);
       formData.append("filename", this.generated_ansible.filename);
       Helper.apiPost("upload", "/" + type, auth.accessToken, auth, formData)
@@ -661,7 +661,7 @@ export default {
     uploadHelper: /* istanbul ignore next */ function (val, type) {
       if (val) {
        let auth = this.$auth;
-        var formData = new FormData();
+        let formData =  new FormData();
         formData.append("file", val);
         Helper.apiPost(
           "upload",
@@ -690,7 +690,7 @@ export default {
     },
     loadPlaybook: /* istanbul ignore next */ function () {
      let auth = this.$auth;
-      var loadings = this.loadings;
+      let loadings =  this.loadings;
       this.loadings["playbook"] = 1;
       Helper.apiCall("get_ansible_file", this.selected_playbook, auth)
         .then((res) => {
@@ -721,7 +721,7 @@ export default {
       this.loadings["save_playbook"] = 1;
       this.$forceUpdate();
      let auth = this.$auth;
-      var formData = new FormData();
+      let formData =  new FormData();
       formData.append("data", this.playbook_contents);
       Helper.apiPost(
         "save_ansible_file/",
@@ -763,8 +763,8 @@ export default {
       this.running = true;
       if (this.ips.length > 0) {
         this.ips.forEach((host) => {
-          var formData = new FormData();
-          var data = {
+          let formData =  new FormData();
+          let data =  {
             hosts: host,
             playbook: this.selected_playbook.replace(".yml", ""),
             vault_password: this.vault_password,
@@ -785,11 +785,11 @@ export default {
         return true;
       }
 
-      var formData = new FormData();
-      var host = this.selected_host;
+      let formData =  new FormData();
+      let host =  this.selected_host;
 
       this.playbook_loaded = false;
-      var data = {
+      let data =  {
         hosts: host,
         playbook: this.selected_playbook.replace(".yml", ""),
         vault_password: this.vault_password,

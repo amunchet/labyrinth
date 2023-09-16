@@ -94,7 +94,7 @@ export default {
   },
   methods: {
     checkErrorMessage: function () {
-      var msg = "";
+      let msg =  "";
       try {
         msg = JSON.stringify(this.$store.state.error);
       } catch (e) {
@@ -113,7 +113,7 @@ export default {
     "$store.state.error": function (val, prev) {
       //window.scrollTo(0, 0)
       if (val != undefined && val != "Logged in.") {
-        var parsed_val = ("" + val).replace(/\[.*\]/, "");
+        let parsed_val =  ("" + val).replace(/\[.*\]/, "");
         if (parsed_val != undefined && parsed_val != "" && parsed_val != " ") {
           if (parsed_val.indexOf("401") != -1) {
             parsed_val = "Error: Logged out.  Please login again.";
@@ -148,9 +148,9 @@ export default {
         Helper.apiCall("secure", "", auth)
           .then(() => {})
           .catch((e) => {
-            var output = "" + e;
+            let output =  "" + e;
             console.log(output);
-            var page = window.location.href;
+            let page =  window.location.href;
             if (
               output.indexOf("471") != -1 &&
               (page == undefined || page.indexOf("callback") == -1)

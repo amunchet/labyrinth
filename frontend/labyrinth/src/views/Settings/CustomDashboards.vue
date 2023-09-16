@@ -66,7 +66,7 @@
           <b-button
             @click="
               () => {
-                var found = drawing.components.find(
+                let found =  drawing.components.find(
                   (x) => x.name == selectedShapeName
                 );
                 if (found) {
@@ -345,10 +345,10 @@ export default {
   },
   computed: {
     computed_image: /* istanbul ignore next */ function () {
-      var temp = this.drawing.background_image;
+      let temp =  this.drawing.background_image;
       if (this.drawing.background_image != "") {
-        var image = new window.Image();
-        var url =
+        let image =  new window.Image();
+        let url = 
           "/api/custom_dashboard_images/" + this.$auth.accessToken + "/";
 
         image.src = url.concat(temp);
@@ -455,7 +455,7 @@ export default {
     },
 
     addHost: function (x, y, scaleX, scaleY, rotation, name, subnet, group) {
-      var image = new window.Image();
+      let image =  new window.Image();
       image.src = "img/dashboards/" + "host.png";
 
       if (x == undefined) {
@@ -485,7 +485,7 @@ export default {
         group = this.selected_group;
       }
 
-      var new_rect = {
+      let new_rect =  {
         rotation: rotation,
         x: x,
         y: y,
@@ -547,7 +547,7 @@ export default {
     uploadHelper: /* istanbul ignore next */ function (val) {
       if (val) {
        let auth = this.$auth;
-        var formData = new FormData();
+        let formData =  new FormData();
         formData.append("file", val);
         console.log(val);
         Helper.apiPost("custom_dashboard_images", "", "", auth, formData, true)
@@ -602,7 +602,7 @@ export default {
       e.preventDefault();
 
      let auth = this.$auth;
-      var formData = new FormData();
+      let formData =  new FormData();
       formData.append("data", JSON.stringify(this.drawing));
 
       Helper.apiPost("custom_dashboard", "", this.drawing.name, auth, formData)

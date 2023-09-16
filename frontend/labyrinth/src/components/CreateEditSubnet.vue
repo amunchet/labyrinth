@@ -186,7 +186,7 @@ export default {
         return -1;
       }
      let auth = this.$auth;
-      var formData = new FormData();
+      let formData =  new FormData();
       formData.append("data", JSON.stringify(this.subnet));
       Helper.apiPost("subnet", "", "", auth, formData)
         .then((res) => {

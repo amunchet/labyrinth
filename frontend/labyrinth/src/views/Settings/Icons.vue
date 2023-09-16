@@ -273,7 +273,7 @@ export default {
     file: /* istanbul ignore next */ function (val) {
       if (val) {
        let auth = this.$auth;
-        var formData = new FormData();
+        let formData =  new FormData();
         formData.append("file", val);
         Helper.apiPost("icon", "", "", auth, formData, true)
           .then(() => {
@@ -340,7 +340,7 @@ export default {
     },
     saveTheme: /* istanbul ignore next */ function () {
      let auth = this.$auth;
-      var formData = new FormData();
+      let formData =  new FormData();
       Object.keys(this.theme.show).forEach((x) => {
         this.theme.show[x] = false;
       });

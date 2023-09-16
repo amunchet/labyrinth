@@ -342,7 +342,7 @@ export default {
       }
 
      let auth = this.$auth;
-      var formData = new FormData();
+      let formData =  new FormData();
       formData.append("data", JSON.stringify(this.selected_service));
       Helper.apiPost("service", "", "", auth, formData)
         .then((res) => {
