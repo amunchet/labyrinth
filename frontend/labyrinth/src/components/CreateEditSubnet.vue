@@ -216,7 +216,7 @@ export default {
             .catch((e) => {
               this.$store.commit("updateError", e);
             });
-        });
+        }).catch(e=>this.$store.commit("updateError", e));
     },
   },
   watch: {
