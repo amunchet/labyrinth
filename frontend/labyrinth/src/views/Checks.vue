@@ -256,7 +256,7 @@ export default {
         type: "check",
       },
       services: [],
-      comparison_types: ["greater", "less", "equal", "time"],
+      comparison_types: ["greater", "less", "equals", "time"],
       service_fields: [
         "display_name",
         "name",
