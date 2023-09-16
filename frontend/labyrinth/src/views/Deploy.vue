@@ -585,7 +585,7 @@ export default {
     //TODO: Finish other uploads
     selected_playbook: /* istanbul ignore next */ function (val) {
       if (val != "") {
-        this.loadPlaybook(val);
+        this.loadPlaybook();
       }
     },
 
