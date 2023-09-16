@@ -216,12 +216,12 @@ def run(fname: str, outputs=False):
     """
     Runs the telegraf file
     """
-    dir = "/src/uploads/telegraf/"
+    main_dir = "/src/uploads/telegraf/"
     testing = "--test"
     if outputs:
         testing = "--once"
-    cmd = "telegraf {} --config {}{}.conf".format(testing, dir, fname)
-    x = subprocess.run([cmd], shell=True, capture_output=True)
+    cmd = ["telegraf", testing, "--config", os.path.join(main_dir, f"{fname}.conf")]
+    x = subprocess.run([cmd], capture_output=True)
     return "{}\n<b>{}</b>{}".format(
         cmd, x.stderr.decode("utf-8"), x.stdout.decode("utf-8")
     )

@@ -200,7 +200,7 @@ def upload(file_type, override_token):  # pragma: no cover
     return file.filename, 200
 
 
-@app.route("/uploads/<type>", methods=["GET"])
+@app.route("/uploads/<file_type>", methods=["GET"])
 @requires_auth_admin
 def list_uploads(file_type):
     """
