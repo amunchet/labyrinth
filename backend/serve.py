@@ -145,9 +145,10 @@ def upload(file_type, override_token):  # pragma: no cover
         file = request.files["file"]
     else:
         data = request.form["file"]
-        filename = secure_filename(request.form["filename"])
+        filename = request.form["filename"]
 
     file_type = secure_filename(file_type)
+    filename = secure_filename(filename)
 
     if file != "" and file.filename == "":
         return "No file selected", 409
@@ -197,7 +198,7 @@ def upload(file_type, override_token):  # pragma: no cover
     # Chmod
     chmod_filename = "/src/uploads/{}/{}".format(file_type, filename)
     os.chmod(chmod_filename, 0o600)
-    return file.filename, 200
+    return filename, 200
 
 
 @app.route("/uploads/<file_type>", methods=["GET"])
