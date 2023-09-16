@@ -51,7 +51,7 @@
                   @click="
                     () => {
                       files_list['become'] = '';
-                      become_file = [];
+                      become_file = null;
                     }
                   "
                 >
@@ -95,7 +95,7 @@
                 @click="
                   () => {
                     files_list['ssh'] = '';
-                    ssh_key_file = [];
+                    ssh_key_file = null;
                   }
                 "
               >
@@ -517,9 +517,9 @@ export default {
   name: "Deploy",
   data() {
     return {
-      ssh_key_file: [],
-      become_file: [],
-      other_file: [],
+      ssh_key_file: null, 
+      become_file: null, 
+      other_file: null,
       selected: {
         ssh: "",
         become: "",
@@ -572,14 +572,20 @@ export default {
   },
   watch: {
     ssh_key_file: /* istanbul ignore next */ function (val) {
-      this.uploadHelper(val, "ssh");
+      if(val){
+        this.uploadHelper(val, "ssh");
+      }
     },
 
     become_file: /* istanbul ignore next */ function (val) {
-      this.uploadHelper(val, "become");
+      if(val){
+        this.uploadHelper(val, "become");
+      }
     },
     other_file: /* istanbul ignore next */ function (val) {
-      this.uploadHelper(val, "other");
+      if(val){
+        this.uploadHelper(val, "other");
+      }
     },
 
     //TODO: Finish other uploads
