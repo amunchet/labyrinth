@@ -20,7 +20,7 @@ export default {
   name: "Maintenance",
   methods: {
     restart: /* istanbul ignore next */ function (code) {
-      var auth = this.$auth;
+     let auth = this.$auth;
       this.$bvModal
         .msgBoxConfirm("Are you sure you want to restart?")
         .then((res) => {

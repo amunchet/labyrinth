@@ -272,7 +272,7 @@ export default {
     },
     file: /* istanbul ignore next */ function (val) {
       if (val) {
-        var auth = this.$auth;
+       let auth = this.$auth;
         var formData = new FormData();
         formData.append("file", val);
         Helper.apiPost("icon", "", "", auth, formData, true)
@@ -298,7 +298,7 @@ export default {
       this.$refs.uploadFile.$el.click();
     },
     loadIcons: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       Helper.apiCall("icons", "", auth)
         .then((res) => {
           this.icons = res;
@@ -314,7 +314,7 @@ export default {
           if (!res) {
             return;
           }
-          var auth = this.$auth;
+         let auth = this.$auth;
           Helper.apiDelete("icon", val, auth)
             .then(() => {
               this.loadIcons();
@@ -329,7 +329,7 @@ export default {
     },
 
     loadThemes: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       Helper.apiCall("themes", "", auth)
         .then((res) => {
           this.themes = res;
@@ -339,7 +339,7 @@ export default {
         });
     },
     saveTheme: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       var formData = new FormData();
       Object.keys(this.theme.show).forEach((x) => {
         this.theme.show[x] = false;
@@ -362,7 +362,7 @@ export default {
         });
     },
     deleteTheme: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       this.$bvModal
         .msgBoxConfirm("Are you sure you want to delete this host?")
         .then((res) => {

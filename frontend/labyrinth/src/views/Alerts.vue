@@ -146,7 +146,7 @@ export default {
   },
   methods: {
     sendTestEmail: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       Helper.apiCall("alertmanager", "test", auth)
         .then((res) => {
           this.$store.commit("updateError", JSON.stringify(res));
@@ -156,7 +156,7 @@ export default {
         });
     },
     resolveAlert: /* istanbul ignore next */ function (val) {
-      var auth = this.$auth;
+     let auth = this.$auth;
       var formData = new FormData();
       formData.append("data", JSON.stringify(val));
       Helper.apiPost("alertmanager", "", "alert", auth, formData)
@@ -169,7 +169,7 @@ export default {
         });
     },
     loadAlerts: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       this.active_alerts_loading = true;
       Helper.apiCall("alertmanager", "alerts", auth)
         .then((res) => {
@@ -181,7 +181,7 @@ export default {
         });
     },
     restartAlertManager: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       Helper.apiCall("alertmanager", "restart", auth)
         .then((res) => {
           this.$store.commit("updateError", res);
@@ -191,7 +191,7 @@ export default {
         });
     },
     load: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       this.loading = true;
       Helper.apiCall("alertmanager", "", auth)
         .then((res) => {
@@ -204,7 +204,7 @@ export default {
         });
     },
     loadSample: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       this.sample_loading = true;
       Helper.apiCall("alertmanager", "alertmanager.sample", auth)
         .then((res) => {
@@ -218,7 +218,7 @@ export default {
     },
 
     save: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       var formData = new FormData();
       formData.append("data", this.file);
       this.loading = true;
@@ -258,7 +258,7 @@ export default {
       }
     },
     loadIframe: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       Helper.apiCall("alertmanager", "pass", auth)
         .then((res) => {
           this.copyToClipboard(res);

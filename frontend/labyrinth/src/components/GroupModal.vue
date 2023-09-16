@@ -103,7 +103,7 @@ export default {
   },
   methods: {
     changeMonitor: /* istanbul ignore next */ function (status) {
-      var auth = this.$auth;
+     let auth = this.$auth;
       var url =
         "monitor/" +
         this.selected_subnet.subnet +
@@ -122,7 +122,7 @@ export default {
         });
     },
     changeGroupName: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       var url =
         "name/" +
         this.selected_subnet.subnet +
@@ -140,7 +140,7 @@ export default {
         });
     },
     changeIcons: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       var url =
         "icons/" +
         this.selected_subnet.subnet +
@@ -158,7 +158,7 @@ export default {
         });
     },
     addService: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       var url =
         "add_service/" +
         this.selected_subnet.subnet +
@@ -176,7 +176,7 @@ export default {
         });
     },
     deleteService: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       var url =
         "delete_service/" +
         this.selected_subnet.subnet +
@@ -195,7 +195,7 @@ export default {
     },
 
     listIcons: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       Helper.apiCall("icons", "", auth)
         .then((res) => {
           this.icons = res.map((x) => {
@@ -210,7 +210,7 @@ export default {
         });
     },
     listServices: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       Helper.apiCall("services", "all", auth)
         .then((res) => {
           this.services = res.map((x) => {

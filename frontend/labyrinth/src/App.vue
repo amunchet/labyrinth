@@ -143,7 +143,7 @@ export default {
   },
   mounted: /* istanbul ignore next */ function () {
     try {
-      var auth = this.$auth;
+     let auth = this.$auth;
       if (window.location.href.indexOf("callback") == -1) {
         Helper.apiCall("secure", "", auth)
           .then(() => {})
@@ -171,7 +171,7 @@ export default {
     }
   },
   created: /* istanbul ignore next */ function () {
-    var auth = this.$auth;
+   let auth = this.$auth;
 
     try {
       auth.handleAuthentication();

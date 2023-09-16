@@ -327,7 +327,7 @@ export default {
       });
     },
     loadThemes: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       Helper.apiCall("themes", "", auth)
         .then((res) => {
           this.themes = res;
@@ -337,7 +337,7 @@ export default {
         });
     },
     onDrop: /* istanbul ignore next */ function (name) {
-      var auth = this.$auth;
+     let auth = this.$auth;
       var url = this.dragged_ip;
       if (name != "") {
         url += "/" + name + "/";
@@ -387,7 +387,7 @@ export default {
       return output;
     },
     loadData: /* istanbul ignore next */ async function (showLoading) {
-      var auth = this.$auth;
+     let auth = this.$auth;
       var url = "";
       if (showLoading) {
         this.loading = true;

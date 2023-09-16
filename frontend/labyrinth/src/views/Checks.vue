@@ -282,7 +282,7 @@ export default {
   },
   methods: {
     deleteService: /* istanbul ignore next */ function (name) {
-      var auth = this.$auth;
+     let auth = this.$auth;
 
       this.$bvModal
         .msgBoxConfirm("Confirm deleting service " + name + "?")
@@ -305,7 +305,7 @@ export default {
         });
     },
     loadServices: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       this.servicesLoading = true;
       Helper.apiCall("services", "all", auth)
         .then((res) => {
@@ -318,7 +318,7 @@ export default {
         });
     },
     loadMetrics: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+     let auth = this.$auth;
       this.checksLoaded = false;
       Helper.apiCall("metrics", "25", auth)
         .then((res) => {
@@ -341,7 +341,7 @@ export default {
         return -1;
       }
 
-      var auth = this.$auth;
+     let auth = this.$auth;
       var formData = new FormData();
       formData.append("data", JSON.stringify(this.selected_service));
       Helper.apiPost("service", "", "", auth, formData)
