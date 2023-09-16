@@ -123,15 +123,15 @@ def secure():
 valid_type = ["ssh", "totp", "become", "telegraf", "ansible", "other"]
 
 
-@app.route("/upload/<type>/<override_token>", methods=["POST"])
+@app.route("/upload/<file_type>/<override_token>", methods=["POST"])
 @requires_auth_admin
-def upload(type, override_token):  # pragma: no cover
+def upload(file_type, override_token):  # pragma: no cover
     """
     Handles file upload
-        - Two types: straight upload and form data upload
+        - Two file_types: straight upload and form data upload
         - Form data upload comes from manual additions of vault files
     """
-    if type not in valid_type:
+    if file_type not in valid_type:
         return "Invalid type", 412
 
     if "file" not in request.files and "file" not in request.form:
@@ -145,7 +145,10 @@ def upload(type, override_token):  # pragma: no cover
         file = request.files["file"]
     else:
         data = request.form["file"]
-        filename = secure_filename(request.form["filename"])
+        filename = request.form["filename"]
+
+    file_type = secure_filename(file_type)
+    filename = secure_filename(filename)
 
     if file != "" and file.filename == "":
         return "No file selected", 409
@@ -153,8 +156,8 @@ def upload(type, override_token):  # pragma: no cover
     if not os.path.exists("/src/uploads"):
         os.mkdir("/src/uploads")
 
-    if not os.path.exists("/src/uploads/{}".format(type)):
-        os.mkdir("/src/uploads/{}".format(type))
+    if not os.path.exists("/src/uploads/{}".format(file_type)):
+        os.mkdir("/src/uploads/{}".format(file_type))
 
     if data:
         data = data.replace("\r\n", "\n")
@@ -166,7 +169,7 @@ def upload(type, override_token):  # pragma: no cover
         ):
             os.remove("/src/uploads/become/{}.yml".format(filename.replace(".yml", "")))
 
-        if ansible_helper.check_file(filename, type):
+        if ansible_helper.check_file(filename, file_type):
             shutil.move(
                 "/tmp/{}".format(filename),
                 "/src/uploads/become/{}.yml".format(filename.replace(".yml", "")),
@@ -184,30 +187,32 @@ def upload(type, override_token):  # pragma: no cover
         with open(os.path.join("/tmp", filename), "w") as f:
             f.write(file_contents)
 
-        check_results = ansible_helper.check_file(filename, type)
+        check_results = ansible_helper.check_file(filename, file_type)
         if check_results:
             shutil.move(
-                "/tmp/{}".format(filename), "/src/uploads/{}/{}".format(type, filename)
+                "/tmp/{}".format(filename), "/src/uploads/{}/{}".format(file_type, filename)
             )
         else:
             return f"File check failed: {check_results}", 521
 
     # Chmod
-    chmod_filename = "/src/uploads/{}/{}".format(type, filename)
+    chmod_filename = "/src/uploads/{}/{}".format(file_type, filename)
     os.chmod(chmod_filename, 0o600)
-    return file.filename, 200
+    return filename, 200
 
 
-@app.route("/uploads/<type>", methods=["GET"])
+@app.route("/uploads/<file_type>", methods=["GET"])
 @requires_auth_admin
-def list_uploads(type):
+def list_uploads(file_type):
     """
     Lists all entries in an upload folder
     """
-    if type in valid_type:
-        if not os.path.exists("/src/uploads/{}".format(type)):
-            os.mkdir("/src/uploads/{}".format(type))
-        return json.dumps(os.listdir("/src/uploads/{}".format(type)), default=str), 200
+    file_type = secure_filename(file_type)
+    if file_type in valid_type:
+        fname = "/src/uploads/{}".format(file_type)
+        if not os.path.exists(fname):
+            os.mkdir(fname)
+        return json.dumps(os.listdir(fname), default=str), 200
     return "Not found", 409
 
 
@@ -750,6 +755,7 @@ def run_telegraf(fname, testing):
     """
     Runs specified telegraf file
     """
+    fname = secure_filename(fname)
     return svcs.run(fname, testing == 1), 200
 
 
