@@ -21,7 +21,7 @@ import uuid
 import ansi2html
 import ansible_runner
 
-
+from werkzeug.utils import secure_filename
 from typing import List
 
 
@@ -31,6 +31,9 @@ def check_file(filename, file_type, raw=""):
     """
     retval = False
     temp_file = "/tmp/{}".format(str(uuid.uuid1()))
+
+    filename = secure_filename(filename)
+    file_type = secure_filename(file_type)
 
     look_file = "/src/uploads/{}/{}".format(file_type, filename)
 
