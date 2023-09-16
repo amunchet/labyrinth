@@ -4,8 +4,11 @@
     <div class="overflow-hidden mb-4 pb-2">
       <CreateEditSubnet :inp_subnet="selected_subnet" @update="loadData()" />
     </div>
-
-    <CreateEditHost :inp_host="selected_host" @update="loadData()" />
+    <CreateEditHost 
+      :inp_host="selected_host" 
+      @update="loadData()" 
+      :all_ips="all_ips_computed"
+    />
     <HostMetric @update="loadData()" :data="selected_metric" />
 
     <GroupModal
@@ -257,6 +260,25 @@ export default {
     HostMetric,
     GroupModal,
     DoughnutChart,
+  },
+  computed: {
+    all_ips_computed: function(){
+      var retval = new Set()
+      this.full_data.forEach(subnet=>{
+        if(subnet.groups){
+          subnet.groups.forEach(group=>{
+            if(group.hosts){
+              group.hosts.forEach(host=>{
+                if(host.ip){
+                  retval.add(host.ip)
+                }
+              })
+            }
+          })
+        }
+      })
+      return retval
+    }
   },
   methods: {
     capitalize: Helper.capitalize,

@@ -32,9 +32,16 @@
         <b-col>
           <b-input
             v-model="host.ip"
-            :state="!$v.host.ip.$invalid"
+            :state="!$v.host.ip.$invalid
+            && (inp_host != '' || !all_ips.has(host.ip))
+            "
             placeholder="E.g. 192.168.0.1"
           />
+          <span 
+          v-if="inp_host == '' && all_ips && all_ips.has(host.ip)"
+          class="text-danger">
+            Error: IP Address already exists!
+            </span>
         </b-col>
       </b-row>
       <b-row>
@@ -298,11 +305,11 @@ export default {
   components: {
     Checks,
   },
-  props: ["inp_host"],
+  props: ["inp_host", "all_ips"],
   data() {
     return {
       isNew: true,
-      host: "",
+      host: {},
       metrics: [],
 
       safe_host: {
@@ -394,6 +401,14 @@ export default {
         this.$store.commit(
           "updateError",
           "Error: Please correct fields before saving."
+        );
+        return -1;
+      }
+      
+      if(this.inp_host == '' && this.all_ips.has(this.host.ip)){
+        this.$store.commit(
+          "updateError",
+          "Error: IP Address already exists."
         );
         return -1;
       }
