@@ -6,7 +6,7 @@
       size="xl"
       @ok="saveAnsibleVault"
     >
-      <b-row class="text-left">
+      <b-row class="text-left no-ml">
         <b-col>
           To create ansible vault files, use the following command:
           <code> ansible-vault create [FILENAME] </code><br />
@@ -17,7 +17,7 @@
       </b-row>
 
       <hr />
-      <b-row>
+      <b-row class="no-ml">
         <b-col class="border-right">
           <h4>Upload Ansible Vault File</h4>
           <b-row
@@ -944,6 +944,9 @@ textarea {
 .col {
   text-align: left;
   margin-left: 2rem;
+}
+.no-ml .col{
+  margin-left: 0 !important;
 }
 .cursor {
   cursor: pointer;
