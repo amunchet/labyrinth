@@ -118,6 +118,7 @@
           <b-row>
             <b-col> </b-col>
           </b-row>
+          <!--
           <b-row>
             <b-col cols="2"> Type: </b-col>
             <b-col
@@ -125,12 +126,12 @@
                 v-model="generated_ansible.type"
                 :options="['Username and Password', 'SSH Key']"
             /></b-col>
+          
           </b-row>
+          -->
           <b-row>
-            <b-col cols="4">
-              Ansible&nbsp;Vault&nbsp;Password:&nbsp;&nbsp;</b-col
-            >
             <b-col>
+              Ansible Vault Password:  <br />
               <b-input
                 type="password"
                 v-model="generated_ansible.vault_password"
@@ -138,8 +139,7 @@
             </b-col>
           </b-row>
           <b-row>
-            <b-col cols="2"> Filename </b-col>
-            <b-col>
+            <b-col> Filename: <br />
               <b-input
                 v-model="generated_ansible.filename"
                 placeholder="Ansible Vault filename (e.g. password.yml)"
