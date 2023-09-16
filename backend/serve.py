@@ -730,7 +730,6 @@ def autosave(auth_client_id, data=""):
 
 
 # Write host telegraf config file
-    host = secure_filename(host)
 @app.route("/save_conf/<host>", methods=["POST"])
 @requires_auth_admin
 def save_conf(host, data="", raw=""):
