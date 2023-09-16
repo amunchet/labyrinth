@@ -22,6 +22,8 @@
           <h4>Upload Ansible Vault File</h4>
           <b-row
             ><b-col>
+              <hr /> 
+              <span class="text-primary"><b>This file must be encrypted with Ansible Vault before uploading.</b></span><hr />
               Become password needs to be in the following format: <br />
               <code class="text-left">
                 ---<br />

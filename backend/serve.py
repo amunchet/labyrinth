@@ -145,7 +145,7 @@ def upload(type, override_token):  # pragma: no cover
         file = request.files["file"]
     else:
         data = request.form["file"]
-        filename = request.form["filename"]
+        filename = secure_filename(request.form["filename"])
 
     if file != "" and file.filename == "":
         return "No file selected", 409
@@ -157,6 +157,7 @@ def upload(type, override_token):  # pragma: no cover
         os.mkdir("/src/uploads/{}".format(type))
 
     if data:
+        data = data.replace("\r\n", "\n")
         with open("/tmp/{}".format(filename), "w") as f:
             f.write(data)
 
@@ -176,13 +177,20 @@ def upload(type, override_token):  # pragma: no cover
 
     elif file:
         filename = secure_filename(file.filename)
-        file.save("/tmp/{}".format(filename))
-        if ansible_helper.check_file(filename, type):
+        
+        # file.save("/tmp/{}".format(filename))
+        file_contents = file.read().decode("utf-8")
+        file_contents = file_contents.replace("\r\n", "\n")
+        with open(os.path.join("/tmp", filename), "w") as f:
+            f.write(file_contents)
+
+        check_results = ansible_helper.check_file(filename, type)
+        if check_results:
             shutil.move(
                 "/tmp/{}".format(filename), "/src/uploads/{}/{}".format(type, filename)
             )
         else:
-            return "File check failed", 521
+            return f"File check failed: {check_results}", 521
 
     # Chmod
     chmod_filename = "/src/uploads/{}/{}".format(type, filename)
