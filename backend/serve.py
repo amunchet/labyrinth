@@ -755,6 +755,7 @@ def run_telegraf(fname, testing):
     """
     Runs specified telegraf file
     """
+    fname = secure_filename(fname)
     return svcs.run(fname, testing == 1), 200
 
 
