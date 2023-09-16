@@ -175,7 +175,7 @@ def upload(file_type, override_token):  # pragma: no cover
                 "/tmp/{}".format(filename),
                 "/src/uploads/become/{}.yml".format(filename.replace(".yml", "")),
             )
-            return filename, 200
+            return escape(filename), 200
         os.remove("/tmp/{}".format(filename))
         return "File check failed", 522
 
@@ -199,7 +199,7 @@ def upload(file_type, override_token):  # pragma: no cover
     # Chmod
     chmod_filename = "/src/uploads/{}/{}".format(file_type, filename)
     os.chmod(chmod_filename, 0o600)
-    return filename, 200
+    return escape(filename), 200
 
 
 @app.route("/uploads/<file_type>", methods=["GET"])
