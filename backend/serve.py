@@ -155,7 +155,7 @@ def upload(file_type, override_token):  # pragma: no cover
         return "No file selected", 409
 
     if not os.path.exists("/src/uploads"):
-        os.mkdir("/src/uploads")
+        os.mkdirs("/src/uploads")
 
     if not os.path.exists("/src/uploads/{}".format(file_type)):
         os.mkdir("/src/uploads/{}".format(file_type))
@@ -1574,10 +1574,10 @@ def custom_dashboard_image_upload(override=""):
         file = request.files["file"]
 
     if not os.path.exists("/src/uploads"):
-        os.mkdir("/src/uploads")
+        os.mkdirs("/src/uploads")
 
     if not os.path.exists("/src/uploads/images"):
-        os.mkdir("/src/uploads/images")
+        os.mkdirs("/src/uploads/images")
 
     if override:
         filename = override

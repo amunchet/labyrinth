@@ -59,7 +59,7 @@ def check_file(filename, file_type, raw=""):
 
         if retval:
             if not os.path.exists("/src/uploads/ansible"):  # pragma: no cover
-                os.mkdir("/src/uploads/ansible")
+                os.mkdirs("/src/uploads/ansible")
             shutil.move(temp_file, "/src/uploads/ansible/{}.yml".format(filename))
 
         return [retval, x.stdout, x.stderr]
@@ -145,11 +145,11 @@ def run_ansible(
     if not os.path.exists("/run"):  # pragma: no cover
         os.mkdir("/run")
 
-    os.mkdir(RUN_DIR)
+    os.mkdirs(RUN_DIR)
 
     folders = ["inventory", "project", "vars", "env"]
     for folder in folders:
-        os.mkdir("{}/{}".format(RUN_DIR, folder))
+        os.mkdirs("{}/{}".format(RUN_DIR, folder))
 
     # Copy over playbook
     src_playbook = "{}/{}.yml".format(SRC_DIR, playbook)
