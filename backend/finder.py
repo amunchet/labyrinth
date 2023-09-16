@@ -28,13 +28,41 @@ def scan(subnet: str, callback_fn, verbose=False) -> List:  # pragma: no cover
 
 
     # Ping version
-    ping_output = subprocess.check_output(["nmap", "-PE", "-sn", "-T5", "-oX", "-", search])
+    ping_output = subprocess.check_output(
+        [
+            "nmap", 
+            "-PE", 
+            "-sn", 
+            "-T5", 
+            "-oX", 
+            "-", 
+            search
+        ]
+    )
     parsed = xmltodict.parse(ping_output)
 
     ## Exactly one alive host will break the process
     if type(parsed['nmaprun']['host']) == type({}):
         parsed["nmaprun"]["host"] = [parsed['nmaprun']['host']]
-    arr = [x['address']['@addr'] for x in parsed['nmaprun']['host']]
+
+    arr = []
+    for x in parsed['nmaprun']['host']:
+        if "address" in x and "@addr" in x["address"]:
+            arr.append(x["address"]["@addr"])
+        elif type(x["address"]) is list:
+            found = [
+                item["@addr"] 
+                for item in x["address"] 
+                if (
+                    "@addr" in item 
+                    and "." in item["@addr"] 
+                    and ":" not in item["@addr"]
+                )
+            ]
+            if found:
+                arr.append(found[0])
+
+    print(arr)
     search = " ".join(arr)
 
 
