@@ -1586,7 +1586,7 @@ def last_metrics(count):
 @app.route("/metrics/<host>/<service>/<int:count>")
 @app.route("/metrics/<host>/<service>/<option>")
 @requires_auth_read
-def read_metrics(host, service="", count=10, option=""):
+def read_metrics(host, service="", count=100, option=""):
     """
     Returns the latest metrics for a given host
     """
