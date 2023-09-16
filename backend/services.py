@@ -221,7 +221,7 @@ def run(fname: str, outputs=False):
     if outputs:
         testing = "--once"
     cmd = ["telegraf", testing, "--config", os.path.join(main_dir, f"{fname}.conf")]
-    x = subprocess.run([cmd], capture_output=True)
+    x = subprocess.run(cmd, capture_output=True)
     return "{}\n<b>{}</b>{}".format(
         cmd, x.stderr.decode("utf-8"), x.stdout.decode("utf-8")
     )
