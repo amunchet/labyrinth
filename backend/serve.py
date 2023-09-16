@@ -207,6 +207,7 @@ def list_uploads(file_type):
     """
     Lists all entries in an upload folder
     """
+    file_type = secure_filename(file_type)
     if file_type in valid_type:
         if not os.path.exists("/src/uploads/{}".format(file_type)):
             os.mkdir("/src/uploads/{}".format(file_type))
