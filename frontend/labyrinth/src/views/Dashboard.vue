@@ -446,7 +446,7 @@ export default {
 
       // Color
       if (subnet.color != undefined && this.themes != []) {
-        let found_theme = this.themes.find((x) => x.name = = subnet.color);
+        let found_theme = this.themes.find((x) => x.name == subnet.color);
         if (!found_theme) {
           return "";
         }
