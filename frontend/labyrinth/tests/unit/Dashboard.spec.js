@@ -228,16 +228,22 @@ describe("Dashboard.vue", () => {
         color: "white",
         top_1: "192.168.0.1",
         top_2: "192.168.1.1",
-        left: 10,
+        left: 7,
       },
       {
         color: "white",
         top_1: "192.168.2.1",
         top_2: "192.168.1.1",
-        left: 20,
+        left: 14,
       },
     ];
 
     expect(wrapper.vm.prepareOriginsLinks(subnets)).toStrictEqual(expected);
   });
+
+  test("parseCommandLine", ()=>{
+      wrapper.setData({
+
+      })
+  })
 });
