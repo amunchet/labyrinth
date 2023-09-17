@@ -151,6 +151,7 @@ export default {
     "host",
     "monitor",
     "monitored_only",
+    "display"
   ],
   data() {
     return {
