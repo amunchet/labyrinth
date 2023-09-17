@@ -1,5 +1,8 @@
 <template>
   <div class="dashboard">
+    <pre
+    class="text-left"
+    >{{parsed_data}}</pre>
     <!-- Modals -->
     <div class="overflow-hidden mb-4 pb-2">
       <CreateEditSubnet :inp_subnet="selected_subnet" @update="loadData()" />
@@ -60,7 +63,7 @@
         <div
           :class="'outer ' + (subnet.minimized ? 'minimized' : '')"
           :style="findClass(subnet)"
-          v-for="(subnet, i) in sortSubnets(full_data)"
+          v-for="(subnet, i) in parsed_data"
           v-bind:key="i"
         >
           <div
@@ -262,6 +265,12 @@ export default {
     DoughnutChart,
   },
   computed: {
+    parsed_data: function(){
+      let data = this.full_data
+
+      return this.sortSubnets(data)
+    },
+
     all_ips_computed: function(){
       let retval =  new Set()
       this.full_data.forEach(subnet=>{
@@ -326,6 +335,12 @@ export default {
         }
       });
     },
+
+    parseCommandLine: function(){
+      // Parses the command line
+      
+    },
+
     loadThemes: /* istanbul ignore next */ function () {
      let auth = this.$auth;
       Helper.apiCall("themes", "", auth)
