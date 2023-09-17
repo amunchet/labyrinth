@@ -1,8 +1,7 @@
 <template>
   <div class="dashboard">
-    <b-input v-model="smartbar" lazy />
     <!-- Modals -->
-    <div class="overflow-hidden mb-4 pb-2">
+    <div class="overflow-hidden">
       <CreateEditSubnet :inp_subnet="selected_subnet" @update="loadData()" />
     </div>
     <CreateEditHost
@@ -46,18 +45,29 @@
         </div>
       </div>
       <div class="outer_right">
-        <b-button
-          variant="link"
-          class="add-button"
-          @click="
-            () => {
-              selected_subnet = '';
-              $bvModal.show('create_edit_subnet');
-            }
-          "
-        >
-          <font-awesome-icon icon="plus" size="1x" /> New Subnet
-        </b-button>
+        <b-row class="outer pt-1 smartbar">
+          <b-col cols="4">
+            <b-input
+              v-model="smartbar"
+              lazy
+              placeholder="Enter filter (i.e. port=22)"
+            />
+          </b-col>
+          <b-col class="text-right">
+            <b-button
+              variant="link"
+              @click="
+                () => {
+                  selected_subnet = '';
+                  $bvModal.show('create_edit_subnet');
+                }
+              "
+            >
+              <font-awesome-icon icon="plus" size="1x" /> New Subnet
+            </b-button>
+          </b-col>
+        </b-row>
+
         <div
           :class="'outer ' + (subnet.minimized ? 'minimized' : '')"
           :style="findClass(subnet)"
@@ -274,7 +284,7 @@ export default {
       }
 
       let search = {
-        service: null,
+        service: "",
         host: null,
         tag: [],
         field: [],
@@ -403,7 +413,7 @@ export default {
       searches.forEach((search) => {
         if (
           host.services
-            .map((x) => x.name.toLowerCase())
+            .map((x) => (x ? x.name.toLowerCase() : ""))
             .indexOf(search.service.toLowerCase()) != -1
         ) {
           retval = true;
@@ -706,6 +716,11 @@ h2.subnet:hover {
   margin-top: 20px;
   border-radius: 1.25rem;
   clear: both;
+}
+
+.smartbar {
+  min-height: 75px !important;
+  background-color: unset !important;
 }
 
 .left {
