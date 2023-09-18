@@ -354,7 +354,6 @@ export default {
           });
         }
       });
-
       return data;
     },
 
@@ -426,7 +425,7 @@ export default {
         try{
           search.tag.forEach(tag=>{
             host.services.map(x=>x.latest_metric).forEach(field=>{
-              if (field["tags"] != undefined && [tag["tag"]] != undefined && String(field.tags[tag["tag"]]) == String(tag["value"])){
+              if (field != undefined && field["tags"] != undefined && [tag["tag"]] != undefined && String(field.tags[tag["tag"]]) == String(tag["value"])){
                 retval = true
               }
             })
@@ -453,7 +452,7 @@ export default {
         // Other search
         const names = ["ip", "group", "host"]
         names.forEach(found_name => {
-          if(host[found_name] == search[found_name]){
+          if(host[found_name] && search[found_name] && host[found_name].toLowerCase() == search[found_name].toLowerCase()){
             retval = true
           }
         })
