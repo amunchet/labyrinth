@@ -1436,7 +1436,13 @@ def dashboard(val="", report=False, flapping_delay=1300):
                     watcher.send_alert(alert_name, metric_name, host_name, summary=summary)
                 rc.set(key_name, time.time())
 
-            service_results[service] = {"name": service, "state": result}
+
+            service_results[service] = {
+                "name": service, 
+                "state": result,
+                "found_service" : found_service,
+                "latest_metric" : latest_metric
+            }
         for item in service_results:
             host["services"] = [service_results[x] for x in service_results]
 

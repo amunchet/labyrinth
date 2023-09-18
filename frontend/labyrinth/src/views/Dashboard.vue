@@ -407,10 +407,9 @@ export default {
       });
     },
     checkHostFilter(host, searches) {
-      console.log("Host:", host);
-      console.log("Searches:", searches);
       let retval = false;
       searches.forEach((search) => {
+        // Services Search
         if (
           host.services
             .map((x) => (x ? x.name.toLowerCase() : ""))
@@ -418,9 +417,47 @@ export default {
         ) {
           retval = true;
         }
+        // Open Ports Search
         if (host.open_ports.indexOf(parseInt(search.port)) != -1) {
           retval = true;
         }
+
+        // Tags Search
+        try{
+          search.tag.forEach(tag=>{
+            host.services.map(x=>x.latest_metric).forEach(field=>{
+              if (field["tags"] != undefined && [tag["tag"]] != undefined && String(field.tags[tag["tag"]]) == String(tag["value"])){
+                retval = true
+              }
+            })
+          })
+        }catch(e){
+          console.log("Tags parse failed")
+          console.log(e)
+        }
+
+        // Fields Search
+        try{
+          search.field.forEach(search_field=>{
+            host.services.map(x=>x.latest_metric).forEach(field=>{
+              if (field["fields"] != undefined && [search_field["fields"]] != undefined && String(field.fields[search_field["field"]]) == String(search_field["value"])){
+                retval = true
+              }
+            })
+          })
+        }catch(e){
+          console.log("Fields parse failed")
+          console.log(e)
+        }
+
+        // Other search
+        const names = ["ip", "group", "host"]
+        names.forEach(found_name => {
+          if(host[found_name] == search[found_name]){
+            retval = true
+          }
+        })
+        
       });
       return retval;
     },
