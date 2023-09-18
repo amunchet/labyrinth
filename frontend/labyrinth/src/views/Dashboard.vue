@@ -406,6 +406,10 @@ export default {
       });
     },
     checkHostFilter(host, searches) {
+      if(host.ip == "10.8.0.30"){
+        console.log(host)
+        console.log(searches)
+      }
       let retval = false;
       searches.forEach((search) => {
         // Services Search
@@ -417,7 +421,7 @@ export default {
           retval = true;
         }
         // Open Ports Search
-        if (host.open_ports.indexOf(parseInt(search.port)) != -1) {
+        if (host.open_ports != undefined && host.open_ports.map(x=>parseInt(x)).indexOf(parseInt(search.port)) != -1) {
           retval = true;
         }
 
