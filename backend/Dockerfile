@@ -20,7 +20,7 @@ RUN   apt-get update && apt-get -y install python3 \
 
 
 RUN wget -qO- https://repos.influxdata.com/influxdb.key | apt-key add -
-RUN echo "deb https://repos.influxdata.com/debian focal stable" | tee /etc/apt/sources.list.d/influxdb.list
+RUN echo "deb https://repos.influxdata.com/debian bookworm stable" | tee /etc/apt/sources.list.d/influxdb.list
 
 RUN apt update && apt -y install telegraf
 
