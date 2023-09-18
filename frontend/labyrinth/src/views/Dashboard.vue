@@ -425,7 +425,7 @@ export default {
         try{
           search.tag.forEach(tag=>{
             host.services.map(x=>x.latest_metric).forEach(field=>{
-              if (field != undefined && field["tags"] != undefined && [tag["tag"]] != undefined && String(field.tags[tag["tag"]]) == String(tag["value"])){
+              if (field != undefined && field["tags"] != undefined && tag["tag"] != undefined && String(field.tags[tag["tag"]]) == String(tag["value"])){
                 retval = true
               }
             })
