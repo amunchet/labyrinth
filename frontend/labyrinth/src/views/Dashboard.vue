@@ -439,7 +439,7 @@ export default {
         try{
           search.field.forEach(search_field=>{
             host.services.map(x=>x.latest_metric).forEach(field=>{
-              if (field["fields"] != undefined && [search_field["fields"]] != undefined && String(field.fields[search_field["field"]]) == String(search_field["value"])){
+              if (field["fields"] != undefined && search_field["fields"] != undefined && String(field.fields[search_field["field"]]) == String(search_field["value"])){
                 retval = true
               }
             })

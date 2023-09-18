@@ -635,10 +635,11 @@ def test_insert_metric(setup):
     a = unwrap(serve.insert_metric)(sample_data)
     assert a[1] == 200
 
-    b = serve.mongo_client["labyrinth"]["metrics"].find({})
+    b = serve.mongo_client["labyrinth"]["metrics-latest"].find({})
     c = [x for x in b]
     assert len(c) == 1
     for item in sample_data["metrics"][0]:
+        print(item)
         assert c[0][item] == sample_data["metrics"][0][item]
 
 
