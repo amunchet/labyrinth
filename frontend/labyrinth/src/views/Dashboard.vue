@@ -406,10 +406,6 @@ export default {
       });
     },
     checkHostFilter(host, searches) {
-      if(host.ip == "10.8.0.30"){
-        console.log(host)
-        console.log(searches)
-      }
       let retval = false;
       searches.forEach((search) => {
         // Services Search
