@@ -618,7 +618,10 @@ def test_insert_metric(setup):
                     "diskio": 884284,
                 },
                 "name": "check_hd",
-                "tags": {"host": "00-00-00-00-01"},
+                "tags": {
+                    "host": "00-00-00-00-01",
+                    "ip" : "172.19.0.6"
+                },
                 "timestamp": 1625683390,
             },
         ]
