@@ -303,10 +303,29 @@ export default {
         let temp = JSON.parse(JSON.stringify(search));
 
         let splits = part.split("=");
-        if (splits.length == 2) {
-          let left = splits[0];
-          let right = splits[1];
+        let splits_less = part.split("<")
+        let splits_greater = part.split(">")
 
+        let left = null
+        let right = null
+        if (splits.length == 2) {
+          left = splits[0];
+          right = splits[1];
+          temp.compare = "equals"
+        }
+
+        if(splits_less.length == 2){
+          left = splits_less[0]
+          right = splits_less[1]
+          temp.compare = "less"
+        }
+
+        if(splits_greater.length == 2){
+          left = splits_greater[0]
+          right = splits_greater[1]
+          temp.compare = "greater"
+        }
+        if(left != null && right != null){
           if (left.indexOf("tag:") != -1) {
             let tag_name = left.replace("tag:", "");
             temp.tag.push({ tag: tag_name, value: right });
@@ -426,8 +445,27 @@ export default {
         try{
           search.tag.forEach(tag=>{
             host.services.map(x=>x.latest_metric).forEach(field=>{
-              if (field["tags"] != undefined && [tag["tag"]] != undefined && String(field.tags[tag["tag"]]) == String(tag["value"])){
-                retval = true
+              if (field["tags"] != undefined && tag["tag"] != undefined){
+
+                switch(tag.compare){
+                  case "equals":
+                    if(String(field.tags[tag["tag"]]) == String(tag["value"])){
+                      retval = true
+                    }
+                    break
+                  case "less" :
+                    if(String(field.tags[tag["tag"]]) < String(tag["value"])){
+                      retval = true
+                    }
+                    break
+                  case "greater" :
+                    if(String(field.tags[tag["tag"]]) > String(tag["value"])){
+                      retval = true
+                    }
+                    break
+
+                }
+
               }
             })
           })
