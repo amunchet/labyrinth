@@ -19,6 +19,7 @@
           :style="generateHostStyle(host)"
         >
           <Host
+            v-if="host.display != false"
             :ip="host.ip"
             passed_class="main"
             :icon="host.icon"

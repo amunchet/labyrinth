@@ -155,7 +155,7 @@ def upload(file_type, override_token):  # pragma: no cover
         return "No file selected", 409
 
     if not os.path.exists("/src/uploads"):
-        os.mkdirs("/src/uploads")
+        os.makedirs("/src/uploads")
 
     if not os.path.exists("/src/uploads/{}".format(file_type)):
         os.mkdir("/src/uploads/{}".format(file_type))
@@ -1436,7 +1436,13 @@ def dashboard(val="", report=False, flapping_delay=1300):
                     watcher.send_alert(alert_name, metric_name, host_name, summary=summary)
                 rc.set(key_name, time.time())
 
-            service_results[service] = {"name": service, "state": result}
+
+            service_results[service] = {
+                "name": service, 
+                "state": result,
+                "found_service" : found_service,
+                "latest_metric" : latest_metric
+            }
         for item in service_results:
             host["services"] = [service_results[x] for x in service_results]
 
@@ -1574,10 +1580,10 @@ def custom_dashboard_image_upload(override=""):
         file = request.files["file"]
 
     if not os.path.exists("/src/uploads"):
-        os.mkdirs("/src/uploads")
+        os.makedirs("/src/uploads")
 
     if not os.path.exists("/src/uploads/images"):
-        os.mkdirs("/src/uploads/images")
+        os.makedirs("/src/uploads/images")
 
     if override:
         filename = override
