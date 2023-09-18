@@ -759,7 +759,7 @@ h2.subnet:hover {
 }
 
 .smartbar {
-  min-height: 75px !important;
+  min-height: 50px !important;
   background-color: unset !important;
 }
 
