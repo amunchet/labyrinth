@@ -294,8 +294,18 @@
         </h5>
         <b-table v-if="host.service_levels" 
         striped
-          :items="host.service_levels.map(x=>x)"
-        />
+        :items="host.service_levels.map(x=>x).filter(x=>x)"
+        :fields="['_', 'service', 'level']"
+        >
+          <template v-slot:cell(_)="item">
+            <b-button variant="link" @click="()=>{
+              host.service_levels.splice(item.index,1)
+              $forceUpdate()
+              }">
+              <font-awesome-icon icon="times" size="1x" />
+            </b-button>
+          </template>
+        </b-table>
         <b-row v-if="show_add_service_level" class="text-left ml-0 pl-0">
           <b-col class="text-left ml-0 pl-0">
             <b-select :options="host.services.map(x=>x.name).filter(x=>{
