@@ -278,6 +278,61 @@
         </b-table>
       </b-col>
     </b-row>
+    <b-row>
+      <b-col>
+        <hr />
+        <h5>Service Levels
+        <b-button
+            variant="link"
+            class="float-right mt-0 pt-1 shadow-none"
+            @click="show_add_service_level = !show_add_service_level"
+          >
+            <font-awesome-icon icon="plus" size="1x" />
+          </b-button>
+
+
+        </h5>
+        <b-table v-if="host.service_levels" 
+        striped
+          :items="host.service_levels.map(x=>x)"
+        />
+        <b-row v-if="show_add_service_level" class="text-left ml-0 pl-0">
+          <b-col class="text-left ml-0 pl-0">
+            <b-select :options="host.services.map(x=>x.name).filter(x=>{
+                if(host.service_levels){
+                  return host.service_levels.indexOf(x) == -1
+                }
+                return x
+              })" 
+              v-model="new_service_level"
+              />
+            </b-col>
+            <b-col class="text-left">
+              <b-select :options="['error', 'warning']" 
+              v-model="new_service_level_value"
+              />
+              </b-col>
+            <b-col class="text-left">
+              <b-button
+                @click="()=>{
+                  if(host.service_levels == undefined){
+                    host.service_levels = []
+                  }
+                  host.service_levels.push({'service' : new_service_level + '', 'level' : new_service_level_value + ''})
+                  new_service_level = ''
+                  new_sevice_level_value = 'error'
+                  show_add_service_level = false
+                  $forceUpdate()
+                  }"
+              >
+              <font-awesome-icon icon="save" size="1x" />
+              </b-button>
+              </b-col>
+          </b-row>
+
+
+      </b-col>
+      </b-row>
     <b-row class="overflow-scroll" v-if="metrics.length">
       <h4>Latest Host Metrics</h4>
       <div style="max-height: 400px; overflow-y: scroll">
@@ -325,9 +380,12 @@ export default {
       new_service: "",
 
       new_services: [],
+      new_service_level: "",
+      new_service_level_value: "",
 
       show_add_port: false,
       show_add_service: false,
+      show_add_service_level: false,
 
       services: [],
       icons: [],
