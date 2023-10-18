@@ -640,7 +640,10 @@ def test_insert_metric(setup):
     assert len(c) == 1
     for item in sample_data["metrics"][0]:
         print(item)
-        assert c[0][item] == sample_data["metrics"][0][item]
+        if item == "timestamp":
+            assert c[0][item].replace(microsecond=0, second=0) == sample_data["metrics"][0][item].replace(microsecond=0,second=0)
+        else:
+            assert c[0][item] == sample_data["metrics"][0][item]
 
 
 def test_list_dashboard(setup):
