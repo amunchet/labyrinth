@@ -1433,7 +1433,17 @@ def dashboard(val="", report=False, flapping_delay=1300):
                 key_name = f"{alert_name}{metric_name}{host_name}".replace(" ", "")
                 found_key = rc.get(key_name)
                 if(found_key and time.time() - float(found_key) < flapping_delay):
-                    watcher.send_alert(alert_name, metric_name, host_name, summary=summary)
+
+                    # Handle found_service severity
+                    severity = "error"
+                    if "service_level" in host and host["service_level"] == "warning":
+                        severity = "warning"
+                    elif "service_levels" in host:
+                        for item in host["service_levels"]:
+                            if item and "service" in item and item["service"] == found_service and "level" in item and item["level"] == "warning":
+                                severity = "warning"
+                                break
+                    watcher.send_alert(alert_name, metric_name, host_name, summary=summary, severity=severity)
                 rc.set(key_name, time.time())
 
 
