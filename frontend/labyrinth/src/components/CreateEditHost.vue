@@ -278,10 +278,18 @@
         </b-table>
       </b-col>
     </b-row>
+    <hr />
     <b-row>
       <b-col>
-        <hr />
-        <h5>Service Levels
+        <h5>Host Reporting Level</h5>
+
+        <b-select v-model="host.service_level" :options="['error', 'warning']" />
+        <div class="mt-2 text-small">This overrides all reporting level settings for this host if set to warning.  If set to error, then each service can have its level set individually.
+        </div>
+
+        </b-col>
+      <b-col>
+        <h5>Service Reporting Levels
         <b-button
             variant="link"
             class="float-right mt-0 pt-1 shadow-none"
