@@ -692,9 +692,20 @@ def test_list_dashboard(setup):
                             "host": "test",
                             "icon": "linux",
                             "services": [
-                                {"name": "open_ports", "state": False},
-                                {"name": "closed_ports", "state": False},
-                                {"name": "check_hd-1", "state": False},
+                                {"found_service": "open_ports", "name" : "open_ports", "state": False, "latest_metric" : None},
+                                {"name": "closed_ports", "state": False, "name" : "closed_ports", "latest_metric" : None},
+                                {"name": "check_hd-1", "state": False, "latest_metric" : None, "found_service" : {
+                                    "_id" : "None",
+                                    "comparison" : "greater",
+                                    "display_name" : "check_hd-1",
+                                    "field" : "read_time",
+                                    "metric" : "diskio",
+                                    "name" : "check_hd",
+                                    "tag_name" : "cpu",
+                                    "tag_value" : "cpu-all",
+                                    "type" : "check",
+                                    "value" : 300
+                                }},
                             ],
                             "class": "health",
                         }
