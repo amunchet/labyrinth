@@ -278,7 +278,7 @@ export default {
   },
   methods: {
     add: function (item, name, parent) {
-      let structure =  {
+      let structure = {
         item: item,
         name: name,
         parent: parent || "",
@@ -301,7 +301,7 @@ export default {
       this.$forceUpdate();
     },
     parsed: function (item) {
-      let structure =  JSON.parse(item);
+      let structure = JSON.parse(item);
       this.add(structure.item, structure.name, structure.parent);
     },
     loadComment: /* istanbul ignore next */ function () {
@@ -309,7 +309,7 @@ export default {
         this.comment = "";
         return;
       }
-     let auth = this.$auth;
+      let auth = this.$auth;
       Helper.apiCall("redis", "get_comments/" + this.comment_name, auth)
         .then((res) => {
           this.comment = res;

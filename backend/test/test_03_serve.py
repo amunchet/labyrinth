@@ -618,10 +618,7 @@ def test_insert_metric(setup):
                     "diskio": 884284,
                 },
                 "name": "check_hd",
-                "tags": {
-                    "host": "00-00-00-00-01",
-                    "ip" : "172.19.0.6"
-                },
+                "tags": {"host": "00-00-00-00-01", "ip": "172.19.0.6"},
                 "timestamp": 1625683390,
             },
         ]
@@ -643,7 +640,9 @@ def test_insert_metric(setup):
         if item == "_id":
             pass
         elif item == "timestamp":
-            assert c[0][item].replace(microsecond=0, second=0) == sample_data["metrics"][0][item].replace(microsecond=0,second=0)
+            assert c[0][item].replace(microsecond=0, second=0) == sample_data[
+                "metrics"
+            ][0][item].replace(microsecond=0, second=0)
         else:
             assert c[0][item] == sample_data["metrics"][0][item]
 
@@ -692,19 +691,34 @@ def test_list_dashboard(setup):
                             "host": "test",
                             "icon": "linux",
                             "services": [
-                                {"found_service": "open_ports", "name" : "open_ports", "state": False, "latest_metric" : None},
-                                {"name": "closed_ports", "state": False, "found_service" : "closed_ports", "latest_metric" : None},
-                                {"name": "check_hd-1", "state": False, "latest_metric" : None, "found_service" : {
-                                    "comparison" : "greater",
-                                    "display_name" : "check_hd-1",
-                                    "field" : "read_time",
-                                    "metric" : "diskio",
-                                    "name" : "check_hd",
-                                    "tag_name" : "cpu",
-                                    "tag_value" : "cpu-all",
-                                    "type" : "check",
-                                    "value" : 300
-                                }},
+                                {
+                                    "found_service": "open_ports",
+                                    "name": "open_ports",
+                                    "state": False,
+                                    "latest_metric": None,
+                                },
+                                {
+                                    "name": "closed_ports",
+                                    "state": False,
+                                    "found_service": "closed_ports",
+                                    "latest_metric": None,
+                                },
+                                {
+                                    "name": "check_hd-1",
+                                    "state": False,
+                                    "latest_metric": None,
+                                    "found_service": {
+                                        "comparison": "greater",
+                                        "display_name": "check_hd-1",
+                                        "field": "read_time",
+                                        "metric": "diskio",
+                                        "name": "check_hd",
+                                        "tag_name": "cpu",
+                                        "tag_value": "cpu-all",
+                                        "type": "check",
+                                        "value": 300,
+                                    },
+                                },
                             ],
                             "class": "health",
                         }
@@ -730,7 +744,6 @@ def test_list_dashboard(setup):
     assert a[1] == 200
 
     b = json.loads(a[0])
-    
-    
+
     delete_keys_recursive(b)
     assert b == expected

@@ -81,7 +81,7 @@ def test_read_metrics(setup):
     assert a[1] == 200
     b = json.loads(a[0])
     print(b)
-    if b: # There's an empty metric
+    if b:  # There's an empty metric
         assert b[0]["timestamp"] == 2
 
 

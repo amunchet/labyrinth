@@ -202,8 +202,12 @@
                     :hd="host.hd_check"
                     :monitor="host.monitor"
                     :monitored_only="subnet.monitored"
-                    :service_level="host.service_level ? host.service_level : null"
-                    :service_levels="host.service_levels ? host.service_levels : null"
+                    :service_level="
+                      host.service_level ? host.service_level : null
+                    "
+                    :service_levels="
+                      host.service_levels ? host.service_levels : null
+                    "
                     @dragStart="(ip) => (dragged_ip = ip)"
                     @dragEnd="dragged_ip = ''"
                     @service="
@@ -419,46 +423,68 @@ export default {
           retval = true;
         }
         // Open Ports Search
-        if (host.open_ports != undefined && host.open_ports.map(x=>parseInt(x)).indexOf(parseInt(search.port)) != -1) {
+        if (
+          host.open_ports != undefined &&
+          host.open_ports
+            .map((x) => parseInt(x))
+            .indexOf(parseInt(search.port)) != -1
+        ) {
           retval = true;
         }
 
         // Tags Search
-        try{
-          search.tag.forEach(tag=>{
-            host.services.map(x=>x.latest_metric).forEach(field=>{
-              if (field != undefined && field["tags"] != undefined && tag["tag"] != undefined && String(field.tags[tag["tag"]]) == String(tag["value"])){
-                retval = true
-              }
-            })
-          })
-        }catch(e){
-          console.log("Tags parse failed")
-          console.log(e)
+        try {
+          search.tag.forEach((tag) => {
+            host.services
+              .map((x) => x.latest_metric)
+              .forEach((field) => {
+                if (
+                  field != undefined &&
+                  field["tags"] != undefined &&
+                  tag["tag"] != undefined &&
+                  String(field.tags[tag["tag"]]) == String(tag["value"])
+                ) {
+                  retval = true;
+                }
+              });
+          });
+        } catch (e) {
+          console.log("Tags parse failed");
+          console.log(e);
         }
 
         // Fields Search
-        try{
-          search.field.forEach(search_field=>{
-            host.services.map(x=>x.latest_metric).forEach(field=>{
-              if (field["fields"] != undefined && search_field["fields"] != undefined && String(field.fields[search_field["field"]]) == String(search_field["value"])){
-                retval = true
-              }
-            })
-          })
-        }catch(e){
-          console.log("Fields parse failed")
-          console.log(e)
+        try {
+          search.field.forEach((search_field) => {
+            host.services
+              .map((x) => x.latest_metric)
+              .forEach((field) => {
+                if (
+                  field["fields"] != undefined &&
+                  search_field["fields"] != undefined &&
+                  String(field.fields[search_field["field"]]) ==
+                    String(search_field["value"])
+                ) {
+                  retval = true;
+                }
+              });
+          });
+        } catch (e) {
+          console.log("Fields parse failed");
+          console.log(e);
         }
 
         // Other search
-        const names = ["ip", "group", "host"]
-        names.forEach(found_name => {
-          if(host[found_name] && search[found_name] && host[found_name].toLowerCase() == search[found_name].toLowerCase()){
-            retval = true
+        const names = ["ip", "group", "host"];
+        names.forEach((found_name) => {
+          if (
+            host[found_name] &&
+            search[found_name] &&
+            host[found_name].toLowerCase() == search[found_name].toLowerCase()
+          ) {
+            retval = true;
           }
-        })
-        
+        });
       });
       return retval;
     },

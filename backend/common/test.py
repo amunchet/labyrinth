@@ -21,6 +21,7 @@ def unwrap(f):
         raise Exception("Unwrapped Exception Found.")
     return b
 
+
 def delete_keys_recursive(data, search="_id"):
     if isinstance(data, dict):
         for key in list(data.keys()):
