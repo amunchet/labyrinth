@@ -693,9 +693,8 @@ def test_list_dashboard(setup):
                             "icon": "linux",
                             "services": [
                                 {"found_service": "open_ports", "name" : "open_ports", "state": False, "latest_metric" : None},
-                                {"name": "closed_ports", "state": False, "name" : "closed_ports", "latest_metric" : None},
+                                {"name": "closed_ports", "state": False, "found_service" : "closed_ports", "latest_metric" : None},
                                 {"name": "check_hd-1", "state": False, "latest_metric" : None, "found_service" : {
-                                    "_id" : "None",
                                     "comparison" : "greater",
                                     "display_name" : "check_hd-1",
                                     "field" : "read_time",
@@ -735,5 +734,6 @@ def test_list_dashboard(setup):
     del b[0]["_id"]
     del b[1]["_id"]
     del b[1]["groups"][0]["hosts"][0]["_id"]
+    del b[1]["groups"][0]["hosts"][0]["services"][-1]["_id"]
 
     assert b == expected
