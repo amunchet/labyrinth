@@ -29,6 +29,8 @@
             :mem="host.mem_check"
             :hd="host.hd_check"
             :monitor="host.monitor"
+            :service_level="host.service_level ? host.service_level : null"
+            :service_levels="host.service_levels ? host.service_levels : null"
             @service="
               (val) => {
                 selected_metric = val;

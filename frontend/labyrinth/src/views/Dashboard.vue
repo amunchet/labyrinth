@@ -202,6 +202,8 @@
                     :hd="host.hd_check"
                     :monitor="host.monitor"
                     :monitored_only="subnet.monitored"
+                    :service_level="host.service_level ? host.service_level : null"
+                    :service_levels="host.service_levels ? host.service_levels : null"
                     @dragStart="(ip) => (dragged_ip = ip)"
                     @dragEnd="dragged_ip = ''"
                     @service="
