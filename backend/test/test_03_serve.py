@@ -8,7 +8,7 @@ import pytest
 import serve
 
 
-from common.test import unwrap
+from common.test import unwrap, delete_keys_recursive
 
 
 # Labyrinth main functions
@@ -730,10 +730,7 @@ def test_list_dashboard(setup):
     assert a[1] == 200
 
     b = json.loads(a[0])
-
-    del b[0]["_id"]
-    del b[1]["_id"]
-    del b[1]["groups"][0]["hosts"][0]["_id"]
-    del b[1]["groups"][0]["hosts"][0]["services"][-1]["_id"]
-
+    
+    
+    delete_keys_recursive(b)
     assert b == expected

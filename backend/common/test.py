@@ -20,3 +20,14 @@ def unwrap(f):
     if count == 0:
         raise Exception("Unwrapped Exception Found.")
     return b
+
+def delete_keys_recursive(data, search="_id"):
+    if isinstance(data, dict):
+        for key in list(data.keys()):
+            if key == search:
+                del data[key]
+            else:
+                delete_keys_recursive(data[key])
+    elif isinstance(data, list):
+        for item in data:
+            delete_keys_recursive(item)
