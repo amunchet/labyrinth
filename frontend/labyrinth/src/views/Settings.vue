@@ -20,8 +20,8 @@
         <b-tab title="Maintenance" lazy>
           <div class="main">
             <Maintenance />
-            </div>
-          </b-tab>
+          </div>
+        </b-tab>
       </b-tabs>
     </b-card>
   </b-container>
@@ -30,7 +30,7 @@
 import Icons from "@/views/Settings/Icons";
 import Telegraf from "@/views/Settings/Telegraf";
 import CustomDashboards from "@/views/Settings/CustomDashboards";
-import Maintenance from '@/views/Settings/Maintenance'
+import Maintenance from "@/views/Settings/Maintenance";
 export default {
   name: "Settings",
   data() {

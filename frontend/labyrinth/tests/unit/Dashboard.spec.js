@@ -125,12 +125,11 @@ describe("Dashboard.vue", () => {
                       name: "Fileboi",
                       state: true,
                       latest_metric: {
-                          tags: {
-                             ip: "172.19.0.6" 
-                          }
-                      }
-
-                    }
+                        tags: {
+                          ip: "172.19.0.6",
+                        },
+                      },
+                    },
                   ],
                   open_ports: [139],
                   class: "",
@@ -362,7 +361,9 @@ describe("Dashboard.vue", () => {
       smartbar: "service=Fileboi",
     });
     await wrapper.vm.$forceUpdate();
-    let found_hosts = wrapper.vm.parsed_data[0].groups[0].hosts.filter(x=>x.display);
+    let found_hosts = wrapper.vm.parsed_data[0].groups[0].hosts.filter(
+      (x) => x.display
+    );
     expect(found_hosts.length).toStrictEqual(1);
   });
 
@@ -371,8 +372,8 @@ describe("Dashboard.vue", () => {
       smartbar: "host=TESTHOST",
     });
     await wrapper.vm.$forceUpdate();
-    let found_hosts = wrapper.vm.parsed_data[0].groups[0].hosts
-    found_hosts = found_hosts.filter(x=>x.display);
+    let found_hosts = wrapper.vm.parsed_data[0].groups[0].hosts;
+    found_hosts = found_hosts.filter((x) => x.display);
     expect(found_hosts.length).toStrictEqual(1);
   });
 
@@ -381,7 +382,9 @@ describe("Dashboard.vue", () => {
       smartbar: "tag:ip=172.19.0.6",
     });
     await wrapper.vm.$forceUpdate();
-    let found_hosts = wrapper.vm.parsed_data[0].groups[0].hosts.filter(x=>x.display);
+    let found_hosts = wrapper.vm.parsed_data[0].groups[0].hosts.filter(
+      (x) => x.display
+    );
     expect(found_hosts.length).toStrictEqual(1);
   });
 
@@ -390,7 +393,9 @@ describe("Dashboard.vue", () => {
       smartbar: "port=22",
     });
     await wrapper.vm.$forceUpdate();
-    let found_hosts = wrapper.vm.parsed_data[0].groups[0].hosts.filter(x=>x.display);
+    let found_hosts = wrapper.vm.parsed_data[0].groups[0].hosts.filter(
+      (x) => x.display
+    );
     expect(found_hosts.length).toStrictEqual(1);
   });
 

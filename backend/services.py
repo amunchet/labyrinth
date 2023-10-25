@@ -30,14 +30,13 @@ def prepare(fname="/src/uploads/master.conf") -> List:
         shutil.copy("/src/uploads/defaults/telegraf.conf", fname)
 
     with open(fname) as f:
-
         in_array = False
         array_count = 0
 
         seen_keys = []
         seen_sections = []
 
-        for (line_no, line) in enumerate(f.readlines()):
+        for line_no, line in enumerate(f.readlines()):
             parsed_line = re.sub(r"^(\s?#?)+", "", line).strip()
 
             # Duplicate sections
@@ -59,7 +58,6 @@ def prepare(fname="/src/uploads/master.conf") -> List:
                     # Comment out the found items in lines
                     for x in found_arr:
                         if x[0] != "":
-
                             if lines[x[1]][-1] != "[":
                                 # Normal case
                                 lines[x[1]] = "# {}".format(lines[x[1]])
@@ -108,26 +106,22 @@ def parse(item) -> dict:
     :returns - Dictionary of object
     """
     if type(item) == toml.decoder.CommentValue:
-
         retval = parse(item.val)
 
         return retval
     elif type(item) == type([]):
-
         retval = []
         for x in item:
             retval.append(parse(x))
 
         return retval
     elif type(item) == type({}):
-
         retval = {}
         for x in item:
             retval[x] = parse(item[x])
 
         return retval
     else:
-
         return item
 
 

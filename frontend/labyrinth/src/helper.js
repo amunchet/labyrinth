@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const local_backend =
-    "https://" + window.location.host.split(":")[0] + ":7210/api/";
+  "https://" + window.location.host.split(":")[0] + ":7210/api/";
 const devel_port = "8101";
 
 /*
@@ -121,22 +121,26 @@ export default {
       full_url = "/api/" + url;
     }
 
-    return auth.getAccessToken().then((accessToken) => {
-      return axios
-        .delete(full_url + "/" + encodeURIComponent(command), {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            Email: profile,
-          },
-        })
-        .then((response) => {
-          return response.data;
-        }).catch(e=>{
+    return auth
+      .getAccessToken()
+      .then((accessToken) => {
+        return axios
+          .delete(full_url + "/" + encodeURIComponent(command), {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              Email: profile,
+            },
+          })
+          .then((response) => {
+            return response.data;
+          })
+          .catch((e) => {
             throw "Error " + e.response.status + ": " + e.response.data;
-        });
-    }).catch(e=>{
+          });
+      })
+      .catch((e) => {
         throw e;
-    });
+      });
   },
   apiPost(
     url,
