@@ -63,6 +63,14 @@ def check_all_hosts():
                 continue
 
             host_name = host["ip"]
+            display_name = host["host"]
+
+            severity = "error"
+            
+            if "service_level" in host and host["service_level"] == "warning":
+                severity = "warning"
+            elif "service_levels" in host and [True for x in host["service_levels"] if x["service"] == "check_alive" and x["level"] == "warning"]:
+                severity = "warning"
 
             alive_type = "Ping Check"
             if "check_alive_port" in host and "check_alive_port" != "":
@@ -78,7 +86,7 @@ def check_all_hosts():
 
                 if not result:
                     watcher.send_alert(
-                        "Check Alive", alive_type, host_name, summary=summary
+                        "Check Alive", alive_type, display_name, summary=summary, severity=severity
                     )
 
 
