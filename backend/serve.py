@@ -1285,7 +1285,7 @@ def dashboard(val="", report=False, flapping_delay=1300):
 
     latest_metrics = {}
     for item in mongo_client["labyrinth"]["metrics-latest"].find(
-        {}, sort=[("_id", pymongo.DESCENDING)]
+        {}, sort=[("_id", pymongo.ASCENDING)]
     ):
         if "name" in item:
             if item["name"] not in latest_metrics:
