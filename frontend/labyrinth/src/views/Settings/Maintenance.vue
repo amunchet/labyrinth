@@ -9,7 +9,7 @@
           >Soft Restart</b-button
         > </b-col
       ><b-col cols="2">
-      <b-button @click="restart(4)" variant="danger">Full Restart</b-button>
+        <b-button @click="restart(4)" variant="danger">Full Restart</b-button>
       </b-col>
     </b-row>
   </div>
@@ -20,7 +20,7 @@ export default {
   name: "Maintenance",
   methods: {
     restart: /* istanbul ignore next */ function (code) {
-     let auth = this.$auth;
+      let auth = this.$auth;
       this.$bvModal
         .msgBoxConfirm("Are you sure you want to restart?")
         .then((res) => {

@@ -40,6 +40,21 @@ $darkgrey: #64646e;
 .green-bg {
   background-color: $green;
 }
+
+.red-border{
+    border: 1px dashed darkred;
+    background: rgba(139, 0, 0, 0.25);
+}
+.orange-border{
+    border: 1px dashed darkorange;
+    background: rgba(255, 140, 0, 0.25);
+    ;
+}
+.green-border{
+    border: 1px dashed darkgreen;
+    background: rgba(0, 128, 0, 0.25);
+}
+
 .darkblue-bg {
   //background-color: $darkblue;
   border: 1px solid $darkblue;

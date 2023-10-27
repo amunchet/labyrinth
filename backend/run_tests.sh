@@ -10,7 +10,7 @@ echo "Running Pytest..."
 docker
 if [ $? -eq 127 ]; then
     echo "No docker found.  Assuming we're inside of backend docker."
-    cd /src && PYTHONPATH=/src pytest --cov=/src --cov-report term-missing -vvvv --cov-fail-under=95 --cov-report=html $1 . 
+    cd /src && PYTHONPATH=/src pytest --cov=/src --cov-report term-missing -vvvv --cov-fail-under=95 --cov-report=html $ARGS . 
 
 else
     docker ps

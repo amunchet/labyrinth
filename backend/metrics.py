@@ -128,7 +128,7 @@ def judge_check(metric, service):
     if service["comparison"] == "equals":
         logger.debug("In equals comparison")
         try:
-            output = (str(found).strip() == str(service["value"]).strip())
+            output = str(found).strip() == str(service["value"]).strip()
             return output
         except TypeError:  # pragma: no cover
             try:

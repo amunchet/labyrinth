@@ -181,7 +181,7 @@ def upload(file_type, override_token):  # pragma: no cover
 
     elif file:
         filename = secure_filename(file.filename)
-        
+
         # file.save("/tmp/{}".format(filename))
         file_contents = file.read().decode("utf-8")
         file_contents = file_contents.replace("\r\n", "\n")
@@ -191,7 +191,8 @@ def upload(file_type, override_token):  # pragma: no cover
         check_results = ansible_helper.check_file(filename, file_type)
         if check_results:
             shutil.move(
-                "/tmp/{}".format(filename), "/src/uploads/{}/{}".format(file_type, filename)
+                "/tmp/{}".format(filename),
+                "/src/uploads/{}/{}".format(file_type, filename),
             )
         else:
             return f"File check failed: {check_results}", 521
@@ -941,10 +942,11 @@ def delete_setting(setting):
 
     return "Success", 200
 
+
 @app.route("/settings/restart")
 @app.route("/settings/restart/<int:code>")
 @requires_auth_admin
-def restart(code=0): # pragma: no cover
+def restart(code=0):  # pragma: no cover
     """
     Restarts either the process or the docker
     """
@@ -956,6 +958,8 @@ def restart(code=0): # pragma: no cover
         sys.exit(4)
     else:
         return "Invalid exit code", 400
+
+
 # Icons
 def check_extension(fname):
     """
@@ -1397,7 +1401,6 @@ def dashboard(val="", report=False, flapping_delay=1300):
                             found_service["tag_value"],
                         )
                     else:
-
                         latest_metric = find_metric(found_service["name"], host)
 
                     if not latest_metric:
@@ -1429,19 +1432,39 @@ def dashboard(val="", report=False, flapping_delay=1300):
                         json.dumps(latest_metric, default=str) or "",
                         json.dumps(found_service, default=str) or "",
                     )
-                
+
                 key_name = f"{alert_name}{metric_name}{host_name}".replace(" ", "")
                 found_key = rc.get(key_name)
-                if(found_key and time.time() - float(found_key) < flapping_delay):
-                    watcher.send_alert(alert_name, metric_name, host_name, summary=summary)
+                if found_key and time.time() - float(found_key) < flapping_delay:
+                    # Handle found_service severity
+                    severity = "error"
+                    if "service_level" in host and host["service_level"] == "warning":
+                        severity = "warning"
+                    elif "service_levels" in host:
+                        for item in host["service_levels"]:
+                            if (
+                                item
+                                and "service" in item
+                                and item["service"] == found_service
+                                and "level" in item
+                                and item["level"] == "warning"
+                            ):
+                                severity = "warning"
+                                break
+                    watcher.send_alert(
+                        alert_name,
+                        metric_name,
+                        host_name,
+                        summary=summary,
+                        severity=severity,
+                    )
                 rc.set(key_name, time.time())
 
-
             service_results[service] = {
-                "name": service, 
+                "name": service,
                 "state": result,
-                "found_service" : found_service,
-                "latest_metric" : latest_metric
+                "found_service": found_service,
+                "latest_metric": latest_metric,
             }
         for item in service_results:
             host["services"] = [service_results[x] for x in service_results]
@@ -1661,7 +1684,13 @@ def read_metrics(host, service="", count=100, option=""):
     if option == "latest":
         table = "metrics-latest"
 
-    retval = [x for x in mongo_client["labyrinth"][table].find(or_clause).sort("_id", -1).limit(count)]
+    retval = [
+        x
+        for x in mongo_client["labyrinth"][table]
+        .find(or_clause)
+        .sort("_id", -1)
+        .limit(count)
+    ]
 
     if service.strip() == "open_ports" or service.strip() == "closed_ports":
         for item in retval:
@@ -1669,12 +1698,11 @@ def read_metrics(host, service="", count=100, option=""):
                 item, service, found_host, stale_time=10000
             )
             item["judgement_debug"] = {
-                "item" : json.dumps(item, default=str),
-                "service" : service,
-                "found_host" : found_host
+                "item": json.dumps(item, default=str),
+                "service": service,
+                "found_host": found_host,
             }
     else:
-
         for item in retval:
             if item is None or found_service is None:
                 item["judgement"] = False
@@ -1694,8 +1722,9 @@ def delete_metric(metric_id):
     Deletes a metric id
     """
     object_id = bson.ObjectId(metric_id)
-    mongo_client["labyrinth"]["metrics-latest"].delete_one({"_id" : object_id})
+    mongo_client["labyrinth"]["metrics-latest"].delete_one({"_id": object_id})
     return "Success", 200
+
 
 @app.route("/metrics/", methods=["POST"])
 @requires_header
@@ -1714,7 +1743,6 @@ def insert_metric(inp=""):
         return "Invalid data", 421
 
     for item in data["metrics"]:
-
         if "timestamp" in item:
             try:
                 # item["timestamp"] = datetime.datetime.fromtimestamp(item["timestamp"])
@@ -1744,16 +1772,13 @@ def insert_metric(inp=""):
                 pass
             else:
                 mongo_client["labyrinth"]["metrics"].insert_one(item)
-            
+
                 a.set("last_metric_{}".format(item["tags"]["ip"]), time.time())
 
     return "Success", 200
 
 
-
-
 if __name__ == "__main__":  # pragma: no cover
-
     # Check on indexes
     index_helper()
 

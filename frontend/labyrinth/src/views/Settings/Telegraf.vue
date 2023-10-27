@@ -39,7 +39,7 @@ export default {
   },
   methods: {
     loadDefaultBackend: /* istanbul ignore next */ function () {
-     let auth = this.$auth;
+      let auth = this.$auth;
       Helper.apiCall("settings", "default_telegraf_backend", auth)
         .then((res) => {
           this.default_backend = res;
@@ -51,8 +51,8 @@ export default {
         });
     },
     saveDefaultBackend: /* istanbul ignore next */ function () {
-     let auth = this.$auth;
-      let formData =  new FormData();
+      let auth = this.$auth;
+      let formData = new FormData();
       formData.append("name", "default_telegraf_backend");
       formData.append("value", this.default_backend);
 

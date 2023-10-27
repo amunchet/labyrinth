@@ -66,7 +66,7 @@
           <b-button
             @click="
               () => {
-                let found =  drawing.components.find(
+                let found = drawing.components.find(
                   (x) => x.name == selectedShapeName
                 );
                 if (found) {
@@ -345,10 +345,10 @@ export default {
   },
   computed: {
     computed_image: /* istanbul ignore next */ function () {
-      let temp =  this.drawing.background_image;
+      let temp = this.drawing.background_image;
       if (this.drawing.background_image != "") {
-        let image =  new window.Image();
-        let url = 
+        let image = new window.Image();
+        let url =
           "/api/custom_dashboard_images/" + this.$auth.accessToken + "/";
 
         image.src = url.concat(temp);
@@ -455,7 +455,7 @@ export default {
     },
 
     addHost: function (x, y, scaleX, scaleY, rotation, name, subnet, group) {
-      let image =  new window.Image();
+      let image = new window.Image();
       image.src = "img/dashboards/" + "host.png";
 
       if (x == undefined) {
@@ -485,7 +485,7 @@ export default {
         group = this.selected_group;
       }
 
-      let new_rect =  {
+      let new_rect = {
         rotation: rotation,
         x: x,
         y: y,
@@ -504,7 +504,7 @@ export default {
     },
 
     loadSubnets: /* istanbul ignore next */ function () {
-     let auth = this.$auth;
+      let auth = this.$auth;
       Helper.apiCall("subnets", "", auth)
         .then((res) => {
           this.subnets = res;
@@ -514,7 +514,7 @@ export default {
         });
     },
     loadGroups: /* istanbul ignore next */ function (selected_subnet) {
-     let auth = this.$auth;
+      let auth = this.$auth;
       Helper.apiCall("group", selected_subnet, auth)
         .then((res) => {
           this.groups = res;
@@ -524,7 +524,7 @@ export default {
         });
     },
     loadHosts: /* istanbul ignore next */ function (selected_group) {
-     let auth = this.$auth;
+      let auth = this.$auth;
       Helper.apiCall("group", this.selected_subnet + "/" + selected_group, auth)
         .then((res) => {
           this.hosts = res;
@@ -535,7 +535,7 @@ export default {
     },
 
     loadImages: /* istanbul ignore next */ function () {
-     let auth = this.$auth;
+      let auth = this.$auth;
       Helper.apiCall("custom_dashboard_images", "", auth)
         .then((res) => {
           this.available_images = res;
@@ -546,8 +546,8 @@ export default {
     },
     uploadHelper: /* istanbul ignore next */ function (val) {
       if (val) {
-       let auth = this.$auth;
-        let formData =  new FormData();
+        let auth = this.$auth;
+        let formData = new FormData();
         formData.append("file", val);
         console.log(val);
         Helper.apiPost("custom_dashboard_images", "", "", auth, formData, true)
@@ -568,7 +568,7 @@ export default {
       }
     },
     deleteImage: /* istanbul ignore next */ function (val) {
-     let auth = this.$auth;
+      let auth = this.$auth;
       this.$bvModal
         .msgBoxConfirm("Are you sure you want to delete this image?")
         .then((res) => {
@@ -589,7 +589,7 @@ export default {
         });
     },
     loadCustomDashboards: /* istanbul ignore next */ function () {
-     let auth = this.$auth;
+      let auth = this.$auth;
       Helper.apiCall("custom_dashboards", "", auth)
         .then((res) => {
           this.custom_dashboards = res;
@@ -601,8 +601,8 @@ export default {
     saveCustomDashboard: /* istanbul ignore next */ function (e) {
       e.preventDefault();
 
-     let auth = this.$auth;
-      let formData =  new FormData();
+      let auth = this.$auth;
+      let formData = new FormData();
       formData.append("data", JSON.stringify(this.drawing));
 
       Helper.apiPost("custom_dashboard", "", this.drawing.name, auth, formData)
