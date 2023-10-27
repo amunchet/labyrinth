@@ -1,11 +1,14 @@
 <template>
   <div class="dashboard">
     <!-- Modals -->
-    <div class="overflow-hidden mb-4 pb-2">
+    <div class="overflow-hidden">
       <CreateEditSubnet :inp_subnet="selected_subnet" @update="loadData()" />
     </div>
-
-    <CreateEditHost :inp_host="selected_host" @update="loadData()" />
+    <CreateEditHost
+      :inp_host="selected_host"
+      @update="loadData()"
+      :all_ips="all_ips_computed"
+    />
     <HostMetric @update="loadData()" :data="selected_metric" />
 
     <GroupModal
@@ -42,22 +45,33 @@
         </div>
       </div>
       <div class="outer_right">
-        <b-button
-          variant="link"
-          class="add-button"
-          @click="
-            () => {
-              selected_subnet = '';
-              $bvModal.show('create_edit_subnet');
-            }
-          "
-        >
-          <font-awesome-icon icon="plus" size="1x" /> New Subnet
-        </b-button>
+        <b-row class="outer pt-1 smartbar">
+          <b-col cols="4">
+            <b-input
+              v-model="smartbar"
+              lazy
+              placeholder="Enter filter (i.e. port=22)"
+            />
+          </b-col>
+          <b-col class="text-right">
+            <b-button
+              variant="link"
+              @click="
+                () => {
+                  selected_subnet = '';
+                  $bvModal.show('create_edit_subnet');
+                }
+              "
+            >
+              <font-awesome-icon icon="plus" size="1x" /> New Subnet
+            </b-button>
+          </b-col>
+        </b-row>
+
         <div
           :class="'outer ' + (subnet.minimized ? 'minimized' : '')"
           :style="findClass(subnet)"
-          v-for="(subnet, i) in sortSubnets(full_data)"
+          v-for="(subnet, i) in parsed_data"
           v-bind:key="i"
         >
           <div
@@ -174,7 +188,9 @@
 
                 <div class="flexed" v-if="subnet.display != 'summary'">
                   <Host
-                    v-for="(host, k) in group.hosts"
+                    v-for="(host, k) in group.hosts.filter(
+                      (x) => x.display != false
+                    )"
                     v-bind:key="k"
                     :ip="host.ip"
                     passed_class="main"
@@ -186,6 +202,12 @@
                     :hd="host.hd_check"
                     :monitor="host.monitor"
                     :monitored_only="subnet.monitored"
+                    :service_level="
+                      host.service_level ? host.service_level : null
+                    "
+                    :service_levels="
+                      host.service_levels ? host.service_levels : null
+                    "
                     @dragStart="(ip) => (dragged_ip = ip)"
                     @dragEnd="dragged_ip = ''"
                     @service="
@@ -196,6 +218,7 @@
                       }
                     "
                     :host="host.host"
+                    :display="host.display"
                   />
                 </div>
               </div>
@@ -221,6 +244,7 @@ export default {
   data() {
     return {
       loading: false,
+      smartbar: "",
 
       offsetTop: [],
       full_data: [],
@@ -258,15 +282,114 @@ export default {
     GroupModal,
     DoughnutChart,
   },
+  computed: {
+    parsed_data: function () {
+      let data = this.full_data;
+      if (this.smartbar == "") {
+        return this.sortSubnets(data);
+      }
+
+      let search = {
+        service: "",
+        host: null,
+        tag: [],
+        field: [],
+        port: null,
+        group: null,
+        ip: null,
+
+        invert: false,
+      };
+
+      let searches = [];
+
+      let search_parts = this.smartbar.split(" ").map((x) => x.toLowerCase());
+
+      search_parts.forEach((part) => {
+        let temp = JSON.parse(JSON.stringify(search));
+
+        let splits = part.split("=");
+        if (splits.length == 2) {
+          let left = splits[0];
+          let right = splits[1];
+
+          if (left.indexOf("tag:") != -1) {
+            let tag_name = left.replace("tag:", "");
+            temp.tag.push({ tag: tag_name, value: right });
+          } else if (left.indexOf("field:") != -1) {
+            let field_name = left.replace("field:", "");
+            temp.field.push({ field: field_name, value: right });
+          } else {
+            switch (left) {
+              case "service":
+                temp.service = right;
+                break;
+              case "host":
+                temp.host = right;
+                break;
+              case "port":
+                temp.port = right;
+                break;
+              case "group":
+                temp.group = right;
+                break;
+              case "ip":
+                temp.ip = right;
+                break;
+              default:
+                break;
+            }
+          }
+
+          searches.push(temp);
+        }
+      });
+
+      data.forEach((subnet) => {
+        if (subnet.groups) {
+          subnet.groups.forEach((group) => {
+            if (group.hosts) {
+              group.hosts.forEach((host) => {
+                if (this.checkHostFilter(host, searches)) {
+                  host.display = true;
+                } else {
+                  host.display = false;
+                }
+              });
+            }
+          });
+        }
+      });
+      return data;
+    },
+
+    all_ips_computed: function () {
+      let retval = new Set();
+      this.full_data.forEach((subnet) => {
+        if (subnet.groups) {
+          subnet.groups.forEach((group) => {
+            if (group.hosts) {
+              group.hosts.forEach((host) => {
+                if (host.ip) {
+                  retval.add(host.ip);
+                }
+              });
+            }
+          });
+        }
+      });
+      return retval;
+    },
+  },
   methods: {
     capitalize: Helper.capitalize,
     convertSubnet(subnet) {
       try {
-        var splits = subnet.split(".");
+        let splits = subnet.split(".");
         if (splits.length != 3) {
           return -1;
         }
-        var output = splits[0] * 100000 + splits[1] * 1000 + splits[2] * 10;
+        let output = splits[0] * 100000 + splits[1] * 1000 + splits[2] * 10;
         return output;
       } catch (e) {
         return -1;
@@ -274,7 +397,7 @@ export default {
     },
     sortSubnets(all_items) {
       // Returns 1 (a after b), 0 (a==b), -1 (b after a)
-      var temp = JSON.parse(JSON.stringify(all_items));
+      let temp = JSON.parse(JSON.stringify(all_items));
       return temp.sort((a, b) => {
         if (a.subnet == undefined || b.subnet == undefined) {
           return 0;
@@ -283,17 +406,94 @@ export default {
         if (this.convertSubnet(a.subnet) == this.convertSubnet(b.subnet)) {
           return 0;
         }
-        var outcome =
+        let outcome =
           this.convertSubnet(a.subnet) < this.convertSubnet(b.subnet) ? -1 : 1;
         return outcome;
       });
+    },
+    checkHostFilter(host, searches) {
+      let retval = false;
+      searches.forEach((search) => {
+        // Services Search
+        if (
+          host.services
+            .map((x) => (x ? x.name.toLowerCase() : ""))
+            .indexOf(search.service.toLowerCase()) != -1
+        ) {
+          retval = true;
+        }
+        // Open Ports Search
+        if (
+          host.open_ports != undefined &&
+          host.open_ports
+            .map((x) => parseInt(x))
+            .indexOf(parseInt(search.port)) != -1
+        ) {
+          retval = true;
+        }
+
+        // Tags Search
+        try {
+          search.tag.forEach((tag) => {
+            host.services
+              .map((x) => x.latest_metric)
+              .forEach((field) => {
+                if (
+                  field != undefined &&
+                  field["tags"] != undefined &&
+                  tag["tag"] != undefined &&
+                  String(field.tags[tag["tag"]]) == String(tag["value"])
+                ) {
+                  retval = true;
+                }
+              });
+          });
+        } catch (e) {
+          console.log("Tags parse failed");
+          console.log(e);
+        }
+
+        // Fields Search
+        try {
+          search.field.forEach((search_field) => {
+            host.services
+              .map((x) => x.latest_metric)
+              .forEach((field) => {
+                if (
+                  field["fields"] != undefined &&
+                  search_field["fields"] != undefined &&
+                  String(field.fields[search_field["field"]]) ==
+                    String(search_field["value"])
+                ) {
+                  retval = true;
+                }
+              });
+          });
+        } catch (e) {
+          console.log("Fields parse failed");
+          console.log(e);
+        }
+
+        // Other search
+        const names = ["ip", "group", "host"];
+        names.forEach((found_name) => {
+          if (
+            host[found_name] &&
+            search[found_name] &&
+            host[found_name].toLowerCase() == search[found_name].toLowerCase()
+          ) {
+            retval = true;
+          }
+        });
+      });
+      return retval;
     },
     filterMonitored: function (group, subnet) {
       if (!subnet) {
         return group;
       }
 
-      var temp = JSON.parse(JSON.stringify(group));
+      let temp = JSON.parse(JSON.stringify(group));
 
       return temp.filter((x) => {
         if (x.hosts == undefined) {
@@ -304,8 +504,13 @@ export default {
         }
       });
     },
+
+    parseCommandLine: function () {
+      // Parses the command line
+    },
+
     loadThemes: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+      let auth = this.$auth;
       Helper.apiCall("themes", "", auth)
         .then((res) => {
           this.themes = res;
@@ -315,8 +520,8 @@ export default {
         });
     },
     onDrop: /* istanbul ignore next */ function (name) {
-      var auth = this.$auth;
-      var url = this.dragged_ip;
+      let auth = this.$auth;
+      let url = this.dragged_ip;
       if (name != "") {
         url += "/" + name + "/";
       }
@@ -330,12 +535,12 @@ export default {
     },
     processGroupChart: function (group) {
       // Generates the datastructure for the doughnut chart for the group
-      var output = {};
+      let output = {};
       output.labels = ["OK", "Warning", "Critical"];
 
-      var total_green = 0;
-      var total_orange = 0;
-      var total_red = 0;
+      let total_green = 0;
+      let total_orange = 0;
+      let total_red = 0;
       // Process the group
       group.hosts.forEach((host) => {
         if (host.services != undefined) {
@@ -365,8 +570,8 @@ export default {
       return output;
     },
     loadData: /* istanbul ignore next */ async function (showLoading) {
-      var auth = this.$auth;
-      var url = "";
+      let auth = this.$auth;
+      let url = "";
       if (showLoading) {
         this.loading = true;
         url = "1";
@@ -385,8 +590,8 @@ export default {
 
           this.originLinks = this.prepareOriginsLinks(this.full_data);
 
-          for (var i = 0; i < this.full_data.length; i++) {
-            var temp = this.full_data[i];
+          for (let i = 0; i < this.full_data.length; i++) {
+            let temp = this.full_data[i];
             if (temp.groups != undefined) {
               // Sort the groups
               temp.groups.sort((prev, next) => {
@@ -420,11 +625,11 @@ export default {
         });
     },
     findClass: function (subnet, isTitle) {
-      var retval = "";
+      let retval = "";
 
       // Color
       if (subnet.color != undefined && this.themes != []) {
-        var found_theme = this.themes.find((x) => x.name == subnet.color);
+        let found_theme = this.themes.find((x) => x.name == subnet.color);
         if (!found_theme) {
           return "";
         }
@@ -444,7 +649,7 @@ export default {
     },
 
     prepareOriginsLinks: function (subnets) {
-      var retval = [];
+      let retval = [];
       const width = 7;
       subnets = subnets.filter(
         (x) =>
@@ -457,7 +662,7 @@ export default {
       );
 
       subnets.forEach((x, idx) => {
-        var found = this.themes.find(
+        let found = this.themes.find(
           (y) => x.links.color != undefined && y.name == x.links.color
         );
         if (!found) {
@@ -575,6 +780,11 @@ h2.subnet:hover {
   margin-top: 20px;
   border-radius: 1.25rem;
   clear: both;
+}
+
+.smartbar {
+  min-height: 50px !important;
+  background-color: unset !important;
 }
 
 .left {

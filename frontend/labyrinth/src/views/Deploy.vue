@@ -6,7 +6,7 @@
       size="xl"
       @ok="saveAnsibleVault"
     >
-      <b-row class="text-left">
+      <b-row class="text-left no-ml">
         <b-col>
           To create ansible vault files, use the following command:
           <code> ansible-vault create [FILENAME] </code><br />
@@ -17,11 +17,19 @@
       </b-row>
 
       <hr />
-      <b-row>
+      <b-row class="no-ml">
         <b-col class="border-right">
           <h4>Upload Ansible Vault File</h4>
           <b-row
             ><b-col>
+              <hr />
+              <span class="text-primary"
+                ><b
+                  >This file must be encrypted with Ansible Vault before
+                  uploading.</b
+                ></span
+              >
+              <hr />
               Become password needs to be in the following format: <br />
               <code class="text-left">
                 ---<br />
@@ -51,7 +59,7 @@
                   @click="
                     () => {
                       files_list['become'] = '';
-                      become_file = [];
+                      become_file = null;
                     }
                   "
                 >
@@ -95,7 +103,7 @@
                 @click="
                   () => {
                     files_list['ssh'] = '';
-                    ssh_key_file = [];
+                    ssh_key_file = null;
                   }
                 "
               >
@@ -118,6 +126,7 @@
           <b-row>
             <b-col> </b-col>
           </b-row>
+          <!--
           <b-row>
             <b-col cols="2"> Type: </b-col>
             <b-col
@@ -125,12 +134,12 @@
                 v-model="generated_ansible.type"
                 :options="['Username and Password', 'SSH Key']"
             /></b-col>
+          
           </b-row>
+          -->
           <b-row>
-            <b-col cols="4">
-              Ansible&nbsp;Vault&nbsp;Password:&nbsp;&nbsp;</b-col
-            >
             <b-col>
+              Ansible Vault Password: <br />
               <b-input
                 type="password"
                 v-model="generated_ansible.vault_password"
@@ -138,8 +147,8 @@
             </b-col>
           </b-row>
           <b-row>
-            <b-col cols="2"> Filename </b-col>
             <b-col>
+              Filename: <br />
               <b-input
                 v-model="generated_ansible.filename"
                 placeholder="Ansible Vault filename (e.g. password.yml)"
@@ -517,9 +526,9 @@ export default {
   name: "Deploy",
   data() {
     return {
-      ssh_key_file: [],
-      become_file: [],
-      other_file: [],
+      ssh_key_file: null,
+      become_file: null,
+      other_file: null,
       selected: {
         ssh: "",
         become: "",
@@ -572,20 +581,26 @@ export default {
   },
   watch: {
     ssh_key_file: /* istanbul ignore next */ function (val) {
-      this.uploadHelper(val, "ssh");
+      if (val) {
+        this.uploadHelper(val, "ssh");
+      }
     },
 
     become_file: /* istanbul ignore next */ function (val) {
-      this.uploadHelper(val, "become");
+      if (val) {
+        this.uploadHelper(val, "become");
+      }
     },
     other_file: /* istanbul ignore next */ function (val) {
-      this.uploadHelper(val, "other");
+      if (val) {
+        this.uploadHelper(val, "other");
+      }
     },
 
     //TODO: Finish other uploads
     selected_playbook: /* istanbul ignore next */ function (val) {
       if (val != "") {
-        this.loadPlaybook(val);
+        this.loadPlaybook();
       }
     },
 
@@ -602,7 +617,7 @@ export default {
   },
   methods: {
     generateAnsibleVault: async function () {
-      var a = new Vault({ password: this.generated_ansible.vault_password });
+      let a = new Vault({ password: this.generated_ansible.vault_password });
       this.loading_generated_vault_file = true;
 
       let item;
@@ -634,9 +649,9 @@ export default {
     },
     saveAnsibleVault: /* istanbul ignore next */ function (e) {
       e.preventDefault();
-      var auth = this.$auth;
-      var type = "become";
-      var formData = new FormData();
+      let auth = this.$auth;
+      let type = "become";
+      let formData = new FormData();
       formData.append("file", this.generated_vault_file);
       formData.append("filename", this.generated_ansible.filename);
       Helper.apiPost("upload", "/" + type, auth.accessToken, auth, formData)
@@ -652,8 +667,8 @@ export default {
 
     uploadHelper: /* istanbul ignore next */ function (val, type) {
       if (val) {
-        var auth = this.$auth;
-        var formData = new FormData();
+        let auth = this.$auth;
+        let formData = new FormData();
         formData.append("file", val);
         Helper.apiPost(
           "upload",
@@ -681,8 +696,8 @@ export default {
       }
     },
     loadPlaybook: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
-      var loadings = this.loadings;
+      let auth = this.$auth;
+      let loadings = this.loadings;
       this.loadings["playbook"] = 1;
       Helper.apiCall("get_ansible_file", this.selected_playbook, auth)
         .then((res) => {
@@ -696,7 +711,7 @@ export default {
     },
 
     createPlaybook: /* istanbul ignore next */ function (e) {
-      var auth = this.$auth;
+      let auth = this.$auth;
       e.preventDefault();
       Helper.apiCall("new_ansible_file", this.new_ansible_file, auth)
         .then(async () => {
@@ -712,8 +727,8 @@ export default {
     savePlaybook: /* istanbul ignore next */ function () {
       this.loadings["save_playbook"] = 1;
       this.$forceUpdate();
-      var auth = this.$auth;
-      var formData = new FormData();
+      let auth = this.$auth;
+      let formData = new FormData();
       formData.append("data", this.playbook_contents);
       Helper.apiPost(
         "save_ansible_file/",
@@ -751,12 +766,12 @@ export default {
         return false;
       }
 
-      var auth = this.$auth;
+      let auth = this.$auth;
       this.running = true;
       if (this.ips.length > 0) {
         this.ips.forEach((host) => {
-          var formData = new FormData();
-          var data = {
+          let formData = new FormData();
+          let data = {
             hosts: host,
             playbook: this.selected_playbook.replace(".yml", ""),
             vault_password: this.vault_password,
@@ -777,11 +792,11 @@ export default {
         return true;
       }
 
-      var formData = new FormData();
-      var host = this.selected_host;
+      let formData = new FormData();
+      let host = this.selected_host;
 
       this.playbook_loaded = false;
-      var data = {
+      let data = {
         hosts: host,
         playbook: this.selected_playbook.replace(".yml", ""),
         vault_password: this.vault_password,
@@ -802,7 +817,7 @@ export default {
     },
 
     loadIP: /* istanbul ignore next */ async function () {
-      var auth = this.$auth;
+      let auth = this.$auth;
       this.sample_loading = true;
       await Helper.apiCall("find_ip", "", auth)
         .then((res) => {
@@ -824,7 +839,7 @@ export default {
     },
 
     loadFilesList: /* istanbul ignore next */ async function (type) {
-      var auth = this.$auth;
+      let auth = this.$auth;
       Helper.apiCall("uploads", type, auth)
         .then((res) => {
           this.files_list[type] = res;
@@ -835,7 +850,7 @@ export default {
         });
     },
     loadSubnets: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+      let auth = this.$auth;
       Helper.apiCall("subnets", "", auth)
         .then((res) => {
           this.subnets = res;
@@ -845,7 +860,7 @@ export default {
         });
     },
     loadGroups: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+      let auth = this.$auth;
       Helper.apiCall("group", this.selected_subnet, auth)
         .then((res) => {
           this.groups = res;
@@ -856,7 +871,7 @@ export default {
     },
 
     loadGroupMembers: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+      let auth = this.$auth;
       Helper.apiCall(
         "group",
         this.selected_subnet + "/" + this.selected_group,
@@ -871,7 +886,7 @@ export default {
     },
 
     loadHosts: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+      let auth = this.$auth;
       Helper.apiCall("hosts", "", auth)
         .then((res) => {
           this.hosts = res.map((x) => {
@@ -944,6 +959,9 @@ textarea {
 .col {
   text-align: left;
   margin-left: 2rem;
+}
+.no-ml .col {
+  margin-left: 0 !important;
 }
 .cursor {
   cursor: pointer;

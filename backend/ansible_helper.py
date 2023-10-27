@@ -21,7 +21,7 @@ import uuid
 import ansi2html
 import ansible_runner
 
-
+from werkzeug.utils import secure_filename
 from typing import List
 
 
@@ -31,6 +31,9 @@ def check_file(filename, file_type, raw=""):
     """
     retval = False
     temp_file = "/tmp/{}".format(str(uuid.uuid1()))
+
+    filename = secure_filename(filename)
+    file_type = secure_filename(file_type)
 
     look_file = "/src/uploads/{}/{}".format(file_type, filename)
 
@@ -46,8 +49,7 @@ def check_file(filename, file_type, raw=""):
             f.write(raw)
 
         x = subprocess.run(
-            ["ansible-playbook {} --check".format(temp_file)],
-            shell=True,
+            ["ansible-playbook", temp_file, "--check"],
             capture_output=True,
         )
         if x.returncode >= 4:
@@ -57,15 +59,14 @@ def check_file(filename, file_type, raw=""):
 
         if retval:
             if not os.path.exists("/src/uploads/ansible"):  # pragma: no cover
-                os.mkdir("/src/uploads/ansible")
+                os.makedirs("/src/uploads/ansible")
             shutil.move(temp_file, "/src/uploads/ansible/{}.yml".format(filename))
 
         return [retval, x.stdout, x.stderr]
 
     elif file_type == "ansible":
         x = subprocess.run(
-            ["ansible-playbook {} --check".format(look_file)],
-            shell=True,
+            ["ansible-playbook", look_file, "--check"],
             capture_output=True,
         )
         if x.returncode >= 4:
@@ -80,7 +81,7 @@ def check_file(filename, file_type, raw=""):
 
         shutil.copy(look_file, "/etc/telegraf/telegraf.conf")
 
-        x = subprocess.run(["telegraf --test"], shell=True, capture_output=True)
+        x = subprocess.run(["telegraf", "--test"], capture_output=True)
         if x.returncode != 0:
             retval = False
         else:
@@ -144,11 +145,11 @@ def run_ansible(
     if not os.path.exists("/run"):  # pragma: no cover
         os.mkdir("/run")
 
-    os.mkdir(RUN_DIR)
+    os.makedirs(RUN_DIR)
 
     folders = ["inventory", "project", "vars", "env"]
     for folder in folders:
-        os.mkdir("{}/{}".format(RUN_DIR, folder))
+        os.makedirs("{}/{}".format(RUN_DIR, folder))
 
     # Copy over playbook
     src_playbook = "{}/{}.yml".format(SRC_DIR, playbook)

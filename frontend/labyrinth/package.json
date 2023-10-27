@@ -16,7 +16,7 @@
     "@fortawesome/vue-fontawesome": "^2.0.0",
     "ansible-vault": "^1.0.3",
     "auth0-js": "^9.16.4",
-    "axios": "^0.21.4",
+    "axios": "^0.27.2",
     "bootstrap": "^4.6.0",
     "bootstrap-vue": "^2.17.3",
     "canvas": "^2.9.3",
@@ -27,7 +27,7 @@
     "popper.js": "^1.16.1",
     "portal-vue": "^2.1.7",
     "register-service-worker": "^1.7.1",
-    "sanitize-html": "^2.5.0",
+    "sanitize-html": "^1.27.5",
     "vue": "^2.6.11",
     "vue-chartjs": "^3.5.1",
     "vue-codemirror": "^4.0.6",
@@ -68,8 +68,8 @@
     "vue-cli-plugin-fontawesome": "^0.3.1",
     "vue-template-compiler": "^2.6.11"
   },
-  "vue" : {
-    "outputDir" : "/tmp/dist"
+  "vue": {
+    "outputDir": "/tmp/dist"
   },
   "jest": {
     "collectCoverage": true,

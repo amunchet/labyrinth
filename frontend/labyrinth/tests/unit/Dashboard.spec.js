@@ -57,6 +57,91 @@ afterEach(() => {
 });
 
 describe("Dashboard.vue", () => {
+  beforeEach(() => {
+    wrapper.setData({
+      full_data: [
+        {
+          subnet: "172.19.0",
+          origin: {
+            ip: "",
+            icon: "",
+          },
+          links: {
+            ref: "",
+            ip: "",
+            icon: "",
+            color: "",
+          },
+          groups: [
+            {
+              name: "",
+              hosts: [
+                {
+                  ip: "172.19.0.0",
+                  subnet: "172.19.0",
+                  mac: "172.19.0.0",
+                  group: "",
+                  icon: "",
+                  monitor: false,
+                  services: [
+                    {
+                      name: "open_ports",
+                      state: -1,
+                    },
+                    {
+                      name: "closed_ports",
+                      state: -1,
+                    },
+                    {
+                      name: "new_host",
+                      state: true,
+                    },
+                  ],
+                  open_ports: [22],
+                  class: "",
+                  host: "",
+                },
+                {
+                  ip: "172.19.0.6",
+                  subnet: "172.19.0",
+                  mac: "172.19.0.6",
+                  group: "",
+                  icon: "",
+                  monitor: false,
+                  services: [
+                    {
+                      name: "open_ports",
+                      state: true,
+                    },
+                    {
+                      name: "closed_ports",
+                      state: true,
+                    },
+                    {
+                      name: "new_host",
+                      state: false,
+                    },
+                    {
+                      name: "Fileboi",
+                      state: true,
+                      latest_metric: {
+                        tags: {
+                          ip: "172.19.0.6",
+                        },
+                      },
+                    },
+                  ],
+                  open_ports: [139],
+                  class: "",
+                  host: "TESTHOST",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+  });
   test("is a Vue instance", () => {
     expect(wrapper.isVueInstance).toBeTruthy();
   });
@@ -228,16 +313,117 @@ describe("Dashboard.vue", () => {
         color: "white",
         top_1: "192.168.0.1",
         top_2: "192.168.1.1",
-        left: 10,
+        left: 7,
       },
       {
         color: "white",
         top_1: "192.168.2.1",
         top_2: "192.168.1.1",
-        left: 20,
+        left: 14,
       },
     ];
 
     expect(wrapper.vm.prepareOriginsLinks(subnets)).toStrictEqual(expected);
   });
+
+  /* Parse Command Lines */
+
+  /*
+  test("parseCommandLine - service FAIL", async () => {
+    wrapper.setData({
+      smartbar: "service=FAIL",
+    });
+    await wrapper.vm.$forceUpdate();
+    let found_hosts = wrapper.vm.parsed_data[0].groups[0].hosts.filter(x=>x.display);
+    expect(found_hosts.length).toStrictEqual(1);
+  });
+
+  test("parseCommandLine - service OLD", async () => {
+    wrapper.setData({
+      smartbar: "service=OLD",
+    });
+    await wrapper.vm.$forceUpdate();
+    let found_hosts = wrapper.vm.parsed_data[0].groups[0].hosts.filter(x=>x.display);
+    expect(found_hosts.length).toStrictEqual(1);
+  });
+  test("parseCommandLine - service OK", async () => {
+    wrapper.setData({
+      smartbar: "service=OK",
+    });
+    await wrapper.vm.$forceUpdate();
+    let found_hosts = wrapper.vm.parsed_data[0].groups[0].hosts.filter(x=>x.display);
+    expect(found_hosts.length).toStrictEqual(0);
+  });
+  */
+
+  test("parseCommandLine - service Fileboi", async () => {
+    wrapper.setData({
+      smartbar: "service=Fileboi",
+    });
+    await wrapper.vm.$forceUpdate();
+    let found_hosts = wrapper.vm.parsed_data[0].groups[0].hosts.filter(
+      (x) => x.display
+    );
+    expect(found_hosts.length).toStrictEqual(1);
+  });
+
+  test("parseCommandLine - host TESTHOST", async () => {
+    wrapper.setData({
+      smartbar: "host=TESTHOST",
+    });
+    await wrapper.vm.$forceUpdate();
+    let found_hosts = wrapper.vm.parsed_data[0].groups[0].hosts;
+    found_hosts = found_hosts.filter((x) => x.display);
+    expect(found_hosts.length).toStrictEqual(1);
+  });
+
+  test("parseCommandLine - tag ip", async () => {
+    wrapper.setData({
+      smartbar: "tag:ip=172.19.0.6",
+    });
+    await wrapper.vm.$forceUpdate();
+    let found_hosts = wrapper.vm.parsed_data[0].groups[0].hosts.filter(
+      (x) => x.display
+    );
+    expect(found_hosts.length).toStrictEqual(1);
+  });
+
+  test("parseCommandLine - port:22", async () => {
+    wrapper.setData({
+      smartbar: "port=22",
+    });
+    await wrapper.vm.$forceUpdate();
+    let found_hosts = wrapper.vm.parsed_data[0].groups[0].hosts.filter(
+      (x) => x.display
+    );
+    expect(found_hosts.length).toStrictEqual(1);
+  });
+
+  /*
+  test("parseCommandLine - NOT port:23", async () => {
+    wrapper.setData({
+      smartbar: "NOT port=23",
+    });
+    await wrapper.vm.$forceUpdate();
+    let found_hosts = wrapper.vm.parsed_data[0].groups[0].hosts.filter(x=>x.display);
+    expect(found_hosts.length).toStrictEqual(2);
+  });
+
+  test("parseCommandLine - NOT port:23 AND ", async () => {
+    wrapper.setData({
+      smartbar: "NOT port=23 AND service=FAIL",
+    });
+    await wrapper.vm.$forceUpdate();
+    let found_hosts = wrapper.vm.parsed_data[0].groups[0].hosts.filter(x=>x.display);
+    expect(found_hosts.length).toStrictEqual(1);
+  });
+  test("parseCommandLine - port 23 OR tag ip", async () => {
+    wrapper.setData({
+      smartbar: "port=23 OR NOT tag:ip=172.19.0.6",
+    });
+    await wrapper.vm.$forceUpdate();
+    let found_hosts = wrapper.vm.parsed_data[0].groups[0].hosts.filter(x=>x.display);
+    expect(found_hosts.length).toStrictEqual(1);
+  });
+  */
 });

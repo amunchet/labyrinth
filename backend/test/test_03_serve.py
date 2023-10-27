@@ -8,7 +8,7 @@ import pytest
 import serve
 
 
-from common.test import unwrap
+from common.test import unwrap, delete_keys_recursive
 
 
 # Labyrinth main functions
@@ -618,7 +618,7 @@ def test_insert_metric(setup):
                     "diskio": 884284,
                 },
                 "name": "check_hd",
-                "tags": {"host": "00-00-00-00-01"},
+                "tags": {"host": "00-00-00-00-01", "ip": "172.19.0.6"},
                 "timestamp": 1625683390,
             },
         ]
@@ -632,11 +632,19 @@ def test_insert_metric(setup):
     a = unwrap(serve.insert_metric)(sample_data)
     assert a[1] == 200
 
-    b = serve.mongo_client["labyrinth"]["metrics"].find({})
+    b = serve.mongo_client["labyrinth"]["metrics-latest"].find({})
     c = [x for x in b]
     assert len(c) == 1
     for item in sample_data["metrics"][0]:
-        assert c[0][item] == sample_data["metrics"][0][item]
+        print(item)
+        if item == "_id":
+            pass
+        elif item == "timestamp":
+            assert c[0][item].replace(microsecond=0, second=0) == sample_data[
+                "metrics"
+            ][0][item].replace(microsecond=0, second=0)
+        else:
+            assert c[0][item] == sample_data["metrics"][0][item]
 
 
 def test_list_dashboard(setup):
@@ -683,9 +691,34 @@ def test_list_dashboard(setup):
                             "host": "test",
                             "icon": "linux",
                             "services": [
-                                {"name": "open_ports", "state": False},
-                                {"name": "closed_ports", "state": False},
-                                {"name": "check_hd-1", "state": False},
+                                {
+                                    "found_service": "open_ports",
+                                    "name": "open_ports",
+                                    "state": False,
+                                    "latest_metric": None,
+                                },
+                                {
+                                    "name": "closed_ports",
+                                    "state": False,
+                                    "found_service": "closed_ports",
+                                    "latest_metric": None,
+                                },
+                                {
+                                    "name": "check_hd-1",
+                                    "state": False,
+                                    "latest_metric": None,
+                                    "found_service": {
+                                        "comparison": "greater",
+                                        "display_name": "check_hd-1",
+                                        "field": "read_time",
+                                        "metric": "diskio",
+                                        "name": "check_hd",
+                                        "tag_name": "cpu",
+                                        "tag_value": "cpu-all",
+                                        "type": "check",
+                                        "value": 300,
+                                    },
+                                },
                             ],
                             "class": "health",
                         }
@@ -712,8 +745,5 @@ def test_list_dashboard(setup):
 
     b = json.loads(a[0])
 
-    del b[0]["_id"]
-    del b[1]["_id"]
-    del b[1]["groups"][0]["hosts"][0]["_id"]
-
+    delete_keys_recursive(b)
     assert b == expected

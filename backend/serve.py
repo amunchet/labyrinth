@@ -28,6 +28,7 @@ import services as svcs
 from common import auth
 from common.test import unwrap
 from flask import Flask, request, Response, send_file
+from markupsafe import escape
 from werkzeug.utils import secure_filename
 from flask_cors import CORS
 from PIL import Image
@@ -123,15 +124,15 @@ def secure():
 valid_type = ["ssh", "totp", "become", "telegraf", "ansible", "other"]
 
 
-@app.route("/upload/<type>/<override_token>", methods=["POST"])
+@app.route("/upload/<file_type>/<override_token>", methods=["POST"])
 @requires_auth_admin
-def upload(type, override_token):  # pragma: no cover
+def upload(file_type, override_token):  # pragma: no cover
     """
     Handles file upload
-        - Two types: straight upload and form data upload
+        - Two file_types: straight upload and form data upload
         - Form data upload comes from manual additions of vault files
     """
-    if type not in valid_type:
+    if file_type not in valid_type:
         return "Invalid type", 412
 
     if "file" not in request.files and "file" not in request.form:
@@ -147,16 +148,20 @@ def upload(type, override_token):  # pragma: no cover
         data = request.form["file"]
         filename = request.form["filename"]
 
+    file_type = secure_filename(file_type)
+    filename = secure_filename(filename)
+
     if file != "" and file.filename == "":
         return "No file selected", 409
 
     if not os.path.exists("/src/uploads"):
-        os.mkdir("/src/uploads")
+        os.makedirs("/src/uploads")
 
-    if not os.path.exists("/src/uploads/{}".format(type)):
-        os.mkdir("/src/uploads/{}".format(type))
+    if not os.path.exists("/src/uploads/{}".format(file_type)):
+        os.mkdir("/src/uploads/{}".format(file_type))
 
     if data:
+        data = data.replace("\r\n", "\n")
         with open("/tmp/{}".format(filename), "w") as f:
             f.write(data)
 
@@ -165,41 +170,51 @@ def upload(type, override_token):  # pragma: no cover
         ):
             os.remove("/src/uploads/become/{}.yml".format(filename.replace(".yml", "")))
 
-        if ansible_helper.check_file(filename, type):
+        if ansible_helper.check_file(filename, file_type):
             shutil.move(
                 "/tmp/{}".format(filename),
                 "/src/uploads/become/{}.yml".format(filename.replace(".yml", "")),
             )
-            return filename, 200
+            return escape(filename), 200
         os.remove("/tmp/{}".format(filename))
         return "File check failed", 522
 
     elif file:
         filename = secure_filename(file.filename)
-        file.save("/tmp/{}".format(filename))
-        if ansible_helper.check_file(filename, type):
+
+        # file.save("/tmp/{}".format(filename))
+        file_contents = file.read().decode("utf-8")
+        file_contents = file_contents.replace("\r\n", "\n")
+        with open(os.path.join("/tmp", filename), "w") as f:
+            f.write(file_contents)
+
+        check_results = ansible_helper.check_file(filename, file_type)
+        if check_results:
             shutil.move(
-                "/tmp/{}".format(filename), "/src/uploads/{}/{}".format(type, filename)
+                "/tmp/{}".format(filename),
+                "/src/uploads/{}/{}".format(file_type, filename),
             )
         else:
-            return "File check failed", 521
+            return f"File check failed: {check_results}", 521
 
     # Chmod
-    chmod_filename = "/src/uploads/{}/{}".format(type, filename)
+    chmod_filename = "/src/uploads/{}/{}".format(file_type, filename)
     os.chmod(chmod_filename, 0o600)
-    return file.filename, 200
+    return escape(filename), 200
 
 
-@app.route("/uploads/<type>", methods=["GET"])
+@app.route("/uploads/<file_type>", methods=["GET"])
 @requires_auth_admin
-def list_uploads(type):
+def list_uploads(file_type):
     """
     Lists all entries in an upload folder
     """
-    if type in valid_type:
-        if not os.path.exists("/src/uploads/{}".format(type)):
-            os.mkdir("/src/uploads/{}".format(type))
-        return json.dumps(os.listdir("/src/uploads/{}".format(type)), default=str), 200
+    file_type = secure_filename(file_type)
+    if file_type in valid_type:
+        fname = "/src/uploads/{}".format(file_type)
+        if not os.path.exists(fname):
+            os.mkdir(fname)
+        return json.dumps(os.listdir(fname), default=str), 200
     return "Not found", 409
 
 
@@ -591,6 +606,7 @@ def delete_service(name):
         - Also deletes a snippet if it exists
         - Removes service from all hosts if they have it
     """
+    name = secure_filename(name)
     # Delete Service
     mongo_client["labyrinth"]["services"].delete_one({"display_name": name})
 
@@ -709,7 +725,6 @@ def autosave(auth_client_id, data=""):
         parsed_data = request.form.get("data")
     else:  # pragma: no cover
         return "Invalid", 496
-
     rc = redis.Redis(host=os.environ.get("REDIS_HOST"))
     a = rc.set(auth_client_id, parsed_data)
     return "Success", 200
@@ -722,6 +737,7 @@ def save_conf(host, data="", raw=""):
     """
     Saves the Telegraf config file to the given host location
     """
+    host = secure_filename(host)
     if data != "" or raw != "":
         parsed_data = data
         parsed_raw = raw
@@ -742,18 +758,20 @@ def run_telegraf(fname, testing):
     """
     Runs specified telegraf file
     """
+    fname = secure_filename(fname)
     return svcs.run(fname, testing == 1), 200
 
 
 # Load TOML file
 @app.route("/load_service/<name>")
-@app.route("/load_service/<name>/<format>")
+@app.route("/load_service/<name>/<file_format>")
 @requires_auth_admin
-def load_service(name, format="json"):
+def load_service(name, file_format="json"):
     """
     Loads in a TOML service file
     """
-    return svcs.load(name, format), 200
+    name = secure_filename(name)
+    return svcs.load(name, file_format), 200
 
 
 # Alertmanager
@@ -925,6 +943,23 @@ def delete_setting(setting):
     return "Success", 200
 
 
+@app.route("/settings/restart")
+@app.route("/settings/restart/<int:code>")
+@requires_auth_admin
+def restart(code=0):  # pragma: no cover
+    """
+    Restarts either the process or the docker
+    """
+    if int(code) == 0:
+        print("Exiting 0")
+        sys.exit(0)
+    elif int(code) == 4:
+        print("Exiting 4")
+        sys.exit(4)
+    else:
+        return "Invalid exit code", 400
+
+
 # Icons
 def check_extension(fname):
     """
@@ -1061,20 +1096,21 @@ def find_ip(name=""):
         return socket.gethostbyname(name), 200
 
 
-@app.route("/list_directory/<type>")
+@app.route("/list_directory/<file_type>")
 @requires_auth_admin
-def list_directory(type):
+def list_directory(file_type):
     """
     Lists directory
     """
+    file_type = secure_filename(file_type)
 
-    if type not in valid_type:  # pragma: no cover
+    if file_type not in valid_type:  # pragma: no cover
         return "Invalid type", 446
 
-    if not os.path.exists("/src/uploads/{}".format(type)):  # pragma: no cover
+    if not os.path.exists("/src/uploads/{}".format(file_type)):  # pragma: no cover
         return "No folder", 447
 
-    return json.dumps(os.listdir("/src/uploads/{}".format(type))), 200
+    return json.dumps(os.listdir("/src/uploads/{}".format(file_type))), 200
 
 
 @app.route("/new_ansible_file/<fname>")
@@ -1083,12 +1119,13 @@ def new_ansible_file(fname):
     """
     Creates a new ansible file
     """
+    fname = secure_filename(fname)
     filename = "/src/uploads/ansible/{}.yml".format(fname.replace(".yml", ""))
     if os.path.exists(filename):
         return "File already exists", 407
     with open(filename, "w") as f:
         f.write("")
-    return filename, 200
+    return escape(filename), 200
 
 
 @app.route("/get_ansible_file/<fname>")
@@ -1097,6 +1134,7 @@ def get_ansible_file(fname):
     """
     Returns the given ansible file
     """
+    fname = secure_filename(fname)
     parsed = fname.replace(".yml", "")
     with open("/src/uploads/ansible/{}.yml".format(parsed)) as f:
         return f.read(), 200
@@ -1363,7 +1401,6 @@ def dashboard(val="", report=False, flapping_delay=1300):
                             found_service["tag_value"],
                         )
                     else:
-
                         latest_metric = find_metric(found_service["name"], host)
 
                     if not latest_metric:
@@ -1395,14 +1432,40 @@ def dashboard(val="", report=False, flapping_delay=1300):
                         json.dumps(latest_metric, default=str) or "",
                         json.dumps(found_service, default=str) or "",
                     )
-                
+
                 key_name = f"{alert_name}{metric_name}{host_name}".replace(" ", "")
                 found_key = rc.get(key_name)
-                if(found_key and time.time() - float(found_key) < flapping_delay):
-                    watcher.send_alert(alert_name, metric_name, host_name, summary=summary)
+                if found_key and time.time() - float(found_key) < flapping_delay:
+                    # Handle found_service severity
+                    severity = "error"
+                    if "service_level" in host and host["service_level"] == "warning":
+                        severity = "warning"
+                    elif "service_levels" in host:
+                        for item in host["service_levels"]:
+                            if (
+                                item
+                                and "service" in item
+                                and item["service"] == found_service
+                                and "level" in item
+                                and item["level"] == "warning"
+                            ):
+                                severity = "warning"
+                                break
+                    watcher.send_alert(
+                        alert_name,
+                        metric_name,
+                        host_name,
+                        summary=summary,
+                        severity=severity,
+                    )
                 rc.set(key_name, time.time())
 
-            service_results[service] = {"name": service, "state": result}
+            service_results[service] = {
+                "name": service,
+                "state": result,
+                "found_service": found_service,
+                "latest_metric": latest_metric,
+            }
         for item in service_results:
             host["services"] = [service_results[x] for x in service_results]
 
@@ -1503,6 +1566,7 @@ def custom_dashboard_return_image(override_token, filename):
     """
     Returns a specific image file
     """
+    filename = secure_filename(filename)
     if os.path.exists("/src/uploads/images") and filename in os.listdir(
         "/src/uploads/images"
     ):
@@ -1516,6 +1580,7 @@ def custom_dashboard_delete_image(dashboard_image):
     """
     Deletes a Custom Dashboard Image
     """
+    dashboard_image = secure_filename(dashboard_image)
     dir_list = os.listdir("/src/uploads/images")
     if dashboard_image not in dir_list:
         return "Not Found", 404
@@ -1538,10 +1603,10 @@ def custom_dashboard_image_upload(override=""):
         file = request.files["file"]
 
     if not os.path.exists("/src/uploads"):
-        os.mkdir("/src/uploads")
+        os.makedirs("/src/uploads")
 
     if not os.path.exists("/src/uploads/images"):
-        os.mkdir("/src/uploads/images")
+        os.makedirs("/src/uploads/images")
 
     if override:
         filename = override
@@ -1586,7 +1651,7 @@ def last_metrics(count):
 @app.route("/metrics/<host>/<service>/<int:count>")
 @app.route("/metrics/<host>/<service>/<option>")
 @requires_auth_read
-def read_metrics(host, service="", count=10, option=""):
+def read_metrics(host, service="", count=100, option=""):
     """
     Returns the latest metrics for a given host
     """
@@ -1619,7 +1684,13 @@ def read_metrics(host, service="", count=10, option=""):
     if option == "latest":
         table = "metrics-latest"
 
-    retval = [x for x in mongo_client["labyrinth"][table].find(or_clause).sort("_id", -1).limit(count)]
+    retval = [
+        x
+        for x in mongo_client["labyrinth"][table]
+        .find(or_clause)
+        .sort("_id", -1)
+        .limit(count)
+    ]
 
     if service.strip() == "open_ports" or service.strip() == "closed_ports":
         for item in retval:
@@ -1627,12 +1698,11 @@ def read_metrics(host, service="", count=10, option=""):
                 item, service, found_host, stale_time=10000
             )
             item["judgement_debug"] = {
-                "item" : json.dumps(item, default=str),
-                "service" : service,
-                "found_host" : found_host
+                "item": json.dumps(item, default=str),
+                "service": service,
+                "found_host": found_host,
             }
     else:
-
         for item in retval:
             if item is None or found_service is None:
                 item["judgement"] = False
@@ -1652,8 +1722,9 @@ def delete_metric(metric_id):
     Deletes a metric id
     """
     object_id = bson.ObjectId(metric_id)
-    mongo_client["labyrinth"]["metrics-latest"].delete_one({"_id" : object_id})
+    mongo_client["labyrinth"]["metrics-latest"].delete_one({"_id": object_id})
     return "Success", 200
+
 
 @app.route("/metrics/", methods=["POST"])
 @requires_header
@@ -1672,7 +1743,6 @@ def insert_metric(inp=""):
         return "Invalid data", 421
 
     for item in data["metrics"]:
-
         if "timestamp" in item:
             try:
                 # item["timestamp"] = datetime.datetime.fromtimestamp(item["timestamp"])
@@ -1702,16 +1772,13 @@ def insert_metric(inp=""):
                 pass
             else:
                 mongo_client["labyrinth"]["metrics"].insert_one(item)
-            
+
                 a.set("last_metric_{}".format(item["tags"]["ip"]), time.time())
 
     return "Success", 200
 
 
-
-
 if __name__ == "__main__":  # pragma: no cover
-
     # Check on indexes
     index_helper()
 

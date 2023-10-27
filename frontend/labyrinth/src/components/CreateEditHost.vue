@@ -32,9 +32,17 @@
         <b-col>
           <b-input
             v-model="host.ip"
-            :state="!$v.host.ip.$invalid"
+            :state="
+              !$v.host.ip.$invalid && (inp_host != '' || !all_ips.has(host.ip))
+            "
             placeholder="E.g. 192.168.0.1"
           />
+          <span
+            v-if="inp_host == '' && all_ips && all_ips.has(host.ip)"
+            class="text-danger"
+          >
+            Error: IP Address already exists!
+          </span>
         </b-col>
       </b-row>
       <b-row>
@@ -271,6 +279,98 @@
         </b-table>
       </b-col>
     </b-row>
+    <hr />
+    <b-row>
+      <b-col>
+        <h5>Host Reporting Level</h5>
+
+        <b-select
+          v-model="host.service_level"
+          :options="['error', 'warning']"
+        />
+        <div class="mt-2 text-small">
+          This overrides all reporting level settings for this host if set to
+          warning. If set to error, then each service can have its level set
+          individually.
+        </div>
+      </b-col>
+      <b-col>
+        <h5>
+          Service Reporting Levels
+          <b-button
+            variant="link"
+            class="float-right mt-0 pt-1 shadow-none"
+            @click="show_add_service_level = !show_add_service_level"
+          >
+            <font-awesome-icon icon="plus" size="1x" />
+          </b-button>
+        </h5>
+        <b-table
+          v-if="host.service_levels"
+          striped
+          :items="host.service_levels.map((x) => x).filter((x) => x)"
+          :fields="['_', 'service', 'level']"
+        >
+          <template v-slot:cell(_)="item">
+            <b-button
+              variant="link"
+              @click="
+                () => {
+                  host.service_levels.splice(item.index, 1);
+                  $forceUpdate();
+                }
+              "
+            >
+              <font-awesome-icon icon="times" size="1x" />
+            </b-button>
+          </template>
+        </b-table>
+        <b-row v-if="show_add_service_level" class="text-left ml-0 pl-0">
+          <b-col class="text-left ml-0 pl-0">
+            <b-select
+              :options="
+                host.services
+                  .map((x) => x.name)
+                  .filter((x) => {
+                    if (host.service_levels) {
+                      return host.service_levels.indexOf(x) == -1;
+                    }
+                    return x;
+                  })
+              "
+              v-model="new_service_level"
+            />
+          </b-col>
+          <b-col class="text-left">
+            <b-select
+              :options="['error', 'warning']"
+              v-model="new_service_level_value"
+            />
+          </b-col>
+          <b-col class="text-left">
+            <b-button
+              @click="
+                () => {
+                  if (host.service_levels == undefined) {
+                    host.service_levels = [];
+                  }
+                  host.service_levels.push({
+                    service: new_service_level + '',
+                    level: new_service_level_value + '',
+                  });
+                  new_service_level = '';
+                  new_sevice_level_value = 'error';
+                  show_add_service_level = false;
+                  $forceUpdate();
+                }
+              "
+            >
+              <font-awesome-icon icon="save" size="1x" />
+            </b-button>
+          </b-col>
+        </b-row>
+      </b-col>
+    </b-row>
     <b-row class="overflow-scroll" v-if="metrics.length">
       <h4>Latest Host Metrics</h4>
       <div style="max-height: 400px; overflow-y: scroll">
@@ -298,11 +398,11 @@ export default {
   components: {
     Checks,
   },
-  props: ["inp_host"],
+  props: ["inp_host", "all_ips"],
   data() {
     return {
       isNew: true,
-      host: "",
+      host: {},
       metrics: [],
 
       safe_host: {
@@ -318,9 +418,12 @@ export default {
       new_service: "",
 
       new_services: [],
+      new_service_level: "",
+      new_service_level_value: "",
 
       show_add_port: false,
       show_add_service: false,
+      show_add_service_level: false,
 
       services: [],
       icons: [],
@@ -346,7 +449,7 @@ export default {
   },
   methods: {
     listIcons: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+      let auth = this.$auth;
       Helper.apiCall("icons", "", auth)
         .then((res) => {
           this.icons = res.map((x) => {
@@ -361,7 +464,7 @@ export default {
         });
     },
     loadServices: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+      let auth = this.$auth;
       Helper.apiCall("services", "all", auth)
         .then((res) => {
           this.services = res.map((x) => {
@@ -376,7 +479,7 @@ export default {
         });
     },
     loadMetrics: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+      let auth = this.$auth;
       Helper.apiCall("metrics", this.host.mac, auth)
         .then((res) => {
           this.metrics = res;
@@ -387,8 +490,8 @@ export default {
         });
     },
     saveHost: /* istanbul ignore next  */ function () {
-      var auth = this.$auth;
-      var formData = new FormData();
+      let auth = this.$auth;
+      let formData = new FormData();
 
       if (this.$v.host.$invalid) {
         this.$store.commit(
@@ -398,7 +501,12 @@ export default {
         return -1;
       }
 
-      var host = JSON.parse(JSON.stringify(this.host));
+      if (this.inp_host == "" && this.all_ips.has(this.host.ip)) {
+        this.$store.commit("updateError", "Error: IP Address already exists.");
+        return -1;
+      }
+
+      let host = JSON.parse(JSON.stringify(this.host));
       host["services"] = host["services"].map((x) => x["name"]);
       formData.append("data", JSON.stringify(host));
       Helper.apiPost("host", "", "", auth, formData)
@@ -412,8 +520,8 @@ export default {
         });
     },
     deleteHost: /* istanbul ignore next */ function () {
-      var host = this.host;
-      var auth = this.$auth;
+      let host = this.host;
+      let auth = this.$auth;
       this.$bvModal
         .msgBoxConfirm("Are you sure you want to delete this host?")
         .then((res) => {
@@ -421,7 +529,7 @@ export default {
             return;
           }
 
-          var url = host.mac;
+          let url = host.mac;
           if (host.mac == "") {
             url = host.ip;
           }

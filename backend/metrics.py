@@ -6,7 +6,7 @@ import time
 import datetime
 import logging
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.WARNING)
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +128,8 @@ def judge_check(metric, service):
     if service["comparison"] == "equals":
         logger.debug("In equals comparison")
         try:
-            return found == service["value"]
+            output = str(found).strip() == str(service["value"]).strip()
+            return output
         except TypeError:  # pragma: no cover
             try:
                 return float(found) == float(service["value"])

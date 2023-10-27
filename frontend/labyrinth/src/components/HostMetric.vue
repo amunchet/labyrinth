@@ -9,24 +9,25 @@
     <div style="overflow-x: scroll" class="mt-2">
       <h4>Current Result</h4>
 
-      
       <b-table
         :items="latest_metric"
         v-if="!loading"
         :fields="['name', 'tags', 'fields', 'timestamp', 'judgement']"
       >
         <template v-slot:cell(name)="row">
-          {{row.item.name}}<br />
-          <b-button @click="deleteMetric(row.item._id)" variant="link" class="text-danger mt-4 p-0 ml-0 mr-0">
-            <font-awesome-icon icon="trash" size="1x" />&nbsp;
-            Delete Metric
-            </b-button>
-
-          </template>
+          {{ row.item.name }}<br />
+          <b-button
+            @click="deleteMetric(row.item._id)"
+            variant="link"
+            class="text-danger mt-4 p-0 ml-0 mr-0"
+          >
+            <font-awesome-icon icon="trash" size="1x" />&nbsp; Delete Metric
+          </b-button>
+        </template>
         <template v-slot:cell(timestamp)="row">
           {{ formatDate(row.item.timestamp * 1000) }}
           {{ formatDate(row.item.timestamp * 1000, true) }}
-                  </template>
+        </template>
 
         <template v-slot:cell(fields)="row">
           <b-table
@@ -61,7 +62,6 @@
           </b-table>
         </template>
       </b-table>
-
 
       <hr />
       <h4>History</h4>
@@ -137,33 +137,40 @@ export default {
   mounted() {},
   methods: {
     formatDate: Helper.formatDate,
-    loadLatestMetric: /* istanbul ignore next */ function(){
-      var auth = this.$auth
-      this.loading = true
-      Helper.apiCall("metrics", this.data.ip + "/" + this.data.name + "/latest", auth).then(res=>{
-        this.latest_metric = res
-        this.loading = false
-      }).catch(e=>{
-        this.$store.commit("updateError", e)
-        this.loading = false
-      })
+    loadLatestMetric: /* istanbul ignore next */ function () {
+      let auth = this.$auth;
+      this.loading = true;
+      Helper.apiCall(
+        "metrics",
+        this.data.ip + "/" + this.data.name + "/latest",
+        auth
+      )
+        .then((res) => {
+          this.latest_metric = res;
+          this.loading = false;
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+          this.loading = false;
+        });
     },
-    deleteMetric: /* istanbul ignore next */ function(metric_id){
-      var auth = this.$auth
-      Helper.apiDelete("metrics", metric_id, auth).then(()=>{
-        this.loadLatestMetric()
-      }).catch(e=>{
-        this.$store.commit("updateError", e)
-      })
+    deleteMetric: /* istanbul ignore next */ function (metric_id) {
+      let auth = this.$auth;
+      Helper.apiDelete("metrics", metric_id, auth)
+        .then(() => {
+          this.loadLatestMetric();
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
     },
   },
   watch: {
     data: /* istanbul ignore next */ async function (inp) {
       if (inp != "" && inp != undefined && inp) {
+        this.loadLatestMetric();
 
-        this.loadLatestMetric()
-
-        var auth = this.$auth;
+        let auth = this.$auth;
         this.loading = true;
         this.display = false;
         await Helper.apiCall(

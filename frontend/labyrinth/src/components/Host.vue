@@ -151,6 +151,9 @@ export default {
     "host",
     "monitor",
     "monitored_only",
+    "display",
+    "service_level",
+    "service_levels",
   ],
   data() {
     return {
@@ -189,17 +192,38 @@ export default {
       this.$emit("dragEnd");
     },
     determineClass: function (service) {
+      var warning = this.service_level == "warning" ? true : false;
+      try {
+        var name = service.name;
+        var temp = this.service_levels.filter((x) => x.service == name);
+        if (temp.length > 0 && temp[0].level == "warning") {
+          warning = true;
+        }
+      } catch (e) {
+        console.log("determineClass Error");
+        console.log(e);
+      }
+
+      var bg_color = "green-bg";
+
       if (service.state == -1) {
-        return "orange-bg host_col darkgrey hover";
+        bg_color = "orange-bg";
+        if (warning) {
+          bg_color = "orange-border";
+        }
+      } else if (service.state == false) {
+        bg_color = "red-bg";
+        if (warning) {
+          bg_color = "red-border";
+        }
+      } else if (warning) {
+        bg_color = "green-border";
       }
-      if (service.state == false) {
-        return "red-bg host_col darkgrey hover";
-      }
-      return "green-bg host_col darkgrey hover";
+      return `${bg_color} host_col darkgrey hover`;
     },
   },
   created() {
-    for (var i = 0; i < this.icons.length; i++) {
+    for (let i = 0; i < this.icons.length; i++) {
       let componentName = this.icons[i];
       this.myComponent[this.icons[i]] = componentName + ".svg";
     }

@@ -13,7 +13,6 @@ from common.test import unwrap
 
 
 def test_read_redis():
-
     a = redis.Redis(host="redis")
     # Remove any old results
     found_keys = a.keys(pattern="output-*")

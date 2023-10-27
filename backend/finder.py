@@ -26,25 +26,41 @@ def scan(subnet: str, callback_fn, verbose=False) -> List:  # pragma: no cover
     if len(subnet.split(".")) == 3:
         search += ".0/24"
 
-
     # Ping version
-    ping_output = subprocess.check_output(["nmap", "-PE", "-sn", "-T5", "-oX", "-", search])
+    ping_output = subprocess.check_output(
+        ["nmap", "-PE", "-sn", "-T5", "-oX", "-", search]
+    )
     parsed = xmltodict.parse(ping_output)
 
     ## Exactly one alive host will break the process
-    if type(parsed['nmaprun']['host']) == type({}):
-        parsed["nmaprun"]["host"] = [parsed['nmaprun']['host']]
-    arr = [x['address']['@addr'] for x in parsed['nmaprun']['host']]
-    search = " ".join(arr)
+    if type(parsed["nmaprun"]["host"]) == type({}):
+        parsed["nmaprun"]["host"] = [parsed["nmaprun"]["host"]]
 
+    arr = []
+    for x in parsed["nmaprun"]["host"]:
+        if "address" in x and "@addr" in x["address"]:
+            arr.append(x["address"]["@addr"])
+        elif type(x["address"]) is list:
+            found = [
+                item["@addr"]
+                for item in x["address"]
+                if (
+                    "@addr" in item
+                    and "." in item["@addr"]
+                    and ":" not in item["@addr"]
+                )
+            ]
+            if found:
+                arr.append(found[0])
+
+    print(arr)
+    search = " ".join(arr)
 
     scanner = ps()
     results = []
-    
+
     arguments = "-sV -O -A --script vulners"
-    arguments = (
-        "-sT -PU0 -Pn"  # Removed vulners, since security scanning will be done externally
-    )
+    arguments = "-sT -PU0 -Pn"  # Removed vulners, since security scanning will be done externally
     callback_fn(search + "\n\n" + f"Hosts Count:{len(arr)}")
 
     for line in scanner.scan(hosts=search, arguments=arguments):
@@ -141,7 +157,6 @@ def main():  # pragma: no cover
         rclient.set("output-{}".format(subnet), output + str(msg))
 
     with PidFile("labyrinth-finder") as p:
-
         # List each subnet
         subnets = json.loads(unwrap(list_subnets)()[0])
 

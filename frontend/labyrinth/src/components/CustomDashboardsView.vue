@@ -19,6 +19,7 @@
           :style="generateHostStyle(host)"
         >
           <Host
+            v-if="host.display != false"
             :ip="host.ip"
             passed_class="main"
             :icon="host.icon"
@@ -28,6 +29,8 @@
             :mem="host.mem_check"
             :hd="host.hd_check"
             :monitor="host.monitor"
+            :service_level="host.service_level ? host.service_level : null"
+            :service_levels="host.service_levels ? host.service_levels : null"
             @service="
               (val) => {
                 selected_metric = val;
@@ -71,7 +74,7 @@ export default {
     computed_filtered_data: function () {
       try {
         if (this.selected_dashboard && this.selected_dashboard.components) {
-          var temp = {};
+          let temp = {};
           this.selected_dashboard.components.forEach((x) => {
             temp[x.subnet + x.name] = 1;
           });
@@ -89,7 +92,7 @@ export default {
   methods: {
     generateHostStyle: function (host) {
       // Generates the offsets from the given host data
-      var offsets = this.selected_dashboard.components.filter(
+      let offsets = this.selected_dashboard.components.filter(
         (x) => x.name == host.ip && x.subnet == host.subnet
       );
       if (offsets.length > 0) {
@@ -110,7 +113,7 @@ export default {
       return "";
     },
     generateBackgroundImage: function () {
-      var url =
+      let url =
         "/api/custom_dashboard_images/" +
         this.$auth.accessToken +
         "/" +
@@ -119,7 +122,7 @@ export default {
       return url;
     },
     loadCustomDashboards: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+      let auth = this.$auth;
       Helper.apiCall("custom_dashboards", "", auth)
         .then((res) => {
           this.custom_dashboards = res.map((x) => {
@@ -141,15 +144,15 @@ export default {
         });
     },
     loadData: /* istanbul ignore next */ async function (showLoading) {
-      var auth = this.$auth;
-      var url = "";
+      let auth = this.$auth;
+      let url = "";
       if (showLoading) {
         this.loading = true;
         url = "1";
       }
       await Helper.apiCall("dashboard", url, auth)
         .then((res) => {
-          var temp = [];
+          let temp = [];
           res.forEach((subnet) => {
             if (subnet.groups != undefined) {
               subnet.groups.forEach((subnet) => {

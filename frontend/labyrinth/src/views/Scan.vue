@@ -18,7 +18,15 @@
         height="2rem"
       >
         <b-progress-bar
-          :value="((subnet.match(/\*/g) || []).length / (1 * (subnet.match(/Hosts Count:(\d+)/g) || [''])[0].replace('Hosts Count:', ''))) * 100"
+          :value="
+            ((subnet.match(/\*/g) || []).length /
+              (1 *
+                (subnet.match(/Hosts Count:(\d+)/g) || [''])[0].replace(
+                  'Hosts Count:',
+                  ''
+                ))) *
+            100
+          "
         >
           <span
             ><strong>
@@ -26,7 +34,15 @@
               {{ subnet.split(".")[1].split("*")[0] }}
               {{ subnet.split(".")[2].split("*")[0] }}
               {{
-                (((subnet.match(/\*/g) || []).length / (1 * (subnet.match(/Hosts Count:(\d+)/g) || [''])[0].replace('Hosts Count:', ''))) * 100).toFixed(0)
+                (
+                  ((subnet.match(/\*/g) || []).length /
+                    (1 *
+                      (subnet.match(/Hosts Count:(\d+)/g) || [""])[0].replace(
+                        "Hosts Count:",
+                        ""
+                      ))) *
+                  100
+                ).toFixed(0)
               }}%</strong
             ></span
           >
@@ -52,13 +68,13 @@ export default {
   },
   methods: {
     loadData: /* istanbul ignore next */ async function () {
-      var auth = this.$auth;
+      let auth = this.$auth;
       await Helper.apiCall("redis", "", auth)
         .then((res) => {
           this.data = res;
           this.$forceUpdate();
           if (res.indexOf("Finished") == -1) {
-            var el = this.$refs.textarea_1.$el;
+            let el = this.$refs.textarea_1.$el;
             el.scrollTop = el.scrollHeight + 500;
             this.$forceUpdate();
             el = this.$refs.textarea_1.$el;
@@ -73,7 +89,7 @@ export default {
         });
     },
     startScan: /* istanbul ignore next */ function () {
-      var auth = this.$auth;
+      let auth = this.$auth;
       Helper.apiCall("scan", "", auth)
         .then((res) => {
           this.$store.commit("updateError", res);
