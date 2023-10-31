@@ -329,14 +329,14 @@
           <b-col class="text-left ml-0 pl-0">
             <b-select
               :options="
-                host.services
+                ['check_alive'].concat(host.services
                   .map((x) => x.name)
                   .filter((x) => {
                     if (host.service_levels) {
                       return host.service_levels.indexOf(x) == -1;
                     }
                     return x;
-                  })
+                  }))
               "
               v-model="new_service_level"
             />
