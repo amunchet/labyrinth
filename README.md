@@ -12,6 +12,9 @@ The beautiful network analyzer, mapper, and monitor.
 1. `sudo bash install.sh` - this will walk you through the setup needed for Auth0 information.
 2.  If you are running docker as non-root, then remove the top section from `install.sh` and re-run.
 
+## Redis notes
+Redis is also going to be used a write cache for incoming metrics.  This way, the load on the metric database server will be greatly reduced.  We can tune the time to write the metrics as well.
+
 ## Database Notes
 
 ### Attempt 2
