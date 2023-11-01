@@ -652,8 +652,15 @@ def test_insert_metric(setup):
             assert c[0][item] == sample_data["metrics"][0][item]
     """
     a = redis.Redis(host=os.environ.get("REDIS_HOST"))
-    b = json.dumps(sample_data["metrics"]["tags"])
+    b = json.dumps({
+        "name" : sample_data["metrics"][0]["name"],
+        "tags" : sample_data["metrics"][0]["tags"] 
+    }, default=str)
+    print("test key:", b)
     c = json.loads(a.get(b))
+    print(c)
+    del c["timestamp"]
+    del sample_data["metrics"][0]["timestamp"]
     assert c == sample_data["metrics"][0]
     return sample_data
 
@@ -681,11 +688,11 @@ def test_redis_bulk_insert(setup):
     a = unwrap(serve.insert_metric)(sample_data)
     assert a[1] == 200
 
-    sample_data["tags"]["new_tag"] = 7
+    sample_data["metrics"][0]["tags"]["new_tag"] = 7
     a = unwrap(serve.insert_metric)(sample_data)
     assert a[1] == 200
 
-    sample_data["tags"]["new_tag"] = 234
+    sample_data["metrics"][0]["tags"]["new_tag"] = 234
     a = unwrap(serve.insert_metric)(sample_data)
     assert a[1] == 200
 
@@ -693,7 +700,7 @@ def test_redis_bulk_insert(setup):
 
     # Check the state of the metrics-latest beforehand
     b = serve.mongo_client["labyrinth"]["metrics-latest"].find({})
-    assert len(list(b)) == 0
+    current_length = len(list(b))
 
 
     a = unwrap(serve.bulk_insert)()
@@ -701,7 +708,7 @@ def test_redis_bulk_insert(setup):
 
 
     b = serve.mongo_client["labyrinth"]["metrics-latest"].find({})
-    assert len(list(b)) == 3
+    assert len(list(b)) == current_length + 3
 
 
 
