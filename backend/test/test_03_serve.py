@@ -7,6 +7,8 @@ import requests
 import pytest
 import serve
 
+import redis
+
 
 from common.test import unwrap, delete_keys_recursive
 
@@ -632,6 +634,9 @@ def test_insert_metric(setup):
     a = unwrap(serve.insert_metric)(sample_data)
     assert a[1] == 200
 
+    # NOTE: We are changing to redis write cache layer
+
+    """
     b = serve.mongo_client["labyrinth"]["metrics-latest"].find({})
     c = [x for x in b]
     assert len(c) == 1
@@ -645,6 +650,59 @@ def test_insert_metric(setup):
             ][0][item].replace(microsecond=0, second=0)
         else:
             assert c[0][item] == sample_data["metrics"][0][item]
+    """
+    a = redis.Redis(host=os.environ.get("REDIS_HOST"))
+    b = json.dumps(sample_data["metrics"]["tags"])
+    c = json.loads(a.get(b))
+    assert c == sample_data["metrics"][0]
+    return sample_data
+
+def test_redis_bulk_insert(setup):
+    """
+    Test for Redis bulk insert of metrics
+        - NOTE: I specifically do not use the dashboard to read from the Redis server directly, since we may need remote agents as well (who would not have access to this Redis instance)
+    """
+    sample_data = {
+        "metrics": [
+            {
+                "fields": {
+                    "boot_time": 1625587759,
+                    "context_switches": 4143261228,
+                    "entropy_avail": 3760,
+                    "interrupts": 1578002983,
+                    "diskio": 884284,
+                },
+                "name": "check_hd",
+                "tags": {"host": "00-00-00-00-01", "ip": "172.19.0.6"},
+                "timestamp": 1625683390,
+            },
+        ]
+    }
+    a = unwrap(serve.insert_metric)(sample_data)
+    assert a[1] == 200
+
+    sample_data["tags"]["new_tag"] = 7
+    a = unwrap(serve.insert_metric)(sample_data)
+    assert a[1] == 200
+
+    sample_data["tags"]["new_tag"] = 234
+    a = unwrap(serve.insert_metric)(sample_data)
+    assert a[1] == 200
+
+
+
+    # Check the state of the metrics-latest beforehand
+    b = serve.mongo_client["labyrinth"]["metrics-latest"].find({})
+    assert len(list(b)) == 0
+
+
+    a = unwrap(serve.bulk_insert)()
+    assert a[1] == 200
+
+
+    b = serve.mongo_client["labyrinth"]["metrics-latest"].find({})
+    assert len(list(b)) == 3
+
 
 
 def test_list_dashboard(setup):
