@@ -24,6 +24,10 @@ def tearDown():
     serve.mongo_client["labyrinth"]["settings"].delete_many({})
     serve.mongo_client["labyrinth"]["metrics"].delete_many({})
 
+    a = redis.Redis(host=os.environ.get("REDIS_HOST"))
+    for key in a.keys(pattern="METRIC-*"):
+        a.delete(key)
+
 
 @pytest.fixture
 def setup():
@@ -657,7 +661,7 @@ def test_insert_metric(setup):
         "tags" : sample_data["metrics"][0]["tags"] 
     }, default=str)
     print("test key:", b)
-    c = json.loads(a.get(b))
+    c = json.loads(a.get(f"METRIC-{b}"))
     print(c)
     del c["timestamp"]
     del sample_data["metrics"][0]["timestamp"]
@@ -708,8 +712,8 @@ def test_redis_bulk_insert(setup):
 
 
     b = serve.mongo_client["labyrinth"]["metrics-latest"].find({})
-    assert len(list(b)) == current_length + 3
-
+    c = [True for x in b if "tags" in x and x["tags"]["host"] == "00-00-00-00-01"]
+    assert len(c) == 3
 
 
 def test_list_dashboard(setup):
