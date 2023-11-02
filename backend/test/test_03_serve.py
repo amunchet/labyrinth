@@ -624,7 +624,7 @@ def test_insert_metric(setup):
                     "diskio": 884284,
                 },
                 "name": "check_hd",
-                "tags": {"host": "00-00-00-00-01", "ip": "172.19.0.6"},
+                "tags": {"host": "00-00-00-00-01", "ip": "172.19.0.6", "random-tag" : 5},
                 "timestamp": 1625683390,
             },
         ]
@@ -656,9 +656,12 @@ def test_insert_metric(setup):
             assert c[0][item] == sample_data["metrics"][0][item]
     """
     a = redis.Redis(host=os.environ.get("REDIS_HOST"))
+
+    parsed_tags = {x : sample_data["metrics"][0]["tags"][x] for x in sample_data["metrics"][0]["tags"] if x != "random-tag"}
+
     b = json.dumps({
         "name" : sample_data["metrics"][0]["name"],
-        "tags" : sample_data["metrics"][0]["tags"] 
+        "tags" : parsed_tags 
     }, default=str)
     print("test key:", b)
     c = json.loads(a.get(f"METRIC-{b}"))

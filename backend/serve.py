@@ -1749,7 +1749,10 @@ def insert_metric(inp=""):
 
             a = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
 
-            name = json.dumps({"name" : item["name"], "tags" : item["tags"]}, default=str)
+            valid_names = ("host", "ip", "mac", "labyrinth_name")
+            parsed_tags = {x : item["tags"][x] for x in item["tags"] if x in valid_names}
+
+            name = json.dumps({"name" : item["name"], "tags" : parsed_tags}, default=str)
             a.set(f"METRIC-{name}", json.dumps(item, default=str))
 
     return "Success", 200
@@ -1798,9 +1801,18 @@ def bulk_insert():
                     {"tags": item["tags"], "name": item["name"]}, item, upsert=True
                 )
                 """
+                replacements = {
+                    "name" : item["name"]
+                }
+                tags = ("host", "ip", "mac", "labyrinth_name")
+                for tag in [x for x in tags if x in item["tags"]]:
+                    replacements[f"tags.{tag}"] = item["tags"][tag]
+                    
+
+
                 metrics_latest_updates.append(
                     pymongo.ReplaceOne(
-                        {"tags": item["tags"], "name": item["name"]}, item, upsert=True       
+                        replacements, item, upsert=True       
                     )
                 )
         except Exception:
