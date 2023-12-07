@@ -1749,8 +1749,8 @@ def insert_metric(inp=""):
 
             a = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
 
-            valid_names = ("host", "ip", "mac", "labyrinth_name")
-            parsed_tags = {x : item["tags"][x] for x in item["tags"] if x in valid_names}
+            invalid_names = ("agent_name")
+            parsed_tags = {x : item["tags"][x] for x in item["tags"] if x not in invalid_names}
 
             name = json.dumps({"name" : item["name"], "tags" : parsed_tags}, default=str)
             a.set(f"METRIC-{name}", json.dumps(item, default=str))
