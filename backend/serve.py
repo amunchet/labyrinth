@@ -32,6 +32,7 @@ from markupsafe import escape
 from werkzeug.utils import secure_filename
 from flask_cors import CORS
 from PIL import Image
+from pid import PidFile
 
 import ansible_helper
 
@@ -1743,6 +1744,42 @@ def insert_metric(inp=""):
         return "Invalid data", 421
 
     for item in data["metrics"]:
+        
+        if "tags" in item and "name" in item:
+
+            a = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
+
+            invalid_names = ("agent_name")
+            parsed_tags = {x : item["tags"][x] for x in item["tags"] if x not in invalid_names}
+
+            name = json.dumps({"name" : item["name"], "tags" : parsed_tags}, default=str)
+            a.set(f"METRIC-{name}", json.dumps(item, default=str))
+
+    return "Success", 200
+
+@app.route("/bulk_insert/", methods=["GET"])
+@requires_auth_write
+def bulk_insert():
+    """
+    Bulk insert of the redis entries into mongo
+        - Can be called manually or periodically
+    """
+    metrics_latest_updates = []
+    metrics_updates = []
+
+    a = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
+
+    # Find all metrics from Redis
+    metrics = a.keys(pattern="METRIC-*")
+    for metric in metrics:
+        print("Inserting", metric)
+        item = json.loads(a.get(metric))
+        print("Item:", item)
+        last_time = a.get("last_metric_{}".format(item["tags"]["ip"]))
+
+        if "tags" not in item or "name" not in item:
+            continue
+
         if "timestamp" in item:
             try:
                 # item["timestamp"] = datetime.datetime.fromtimestamp(item["timestamp"])
@@ -1750,32 +1787,63 @@ def insert_metric(inp=""):
             except Exception:
                 print("Problem with timestamp - ", sys.exc_info())
 
-        if "tags" in item and "name" in item:
-            a = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
-            last_time = a.get("last_metric_{}".format(item["tags"]["ip"]))
 
-            if type(item["tags"]) == type({}):
-                item["tags"]["labyrinth_name"] = item["name"]
-                item["tags"]["agent_name"] = socket.gethostname()
+        if type(item["tags"]) == type({}):
+            item["tags"]["labyrinth_name"] = item["name"]
+            item["tags"]["agent_name"] = socket.gethostname()
 
-            try:
-                if last_time and (time.time() - float(last_time)) <= 15:
-                    pass
-                else:
-                    mongo_client["labyrinth"]["metrics-latest"].replace_one(
-                        {"tags": item["tags"], "name": item["name"]}, item, upsert=True
-                    )
-            except Exception:
-                raise Exception(item)
-
-            if last_time and (time.time() - float(last_time)) <= 120:
+        try:
+            if last_time and (time.time() - float(last_time)) <= 15:
                 pass
             else:
-                mongo_client["labyrinth"]["metrics"].insert_one(item)
+                """
+                mongo_client["labyrinth"]["metrics-latest"].replace_one(
+                    {"tags": item["tags"], "name": item["name"]}, item, upsert=True
+                )
+                """
+                replacements = {
+                    "name" : item["name"]
+                }
+                tags = ("agent_name")
+                for tag in [x for x in item["tags"] if x not in tags]:
+                    replacements[f"tags.{tag}"] = item["tags"][tag]
+                    
 
-                a.set("last_metric_{}".format(item["tags"]["ip"]), time.time())
 
-    return "Success", 200
+                metrics_latest_updates.append(
+                    pymongo.ReplaceOne(
+                        replacements, item, upsert=True       
+                    )
+                )
+        except Exception:
+            raise Exception(item)
+
+        if last_time and (time.time() - float(last_time)) <= 120:
+            pass
+        else:
+
+            """
+            mongo_client["labyrinth"]["metrics"].insert_one(item)
+            """
+            metrics_updates.append(
+                pymongo.InsertOne(
+                    item
+                )
+            )
+
+            a.set("last_metric_{}".format(item["tags"]["ip"]), time.time())
+
+    # Bulk writes
+    if metrics_latest_updates:
+        mongo_client["labyrinth"]["metrics-latest"].bulk_write(metrics_latest_updates)
+    
+    if metrics_updates:
+        mongo_client["labyrinth"]["metrics"].bulk_write(metrics_updates)
+
+
+
+    return len(metrics), 200
+
 
 
 if __name__ == "__main__":  # pragma: no cover
@@ -1784,6 +1852,9 @@ if __name__ == "__main__":  # pragma: no cover
 
     if len(sys.argv) > 1 and sys.argv[1] == "watcher":
         unwrap(dashboard)(report=True)
+    elif len(sys.argv) > 1 and sys.argv[1] == "updater":
+        with PidFile("labyrinth-bulk-insert") as p:
+            unwrap(bulk_insert)()
     else:
         app.debug = True
         app.config["ENV"] = "development"

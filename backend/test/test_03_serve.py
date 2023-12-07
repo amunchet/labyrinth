@@ -7,6 +7,8 @@ import requests
 import pytest
 import serve
 
+import redis
+
 
 from common.test import unwrap, delete_keys_recursive
 
@@ -21,6 +23,10 @@ def tearDown():
     serve.mongo_client["labyrinth"]["services"].delete_many({})
     serve.mongo_client["labyrinth"]["settings"].delete_many({})
     serve.mongo_client["labyrinth"]["metrics"].delete_many({})
+
+    a = redis.Redis(host=os.environ.get("REDIS_HOST"))
+    for key in a.keys(pattern="METRIC-*"):
+        a.delete(key)
 
 
 @pytest.fixture
@@ -618,7 +624,7 @@ def test_insert_metric(setup):
                     "diskio": 884284,
                 },
                 "name": "check_hd",
-                "tags": {"host": "00-00-00-00-01", "ip": "172.19.0.6"},
+                "tags": {"host": "00-00-00-00-01", "ip": "172.19.0.6", "random-tag" : 5},
                 "timestamp": 1625683390,
             },
         ]
@@ -632,6 +638,9 @@ def test_insert_metric(setup):
     a = unwrap(serve.insert_metric)(sample_data)
     assert a[1] == 200
 
+    # NOTE: We are changing to redis write cache layer
+
+    """
     b = serve.mongo_client["labyrinth"]["metrics-latest"].find({})
     c = [x for x in b]
     assert len(c) == 1
@@ -645,6 +654,69 @@ def test_insert_metric(setup):
             ][0][item].replace(microsecond=0, second=0)
         else:
             assert c[0][item] == sample_data["metrics"][0][item]
+    """
+    a = redis.Redis(host=os.environ.get("REDIS_HOST"))
+
+    parsed_tags = {x : sample_data["metrics"][0]["tags"][x] for x in sample_data["metrics"][0]["tags"] if x != "random-tag"}
+
+    b = json.dumps({
+        "name" : sample_data["metrics"][0]["name"],
+        "tags" : parsed_tags 
+    }, default=str)
+    print("test key:", b)
+    c = json.loads(a.get(f"METRIC-{b}"))
+    print(c)
+    del c["timestamp"]
+    del sample_data["metrics"][0]["timestamp"]
+    assert c == sample_data["metrics"][0]
+    return sample_data
+
+def test_redis_bulk_insert(setup):
+    """
+    Test for Redis bulk insert of metrics
+        - NOTE: I specifically do not use the dashboard to read from the Redis server directly, since we may need remote agents as well (who would not have access to this Redis instance)
+    """
+    sample_data = {
+        "metrics": [
+            {
+                "fields": {
+                    "boot_time": 1625587759,
+                    "context_switches": 4143261228,
+                    "entropy_avail": 3760,
+                    "interrupts": 1578002983,
+                    "diskio": 884284,
+                },
+                "name": "check_hd",
+                "tags": {"host": "00-00-00-00-01", "ip": "172.19.0.6"},
+                "timestamp": 1625683390,
+            },
+        ]
+    }
+    a = unwrap(serve.insert_metric)(sample_data)
+    assert a[1] == 200
+
+    sample_data["metrics"][0]["tags"]["new_tag"] = 7
+    a = unwrap(serve.insert_metric)(sample_data)
+    assert a[1] == 200
+
+    sample_data["metrics"][0]["tags"]["new_tag"] = 234
+    a = unwrap(serve.insert_metric)(sample_data)
+    assert a[1] == 200
+
+
+
+    # Check the state of the metrics-latest beforehand
+    b = serve.mongo_client["labyrinth"]["metrics-latest"].find({})
+    current_length = len(list(b))
+
+
+    a = unwrap(serve.bulk_insert)()
+    assert a[1] == 200
+
+
+    b = serve.mongo_client["labyrinth"]["metrics-latest"].find({})
+    c = [True for x in b if "tags" in x and x["tags"]["host"] == "00-00-00-00-01"]
+    assert len(c) == 3
 
 
 def test_list_dashboard(setup):

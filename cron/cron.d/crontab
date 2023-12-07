@@ -1,4 +1,5 @@
 * * * * * /bin/bash /cron/run.sh > /var/log/finder
+* * * * * /bin/bash /cron/bulk_write.sh > /var/log/bulk_write
 */10 * * * * /bin/bash /cron/watcher.sh > /var/log/watcher
 */2 * * * * /bin/bash /cron/alive.sh > /var/log/alive
 
