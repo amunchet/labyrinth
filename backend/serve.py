@@ -1805,7 +1805,7 @@ def bulk_insert():
                     "name" : item["name"]
                 }
                 tags = ("agent_name")
-                for tag in [x for x in tags if x not in item["tags"]]:
+                for tag in [x for x in item["tags"] if x not in tags]:
                     replacements[f"tags.{tag}"] = item["tags"][tag]
                     
 
