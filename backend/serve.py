@@ -1804,8 +1804,8 @@ def bulk_insert():
                 replacements = {
                     "name" : item["name"]
                 }
-                tags = ("host", "ip", "mac", "labyrinth_name")
-                for tag in [x for x in tags if x in item["tags"]]:
+                tags = ("agent_name")
+                for tag in [x for x in tags if x not in item["tags"]]:
                     replacements[f"tags.{tag}"] = item["tags"][tag]
                     
 
