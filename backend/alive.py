@@ -78,11 +78,11 @@ def check_all_hosts():
 
                 if not result:
                     watcher.send_alert(
-                        "Check Alive", 
-                        alive_type, 
-                        host_name, 
-                        summary=summary, 
-                        severity="warning"
+                        "Check Alive",
+                        alive_type,
+                        host_name,
+                        summary=summary,
+                        severity="warning",
                     )
 
 

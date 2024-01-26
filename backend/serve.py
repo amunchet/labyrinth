@@ -94,7 +94,7 @@ if os.getenv("GITHUB") or os.getenv("TESTBED"):
         )
     )
 
-else: # pragma: no cover
+else:  # pragma: no cover
     mongo_client = pymongo.MongoClient(
         "mongodb+srv://{}:{}@{}".format(
             os.environ.get("MONGO_USERNAME"),
@@ -1243,7 +1243,7 @@ def update_ip(mac, new_ip):
 # Dashboard
 
 
-def index_helper(): # pragma: no cover
+def index_helper():  # pragma: no cover
     """
     Helps with ensuring indexes are created
     """
@@ -1744,16 +1744,17 @@ def insert_metric(inp=""):
         return "Invalid data", 421
 
     for item in data["metrics"]:
-        
+
         if "tags" in item and "name" in item:
 
             a = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
 
-            name = json.dumps({"name" : item["name"], "tags" : item["tags"]}, default=str)
+            name = json.dumps({"name": item["name"], "tags": item["tags"]}, default=str)
             a.set(f"METRIC-{name}", json.dumps(item, default=str))
             a.expire(f"METRIC-{name}", 120)
 
     return "Success", 200
+
 
 @app.route("/bulk_insert/", methods=["GET"])
 @requires_auth_write
@@ -1785,7 +1786,6 @@ def bulk_insert():
             except Exception:
                 print("Problem with timestamp - ", sys.exc_info())
 
-
         if type(item["tags"]) == type({}):
             item["tags"]["labyrinth_name"] = item["name"]
             item["tags"]["agent_name"] = socket.gethostname()
@@ -1801,7 +1801,7 @@ def bulk_insert():
                 """
                 metrics_latest_updates.append(
                     pymongo.ReplaceOne(
-                        {"tags": item["tags"], "name": item["name"]}, item, upsert=True       
+                        {"tags": item["tags"], "name": item["name"]}, item, upsert=True
                     )
                 )
         except Exception:
@@ -1814,25 +1814,18 @@ def bulk_insert():
             """
             mongo_client["labyrinth"]["metrics"].insert_one(item)
             """
-            metrics_updates.append(
-                pymongo.InsertOne(
-                    item
-                )
-            )
+            metrics_updates.append(pymongo.InsertOne(item))
 
             a.set("last_metric_{}".format(item["tags"]["ip"]), time.time())
 
     # Bulk writes
     if metrics_latest_updates:
         mongo_client["labyrinth"]["metrics-latest"].bulk_write(metrics_latest_updates)
-    
+
     if metrics_updates:
         mongo_client["labyrinth"]["metrics"].bulk_write(metrics_updates)
 
-
-
     return len(metrics), 200
-
 
 
 if __name__ == "__main__":  # pragma: no cover

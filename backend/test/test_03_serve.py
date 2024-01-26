@@ -656,10 +656,13 @@ def test_insert_metric(setup):
             assert c[0][item] == sample_data["metrics"][0][item]
     """
     a = redis.Redis(host=os.environ.get("REDIS_HOST"))
-    b = json.dumps({
-        "name" : sample_data["metrics"][0]["name"],
-        "tags" : sample_data["metrics"][0]["tags"] 
-    }, default=str)
+    b = json.dumps(
+        {
+            "name": sample_data["metrics"][0]["name"],
+            "tags": sample_data["metrics"][0]["tags"],
+        },
+        default=str,
+    )
     print("test key:", b)
     c = json.loads(a.get(f"METRIC-{b}"))
     print(c)
@@ -667,6 +670,7 @@ def test_insert_metric(setup):
     del sample_data["metrics"][0]["timestamp"]
     assert c == sample_data["metrics"][0]
     return sample_data
+
 
 def test_redis_bulk_insert(setup):
     """
@@ -692,27 +696,26 @@ def test_redis_bulk_insert(setup):
     }
     a = unwrap(serve.insert_metric)(sample_data)
     assert a[1] == 200
-    
+
     item = sample_data["metrics"][0]
-    key_name = json.dumps({"name" : item["name"], "tags" : item["tags"]}, default=str)
+    key_name = json.dumps({"name": item["name"], "tags": item["tags"]}, default=str)
     key_names.append(key_name)
 
     sample_data["metrics"][0]["tags"]["new_tag"] = 7
     a = unwrap(serve.insert_metric)(sample_data)
     assert a[1] == 200
 
-    key_name = json.dumps({"name" : item["name"], "tags" : item["tags"]}, default=str)
+    key_name = json.dumps({"name": item["name"], "tags": item["tags"]}, default=str)
     key_names.append(key_name)
 
     sample_data["metrics"][0]["tags"]["new_tag"] = 234
     a = unwrap(serve.insert_metric)(sample_data)
     assert a[1] == 200
 
-    key_name = json.dumps({"name" : item["name"], "tags" : item["tags"]}, default=str)
+    key_name = json.dumps({"name": item["name"], "tags": item["tags"]}, default=str)
     key_names.append(key_name)
 
     # We need to check Redis
-    
 
     a = redis.Redis(host=os.environ.get("REDIS_HOST"))
     print(key_names)
@@ -728,14 +731,13 @@ def test_redis_bulk_insert(setup):
     b = serve.mongo_client["labyrinth"]["metrics-latest"].find({})
     current_length = len(list(b))
 
-
     a = unwrap(serve.bulk_insert)()
     assert a[1] == 200
     assert a[0] == 3
 
     # b = serve.mongo_client["labyrinth"]["metrics-latest"].find({})
     # c = [True for x in b if "tags" in x and x["tags"]["host"] == "00-00-00-00-01"]
-    #assert len(c) == 3
+    # assert len(c) == 3
 
 
 def test_list_dashboard(setup):
