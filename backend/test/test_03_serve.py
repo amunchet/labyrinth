@@ -715,7 +715,9 @@ def test_redis_bulk_insert(setup):
     
 
     a = redis.Redis(host=os.environ.get("REDIS_HOST"))
+    print(key_names)
     for key in a.keys(pattern="METRIC-*"):
+        print(key)
         if key in key_names:
             print("---------")
             print("Redis key:")
