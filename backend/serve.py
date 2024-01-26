@@ -1751,6 +1751,7 @@ def insert_metric(inp=""):
 
             name = json.dumps({"name" : item["name"], "tags" : item["tags"]}, default=str)
             a.set(f"METRIC-{name}", json.dumps(item, default=str))
+            a.expire(f"METRIC-{name}", 120)
 
     return "Success", 200
 
