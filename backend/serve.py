@@ -1443,7 +1443,6 @@ def dashboard(val="", report=False, flapping_delay=1300):
                         severity = "warning"
                     elif "service_levels" in host:
                         for item in host["service_levels"]:
-                            if(host["ip"] == "10.8.0.7"):
                             if (
                                 item
                                 and "service" in item
