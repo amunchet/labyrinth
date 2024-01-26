@@ -673,6 +673,7 @@ def test_redis_bulk_insert(setup):
     Test for Redis bulk insert of metrics
         - NOTE: I specifically do not use the dashboard to read from the Redis server directly, since we may need remote agents as well (who would not have access to this Redis instance)
     """
+    key_names = []
     sample_data = {
         "metrics": [
             {
@@ -691,16 +692,35 @@ def test_redis_bulk_insert(setup):
     }
     a = unwrap(serve.insert_metric)(sample_data)
     assert a[1] == 200
+    
+    item = sample_data["metrics"][0]
+    key_name = json.dumps({"name" : item["name"], "tags" : item["tags"]}, default=str)
+    key_names.append(key_name)
 
     sample_data["metrics"][0]["tags"]["new_tag"] = 7
     a = unwrap(serve.insert_metric)(sample_data)
     assert a[1] == 200
 
+    key_name = json.dumps({"name" : item["name"], "tags" : item["tags"]}, default=str)
+    key_names.append(key_name)
+
     sample_data["metrics"][0]["tags"]["new_tag"] = 234
     a = unwrap(serve.insert_metric)(sample_data)
     assert a[1] == 200
 
+    key_name = json.dumps({"name" : item["name"], "tags" : item["tags"]}, default=str)
+    key_names.append(key_name)
 
+    # We need to check Redis
+    
+
+    a = redis.Redis(host=os.environ.get("REDIS_HOST"))
+    for key in a.keys(pattern="METRIC-*"):
+        if key in key_names:
+            print("---------")
+            print("Redis key:")
+            print(key)
+            print(a.get(key))
 
     # Check the state of the metrics-latest beforehand
     b = serve.mongo_client["labyrinth"]["metrics-latest"].find({})
