@@ -94,7 +94,7 @@ if os.getenv("GITHUB") or os.getenv("TESTBED"):
         )
     )
 
-else:
+else: # pragma: no cover
     mongo_client = pymongo.MongoClient(
         "mongodb+srv://{}:{}@{}".format(
             os.environ.get("MONGO_USERNAME"),
@@ -1243,7 +1243,7 @@ def update_ip(mac, new_ip):
 # Dashboard
 
 
-def index_helper():
+def index_helper(): # pragma: no cover
     """
     Helps with ensuring indexes are created
     """
