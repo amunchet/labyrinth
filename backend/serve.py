@@ -1272,10 +1272,11 @@ def index_helper():  # pragma: no cover
     mongo_client["labyrinth"]["hosts"].create_index("subnet")
     mongo_client["labyrinth"]["settings"].create_index("name")
     # mongo_client["labyrinth"]["metrics"].create_index([("timestamp", -1)])
-    
-    # Make Metrics Latest expire after a certain time period
-    mongo_client["labyrinth"]["metrics-latest"].create_index([("timestamp", 1)], expireAfterSeconds=36000)
 
+    # Make Metrics Latest expire after a certain time period
+    mongo_client["labyrinth"]["metrics-latest"].create_index(
+        [("timestamp", 1)], expireAfterSeconds=36000
+    )
 
 
 @app.route("/dashboard/<val>")
