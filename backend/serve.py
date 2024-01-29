@@ -1447,6 +1447,16 @@ def dashboard(val="", report=False, flapping_delay=1300):
                         severity = "warning"
                     elif "service_levels" in host:
                         for item in host["service_levels"]:
+                            # Check for open_ports and closed_ports, which are special
+                            if (
+                                item
+                                and "service" in item
+                                and found_service
+                                and item["service"] == found_service
+                                and "level" in item
+                                and item["level"] == "warning"
+                            ):
+                                severity = "warning"
                             if (
                                 item
                                 and "service" in item
