@@ -1368,12 +1368,18 @@ def dashboard(val="", report=False, flapping_delay=1300):
                 additional_tag_clause = True
 
             if (mac_clause or ip_clause) and additional_tag_clause:
-                if found and "timestamp" in found and type(found["timestamp"])== float:
-                    found["timestamp"] = datetime.datetime.fromtimestamp(found["timestamp"])
-                if item and "timestamp" in item and type(item["timestamp"])== float:
-                    item["timestamp"] = datetime.datetime.fromtimestamp(item["timestamp"])
+                if found and "timestamp" in found and type(found["timestamp"]) == float:
+                    found["timestamp"] = datetime.datetime.fromtimestamp(
+                        found["timestamp"]
+                    )
+                if item and "timestamp" in item and type(item["timestamp"]) == float:
+                    item["timestamp"] = datetime.datetime.fromtimestamp(
+                        item["timestamp"]
+                    )
 
-                if found is None or ("timestamp" in item and item["timestamp"] > found["timestamp"]):
+                if found is None or (
+                    "timestamp" in item and item["timestamp"] > found["timestamp"]
+                ):
                     found = item
 
         return found
