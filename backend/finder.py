@@ -5,6 +5,7 @@ Auto discovery finder
 import time
 import json
 import os
+import queue
 import subprocess
 import xmltodict
 from threading import Thread
@@ -195,17 +196,34 @@ def main():  # pragma: no cover
 
             update_redis("Finished.\n", subnet)
 
-        threads = []
+        # Set up a queue for subnets
+        subnet_queue = queue.Queue()
 
+        # Add all subnets to the queue initially
         for subnet in subnets:
-            t = Thread(target=scan_subnet, args=(subnet,))
+            subnet_queue.put(subnet)
+
+        def worker():
+            """Worker thread that scans subnets and continually rescans them."""
+            while True:
+                # Get a subnet from the queue
+                subnet = subnet_queue.get()
+                scan_subnet(subnet)
+                subnet_queue.task_done()  # Mark this subnet as done
+                # Put the subnet back into the queue to scan again
+                subnet_queue.put(subnet)
+
+        # Start a thread pool to process subnets concurrently
+        num_threads = 4  # You can adjust the number of concurrent threads
+        threads = []
+        for _ in range(num_threads):
+            t = Thread(target=worker)
+            t.start()
             threads.append(t)
 
-        for x in threads:
-            x.start()
-
-        for x in threads:
-            x.join()
+        # Keep the main thread alive indefinitely
+        for t in threads:
+            t.join()
 
 
 if __name__ == "__main__":
