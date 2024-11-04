@@ -264,11 +264,13 @@
               active
             >
               Single Host:
-              <b-select
+              <v-select
                 :state="selected_host != ''"
                 v-model="selected_host"
                 :options="hosts"
                 :enabled="isTesting"
+                :reduce="(x) => x.value"
+                label="text"
               />
             </b-tab>
 
@@ -889,12 +891,19 @@ export default {
       let auth = this.$auth;
       Helper.apiCall("hosts", "", auth)
         .then((res) => {
-          this.hosts = res.map((x) => {
-            return {
-              text: x.ip,
-              value: x.ip,
-            };
+          var hosts = [];
+          var seen = {};
+          res.forEach((x) => {
+            var ip = x.ip.trim();
+            if (seen[ip] == undefined) {
+              seen[ip] = true;
+              hosts.push({
+                value: ip,
+                text: ip,
+              });
+            }
           });
+          this.hosts = hosts;
         })
         .catch((e) => {
           this.$store.commit("updateError", e);

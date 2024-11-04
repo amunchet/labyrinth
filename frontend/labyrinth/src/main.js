@@ -7,6 +7,8 @@ import "./registerServiceWorker";
 import router from "./router";
 import store from "./store";
 
+import vSelect from 'vue-select'
+
 Vue.config.productionTip = false;
 
 //Sanitize
@@ -53,6 +55,8 @@ Vue.use(
   events: ['scroll', ...]
 } */
 );
+import "vue-select/dist/vue-select.css";
+Vue.component("v-select", vSelect)
 
 new Vue({
   router,

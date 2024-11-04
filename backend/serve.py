@@ -1091,6 +1091,8 @@ def find_ip(name=""):
     """
     Returns the IP for the docker container
     """
+    if os.environ.get("PRODUCTION") == 1 and name == "sampleclient":
+        return ""
     if name is None or name == "":
         return socket.gethostbyname(socket.gethostname()), 200
     else:

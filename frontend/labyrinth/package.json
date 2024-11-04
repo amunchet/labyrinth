@@ -34,6 +34,7 @@
     "vue-color": "^2.8.1",
     "vue-konva": "^2.1.7",
     "vue-router": "^3.2.0",
+    "vue-select": "^3.20.3",
     "vuelidate": "^0.7.7",
     "vuex": "^3.4.0"
   },
