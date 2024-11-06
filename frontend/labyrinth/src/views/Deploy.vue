@@ -495,6 +495,8 @@
         >Deploy to host<span v-if="ips.length != 0">s</span></b-button
       >
       <hr />
+      AAAA:
+      {{playbook_result}}
       <div
         class="playbook_result mb-4"
         v-html="$sanitize(playbook_result)"
@@ -760,7 +762,7 @@ export default {
     },
 
     runPlaybook: /* istanbul ignore next */ async function () {
-      if (this.selected["become"] == "") {
+      if (this.selected["become"] === "") {
         this.$store.commit(
           "updateError",
           "Error: No Become Password file selected"
@@ -770,52 +772,55 @@ export default {
 
       let auth = this.$auth;
       this.running = true;
-      if (this.ips.length > 0) {
-        this.ips.forEach((host) => {
-          let formData = new FormData();
-          let data = {
-            hosts: host,
-            playbook: this.selected_playbook.replace(".yml", ""),
-            vault_password: this.vault_password,
-            become_file: this.selected["become"].replace(".yml", ""),
-            ssh_key: this.selected["ssh"],
-          };
-          formData.append("data", JSON.stringify(data));
-          this.$forceUpdate();
-          Helper.apiPost("ansible_runner", "", "", auth, formData)
-            .then((res) => {
-              this.playbook_results[host] = res;
-              this.$forceUpdate();
-            })
-            .catch((e) => {
-              this.$store.commit("updateError", e);
-            });
-        });
-        return true;
-      }
 
-      let formData = new FormData();
-      let host = this.selected_host;
-
-      this.playbook_loaded = false;
+      // Prepare data for the API call
       let data = {
-        hosts: host,
+        hosts: this.ips.length > 0 ? this.ips.join(",") : this.selected_host,
         playbook: this.selected_playbook.replace(".yml", ""),
         vault_password: this.vault_password,
         become_file: this.selected["become"].replace(".yml", ""),
         ssh_key: this.selected["ssh"],
       };
+
+      // Use FormData to prepare the request
+      let formData = new FormData();
       formData.append("data", JSON.stringify(data));
 
-      Helper.apiPost("ansible_runner", "", "", auth, formData)
-        .then((res) => {
-          this.playbook_result = res;
-          this.playbook_loaded = true;
-        })
-        .catch((e) => {
-          this.$store.commit("updateError", e);
-          this.playbook_loaded = true;
-        });
+      try {
+        // Use apiPost to initiate the streaming response
+        let response = await Helper.apiPost(
+          "ansible_runner", // URL
+          "", // Service (empty string if not needed)
+          "", // Command (empty string if not needed)
+          auth, // Auth object
+          formData, // Data
+          false, // isUpload set to true for multipart/form-data
+          1
+        );
+
+        // Handle the streaming response
+        console.log(response)
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let result = "";
+        let truth = 1 
+
+        // Read the response stream
+        while (truth) {
+          const { done, value } = await reader.read();
+          if (done) break; // End of stream
+          result += decoder.decode(value, { stream: true });
+          this.playbook_result = result; // Update the result
+          this.$forceUpdate(); // Re-render the component
+        }
+      } catch (error) {
+        // Handle any errors
+        console.log(error)
+        this.$store.commit("updateError", error);
+      } finally {
+        this.running = false;
+        this.playbook_loaded = true;
+      }
     },
 
     loadIP: /* istanbul ignore next */ async function () {

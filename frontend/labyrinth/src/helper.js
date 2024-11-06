@@ -148,34 +148,63 @@ export default {
     command,
     auth,
     arr,
-    isUpload
+    isUpload,
+    raw
   ) /* istanbul ignore next */ {
     var profile = auth["profile"]["email"];
     var full_url = "";
-    if (window.location.host.indexOf(devel_port) != -1) {
+    if (window.location.host.indexOf(devel_port) !== -1) {
       full_url = local_backend + url;
     } else {
       full_url = "/api/" + url;
     }
+
+    console.log(url);
+    console.log(service);
+    console.log(command)
+    console.log(auth)
+    console.log(arr)
+    console.log(isUpload)
+    console.log(raw)
+
+
+
+
+
     return auth.getAccessToken().then((accessToken) => {
-      let headers;
-      headers = {
+      let headers = {
         Authorization: `Bearer ${accessToken}`,
         Email: profile,
       };
 
-      if (isUpload != undefined) {
+      if (isUpload !== undefined) {
         headers["Content-Type"] = "multipart/form-data";
       }
 
-      return axios({
-        method: "post",
-        url: full_url + service + "/" + command,
-        data: arr,
+      return fetch(full_url + service + "/" + command, {
+        method: "POST",
         headers: headers,
-      }).then((response) => {
-        return response.data;
-      });
+        body: arr,
+      })
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+          }
+          return raw ? response : response.text();
+        })
+        .then((data) => {
+          if (raw === undefined) {
+            return data;
+          } else {
+            console.log("RETVAL");
+            console.log(data);
+            return data;
+          }
+        })
+        .catch((error) => {
+          console.error("Error:", error);
+          throw error;
+        });
     });
   },
 };
