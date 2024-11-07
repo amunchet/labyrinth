@@ -1,6 +1,6 @@
 #!/bin/sh
 CODECOV="95"
-DOCKER_PROD_NAME="labyrinth_backend_1"
+DOCKER_PROD_NAME="labyrinth-backend-1"
 ARGS="$@"
 # Running Python unit tests and coverage
 echo "Running Pytest..."
