@@ -1200,7 +1200,10 @@ def run_ansible(inp_data=""):  # pragma: no cover
     else:  # pragma: no cover
         return "Invalid data", 481
     
-
+    print("DDDD")
+    print(data)
+    print(request.data)
+    print("DDDD")
     data = json.loads(data)
     if (
         "hosts" not in data
