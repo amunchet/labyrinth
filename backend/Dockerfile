@@ -27,7 +27,7 @@ RUN echo 'deb [signed-by=/etc/apt/trusted.gpg.d/influxdata-archive_compat.gpg] h
 RUN apt update && apt -y install telegraf
 
 COPY requirements.txt /requirements.txt
-RUN pip3 install -r /requirements.txt
+RUN pip3 install -r /requirements.txt --break-system-packages
 
 ADD entrypoint.sh /
 RUN dos2unix -n /entrypoint.sh /entrypoint-fixed.sh
