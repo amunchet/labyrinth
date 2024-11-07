@@ -423,8 +423,6 @@
           </b-row>
 
           <hr />
-          <b-row>
-            <b-col>
               <span class="text-left">Ansible Playbook Contents</span>
 
               <codemirror
@@ -466,10 +464,10 @@
                   <b-spinner />
                 </div>
               </div>
-            </b-col>
-          </b-row>
         </b-card> </b-col
     ></b-row>
+    <b-row>
+      <b-col>
     <div
       v-if="
         (selected_host || ips.length > 0) &&
@@ -519,6 +517,8 @@
 
       <b-spinner class="m-2" v-if="!playbook_loaded" />
     </div>
+    </b-col>
+    </b-row>
   </b-container>
 </template>
 <script>
