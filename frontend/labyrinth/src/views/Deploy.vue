@@ -495,10 +495,9 @@
         >Deploy to host<span v-if="ips.length != 0">s</span></b-button
       >
       <hr />
-      AAAA:
-      {{playbook_result}}
       <div
         class="playbook_result mb-4"
+        ref="playbookResultDiv"
         v-html="$sanitize(playbook_result)"
         v-if="running && playbook_result && playbook_loaded && ips.length == 0"
       ></div>
@@ -799,11 +798,10 @@ export default {
         );
 
         // Handle the streaming response
-        console.log(response)
         const reader = response.body.getReader();
         const decoder = new TextDecoder("utf-8");
         let result = "";
-        let truth = 1 
+        let truth = 1;
 
         // Read the response stream
         while (truth) {
@@ -811,15 +809,19 @@ export default {
           if (done) break; // End of stream
           result += decoder.decode(value, { stream: true });
           this.playbook_result = result; // Update the result
+          this.$nextTick(() => {
+            // Scroll to the bottom of the div
+            const div = this.$refs.playbookResultDiv;
+            if (div) {
+              div.scrollTop = div.scrollHeight;
+            }
+          });
           this.$forceUpdate(); // Re-render the component
         }
       } catch (error) {
         // Handle any errors
-        console.log(error)
+        console.log(error);
         this.$store.commit("updateError", error);
-      } finally {
-        this.running = false;
-        this.playbook_loaded = true;
       }
     },
 
@@ -959,6 +961,10 @@ export default {
   padding: 1rem;
 }
 
+.playbook_result div{
+  margin-top: 0.5rem;
+  margin-bottom:0.5rem;
+}
 .text-underline {
   font-weight: bold;
 }

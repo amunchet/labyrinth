@@ -1200,10 +1200,6 @@ def run_ansible(inp_data=""):  # pragma: no cover
     else:  # pragma: no cover
         return "Invalid data", 481
     
-    print("DDDD")
-    print(data)
-    print(request.data)
-    print("DDDD")
     data = json.loads(data)
     if (
         "hosts" not in data
@@ -1230,6 +1226,7 @@ def run_ansible(inp_data=""):  # pragma: no cover
             private_data_dir=RUN_DIR,
             playbook="{}.yml".format(playbook),
             cmdline="-vvvvv --vault-password-file ../vault.pass",
+            quiet=True
         )
     except Exception as e:
         # Delete Vault Password
@@ -1242,21 +1239,22 @@ def run_ansible(inp_data=""):  # pragma: no cover
         return f"Error: {e}", 200
 
     def ansible_stream():
-        while thread.is_alive():
-            line = runner.stdout.readline()
-            if line:
-                yield line
-            else:
-                time.sleep(0.1)  # Prevent busy waiting
-        
+        try:
+            while thread.is_alive():
+                try:
+                    for event in runner.events:
+                        yield ("<div>" + str(event["stdout"]) + "</div>").encode("utf-8")
+                        time.sleep(0.1)
+                except Exception as e:
+                    yield f"Error: {e}".encode("utf-8")
+        finally:
+            if os.path.exists("/vault.pass"):
+                os.remove("/vault.pass")
 
-        if os.path.exists("/vault.pass"):
-            os.remove("/vault.pass")
+            # Delete all files
+            shutil.rmtree(RUN_DIR)
 
-        # Delete all files
-        shutil.rmtree(RUN_DIR)
-
-    return Response(ansible_stream(), mimetype='text/plain')
+    return ansible_stream(), {"Content-Type" : "text/plain"}
 
 
 @app.route("/mac/<old_mac>/<new_mac>/")

@@ -177,7 +177,7 @@ export default {
         Email: profile,
       };
 
-      if (isUpload !== undefined) {
+      if (isUpload == true) {
         headers["Content-Type"] = "multipart/form-data";
       }
 
