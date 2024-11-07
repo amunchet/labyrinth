@@ -47,7 +47,7 @@ def check_port(host, port):
         return False
 
 
-def check_all_hosts():
+def check_all_hosts(): # pragma: no cover
     """
     Pulls in all hosts and checks them all
     """

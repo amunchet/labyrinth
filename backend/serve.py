@@ -825,8 +825,11 @@ def list_alerts():
     """
     url = "http://alertmanager:9093/api/v2/alerts"
     password = open("/alertmanager/pass").read()
+    headers = {
+        "Content-Type" : "application/json"
+    }
 
-    return json.dumps(requests.get(url, auth=("admin", password)).json()), 200
+    return json.dumps(requests.get(url, auth=("admin", password), headers=headers).json()), 200
 
 
 @app.route("/alertmanager/alert", methods=["POST"])
@@ -842,15 +845,19 @@ def resolve_alert(data=""):
     else:  # pragma: no cover
         return "Invalid data", 419
 
-    url = "http://alertmanager:9093/api/v1/alerts"
+    url = "http://alertmanager:9093/api/v2/alerts"
     password = open("/alertmanager/pass").read()
 
     del parsed_data["startsAt"]
     parsed_data["status"] = "resolved"
     parsed_data["endsAt"] = "2021-08-03T14:34:41-05:00"
+    
+    headers = {
+        "Content-Type" : "application/json"
+    }
 
     retval = requests.post(
-        url, data=json.dumps([parsed_data]), auth=("admin", password)
+        url, data=json.dumps([parsed_data]), auth=("admin", password), headers=headers
     )
 
     return retval.text, retval.status_code
@@ -865,7 +872,11 @@ def restart_alertmanager():
     url = "http://alertmanager:9093/-/reload"
     password = open("/alertmanager/pass").read()
 
-    retval = requests.post(url, auth=("admin", password))
+    headers = {
+        "Content-Type" : "application/json"
+    }
+
+    retval = requests.post(url, auth=("admin", password), headers=headers)
     return retval.text, retval.status_code
 
 
@@ -1192,7 +1203,7 @@ def save_ansible_file(fname, inp_data="", vars_file=""):
 # Ansible runner
 @app.route("/ansible_runner/", methods=["POST"])
 @requires_auth_admin
-def run_ansible(inp_data=""):  # pragma: no cover
+def run_ansible(inp_data=""):  
     if inp_data != "":
         data = inp_data
     elif request.method == "POST":  # pragma: no cover
@@ -1228,7 +1239,7 @@ def run_ansible(inp_data=""):  # pragma: no cover
             cmdline="-vvvvv --vault-password-file ../vault.pass",
             quiet=True
         )
-    except Exception as e:
+    except Exception as e: # pragma: no cover
         # Delete Vault Password
         if "vault.pass" in os.listdir(RUN_DIR):
             os.remove("{}/vault.pass".format(RUN_DIR))

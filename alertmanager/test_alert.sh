@@ -1,5 +1,5 @@
 #!/bin/sh
-url='http://localhost:9093/api/v1/alerts'
+url='http://localhost:9093/api/v2/alerts'
 name="TEST ALERT"
 echo "firing up alert $name" 
 
