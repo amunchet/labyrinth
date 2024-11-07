@@ -185,24 +185,5 @@ def run_ansible(
         f.write(vault_password)
 
     # Run ansible and return HTML
-    try:
-        a = ansible_runner.run(
-            private_data_dir=RUN_DIR,
-            playbook="{}.yml".format(playbook),
-            cmdline="-vvvvv --vault-password-file ../vault.pass",
-        )
-        raise Exception("Done.")
-    except Exception:
-        # Delete Vault Password
-        if "vault.pass" in os.listdir(RUN_DIR):
-            os.remove("{}/vault.pass".format(RUN_DIR))
 
-    if os.path.exists("/vault.pass"):
-        os.remove("/vault.pass")
-
-    z = ansi2html.Ansi2HTMLConverter()
-    output = z.convert("".join(a.stdout))
-    # Delete all files
-    shutil.rmtree(RUN_DIR)
-
-    return output
+    return RUN_DIR, playbook

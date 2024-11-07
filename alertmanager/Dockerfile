@@ -15,7 +15,7 @@ RUN apt update && apt -y install \
     curl 
 
 ADD requirements.txt /
-RUN pip3 install -r /requirements.txt
+RUN pip3 install -r /requirements.txt --break-system-packages
 
 ENV REPO="prometheus/alertmanager"
 WORKDIR /tmp

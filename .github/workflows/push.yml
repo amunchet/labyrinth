@@ -18,11 +18,11 @@ jobs:
         run: docker ps
       
       - name: List Docker logs (backend)
-        run: docker logs labyrinth_backend_1
+        run: docker logs labyrinth-backend-1
       
 
       - name: List Docker logs
-        run: docker logs labyrinth_alertmanager_1
+        run: docker logs labyrinth-alertmanager-1
       
       - name: Copy .env.sample to backend
         run: cp backend/.env.sample backend/.env

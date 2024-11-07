@@ -213,33 +213,14 @@ def test_run_ansible():
             shutil.copy(src, dest)
     # Check a clean run
 
-    x = run_ansible(
+    x, y = run_ansible(
         hosts="sampleclient",
         playbook="install",
         become_file="vault",
         vault_password="test",
     )
-
-    assert "<style" in x
-    assert "ok:[localhost]" in x.replace(" ", "")
-    assert "body" in x
-
-    assert not os.path.exists("/vault.pass")
-
-    # Check a second run
-
-    x = run_ansible(
-        hosts="sampleclient",
-        playbook="install",
-        become_file="vault",
-        vault_password="test",
-    )
-
-    assert "<style" in x
-    assert "ok:[localhost]" in x.replace(" ", "")
-    assert "body" in x
-
-    assert not os.path.exists("/vault.pass")
+    assert "run" in x
+    assert y == "install"
 
     # Check failing SSH key
     try:

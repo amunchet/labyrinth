@@ -83,14 +83,17 @@ def test_send_alert():
         - Will just print out URL and payload
     """
     a = unwrap(serve.list_alerts)()
+    print(a[0])
     assert a[1] == 200
     b = json.loads(a[0])
 
-    assert watcher.send_alert(
+    output = watcher.send_alert(
         "test-alert",
         "test-service",
         "test-host",
     )
+    print(output.text)
+    assert output
     a = unwrap(serve.list_alerts)()
     assert a[1] == 200
 

@@ -63,7 +63,7 @@ openssl req -new -newkey rsa:2048 -days 365 -nodes -x509 -subj "/C=US/ST=IL/L=Ch
 
 if [ -z "${GITHUB}" ]; then
     echo "Starting development docker..."
-    docker-compose -f docker-compose-development.yml up --build -d
+    docker compose -f docker-compose-development.yml up --build -d
 else
     echo "[CI] Starting only CI dockers..."
 
@@ -85,5 +85,5 @@ else
         cp alertmanager/alertmanager.yml.development alertmanager/alertmanager.yml
     fi
 
-    docker-compose -f docker-compose-development.yml up --build -d mongo redis backend alertmanager
+    docker compose -f docker-compose-development.yml up --build -d mongo redis backend alertmanager
 fi
