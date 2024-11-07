@@ -87,7 +87,7 @@ def test_send_alert():
     assert a[1] == 200
     b = json.loads(a[0])
 
-    output= watcher.send_alert(
+    output = watcher.send_alert(
         "test-alert",
         "test-service",
         "test-host",

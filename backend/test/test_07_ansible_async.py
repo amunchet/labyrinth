@@ -4,11 +4,14 @@ from unittest.mock import patch, MagicMock
 from common.test import unwrap
 from serve import run_ansible  # Use the correct module name
 
+
 @patch("serve.ansible_runner.run_async")
 @patch("serve.ansible_helper.run_ansible")
 @patch("serve.os.path.exists")
 @patch("serve.shutil.rmtree")
-def test_run_ansible_multiple_events(mock_rmtree, mock_exists, mock_run_ansible, mock_run_async):
+def test_run_ansible_multiple_events(
+    mock_rmtree, mock_exists, mock_run_ansible, mock_run_async
+):
     # Mock the ansible_helper.run_ansible return value
     mock_run_ansible.return_value = ("RUN_DIR_PATH", "playbook_name")
 
@@ -31,12 +34,14 @@ def test_run_ansible_multiple_events(mock_rmtree, mock_exists, mock_run_ansible,
     mock_exists.return_value = False
 
     # Sample input data
-    sample_data = json.dumps({
-        "hosts": "localhost",
-        "playbook": "sample_playbook",
-        "vault_password": "password",
-        "become_file": "become_file_path"
-    })
+    sample_data = json.dumps(
+        {
+            "hosts": "localhost",
+            "playbook": "sample_playbook",
+            "vault_password": "password",
+            "become_file": "become_file_path",
+        }
+    )
 
     # Call the function
     response, headers = unwrap(run_ansible)(inp_data=sample_data)
@@ -63,12 +68,15 @@ def event_generator_with_exception():
     yield {"stdout": "Sample Output"}
     raise Exception("Test Exception")
 
+
 @patch("serve.ansible_runner.run_async")
 @patch("serve.ansible_helper.run_ansible")
 @patch("serve.os.path.exists")
 @patch("serve.shutil.rmtree")
 @patch("serve.os.remove")
-def test_ansible_stream_error_handling(mock_os_remove, mock_rmtree, mock_exists, mock_run_ansible, mock_run_async):
+def test_ansible_stream_error_handling(
+    mock_os_remove, mock_rmtree, mock_exists, mock_run_ansible, mock_run_async
+):
     # Mock the ansible_helper.run_ansible return value
     mock_run_ansible.return_value = ("RUN_DIR_PATH", "playbook_name")
 
@@ -80,7 +88,6 @@ def test_ansible_stream_error_handling(mock_os_remove, mock_rmtree, mock_exists,
 
     # Simulate an exception occurring during event iteration
     mock_runner.events = event_generator_with_exception()
-    
 
     mock_run_async.return_value = (mock_thread, mock_runner)
 
@@ -88,12 +95,14 @@ def test_ansible_stream_error_handling(mock_os_remove, mock_rmtree, mock_exists,
     mock_exists.return_value = True
 
     # Sample input data
-    sample_data = json.dumps({
-        "hosts": "localhost",
-        "playbook": "sample_playbook",
-        "vault_password": "password",
-        "become_file": "become_file_path"
-    })
+    sample_data = json.dumps(
+        {
+            "hosts": "localhost",
+            "playbook": "sample_playbook",
+            "vault_password": "password",
+            "become_file": "become_file_path",
+        }
+    )
 
     # Call the function
     response, headers = unwrap(run_ansible)(inp_data=sample_data)
@@ -110,17 +119,20 @@ def test_ansible_stream_error_handling(mock_os_remove, mock_rmtree, mock_exists,
     mock_rmtree.assert_called_once()
     mock_os_remove.assert_called_once()
 
+
 @patch("serve.ansible_helper.run_ansible")
 def test_run_ansible_missing_data(mock_run_ansible):
     # Mock the ansible_helper.run_ansible to prevent actual calls
     mock_run_ansible.return_value = ("RUN_DIR_PATH", "playbook_name")
 
     # Missing "vault_password" field
-    sample_data = json.dumps({
-        "hosts": "localhost",
-        "playbook": "sample_playbook",
-        "become_file": "become_file_path"
-    })
+    sample_data = json.dumps(
+        {
+            "hosts": "localhost",
+            "playbook": "sample_playbook",
+            "become_file": "become_file_path",
+        }
+    )
 
     # Call the function
     response, headers = unwrap(run_ansible)(inp_data=sample_data)
@@ -129,11 +141,14 @@ def test_run_ansible_missing_data(mock_run_ansible):
     assert response == "Invalid data"
     assert headers == 482
 
+
 @patch("serve.ansible_runner.run_async")
 @patch("serve.ansible_helper.run_ansible")
 @patch("serve.os.path.exists")
 @patch("serve.shutil.rmtree")
-def test_run_ansible_no_ssh_key(mock_rmtree, mock_exists, mock_run_ansible, mock_run_async):
+def test_run_ansible_no_ssh_key(
+    mock_rmtree, mock_exists, mock_run_ansible, mock_run_async
+):
     # Mock the ansible_helper.run_ansible return value
     mock_run_ansible.return_value = ("RUN_DIR_PATH", "playbook_name")
 
@@ -151,12 +166,14 @@ def test_run_ansible_no_ssh_key(mock_rmtree, mock_exists, mock_run_ansible, mock
     mock_exists.return_value = False
 
     # Sample input data without "ssh_key"
-    sample_data = json.dumps({
-        "hosts": "localhost",
-        "playbook": "sample_playbook",
-        "vault_password": "password",
-        "become_file": "become_file_path"
-    })
+    sample_data = json.dumps(
+        {
+            "hosts": "localhost",
+            "playbook": "sample_playbook",
+            "vault_password": "password",
+            "become_file": "become_file_path",
+        }
+    )
 
     # Call the function
     response, headers = unwrap(run_ansible)(inp_data=sample_data)

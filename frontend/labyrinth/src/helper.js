@@ -161,15 +161,11 @@ export default {
 
     console.log(url);
     console.log(service);
-    console.log(command)
-    console.log(auth)
-    console.log(arr)
-    console.log(isUpload)
-    console.log(raw)
-
-
-
-
+    console.log(command);
+    console.log(auth);
+    console.log(arr);
+    console.log(isUpload);
+    console.log(raw);
 
     return auth.getAccessToken().then((accessToken) => {
       let headers = {

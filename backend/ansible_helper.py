@@ -187,5 +187,3 @@ def run_ansible(
     # Run ansible and return HTML
 
     return RUN_DIR, playbook
-
-    

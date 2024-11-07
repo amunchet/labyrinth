@@ -29,24 +29,22 @@ def send_alert(
     :param serverity - defaults to error
     """
     url = "http://alertmanager:9093/api/v2/alerts"
-    headers = {
-        "Content-Type": "application/json"
-    }
+    headers = {"Content-Type": "application/json"}
     data = {
         "status": "firing",
         "labels": {
             "alertname": alert_name,
             "service": service,
             "severity": severity,
-            "instance": instance
+            "instance": instance,
         },
-        "annotations": {
-            "summary": summary
-        },
-        "generatorURL": url
+        "annotations": {"summary": summary},
+        "generatorURL": url,
     }
 
     password = open("/alertmanager/pass").read()
 
-    retval = requests.post(url, headers=headers, data=json.dumps([data]), auth=("admin", password))
+    retval = requests.post(
+        url, headers=headers, data=json.dumps([data]), auth=("admin", password)
+    )
     return retval

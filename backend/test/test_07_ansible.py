@@ -213,7 +213,7 @@ def test_run_ansible():
             shutil.copy(src, dest)
     # Check a clean run
 
-    x,y = run_ansible(
+    x, y = run_ansible(
         hosts="sampleclient",
         playbook="install",
         become_file="vault",

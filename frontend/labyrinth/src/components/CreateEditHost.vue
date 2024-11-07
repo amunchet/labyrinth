@@ -245,13 +245,11 @@
             </b-button>
           </template>
           <template v-slot:top-row="" v-if="show_add_service">
-            <td role="cell"
-                @keydown.esc.stop="(e)=>e.stopPropagation()"
-            >
+            <td role="cell" @keydown.esc.stop="(e) => e.stopPropagation()">
               <v-select
                 placeholder="Service:"
                 label="text"
-                :reduce="x=>x.value"
+                :reduce="(x) => x.value"
                 :options="services"
                 v-model="new_services"
               />

@@ -93,9 +93,11 @@
         <b-row>
           <b-col class="text-left"><h4>Configuration File</h4></b-col>
           <b-col>
-            <v-select v-model="selected_host" :options="hosts" 
-                label="text"
-                :reduce="x=>x.value"
+            <v-select
+              v-model="selected_host"
+              :options="hosts"
+              label="text"
+              :reduce="(x) => x.value"
             />
           </b-col>
           <b-col cols="1"
@@ -380,22 +382,21 @@ export default {
       Helper.apiCall("hosts", "", auth)
         .then((res) => {
           this.raw_hosts = res;
-          
+
           // No duplicates in hosts allowed
-          var hosts = []
-          var seen = {}
-          res.forEach(x=>{
-            var ip = x.ip.trim()
-            if(seen[ip] == undefined){
-              seen[ip] = true
+          var hosts = [];
+          var seen = {};
+          res.forEach((x) => {
+            var ip = x.ip.trim();
+            if (seen[ip] == undefined) {
+              seen[ip] = true;
               hosts.push({
                 value: ip,
-                text: ip
-              })
+                text: ip,
+              });
             }
-          })
-          this.hosts = hosts
-
+          });
+          this.hosts = hosts;
         })
         .catch((e) => {
           this.$store.commit("updateError", e);

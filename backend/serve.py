@@ -825,11 +825,12 @@ def list_alerts():
     """
     url = "http://alertmanager:9093/api/v2/alerts"
     password = open("/alertmanager/pass").read()
-    headers = {
-        "Content-Type" : "application/json"
-    }
+    headers = {"Content-Type": "application/json"}
 
-    return json.dumps(requests.get(url, auth=("admin", password), headers=headers).json()), 200
+    return (
+        json.dumps(requests.get(url, auth=("admin", password), headers=headers).json()),
+        200,
+    )
 
 
 @app.route("/alertmanager/alert", methods=["POST"])
@@ -851,10 +852,8 @@ def resolve_alert(data=""):
     del parsed_data["startsAt"]
     parsed_data["status"] = "resolved"
     parsed_data["endsAt"] = "2021-08-03T14:34:41-05:00"
-    
-    headers = {
-        "Content-Type" : "application/json"
-    }
+
+    headers = {"Content-Type": "application/json"}
 
     retval = requests.post(
         url, data=json.dumps([parsed_data]), auth=("admin", password), headers=headers
@@ -872,9 +871,7 @@ def restart_alertmanager():
     url = "http://alertmanager:9093/-/reload"
     password = open("/alertmanager/pass").read()
 
-    headers = {
-        "Content-Type" : "application/json"
-    }
+    headers = {"Content-Type": "application/json"}
 
     retval = requests.post(url, auth=("admin", password), headers=headers)
     return retval.text, retval.status_code
@@ -1203,14 +1200,14 @@ def save_ansible_file(fname, inp_data="", vars_file=""):
 # Ansible runner
 @app.route("/ansible_runner/", methods=["POST"])
 @requires_auth_admin
-def run_ansible(inp_data=""):  
+def run_ansible(inp_data=""):
     if inp_data != "":
         data = inp_data
     elif request.method == "POST":  # pragma: no cover
         data = request.form.get("data")
     else:  # pragma: no cover
         return "Invalid data", 481
-    
+
     data = json.loads(data)
     if (
         "hosts" not in data
@@ -1223,7 +1220,6 @@ def run_ansible(inp_data=""):
     if "ssh_key" not in data:
         data["ssh_key"] = ""
 
-    
     RUN_DIR, playbook = ansible_helper.run_ansible(
         data["hosts"],
         data["playbook"],
@@ -1233,13 +1229,13 @@ def run_ansible(inp_data=""):
     )
 
     try:
-        thread,runner = ansible_runner.run_async(
+        thread, runner = ansible_runner.run_async(
             private_data_dir=RUN_DIR,
             playbook="{}.yml".format(playbook),
             cmdline="-vvvvv --vault-password-file ../vault.pass",
-            quiet=True
+            quiet=True,
         )
-    except Exception as e: # pragma: no cover
+    except Exception as e:  # pragma: no cover
         # Delete Vault Password
         if "vault.pass" in os.listdir(RUN_DIR):
             os.remove("{}/vault.pass".format(RUN_DIR))
@@ -1254,7 +1250,9 @@ def run_ansible(inp_data=""):
             while thread.is_alive():
                 try:
                     for event in runner.events:
-                        yield ("<div>" + str(event["stdout"]) + "</div>").encode("utf-8")
+                        yield ("<div>" + str(event["stdout"]) + "</div>").encode(
+                            "utf-8"
+                        )
                         time.sleep(0.1)
                 except Exception as e:
                     yield f"Error: {e}".encode("utf-8")
@@ -1265,7 +1263,7 @@ def run_ansible(inp_data=""):
             # Delete all files
             shutil.rmtree(RUN_DIR)
 
-    return ansible_stream(), {"Content-Type" : "text/plain"}
+    return ansible_stream(), {"Content-Type": "text/plain"}
 
 
 @app.route("/mac/<old_mac>/<new_mac>/")

@@ -423,101 +423,102 @@
           </b-row>
 
           <hr />
-              <span class="text-left">Ansible Playbook Contents</span>
+          <span class="text-left">Ansible Playbook Contents</span>
 
-              <codemirror
-                v-if="loadings.playbook == undefined || loadings.playbook == 0"
-                bordered
-                class="border"
-                ref="code_mirror_playbook"
-                v-model="playbook_contents"
-                :options="{
-                  tabSize: 4,
-                  mode: 'text/x-yaml',
-                  theme: 'default',
-                  lineNumbers: true,
-                  line: true,
-                }"
-                @ready="() => {}"
-                @focus="() => {}"
-                @input="() => {}"
-              >
-              </codemirror>
+          <codemirror
+            v-if="loadings.playbook == undefined || loadings.playbook == 0"
+            bordered
+            class="border"
+            ref="code_mirror_playbook"
+            v-model="playbook_contents"
+            :options="{
+              tabSize: 4,
+              mode: 'text/x-yaml',
+              theme: 'default',
+              lineNumbers: true,
+              line: true,
+            }"
+            @ready="() => {}"
+            @focus="() => {}"
+            @input="() => {}"
+          >
+          </codemirror>
 
-              <div v-else class="mt-2 text-center">
-                <b-spinner class="ml-auto mr-auto mt-4" />
-              </div>
-              <div class="overflow-hidden mt-2">
-                <b-button
-                  variant="success"
-                  class="mb-2 float-right"
-                  @click="savePlaybook()"
-                  v-if="
-                    loadings.save_playbook == undefined ||
-                    loadings.save_playbook == 0
-                  "
-                >
-                  <font-awesome-icon icon="save" size="1x" />&nbsp; Save
-                  Playbook
-                </b-button>
-                <div class="mb-2 mt-2 float-right" v-else>
-                  <b-spinner />
-                </div>
-              </div>
+          <div v-else class="mt-2 text-center">
+            <b-spinner class="ml-auto mr-auto mt-4" />
+          </div>
+          <div class="overflow-hidden mt-2">
+            <b-button
+              variant="success"
+              class="mb-2 float-right"
+              @click="savePlaybook()"
+              v-if="
+                loadings.save_playbook == undefined ||
+                loadings.save_playbook == 0
+              "
+            >
+              <font-awesome-icon icon="save" size="1x" />&nbsp; Save Playbook
+            </b-button>
+            <div class="mb-2 mt-2 float-right" v-else>
+              <b-spinner />
+            </div>
+          </div>
         </b-card> </b-col
     ></b-row>
     <b-row>
       <b-col>
-    <div
-      v-if="
-        (selected_host || ips.length > 0) &&
-        selected['become'] &&
-        vault_password &&
-        selected_playbook
-      "
-    >
-      <b-button
-        size="lg"
-        style="width: 100%"
-        v-if="isTesting"
-        variant="success"
-        @click="runPlaybook()"
-        >Deploy to sampleclient</b-button
-      >
-      <b-button
-        size="lg"
-        style="width: 100%"
-        v-else
-        variant="primary"
-        @click="runPlaybook()"
-        >Deploy to host<span v-if="ips.length != 0">s</span></b-button
-      >
-      <hr />
-      <div
-        class="playbook_result mb-4"
-        ref="playbookResultDiv"
-        v-html="$sanitize(playbook_result)"
-        v-if="running && playbook_result && playbook_loaded && ips.length == 0"
-      ></div>
-
-      <div v-if="ips != [] && running">
-        <div v-for="(item, idx) in ips" v-bind:key="idx">
-          <h4 class="text-left">{{ item }} Results</h4>
-          <div
-            class="playbook_result"
-            v-if="playbook_results[item] != undefined"
-            v-html="$sanitize(playbook_results[item])"
-          ></div>
-          <div class="overflow-hidden" v-else>
-            <b-spinner class="m-1 float-left" />
-          </div>
+        <div
+          v-if="
+            (selected_host || ips.length > 0) &&
+            selected['become'] &&
+            vault_password &&
+            selected_playbook
+          "
+        >
+          <b-button
+            size="lg"
+            style="width: 100%"
+            v-if="isTesting"
+            variant="success"
+            @click="runPlaybook()"
+            >Deploy to sampleclient</b-button
+          >
+          <b-button
+            size="lg"
+            style="width: 100%"
+            v-else
+            variant="primary"
+            @click="runPlaybook()"
+            >Deploy to host<span v-if="ips.length != 0">s</span></b-button
+          >
           <hr />
-        </div>
-      </div>
+          <div
+            class="playbook_result mb-4"
+            ref="playbookResultDiv"
+            v-html="$sanitize(playbook_result)"
+            v-if="
+              running && playbook_result && playbook_loaded && ips.length == 0
+            "
+          ></div>
 
-      <b-spinner class="m-2" v-if="!playbook_loaded" />
-    </div>
-    </b-col>
+          <div v-if="ips != [] && running">
+            <div v-for="(item, idx) in ips" v-bind:key="idx">
+              <h4 class="text-left">{{ item }} Results</h4>
+              <div
+                class="playbook_result"
+                v-if="playbook_results[item] != undefined"
+                v-html="$sanitize(playbook_results[item])"
+              ></div>
+              <div class="overflow-hidden" v-else>
+                <b-spinner class="m-1 float-left" />
+              </div>
+              <hr />
+            </div>
+          </div>
+
+          <b-spinner class="m-2" v-if="!playbook_loaded" />
+        </div>
+      </b-col>
     </b-row>
   </b-container>
 </template>
@@ -961,9 +962,9 @@ export default {
   padding: 1rem;
 }
 
-.playbook_result div{
+.playbook_result div {
   margin-top: 0.5rem;
-  margin-bottom:0.5rem;
+  margin-bottom: 0.5rem;
 }
 .text-underline {
   font-weight: bold;
