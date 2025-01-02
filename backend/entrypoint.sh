@@ -12,5 +12,5 @@ if [ -z "$PRODUCTION"]; then
 else
 	echo "Starting production..."
 	cd /src
-	gunicorn --bind 0.0.0.0:7000 --worker-class gevent --workers 8 serve:app 
+	gunicorn --bind 0.0.0.0:7000 --worker-class gevent --workers 8 -t 600 serve:app 
 fi
