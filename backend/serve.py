@@ -1200,7 +1200,7 @@ def save_ansible_file(fname, inp_data="", vars_file=""):
 # Ansible runner
 @app.route("/ansible_runner/", methods=["POST"])
 @requires_auth_admin
-def run_ansible(inp_data=""):
+def run_ansible(inp_data="", sync=False):
     if inp_data != "":
         data = inp_data
     elif request.method == "POST":  # pragma: no cover
@@ -1229,12 +1229,22 @@ def run_ansible(inp_data=""):
     )
 
     try:
-        thread, runner = ansible_runner.run_async(
-            private_data_dir=RUN_DIR,
-            playbook="{}.yml".format(playbook),
-            cmdline="-vvvvv --vault-password-file ../vault.pass",
-            quiet=True,
-        )
+        if not sync:
+            thread, runner = ansible_runner.run_async(
+                private_data_dir=RUN_DIR,
+                playbook="{}.yml".format(playbook),
+                cmdline="-vvvvv --vault-password-file ../vault.pass",
+                quiet=True,
+            )
+        else:
+            result = ansible_runner.run(
+                private_data_dir=RUN_DIR,
+                playbook="{}.yml".format(playbook),
+                cmdline="-vvvvv --vault-password-file ../vault.pass",
+                quiet=True,
+            )
+            return result
+
     except Exception as e:  # pragma: no cover
         # Delete Vault Password
         if "vault.pass" in os.listdir(RUN_DIR):
