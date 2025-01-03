@@ -1263,7 +1263,7 @@ def run_ansible(inp_data="", sync=False):
                         yield ("<div>" + str(event["stdout"]) + "</div>").encode(
                             "utf-8"
                         )
-                        time.sleep(0.1)
+                        # time.sleep(0.1)
                 except Exception as e:
                     yield f"Error: {e}".encode("utf-8")
         finally:
