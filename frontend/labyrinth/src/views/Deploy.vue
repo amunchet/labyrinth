@@ -495,13 +495,19 @@
           <div
             class="playbook_result mb-4"
             ref="playbookResultDiv"
-            v-html="$sanitize(playbook_result)"
-            v-if="
-              running && playbook_result && playbook_loaded && ips.length == 0
+            v-if="playbook_result && playbook_loaded && ips.length == 0
             "
-          ></div>
+          >
+          <div v-for="(item, playbook_idx) in playbook_results"
+          v-bind:key="'playbook_idx' + playbook_idx"
+          >
+            {{item}}
+            </div>
+          
+          </div>
 
-          <div v-if="ips != [] && running">
+
+          <div v-if="ips != [] && playbook_results.length > 0">
             <div v-for="(item, idx) in ips" v-bind:key="idx">
               <h4 class="text-left">{{ item }} Results</h4>
               <div
@@ -761,70 +767,99 @@ export default {
         });
     },
 
-    runPlaybook: /* istanbul ignore next */ async function () {
-      if (this.selected["become"] === "") {
-        this.$store.commit(
-          "updateError",
-          "Error: No Become Password file selected"
-        );
-        return false;
+  runPlaybook: /* istanbul ignore next */ async function () {
+  if (this.selected["become"] === "") {
+    this.$store.commit(
+      "updateError",
+      "Error: No Become Password file selected"
+    );
+    return false;
+  }
+
+  let auth = this.$auth;
+  this.running = true;
+  this.playbook_result = ""
+  this.playbook_results = []
+
+  // Prepare data for the API call
+  let data = {
+    hosts: this.ips.length > 0 ? this.ips.join(",") : this.selected_host,
+    playbook: this.selected_playbook.replace(".yml", ""),
+    vault_password: this.vault_password,
+    become_file: this.selected["become"].replace(".yml", ""),
+    ssh_key: this.selected["ssh"],
+  };
+
+  // Use FormData to prepare the request
+  let formData = new FormData();
+  formData.append("data", JSON.stringify(data));
+
+  try {
+    // Step 1: Initiate the Ansible Runner job
+    let response = await Helper.apiPost(
+      "ansible_runner", // URL
+      "", // Service (empty string if not needed)
+      "", // Command (empty string if not needed)
+      auth, // Auth object
+      formData, // Data
+      false, // isUpload set to true for multipart/form-data
+      1
+    );
+
+    // Extract job_id from the response
+    const resp = await response.json();
+    const job_id = resp.job_id
+    const status = resp.status
+    if (!job_id || status !== "started") {
+      throw new Error("Failed to start the playbook execution.");
+    }
+
+    // Step 2: Poll for job status and logs
+    let polling = true;
+    let result = "";
+    while (polling) {
+      await new Promise((resolve) => setTimeout(resolve, 2000)); // Poll every 2 seconds
+
+      let statusResponse = await Helper.apiCall(
+        `ansible_status/${job_id}`, // URL
+        "", // Command (empty string if not needed)
+        auth // Auth object
+      );
+
+      const { status, logs, results, error } = statusResponse;
+
+      if (status === "completed") {
+        result = results || "";
+        polling = false;
+      } else if (status === "error") {
+        throw new Error(error || "An error occurred during execution.");
+      } else {
+        // Update logs incrementally
+        this.playbook_result = logs.join("\r\n\r\n");
+        this.$nextTick(() => {
+          const div = this.$refs.playbookResultDiv;
+          if (div) {
+            div.scrollTop = div.scrollHeight;
+          }
+        });
       }
 
-      let auth = this.$auth;
-      this.running = true;
+      this.playbook_results = logs
 
-      // Prepare data for the API call
-      let data = {
-        hosts: this.ips.length > 0 ? this.ips.join(",") : this.selected_host,
-        playbook: this.selected_playbook.replace(".yml", ""),
-        vault_password: this.vault_password,
-        become_file: this.selected["become"].replace(".yml", ""),
-        ssh_key: this.selected["ssh"],
-      };
+      this.$forceUpdate(); // Re-render the component
+    }
 
-      // Use FormData to prepare the request
-      let formData = new FormData();
-      formData.append("data", JSON.stringify(data));
+    // Final result
+    this.playbook_result = result;
+    this.running = false;
+  } catch (error) {
+    // Handle any errors
+    console.log(error);
+    this.$store.commit("updateError", error.message || error);
+    this.running = false;
+  }
+},
 
-      try {
-        // Use apiPost to initiate the streaming response
-        let response = await Helper.apiPost(
-          "ansible_runner", // URL
-          "", // Service (empty string if not needed)
-          "", // Command (empty string if not needed)
-          auth, // Auth object
-          formData, // Data
-          false, // isUpload set to true for multipart/form-data
-          1
-        );
-
-        // Handle the streaming response
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder("utf-8");
-        let result = "";
-        let truth = 1;
-
-        // Read the response stream
-        while (truth) {
-          const { done, value } = await reader.read();
-          if (done) break; // End of stream
-          result += decoder.decode(value, { stream: true });
-          this.playbook_result = result; // Update the result
-          this.$nextTick(() => {
-            // Scroll to the bottom of the div
-            const div = this.$refs.playbookResultDiv;
-            if (div) {
-              div.scrollTop = div.scrollHeight;
-            }
-          });
-          this.$forceUpdate(); // Re-render the component
-        }
-      } catch (error) {
-        // Handle any errors
-        console.log(error);
-        this.$store.commit("updateError", error);
-      }
-    },
 
     loadIP: /* istanbul ignore next */ async function () {
       let auth = this.$auth;

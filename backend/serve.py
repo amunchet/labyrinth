@@ -34,6 +34,9 @@ from flask_cors import CORS
 from PIL import Image
 from pid import PidFile
 
+import uuid
+from multiprocessing import Process
+
 
 import ansible_runner
 import ansible_helper
@@ -1198,82 +1201,93 @@ def save_ansible_file(fname, inp_data="", vars_file=""):
 
 
 # Ansible runner
-@app.route("/ansible_runner/", methods=["POST"])
-@requires_auth_admin
-def run_ansible(inp_data="", sync=False):
-    if inp_data != "":
-        data = inp_data
-    elif request.method == "POST":  # pragma: no cover
-        data = request.form.get("data")
-    else:  # pragma: no cover
-        return "Invalid data", 481
 
-    data = json.loads(data)
-    if (
-        "hosts" not in data
-        or "playbook" not in data
-        or "vault_password" not in data
-        or "become_file" not in data
-    ):
-        return "Invalid data", 482
-
-    if "ssh_key" not in data:
-        data["ssh_key"] = ""
-
+def run_ansible_background(job_id, data):
+    """Run Ansible in the background and store results in Redis."""
+    redis_client = redis.Redis(host=os.environ.get("REDIS_HOST"))
     RUN_DIR, playbook = ansible_helper.run_ansible(
         data["hosts"],
         data["playbook"],
         data["vault_password"],
         data["become_file"],
-        ssh_key_file=data["ssh_key"],
+        ssh_key_file=data.get("ssh_key", ""),
     )
 
+    redis_client.hset(job_id, "status", "running")
+
     try:
-        if not sync:
-            thread, runner = ansible_runner.run_async(
-                private_data_dir=RUN_DIR,
-                playbook="{}.yml".format(playbook),
-                cmdline="-vvvvv --vault-password-file ../vault.pass",
-                quiet=True,
-            )
-        else:
-            result = ansible_runner.run(
-                private_data_dir=RUN_DIR,
-                playbook="{}.yml".format(playbook),
-                cmdline="-vvvvv --vault-password-file ../vault.pass",
-                quiet=True,
-            )
-            return result
+        thread, runner = ansible_runner.run_async(
+            private_data_dir=RUN_DIR,
+            playbook=f"{playbook}.yml",
+            cmdline="-vvvvv --vault-password-file ../vault.pass",
+            quiet=True,
+        )
 
-    except Exception as e:  # pragma: no cover
-        # Delete Vault Password
+        results = []
+        while thread.is_alive():
+            for event in runner.events:
+                stdout = event.get("stdout", "")
+                if stdout:
+                    results.append(stdout)
+                    redis_client.rpush(f"{job_id}_log", stdout)
+            time.sleep(0.1)
+
+        redis_client.hset(job_id, "status", "completed")
+        redis_client.hset(job_id, "results", json.dumps(results))
+
+    except Exception as e:
+        redis_client.hset(job_id, "status", "error")
+        redis_client.hset(job_id, "error", str(e))
+
+    finally:
         if "vault.pass" in os.listdir(RUN_DIR):
-            os.remove("{}/vault.pass".format(RUN_DIR))
-
+            os.remove(f"{RUN_DIR}/vault.pass")
         if os.path.exists("/vault.pass"):
             os.remove("/vault.pass")
         shutil.rmtree(RUN_DIR)
-        return f"Error: {e}", 200
 
-    def ansible_stream():
-        try:
-            while thread.is_alive():
-                try:
-                    for event in runner.events:
-                        yield ("<div>" + str(event["stdout"]) + "</div>").encode(
-                            "utf-8"
-                        )
-                        time.sleep(0.1)
-                except Exception as e:
-                    yield f"Error: {e}".encode("utf-8")
-        finally:
-            if os.path.exists("/vault.pass"):
-                os.remove("/vault.pass")
+@app.route("/ansible_runner/", methods=["POST"])
+@requires_auth_admin
+def run_ansible_endpoint():
+    redis_client = redis.Redis(host=os.environ.get("REDIS_HOST"))
+    if request.method == "POST":
+        data = request.form.get("data")
+        if not data:
+            return "Invalid data", 481
 
-            # Delete all files
-            shutil.rmtree(RUN_DIR)
+        data = json.loads(data)
+        required_keys = ["hosts", "playbook", "vault_password", "become_file"]
+        if not all(key in data for key in required_keys):
+            return "Invalid data", 482
 
-    return ansible_stream(), {"Content-Type": "text/plain"}
+        job_id = f"ansible_job_{uuid.uuid4()}"
+        redis_client.hset(job_id, "status", "queued")
+        
+        # Start the process
+        process = Process(target=run_ansible_background, args=(job_id, data))
+        process.start()
+
+        return {"job_id": job_id, "status": "started"}, 200
+
+
+@app.route("/ansible_status/<job_id>", methods=["GET"])
+@app.route("/ansible_status/<job_id>/", methods=["GET"])
+@requires_auth_admin
+def get_ansible_status(job_id):
+    redis_client = redis.Redis(host=os.environ.get("REDIS_HOST"))
+    status = redis_client.hget(job_id, "status")
+    if not status:
+        return {"error": "Job not found"}, 404
+
+    logs = redis_client.lrange(f"{job_id}_log", 0, -1)
+    results = redis_client.hget(job_id, "results")
+
+    return {
+        "job_id": job_id,
+        "status": status.decode("utf-8"),
+        "logs": [log.decode("utf-8") for log in logs],
+        "results": json.loads(results.decode("utf-8")) if results else None,
+    }, 200
 
 
 @app.route("/mac/<old_mac>/<new_mac>/")
