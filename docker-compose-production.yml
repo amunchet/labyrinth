@@ -24,6 +24,7 @@ services:
       args:
         TZ: ${TZ}
     restart: always
+    hostname: backend
     volumes:
       - ./backend/:/src
       - ./alertmanager:/alertmanager
@@ -33,6 +34,26 @@ services:
     environment: 
       REDIS_HOST: redis
       PRODUCTION: 1
+
+  metrics_backend:
+    build: 
+      context: "backend"
+      args:
+        TZ: ${TZ}
+    restart: always
+    hostname: metrics_backend
+    volumes:
+      - ./backend/:/src
+      - ./alertmanager:/alertmanager
+      - ./frontend/labyrinth/public:/public
+    networks:
+      - labyrinth
+    environment: 
+      REDIS_HOST: redis
+      PRODUCTION: 1
+      METRICS: 1
+
+
 
   frontend:
     image: nginx:latest
@@ -72,18 +93,18 @@ services:
       - nginx/.env
 
 
-  # Mongo
-  mongo:
-    image: mongo
-    restart: always
-    networks:
-      - labyrinth
-    volumes:
-      - ./data:/data/db
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: temp
-
+# Mongo
+#  mongo:
+#    image: mongo
+#    restart: always
+#    networks:
+#      - labyrinth
+#    volumes:
+#      - ./data:/data/db
+#    environment:
+#      MONGO_INITDB_ROOT_USERNAME: root
+#      MONGO_INITDB_ROOT_PASSWORD: temp
+#
   
   # Redis
   redis:
