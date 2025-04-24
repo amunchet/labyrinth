@@ -51,7 +51,80 @@
               v-model="smartbar"
               lazy
               placeholder="Enter filter (i.e. port=22)"
-            />
+            /> </b-col
+          ><b-col cols="0" class="text-left pt-2">
+            <b-button
+              variant="primary"
+              v-b-modal.smartbar_help
+              class="rounded-circle d-flex align-items-center justify-content-center p-0"
+              style="width: 1.5rem; height: 1.5rem"
+            >
+              <font-awesome-icon icon="question" size="1x"
+            /></b-button>
+            <b-modal id="smartbar_help" title="🔍 Smartbar Filter Help">
+              <div id="smartbar-help" class="help-content">
+                <p>
+                  You can use the <strong>smartbar</strong> to filter subnet
+                  host data using key=value pairs. Filters are case-insensitive
+                  and space-separated.
+                </p>
+                <hr />
+                <h5>🔧 Available Filters:</h5>
+                <ul>
+                  <li>
+                    <strong>service</strong> – Filter by service name (e.g.,
+                    <code>service=nginx</code>)
+                  </li>
+                  <li>
+                    <strong>host</strong> – Filter by host name (e.g.,
+                    <code>host=db-server</code>)
+                  </li>
+                  <li>
+                    <strong>port</strong> – Filter by port number (e.g.,
+                    <code>port=443</code>)
+                  </li>
+                  <li>
+                    <strong>group</strong> – Filter by group name (e.g.,
+                    <code>group=web</code>)
+                  </li>
+                  <li>
+                    <strong>ip</strong> – Filter by IP address (e.g.,
+                    <code>ip=192.168.1.10</code>)
+                  </li>
+                  <li>
+                    <strong>tag:</strong> – Filter by custom tag (e.g.,
+                    <code>tag:env=production</code>)
+                  </li>
+                  <li>
+                    <strong>field:</strong> – Filter by custom field (e.g.,
+                    <code>field:owner=alice</code>)
+                  </li>
+                </ul>
+                <hr />
+                <h5>✅ Examples:</h5>
+                <ul>
+                  <li>
+                    <code>service=nginx port=80</code> – Hosts running nginx on
+                    port 80
+                  </li>
+                  <li>
+                    <code>group=api tag:env=staging</code> – Hosts in the "api"
+                    group tagged as "staging"
+                  </li>
+                  <li>
+                    <code>field:owner=bob port=443</code> – Hosts owned by Bob
+                    running on port 443
+                  </li>
+                  <li>
+                    <code>ip=10.0.0.15</code> – Host with specific IP address
+                  </li>
+                </ul>
+
+                <p>
+                  <em>Leave the smartbar empty to show all hosts (sorted).</em>
+                </p>
+              </div>
+            </b-modal>
           </b-col>
           <b-col class="text-right">
             <b-button
