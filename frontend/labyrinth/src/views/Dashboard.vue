@@ -52,29 +52,7 @@
               lazy
               placeholder="Enter filter (i.e. port=22)"
             />
-            <b-row class="mt-2">
-              <b-col class="text-left" cols="2">
-                <b-button variant="link" class="p-0 m-0"
-                @click="selected_ips = Object.fromEntries((parsed_data?.map(x=>x?.groups?.map(y=>y?.hosts?.map(z=>z.display != false ? z.ip : null).filter(z=>z != null)))?.flat(Infinity)).map(key => [key, true])); $forceUpdate()"
-                >
-                  Select&nbsp;All
-                  </b-button>
-                </b-col>
-                <b-col class="text-left mr-3" cols="2">
-                <b-button variant="link" class="p-0 m-0"
-                @click="selected_ips = {}"
-                >
-                  Unselect&nbsp;All
-                  </b-button>
-                </b-col>
-                <b-col class="text-left" v-if="selected_ips">
-                  <a :href="'/deploy?ips=' + Object.keys(selected_ips).reduce((total, x)=>total += x + ',', '')">
-                <b-button variant="link" class="p-0 m-0">
-                  Deploy&nbsp;to&nbsp;Selected
-                  </b-button>
-                  </a>
-                </b-col>
-              </b-row> 
+             
               
             </b-col
           ><b-col cols="0" class="text-left pt-2">
@@ -98,7 +76,9 @@
                 <ul>
                   <li>
                     <strong>service_state</strong> – Filter by service state (e.g.,
-                    <code>service_state=false service=apt</code>). <br /><i>NOTE: Needs to come before service.</i>
+                    <code>service_state=false service=apt</code> or <code>service_state=false</code>). 
+                    <br /> This can be applied to either a service or all services.
+                    <br /><i>NOTE: Needs to come before service (if specified).</i>
                   </li>
                   <li>
                     <strong>service</strong> – Filter by service name (e.g.,
@@ -172,6 +152,29 @@
             </b-button>
           </b-col>
         </b-row>
+<b-row class="mt-2 outer pt-1 smartbar">
+              <b-col class="text-left" cols="4">
+                <b-button variant="outline-primary" size="sm" class="mr-2"
+                @click="selected_ips = Object.fromEntries((parsed_data?.map(x=>x?.groups?.map(y=>y?.hosts?.map(z=>z.display != false ? z.ip : null).filter(z=>z != null)))?.flat(Infinity)).map(key => [key, true])); $forceUpdate()"
+                >
+                  Select&nbsp;All
+                  </b-button>
+                <b-button variant="outline-primary" class="mr-2" size="sm"
+                @click="selected_ips = {}"
+                >
+                  Unselect&nbsp;All
+                  </b-button>
+                  <div class="float-right float-end">
+                  <a 
+                  v-if="Object.keys(selected_ips).length > 0"
+                  :href="'/deploy?ips=' + Object.keys(selected_ips).reduce((total, x)=>total += x + ',', '')">
+                <b-button variant="success" class="" size="sm">
+                  Deploy&nbsp;to&nbsp;Selected
+                  </b-button>
+                  </a>
+                  </div>
+                </b-col>
+              </b-row>
 
         <div
           :class="'outer ' + (subnet.minimized ? 'minimized' : '')"
