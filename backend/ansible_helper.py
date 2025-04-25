@@ -167,7 +167,7 @@ def run_ansible(
     with open("{}/inventory/hosts".format(RUN_DIR), "w") as f:
         f.write("[clients]\n")
         for host in parsed_hosts:
-            f.write(host)
+            f.write(f"{host}\n")
 
     # Become file
     old_become = "{}/{}.yml".format(BECOME_DIR, become_file)
