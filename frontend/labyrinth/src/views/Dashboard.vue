@@ -61,7 +61,7 @@
             >
               <font-awesome-icon icon="question" size="1x"
             /></b-button>
-            <b-modal id="smartbar_help" title="🔍 Smartbar Filter Help">
+            <b-modal id="smartbar_help" title="🔍 Smartbar Filter Help" size="lg">
               <div id="smartbar-help" class="help-content">
                 <p>
                   You can use the <strong>smartbar</strong> to filter subnet
@@ -71,6 +71,10 @@
                 <hr />
                 <h5>🔧 Available Filters:</h5>
                 <ul>
+                  <li>
+                    <strong>service_state</strong> – Filter by service state (e.g.,
+                    <code>service_state=false service=apt</code>). <br /><i>NOTE: Needs to come before service.</i>
+                  </li>
                   <li>
                     <strong>service</strong> – Filter by service name (e.g.,
                     <code>service=nginx</code>)
@@ -117,6 +121,9 @@
                   </li>
                   <li>
                     <code>ip=10.0.0.15</code> – Host with specific IP address
+                  </li>
+                  <li>
+                    <code>service_state=false service=apt</code> – All hosts needing apt update.  NOTE: service_state comes first.
                   </li>
                 </ul>
 
@@ -292,6 +299,15 @@
                     "
                     :host="host.host"
                     :display="host.display"
+                    :selected="selected_ips[host.ip] != undefined"
+                    @selected_changed="()=>{
+                      if(selected_ips[host.ip] == undefined){
+                        selected_ips[host.ip] = 1
+                      }else{
+                        delete selected_ips[host.ip]
+                      }
+                      
+                      }"
                   />
                 </div>
               </div>
@@ -344,6 +360,8 @@ export default {
       },
 
       timeout: null,
+
+      selected_ips: {},
     };
   },
   components: {
@@ -370,6 +388,7 @@ export default {
         port: null,
         group: null,
         ip: null,
+        service_state: null,
 
         invert: false,
       };
@@ -394,6 +413,9 @@ export default {
             temp.field.push({ field: field_name, value: right });
           } else {
             switch (left) {
+              case "service_state": 
+                temp.service_state = right
+                break;
               case "service":
                 temp.service = right;
                 break;
@@ -486,14 +508,34 @@ export default {
     },
     checkHostFilter(host, searches) {
       let retval = false;
+
+      let desired_state = null
+
       searches.forEach((search) => {
+
+        // Services state
+        if(search.service_state != undefined && search.service_state != null){
+          desired_state = search.service_state == "true"
+        }
+
         // Services Search
-        if (
-          host.services
+
+        var found_service = host.services
             .map((x) => (x ? x.name.toLowerCase() : ""))
-            .indexOf(search.service.toLowerCase()) != -1
+            .indexOf(search.service.toLowerCase())
+        if (
+          found_service != -1
         ) {
-          retval = true;
+          var service_state = host.services[found_service]?.state
+          if(desired_state != null){
+            console.log("We have desired state")
+            console.log(service_state)
+            console.log(desired_state)
+            retval = service_state == desired_state
+          }else{
+            retval = true;
+          }
+          
         }
         // Open Ports Search
         if (
