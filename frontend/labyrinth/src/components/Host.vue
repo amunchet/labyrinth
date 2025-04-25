@@ -1,13 +1,15 @@
 <template>
   <div
     draggable
-    :class="'noselect ' + passed_class + ' ' + drag_class"
+    :class="'noselect ' + passed_class + ' ' + drag_class + ' ' + (selected ? 'selected' : '')"
     @dragstart="drag_start(ip)"
     @dragend="drag_end"
     v-if="!monitored_only || (monitored_only && monitor)"
   >
     <div class="top">
-      <div :class="monitor ? 'number' : 'number unmonitored'">
+      <div :class="monitor ? 'number' : 'number unmonitored'"
+        @click="()=>{$emit('selected_changed')}"
+      >
         .{{ ip.split(".")[ip.split(".").length - 1] }}
       </div>
 
@@ -154,6 +156,7 @@ export default {
     "display",
     "service_level",
     "service_levels",
+    "selected"
   ],
   data() {
     return {
@@ -200,8 +203,8 @@ export default {
           warning = true;
         }
       } catch (e) {
-        console.log("determineClass Error");
-        console.log(e);
+        //console.log("determineClass Error");
+        //console.log(e);
       }
 
       var bg_color = "green-bg";
@@ -330,4 +333,9 @@ export default {
     max-width: 23%;
   }
 }
+
+.selected{
+  border: 4px solid orange !important;
+}
+
 </style>

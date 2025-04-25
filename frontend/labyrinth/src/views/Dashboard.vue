@@ -52,6 +52,111 @@
               lazy
               placeholder="Enter filter (i.e. port=22)"
             />
+            <b-row class="mt-2">
+              <b-col class="text-left" cols="2">
+                <b-button variant="link" class="p-0 m-0"
+                @click="selected_ips = Object.fromEntries((parsed_data?.map(x=>x?.groups?.map(y=>y?.hosts?.map(z=>z.display != false ? z.ip : null).filter(z=>z != null)))?.flat(Infinity)).map(key => [key, true])); $forceUpdate()"
+                >
+                  Select&nbsp;All
+                  </b-button>
+                </b-col>
+                <b-col class="text-left mr-3" cols="2">
+                <b-button variant="link" class="p-0 m-0"
+                @click="selected_ips = {}"
+                >
+                  Unselect&nbsp;All
+                  </b-button>
+                </b-col>
+                <b-col class="text-left" v-if="selected_ips">
+                  <a :href="'/deploy?ips=' + Object.keys(selected_ips).reduce((total, x)=>total += x + ',', '')">
+                <b-button variant="link" class="p-0 m-0">
+                  Deploy&nbsp;to&nbsp;Selected
+                  </b-button>
+                  </a>
+                </b-col>
+              </b-row> 
+              
+            </b-col
+          ><b-col cols="0" class="text-left pt-2">
+            <b-button
+              variant="primary"
+              v-b-modal.smartbar_help
+              class="rounded-circle d-flex align-items-center justify-content-center p-0"
+              style="width: 1.5rem; height: 1.5rem"
+            >
+              <font-awesome-icon icon="question" size="1x"
+            /></b-button>
+            <b-modal id="smartbar_help" title="🔍 Smartbar Filter Help" size="lg">
+              <div id="smartbar-help" class="help-content">
+                <p>
+                  You can use the <strong>smartbar</strong> to filter subnet
+                  host data using key=value pairs. Filters are case-insensitive
+                  and space-separated.
+                </p>
+                <hr />
+                <h5>🔧 Available Filters:</h5>
+                <ul>
+                  <li>
+                    <strong>service_state</strong> – Filter by service state (e.g.,
+                    <code>service_state=false service=apt</code>). <br /><i>NOTE: Needs to come before service.</i>
+                  </li>
+                  <li>
+                    <strong>service</strong> – Filter by service name (e.g.,
+                    <code>service=nginx</code>)
+                  </li>
+                  <li>
+                    <strong>host</strong> – Filter by host name (e.g.,
+                    <code>host=db-server</code>)
+                  </li>
+                  <li>
+                    <strong>port</strong> – Filter by port number (e.g.,
+                    <code>port=443</code>)
+                  </li>
+                  <li>
+                    <strong>group</strong> – Filter by group name (e.g.,
+                    <code>group=web</code>)
+                  </li>
+                  <li>
+                    <strong>ip</strong> – Filter by IP address (e.g.,
+                    <code>ip=192.168.1.10</code>)
+                  </li>
+                  <li>
+                    <strong>tag:</strong> – Filter by custom tag (e.g.,
+                    <code>tag:env=production</code>)
+                  </li>
+                  <li>
+                    <strong>field:</strong> – Filter by custom field (e.g.,
+                    <code>field:owner=alice</code>)
+                  </li>
+                </ul>
+                <hr />
+                <h5>✅ Examples:</h5>
+                <ul>
+                  <li>
+                    <code>service=nginx port=80</code> – Hosts running nginx on
+                    port 80
+                  </li>
+                  <li>
+                    <code>group=api tag:env=staging</code> – Hosts in the "api"
+                    group tagged as "staging"
+                  </li>
+                  <li>
+                    <code>field:owner=bob port=443</code> – Hosts owned by Bob
+                    running on port 443
+                  </li>
+                  <li>
+                    <code>ip=10.0.0.15</code> – Host with specific IP address
+                  </li>
+                  <li>
+                    <code>service_state=false service=apt</code> – All hosts needing apt update.  NOTE: service_state comes first.
+                  </li>
+                </ul>
+
+                <p>
+                  <em>Leave the smartbar empty to show all hosts (sorted).</em>
+                </p>
+              </div>
+            </b-modal>
           </b-col>
           <b-col class="text-right">
             <b-button
@@ -219,6 +324,15 @@
                     "
                     :host="host.host"
                     :display="host.display"
+                    :selected="selected_ips[host.ip] != undefined"
+                    @selected_changed="()=>{
+                      if(selected_ips[host.ip] == undefined){
+                        selected_ips[host.ip] = 1
+                      }else{
+                        delete selected_ips[host.ip]
+                      }
+                      $forceUpdate()
+                      }"
                   />
                 </div>
               </div>
@@ -271,6 +385,8 @@ export default {
       },
 
       timeout: null,
+
+      selected_ips: {},
     };
   },
   components: {
@@ -297,6 +413,7 @@ export default {
         port: null,
         group: null,
         ip: null,
+        service_state: null,
 
         invert: false,
       };
@@ -321,6 +438,9 @@ export default {
             temp.field.push({ field: field_name, value: right });
           } else {
             switch (left) {
+              case "service_state": 
+                temp.service_state = right
+                break;
               case "service":
                 temp.service = right;
                 break;
@@ -413,14 +533,34 @@ export default {
     },
     checkHostFilter(host, searches) {
       let retval = false;
+
+      let desired_state = null
+
       searches.forEach((search) => {
+
+        // Services state
+        if(search.service_state != undefined && search.service_state != null){
+          desired_state = search.service_state == "true"
+        }
+
         // Services Search
-        if (
-          host.services
+
+        var found_service = host.services
             .map((x) => (x ? x.name.toLowerCase() : ""))
-            .indexOf(search.service.toLowerCase()) != -1
+            .indexOf(search.service.toLowerCase())
+        if (
+          found_service != -1
         ) {
-          retval = true;
+          var service_state = host.services[found_service]?.state
+          if(desired_state != null){
+            console.log("We have desired state")
+            console.log(service_state)
+            console.log(desired_state)
+            retval = service_state == desired_state
+          }else{
+            retval = true;
+          }
+          
         }
         // Open Ports Search
         if (

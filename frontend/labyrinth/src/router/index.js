@@ -52,7 +52,7 @@ const routes = [
       import(/* webpackChunkName: "services" */ "../views/Services.vue"),
   },
   {
-    path: "/deploy",
+    path: "/deploy/:ips?",
     name: "Deploy",
     // route level code-splitting
     // this generates a separate chunk (deploy.[hash].js) for this route
