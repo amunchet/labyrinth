@@ -35,26 +35,6 @@ services:
       REDIS_HOST: redis
       PRODUCTION: 1
 
-  metrics_backend:
-    build: 
-      context: "backend"
-      args:
-        TZ: ${TZ}
-    restart: always
-    hostname: metrics_backend
-    volumes:
-      - ./backend/:/src
-      - ./alertmanager:/alertmanager
-      - ./frontend/labyrinth/public:/public
-    networks:
-      - labyrinth
-    environment: 
-      REDIS_HOST: redis
-      PRODUCTION: 1
-      METRICS: 1
-
-
-
   frontend:
     image: nginx:latest
     restart: always
