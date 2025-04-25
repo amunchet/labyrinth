@@ -51,7 +51,30 @@
               v-model="smartbar"
               lazy
               placeholder="Enter filter (i.e. port=22)"
-            /> </b-col
+            />
+            <b-row class="mt-2">
+              <b-col class="text-left">
+                <b-button variant="link" class="p-0 m-0"
+                @click="selected_ips = Object.fromEntries((parsed_data?.map(x=>x?.groups?.map(y=>y?.hosts?.map(z=>z.display != false ? z.ip : null).filter(z=>z != null)))?.flat(Infinity)).map(key => [key, true])); $forceUpdate()"
+                >
+                  Select All
+                  </b-button>
+                </b-col>
+                <b-col class="text-left">
+                <b-button variant="link" class="p-0 m-0"
+                @click="selected_ips = {}"
+                >
+                  Unselect All
+                  </b-button>
+                </b-col>
+                <b-col class="text-left">
+                <b-button variant="link" class="p-0 m-0">
+                  Deploy&nbsp;to&nbsp;Selected
+                  </b-button>
+                </b-col>
+              </b-row> 
+              
+            </b-col
           ><b-col cols="0" class="text-left pt-2">
             <b-button
               variant="primary"
@@ -306,7 +329,7 @@
                       }else{
                         delete selected_ips[host.ip]
                       }
-                      
+                      $forceUpdate()
                       }"
                   />
                 </div>
