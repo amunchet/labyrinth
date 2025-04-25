@@ -503,30 +503,16 @@
           <div
             class="playbook_result mb-4"
             ref="playbookResultDiv"
-            v-if="playbook_result && playbook_loaded && ips.length == 0"
+            v-if="playbook_result && playbook_loaded "
           >
-            <div
+            <pre
               v-for="(item, playbook_idx) in playbook_results"
               v-bind:key="'playbook_idx' + playbook_idx"
             >
-              {{ item }}
-            </div>
+              {{ (item || '').replace(/^\s+/gm, ' ') }}
+            </pre>
           </div>
 
-          <div v-if="ips != [] && playbook_results.length > 0">
-            <div v-for="(item, idx) in ips" v-bind:key="idx">
-              <h4 class="text-left">{{ item }} Results</h4>
-              <div
-                class="playbook_result"
-                v-if="playbook_results[item] != undefined"
-                v-html="$sanitize(playbook_results[item])"
-              ></div>
-              <div class="overflow-hidden" v-else>
-                <b-spinner class="m-1 float-left" />
-              </div>
-              <hr />
-            </div>
-          </div>
 
           <b-spinner class="m-2" v-if="!playbook_loaded" />
         </div>
@@ -993,6 +979,13 @@ export default {
 </script>
 <style lang="scss" scoped>
 @import "@/assets/variables.scss";
+
+pre{
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 20px !important;
+  white-space: pre-line;
+}
 
 *::-webkit-scrollbar {
   height: 8px;

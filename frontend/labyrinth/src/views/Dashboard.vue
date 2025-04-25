@@ -535,12 +535,22 @@ export default {
       let retval = false;
 
       let desired_state = null
-
+      var has_service = searches.filter(x=>x?.service != "").length > 0
       searches.forEach((search) => {
 
         // Services state
         if(search.service_state != undefined && search.service_state != null){
           desired_state = search.service_state == "true"
+
+          // I want to check if the host has a service in the desired state
+
+          var ignored_services = host?.service_levels?.filter(x=>x?.level == 'warning')?.map(x=>x?.service) || []
+
+
+          retval = host.services?.filter(x=>ignored_services.indexOf(x?.name) == -1)
+          retval = retval.filter(x=>x?.state == desired_state).length > 0
+
+
         }
 
         // Services Search
@@ -553,14 +563,15 @@ export default {
         ) {
           var service_state = host.services[found_service]?.state
           if(desired_state != null){
-            console.log("We have desired state")
-            console.log(service_state)
-            console.log(desired_state)
             retval = service_state == desired_state
           }else{
             retval = true;
           }
           
+        }else{
+          if(has_service){
+            retval = false
+          }
         }
         // Open Ports Search
         if (
