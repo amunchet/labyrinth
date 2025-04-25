@@ -245,11 +245,17 @@
         </b-row>
       </b-container>
     </b-modal>
-
     <b-row>
       <b-col>
         <b-card no-body>
           <b-tabs pills card>
+            <b-tab v-if="manual_ips"
+            title="Multiple IPs"
+            class="pl-5 pr-5"
+            active
+            >
+            Passed in IPs: {{ips}}
+            </b-tab>
             <b-tab
               title="Deploy to Single Host"
               class="pl-5 pr-5"
@@ -261,7 +267,6 @@
                   selected_group = '';
                 }
               "
-              active
             >
               Single Host:
               <v-select
@@ -320,6 +325,9 @@
               Host: <br /><b>sampleclient - ({{ sample_ip }})</b> <br />Backend
               ip is {{ ip }}
             </b-tab>
+
+
+
           </b-tabs>
         </b-card>
       </b-col>
@@ -585,6 +593,7 @@ export default {
           value: styles.green,
         },
       ],
+      manual_ips: false,
     };
   },
   watch: {
@@ -969,6 +978,13 @@ export default {
       this.loadSubnets();
 
       this.loadHosts();
+
+      const ips = this.$route.query.ips?.split(",").filter(x=>x != "") || []
+      if(ips.length > 0){
+        this.manual_ips = true
+      }
+      this.ips = ips
+
     } catch (e) {
       this.$store.commit("updateError", e);
     }

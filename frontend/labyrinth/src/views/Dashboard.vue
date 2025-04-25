@@ -53,24 +53,26 @@
               placeholder="Enter filter (i.e. port=22)"
             />
             <b-row class="mt-2">
-              <b-col class="text-left">
+              <b-col class="text-left" cols="2">
                 <b-button variant="link" class="p-0 m-0"
                 @click="selected_ips = Object.fromEntries((parsed_data?.map(x=>x?.groups?.map(y=>y?.hosts?.map(z=>z.display != false ? z.ip : null).filter(z=>z != null)))?.flat(Infinity)).map(key => [key, true])); $forceUpdate()"
                 >
-                  Select All
+                  Select&nbsp;All
                   </b-button>
                 </b-col>
-                <b-col class="text-left">
+                <b-col class="text-left mr-3" cols="2">
                 <b-button variant="link" class="p-0 m-0"
                 @click="selected_ips = {}"
                 >
-                  Unselect All
+                  Unselect&nbsp;All
                   </b-button>
                 </b-col>
-                <b-col class="text-left">
+                <b-col class="text-left" v-if="selected_ips">
+                  <a :href="'/deploy?ips=' + Object.keys(selected_ips).reduce((total, x)=>total += x + ',', '')">
                 <b-button variant="link" class="p-0 m-0">
                   Deploy&nbsp;to&nbsp;Selected
                   </b-button>
+                  </a>
                 </b-col>
               </b-row> 
               
