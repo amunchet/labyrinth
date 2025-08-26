@@ -1310,6 +1310,42 @@ def update_ip(mac, new_ip):
     return "Success", 200
 
 
+# Filtered Dashboard - AI
+@app.route("/ai/")
+# @requires_auth_read
+def ai_dashboard():
+    """
+    Return only failing services
+    - Also might snapshot for AI comparison and judgement if we need to alert
+
+    """
+    rc = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
+    cachedboard = rc.get("dashboard")
+    if not cachedboard:
+        return "No dashboard"
+    
+    data = json.loads(cachedboard.decode())
+
+    hosts_with_failures = []
+
+    for dash in data:
+        for group in dash.get("groups", []):
+            group_name = group.get("name", "")
+            for host in group.get("hosts", []):
+                failing = [
+                    (svc.get("name") or svc.get("found_service") or "").strip()
+                    for svc in host.get("services", [])
+                    if svc.get("state") is False
+                ]
+                if failing:
+                    host["failing_services"] = failing
+                    host["_group"] = group_name  # optional
+                    hosts_with_failures.append(host)
+
+    return json.dumps(hosts_with_failures, indent=2)
+
+
+
 # Dashboard
 
 
