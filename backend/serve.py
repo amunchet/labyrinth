@@ -1336,6 +1336,12 @@ def ai_dashboard():
         for group in dash.get("groups", []):
             for host in group.get("hosts", []):
                 # Build warning service set
+                if not host["monitor"]:
+                    continue
+
+                if "service_level" in host and host["service_level"] == "warning":
+                    continue
+
                 warning_services = {
                     (lvl.get("service") or "").strip()
                     for lvl in host.get("service_levels", [])
@@ -1354,12 +1360,13 @@ def ai_dashboard():
                                 (found.get("display_name") or found.get("name") or "")
                                 .strip()
                             )
-                    if name and svc.get("state") is False and name not in warning_services:
+                    if name and svc.get("state") is False and name not in warning_services and name != "new_host":
                         failing.append(name)
+                        failing.append(svc)
+
 
                 if failing:
                     results.append([
-                        host.get("ip"),
                         (host.get("host") or "").strip() or host.get("ip"),
                         failing
                     ])
