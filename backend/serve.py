@@ -1311,20 +1311,23 @@ def update_ip(mac, new_ip):
 
 
 # Filtered Dashboard - AI
+# Filtered Dashboard - AI
 @app.route("/ai/")
 # @requires_auth_read
 def ai_dashboard():
     """
-    Return only failing services
-    - Also might snapshot for AI comparison and judgement if we need to alert
-
+    Return only hosts that have at least one failing (non-warning) service.
+    - A service is considered failing if svc.state == False AND it's NOT listed in service_levels with level == "warning".
+    - Keeps the original host dict intact, only annotates with:
+        - failing_services: list[str] of failing service names
+        - _group: (optional) the group name this host came from
     """
     rc = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
     cachedboard = rc.get("dashboard")
     if not cachedboard:
         return "No dashboard"
-    
-    data = json.loads(cachedboard.decode())
+
+    data = json.loads(cachedboard.decode() if isinstance(cachedboard, (bytes, bytearray)) else cachedboard)
 
     hosts_with_failures = []
 
@@ -1332,11 +1335,31 @@ def ai_dashboard():
         for group in dash.get("groups", []):
             group_name = group.get("name", "")
             for host in group.get("hosts", []):
-                failing = [
-                    (svc.get("name") or svc.get("found_service") or "").strip()
-                    for svc in host.get("services", [])
-                    if svc.get("state") is False
-                ]
+                # Build a set of services to ignore as warnings
+                warning_services = {
+                    (lvl.get("service") or "").strip()
+                    for lvl in host.get("service_levels", [])
+                    if (lvl.get("level") or "").strip().lower() == "warning"
+                }
+
+                failing = []
+                for svc in host.get("services", []):
+                    # Resolve service name robustly
+                    svc_name = (svc.get("name") or "").strip()
+
+                    if not svc_name:
+                        found = svc.get("found_service")
+                        if isinstance(found, str):
+                            svc_name = found.strip()
+                        elif isinstance(found, dict):
+                            svc_name = (
+                                (found.get("display_name") or found.get("name") or "")
+                                .strip()
+                            )
+
+                    if svc.get("state") is False and svc_name and svc_name not in warning_services:
+                        failing.append(svc_name)
+
                 if failing:
                     host["failing_services"] = failing
                     host["_group"] = group_name  # optional
