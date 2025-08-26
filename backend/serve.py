@@ -1317,38 +1317,25 @@ def update_ip(mac, new_ip):
 # @requires_auth_read
 def ai_dashboard():
     """
-    Return a trimmed list of hosts that have at least one failing (non-warning) service.
-    Output schema per item:
-    {
-        "host": "<friendly hostname or IP>",
-        "ip": "<ip>",
-        "failing_services": ["svc1", "svc2", ...]
-    }
-
-    Rules:
-    - A service counts as failing iff svc.state == False AND its name is NOT listed
-    in host.service_levels with level == "warning".
-    - Service name resolution prefers svc.name, then found_service.display_name/name,
-    then found_service (string).
-    - Does not mutate the original dashboard data and excludes ids/timestamps/etc.
+    Return failing hosts in slimmed-down format:
+    [
+      [ip, host, [list of failing services]],
+      ...
+    ]
     """
+
     rc = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
     cachedboard = rc.get("dashboard")
     if not cachedboard:
         return "No dashboard"
 
-    data = json.loads(
-        cachedboard.decode()
-        if isinstance(cachedboard, (bytes, bytearray))
-        else cachedboard
-    )
-
+    data = json.loads(cachedboard.decode())
     results = []
 
     for dash in data:
         for group in dash.get("groups", []):
             for host in group.get("hosts", []):
-                # Build a set of services marked as warnings for this host
+                # Build warning service set
                 warning_services = {
                     (lvl.get("service") or "").strip()
                     for lvl in host.get("service_levels", [])
@@ -1357,7 +1344,6 @@ def ai_dashboard():
 
                 failing = []
                 for svc in host.get("services", []):
-                    # Resolve service name robustly
                     name = (svc.get("name") or "").strip()
                     if not name:
                         found = svc.get("found_service")
@@ -1365,26 +1351,18 @@ def ai_dashboard():
                             name = found.strip()
                         elif isinstance(found, dict):
                             name = (
-                                found.get("display_name") or found.get("name") or ""
-                            ).strip()
-
-                    if (
-                        name
-                        and svc.get("state") is False
-                        and name not in warning_services
-                    ):
+                                (found.get("display_name") or found.get("name") or "")
+                                .strip()
+                            )
+                    if name and svc.get("state") is False and name not in warning_services:
                         failing.append(name)
 
                 if failing:
-                    # Prefer a friendly host name; fall back to the IP
-                    host_name = (host.get("host") or "").strip() or host.get("ip")
-                    results.append(
-                        {
-                            "host": host_name,
-                            "ip": host.get("ip"),
-                            "failing_services": failing,
-                        }
-                    )
+                    results.append([
+                        host.get("ip"),
+                        (host.get("host") or "").strip() or host.get("ip"),
+                        failing
+                    ])
 
     return json.dumps(results, indent=2)
 
