@@ -1202,6 +1202,7 @@ def save_ansible_file(fname, inp_data="", vars_file=""):
 
 # Ansible runner
 
+
 def run_ansible_background(job_id, data):
     """Run Ansible in the background and store results in Redis."""
     redis_client = redis.Redis(host=os.environ.get("REDIS_HOST"))
@@ -1246,6 +1247,7 @@ def run_ansible_background(job_id, data):
             os.remove("/vault.pass")
         shutil.rmtree(RUN_DIR)
 
+
 @app.route("/ansible_runner/", methods=["POST"])
 @requires_auth_admin
 def run_ansible_endpoint():
@@ -1262,7 +1264,7 @@ def run_ansible_endpoint():
 
         job_id = f"ansible_job_{uuid.uuid4()}"
         redis_client.hset(job_id, "status", "queued")
-        
+
         # Start the process
         process = Process(target=run_ansible_background, args=(job_id, data))
         process.start()
@@ -1311,31 +1313,42 @@ def update_ip(mac, new_ip):
 
 
 # Filtered Dashboard - AI
-# Filtered Dashboard - AI
 @app.route("/ai/")
 # @requires_auth_read
 def ai_dashboard():
     """
-    Return only hosts that have at least one failing (non-warning) service.
-    - A service is considered failing if svc.state == False AND it's NOT listed in service_levels with level == "warning".
-    - Keeps the original host dict intact, only annotates with:
-        - failing_services: list[str] of failing service names
-        - _group: (optional) the group name this host came from
+    Return a trimmed list of hosts that have at least one failing (non-warning) service.
+    Output schema per item:
+    {
+        "host": "<friendly hostname or IP>",
+        "ip": "<ip>",
+        "failing_services": ["svc1", "svc2", ...]
+    }
+
+    Rules:
+    - A service counts as failing iff svc.state == False AND its name is NOT listed
+    in host.service_levels with level == "warning".
+    - Service name resolution prefers svc.name, then found_service.display_name/name,
+    then found_service (string).
+    - Does not mutate the original dashboard data and excludes ids/timestamps/etc.
     """
     rc = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
     cachedboard = rc.get("dashboard")
     if not cachedboard:
         return "No dashboard"
 
-    data = json.loads(cachedboard.decode() if isinstance(cachedboard, (bytes, bytearray)) else cachedboard)
+    data = json.loads(
+        cachedboard.decode()
+        if isinstance(cachedboard, (bytes, bytearray))
+        else cachedboard
+    )
 
-    hosts_with_failures = []
+    results = []
 
     for dash in data:
         for group in dash.get("groups", []):
-            group_name = group.get("name", "")
             for host in group.get("hosts", []):
-                # Build a set of services to ignore as warnings
+                # Build a set of services marked as warnings for this host
                 warning_services = {
                     (lvl.get("service") or "").strip()
                     for lvl in host.get("service_levels", [])
@@ -1345,28 +1358,35 @@ def ai_dashboard():
                 failing = []
                 for svc in host.get("services", []):
                     # Resolve service name robustly
-                    svc_name = (svc.get("name") or "").strip()
-
-                    if not svc_name:
+                    name = (svc.get("name") or "").strip()
+                    if not name:
                         found = svc.get("found_service")
                         if isinstance(found, str):
-                            svc_name = found.strip()
+                            name = found.strip()
                         elif isinstance(found, dict):
-                            svc_name = (
-                                (found.get("display_name") or found.get("name") or "")
-                                .strip()
-                            )
+                            name = (
+                                found.get("display_name") or found.get("name") or ""
+                            ).strip()
 
-                    if svc.get("state") is False and svc_name and svc_name not in warning_services:
-                        failing.append(svc_name)
+                    if (
+                        name
+                        and svc.get("state") is False
+                        and name not in warning_services
+                    ):
+                        failing.append(name)
 
                 if failing:
-                    host["failing_services"] = failing
-                    host["_group"] = group_name  # optional
-                    hosts_with_failures.append(host)
+                    # Prefer a friendly host name; fall back to the IP
+                    host_name = (host.get("host") or "").strip() or host.get("ip")
+                    results.append(
+                        {
+                            "host": host_name,
+                            "ip": host.get("ip"),
+                            "failing_services": failing,
+                        }
+                    )
 
-    return json.dumps(hosts_with_failures, indent=2)
-
+    return json.dumps(results, indent=2)
 
 
 # Dashboard
