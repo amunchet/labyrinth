@@ -4,6 +4,9 @@ import redis
 import chatgpt_helper
 import email_helper
 
+from dotenv import load_dotenv
+load_dotenv()
+
 def process_dashboard(testing=False):
     """
     Return failing hosts in slimmed-down format:
@@ -161,17 +164,23 @@ if __name__ == "__main__": # pragma: no cover
             last_email = json.loads(last_email.decode("utf-8"))
         if not last_email or last_email != output["critical_services"]:
             print("Difference in critical services since last email")
-
             print("Sending Email")
 
-            """TODO: Send Email"""
-            """TODO: Maybe Slack too?"""
+            print(email_helper.email_helper(
+                to=[
+                    os.environ.get("EMAIL_TO")
+                ], 
+                subject = "Altamont IT AI ALERT", 
+                html = output["summary_email"],
+                text = "See HTML version",
+                attachments = None,
+                from_name="Labyrinth AI"
+            ))
 
-        else:
-            """Need to update last_email anyways"""
-            """Give it a TTL of an hour, which will be how long these go for.  Maybe 2 hours?"""
+            # TODO: Maybe Slack too?
+
+        """TODO: Need to update last_email in Redis"""
+        """TODO: Give it a TTL of an hour, which will be how long these go for.  Maybe 2 hours?"""
 
 
         # If we do, check if we already sent a similar one
-
-    # 
