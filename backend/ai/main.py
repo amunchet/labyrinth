@@ -1,8 +1,9 @@
 import json
 import redis
 
-# Filtered Dashboard - AI
-# @requires_auth_read
+import chatgpt_helper
+import email_helper
+
 def process_dashboard(testing=False):
     """
     Return failing hosts in slimmed-down format:
@@ -103,6 +104,8 @@ def process_dashboard(testing=False):
                         and svc.get("state") is False
                         and name not in warning_services
                         and name != "new_host"
+                        and name != "open_ports"
+                        and name != "closed_ports"
                     ):
                         # append the readable name
                         failing.append(name)
@@ -125,8 +128,50 @@ def process_dashboard(testing=False):
                     host_key = (host.get("host") or "").strip() or host.get("ip")
                     results.append([host_key, failing])
 
-    return json.dumps(results, indent=2)
+    return json.dumps(results).replace(" ", "")
 
-if __name__ == "__main__":
-    with open("sample.json") as f:
-        process_dashboard(json.load(f))
+if __name__ == "__main__": # pragma: no cover
+
+    # Read in from Redis
+    # CURRENTLY TESTING
+
+    with open("sample_input.json") as f:
+        first_pass = process_dashboard(json.load(f))
+    
+    # Pass through ChatGPT
+    initial_prompt = """Below is the output from our IT system. Based on the service names, the server names, and other metric information, including inference of port types, infer the importance and criticality of each failing service. ONLY RESPOND IN JSON. 3 fields, first one wake_up_it_director: true or false depending on if we should wake him up for the issues. The second one is summary_email: a summary email triaging the issues (can summarize non-critical ones). Format cleanly in HTML to be read in Gmail client. 3rd field is critical_services - a list of critical services + hosts based on your inference from names.  Only include host and service_name fields, nothing else in the critical_service field"""
+    output = chatgpt_helper.ml_process(
+        first_pass,
+        initial_prompt
+    )
+
+    # Determine if we need to send email
+    output = output.json()
+    output = output["choices"][0]["message"]["content"]
+    output = json.loads(output)
+
+    print(output)
+
+    rc = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
+
+    # Determine if we need to wake up the IT director (i.e. send the email)
+    if output["wake_up_it_director"]:
+        last_email = rc.get("last_email")
+        if last_email:
+            last_email = json.loads(last_email.decode("utf-8"))
+        if not last_email or last_email != output["critical_services"]:
+            print("Difference in critical services since last email")
+
+            print("Sending Email")
+
+            """TODO: Send Email"""
+            """TODO: Maybe Slack too?"""
+
+        else:
+            """Need to update last_email anyways"""
+            """Give it a TTL of an hour, which will be how long these go for.  Maybe 2 hours?"""
+
+
+        # If we do, check if we already sent a similar one
+
+    # 
