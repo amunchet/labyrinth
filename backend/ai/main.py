@@ -1,5 +1,6 @@
 import json
 import redis
+import os
 
 import chatgpt_helper
 import email_helper
@@ -133,54 +134,83 @@ def process_dashboard(testing=False):
 
     return json.dumps(results).replace(" ", "")
 
-if __name__ == "__main__": # pragma: no cover
+if __name__ == "__main__":  # pragma: no cover
 
     # Read in from Redis
-    # CURRENTLY TESTING
-
-    with open("sample_input.json") as f:
-        first_pass = process_dashboard(json.load(f))
+    first_pass = process_dashboard()
     
     # Pass through ChatGPT
     initial_prompt = """Below is the output from our IT system. Based on the service names, the server names, and other metric information, including inference of port types, infer the importance and criticality of each failing service. ONLY RESPOND IN JSON. 3 fields, first one wake_up_it_director: true or false depending on if we should wake him up for the issues. The second one is summary_email: a summary email triaging the issues (can summarize non-critical ones). Format cleanly in HTML to be read in Gmail client. 3rd field is critical_services - a list of critical services + hosts based on your inference from names.  Only include host and service_name fields, nothing else in the critical_service field"""
-    output = chatgpt_helper.ml_process(
-        first_pass,
-        initial_prompt
-    )
+    output = chatgpt_helper.ml_process(first_pass, initial_prompt)
 
     # Determine if we need to send email
     output = output.json()
     output = output["choices"][0]["message"]["content"]
     output = json.loads(output)
 
-    print(output)
-
     rc = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
 
-    # Determine if we need to wake up the IT director (i.e. send the email)
-    if output["wake_up_it_director"]:
-        last_email = rc.get("last_email")
-        if last_email:
-            last_email = json.loads(last_email.decode("utf-8"))
-        if not last_email or last_email != output["critical_services"]:
+    # Helper to normalize critical_services for stable comparison
+    def _normalize_critical_services(crit):
+        """
+        Return a deterministic, order-insensitive JSON string representing
+        only (host, service_name) pairs.
+        """
+        pairs = []
+        for item in crit or []:
+            host = item.get("host")
+            service = item.get("service_name")
+            if host is not None and service is not None:
+                pairs.append((str(host), str(service)))
+        # sort by host then service for deterministic order
+        pairs.sort(key=lambda x: (x[0], x[1]))
+        return json.dumps(pairs, separators=(",", ":"))  # compact, deterministic
+
+    TTL_SECONDS = int(os.environ.get("ALERT_TTL_SECONDS", "7200"))  # default 2 hours
+
+    # Determine if we need to wake up the IT director (i.e., send the email)
+    if output.get("wake_up_it_director"):
+        print("Waking Up IT Director...")
+        try:
+            last_email_raw = rc.get("last_email")
+        except Exception as e:
+            print("Warning: Redis get failed:", e)
+            last_email_raw = None
+
+        current_norm = _normalize_critical_services(output.get("critical_services"))
+
+        last_norm = None
+        if last_email_raw:
+            try:
+                # legacy format handling: previously stored as JSON list OR normalized pairs
+                decoded = last_email_raw.decode("utf-8")
+                # Try to detect if it was already stored as normalized pairs
+                json.loads(decoded)  # validate JSON
+                last_norm = decoded
+            except Exception:
+                last_norm = None
+
+        if not last_norm or last_norm != current_norm:
             print("Difference in critical services since last email")
             print("Sending Email")
+            msg_id = email_helper.email_helper(
+                to=[os.environ.get("EMAIL_TO")],
+                subject="Altamont IT AI ALERT",
+                html=output.get("summary_email", "See HTML version"),
+                text="See HTML version",
+                attachments=None,
+                from_name="Labyrinth AI",
+            )
+            print("Message-ID:", msg_id)
+        else:
+            print("No critical differences from last email")
 
-            print(email_helper.email_helper(
-                to=[
-                    os.environ.get("EMAIL_TO")
-                ], 
-                subject = "Altamont IT AI ALERT", 
-                html = output["summary_email"],
-                text = "See HTML version",
-                attachments = None,
-                from_name="Labyrinth AI"
-            ))
+        # --- COMPLETE TODO: Update last_email in Redis with TTL ---
+        try:
+            print("Setting last email information")
+            rc.setex("last_email", TTL_SECONDS, current_norm)
+        except Exception as e:
+            print("Warning: Redis setex failed:", e)
 
-            # TODO: Maybe Slack too?
-
-        """TODO: Need to update last_email in Redis"""
-        """TODO: Give it a TTL of an hour, which will be how long these go for.  Maybe 2 hours?"""
-
-
-        # If we do, check if we already sent a similar one
+    else:
+        print("wake_up_it_director = False; no email sent.")
