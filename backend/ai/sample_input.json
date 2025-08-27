@@ -1,0 +1,99 @@
+[
+  {
+    "subnet": "10.0.",
+    "origin": "",
+    "links": [],
+    "minimized": false,
+    "groups": [
+      {
+        "name": "",
+        "hosts": [
+          {
+            "_id": "672932a6785e2f3891023464",
+            "ip": "192.168.2.3",
+            "subnet": "192.168.2",
+            "mac": "192.168.2.3",
+            "group": "",
+            "icon": "",
+            "monitor": false,
+            "services": [
+              {
+                "name": "open_ports",
+                "state": true,
+                "found_service": "open_ports",
+                "latest_metric": {
+                  "_id": "68ae527ba709ff34765d6396",
+                  "fields": {
+                    "ports": [21, 80, 554, 49152],
+                    "ip": "192.168.2.3",
+                    "vulners": {}
+                  },
+                  "name": "open_ports",
+                  "tags": {
+                    "host": "",
+                    "mac": "",
+                    "ip": "192.168.2.3",
+                    "name": "open_ports",
+                    "labyrinth_name": "open_ports",
+                    "agent_name": "70b0581bd437"
+                  },
+                  "timestamp": 1756313883.553
+                }
+              },
+              {
+                "name": "closed_ports",
+                "state": true,
+                "found_service": "closed_ports",
+                "latest_metric": {
+                  "_id": "68ae527ba709ff34765d6396",
+                  "fields": {
+                    "ports": [21, 80, 554, 49152],
+                    "ip": "192.168.2.3",
+                    "vulners": {}
+                  },
+                  "name": "open_ports",
+                  "tags": {
+                    "host": "",
+                    "mac": "",
+                    "ip": "192.168.2.3",
+                    "name": "open_ports",
+                    "labyrinth_name": "open_ports",
+                    "agent_name": "70b0581bd437"
+                  },
+                  "timestamp": 1756313883.553
+                }
+              },
+              {
+                "name": "new_host",
+                "state": false,
+                "found_service": null,
+                "latest_metric": {
+                  "_id": "68ae527ba709ff34765d6396",
+                  "fields": {
+                    "ports": [21, 80, 554, 49152],
+                    "ip": "192.168.2.3",
+                    "vulners": {}
+                  },
+                  "name": "open_ports",
+                  "tags": {
+                    "host": "",
+                    "mac": "",
+                    "ip": "192.168.2.3",
+                    "name": "open_ports",
+                    "labyrinth_name": "open_ports",
+                    "agent_name": "70b0581bd437"
+                  },
+                  "timestamp": 1756313883.553
+                }
+              }
+            ],
+            "open_ports": [21, 80, 554, 49152],
+            "class": "",
+            "host": ""
+          }
+        
+        ]
+      }
+    ]
+  }
+]
