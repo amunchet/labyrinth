@@ -140,7 +140,9 @@ if __name__ == "__main__":  # pragma: no cover
     first_pass = process_dashboard()
     
     # Pass through ChatGPT
-    initial_prompt = """Below is the output from our IT system. Based on the service names, the server names, and other metric information, including inference of port types, infer the importance and criticality of each failing service. ONLY RESPOND IN JSON. 3 fields, first one wake_up_it_director: true or false depending on if we should wake him up for the issues. The second one is summary_email: a summary email triaging the issues (can summarize non-critical ones). Format cleanly in HTML to be read in Gmail client. 3rd field is critical_services - a list of critical services + hosts based on your inference from names.  Only include host and service_name fields, nothing else in the critical_service field"""
+    with open("initial_prompt.txt") as f:
+        initial_prompt = f.read()
+    
     output = chatgpt_helper.ml_process(first_pass, initial_prompt)
 
     # Determine if we need to send email
