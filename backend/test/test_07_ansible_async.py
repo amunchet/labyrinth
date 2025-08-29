@@ -1,193 +1,130 @@
-import pytest
 import json
-from unittest.mock import patch, MagicMock
+import uuid
+from unittest.mock import MagicMock, patch
+import pytest
+
+# Import the endpoint functions directly
+from serve import run_ansible_endpoint, get_ansible_status
 from common.test import unwrap
-from serve import run_ansible  # Use the correct module name
 
 
-@patch("serve.ansible_runner.run_async")
-@patch("serve.ansible_helper.run_ansible")
-@patch("serve.os.path.exists")
-@patch("serve.shutil.rmtree")
-def test_run_ansible_multiple_events(
-    mock_rmtree, mock_exists, mock_run_ansible, mock_run_async
-):
-    # Mock the ansible_helper.run_ansible return value
-    mock_run_ansible.return_value = ("RUN_DIR_PATH", "playbook_name")
+class FakeRedis:
+    """A minimal Redis drop-in used by endpoint/status tests."""
+    def __init__(self):
+        self.h = {}
+        self.l = {}
 
-    # Mock the ansible_runner.run_async return values
-    mock_thread = MagicMock()
-    # Simulate the thread being alive a couple of times before finishing
-    mock_thread.is_alive.side_effect = [True, True, False]
-    mock_runner = MagicMock()
+    # Hash ops
+    def hset(self, name, key, value):
+        name = name.encode() if isinstance(name, str) else name
+        key = key.encode() if isinstance(key, str) else key
+        value = value if isinstance(value, (bytes, bytearray)) else str(value).encode()
+        self.h.setdefault(name, {})
+        self.h[name][key] = value
 
-    # Simulate multiple events in runner.events
-    mock_runner.events = [
-        {"stdout": "First Output"},
-        {"stdout": "Second Output"},
-        {"stdout": "Third Output"},
-    ]
+    def hget(self, name, key):
+        name = name.encode() if isinstance(name, str) else name
+        key = key.encode() if isinstance(key, str) else key
+        if name in self.h and key in self.h[name]:
+            return self.h[name][key]
+        return None
 
-    mock_run_async.return_value = (mock_thread, mock_runner)
+    # List ops
+    def rpush(self, name, value):
+        name = name.encode() if isinstance(name, str) else name
+        value = value if isinstance(value, (bytes, bytearray)) else str(value).encode()
+        self.l.setdefault(name, [])
+        self.l[name].append(value)
 
-    # Mock os.path.exists to return False, simulating no vault file
-    mock_exists.return_value = False
-
-    # Sample input data
-    sample_data = json.dumps(
-        {
-            "hosts": "localhost",
-            "playbook": "sample_playbook",
-            "vault_password": "password",
-            "become_file": "become_file_path",
-        }
-    )
-
-    # Call the function
-    response, headers = unwrap(run_ansible)(inp_data=sample_data)
-
-    # Check headers
-    assert headers["Content-Type"] == "text/plain"
-
-    # Consume the generator to test its output
-    output = b"".join(list(response)).decode("utf-8")
-
-    # Check that the output contains all the expected event outputs
-    assert "<div>First Output</div>" in output
-    assert "<div>Second Output</div>" in output
-    assert "<div>Third Output</div>" in output
-
-    # Ensure mocks were called
-    mock_run_ansible.assert_called_once()
-    mock_run_async.assert_called_once()
-    mock_rmtree.assert_called_once()
+    def lrange(self, name, start, end):
+        name = name.encode() if isinstance(name, str) else name
+        if name not in self.l:
+            return []
+        # simple slice handling; Redis end is inclusive, Python slice is exclusive
+        seq = self.l[name]
+        if end == -1:
+            return seq[start:]
+        return seq[start:end + 1]
 
 
-# Helper function to simulate events with an exception
-def event_generator_with_exception():
-    yield {"stdout": "Sample Output"}
-    raise Exception("Test Exception")
+def _sample_payload(**overrides):
+    base = {
+        "hosts": "localhost",
+        "playbook": "sample_playbook",
+        "vault_password": "password",
+        "become_file": "become_file_path",
+    }
+    base.update(overrides)
+    return json.dumps(base)
 
 
-@patch("serve.ansible_runner.run_async")
-@patch("serve.ansible_helper.run_ansible")
-@patch("serve.os.path.exists")
-@patch("serve.shutil.rmtree")
-@patch("serve.os.remove")
-def test_ansible_stream_error_handling(
-    mock_os_remove, mock_rmtree, mock_exists, mock_run_ansible, mock_run_async
-):
-    # Mock the ansible_helper.run_ansible return value
-    mock_run_ansible.return_value = ("RUN_DIR_PATH", "playbook_name")
+@patch("serve.redis.Redis")
+@patch("serve.Process")
+def test_run_ansible_endpoint_starts_background_process(mock_process, mock_redis):
+    fake = FakeRedis()
+    mock_redis.return_value = fake
 
-    # Mock the ansible_runner.run_async return values
-    mock_thread = MagicMock()
-    # Simulate the thread being alive a couple of times
-    mock_thread.is_alive.side_effect = [True, True, False]
-    mock_runner = MagicMock()
+    # Mock Process so we don't actually start a child process
+    proc = MagicMock()
+    mock_process.return_value = proc
 
-    # Simulate an exception occurring during event iteration
-    mock_runner.events = event_generator_with_exception()
+    resp, code = unwrap(run_ansible_endpoint)(inp_data=_sample_payload())
 
-    mock_run_async.return_value = (mock_thread, mock_runner)
+    assert code == 200
+    assert isinstance(resp, dict)
+    assert resp["status"] == "started"
+    assert resp["job_id"].startswith("ansible_job_")
 
-    # Mock os.path.exists to return True, simulating the presence of a vault file
-    mock_exists.return_value = True
+    # Ensure process was created with correct target and args and started
+    assert mock_process.call_args.kwargs.get("target").__name__ == "run_ansible_background"
+    args = mock_process.call_args.kwargs.get("args")
+    assert len(args) == 2  # (job_id, data)
+    assert args[0] == resp["job_id"]
+    assert isinstance(args[1], dict)
+    proc.start.assert_called_once()
 
-    # Sample input data
-    sample_data = json.dumps(
-        {
-            "hosts": "localhost",
-            "playbook": "sample_playbook",
-            "vault_password": "password",
-            "become_file": "become_file_path",
-        }
-    )
-
-    # Call the function
-    response, headers = unwrap(run_ansible)(inp_data=sample_data)
-
-    # Consume the generator to test its output
-    output = list(response)
-
-    # Check that the output contains the error message
-    assert b"Error: Test Exception" in output
-
-    # Ensure mocks were called
-    mock_run_ansible.assert_called_once()
-    mock_run_async.assert_called_once()
-    mock_rmtree.assert_called_once()
-    mock_os_remove.assert_called_once()
+    # The job should be queued in Redis
+    assert fake.hget(resp["job_id"], "status") == b"queued"
 
 
-@patch("serve.ansible_helper.run_ansible")
-def test_run_ansible_missing_data(mock_run_ansible):
-    # Mock the ansible_helper.run_ansible to prevent actual calls
-    mock_run_ansible.return_value = ("RUN_DIR_PATH", "playbook_name")
+def test_run_ansible_endpoint_missing_required_field_returns_482():
+    # missing vault_password
+    bad_payload = json.dumps({
+        "hosts": "localhost",
+        "playbook": "sample_playbook",
+        "become_file": "become_file_path",
+    })
 
-    # Missing "vault_password" field
-    sample_data = json.dumps(
-        {
-            "hosts": "localhost",
-            "playbook": "sample_playbook",
-            "become_file": "become_file_path",
-        }
-    )
-
-    # Call the function
-    response, headers = unwrap(run_ansible)(inp_data=sample_data)
-
-    # Check that the response indicates invalid data
-    assert response == "Invalid data"
-    assert headers == 482
+    resp, code = unwrap(run_ansible_endpoint)(inp_data=bad_payload)
+    assert resp == "Invalid data"
+    assert code == 482
 
 
-@patch("serve.ansible_runner.run_async")
-@patch("serve.ansible_helper.run_ansible")
-@patch("serve.os.path.exists")
-@patch("serve.shutil.rmtree")
-def test_run_ansible_no_ssh_key(
-    mock_rmtree, mock_exists, mock_run_ansible, mock_run_async
-):
-    # Mock the ansible_helper.run_ansible return value
-    mock_run_ansible.return_value = ("RUN_DIR_PATH", "playbook_name")
+@patch("serve.redis.Redis")
+def test_get_ansible_status_returns_logs_and_results(mock_redis):
+    fake = FakeRedis()
+    mock_redis.return_value = fake
 
-    # Mock the ansible_runner.run_async return values
-    mock_thread = MagicMock()
-    mock_thread.is_alive.side_effect = [True, False]
-    mock_runner = MagicMock()
+    job_id = f"ansible_job_{uuid.uuid4()}"
+    # Seed Redis state as if background worker had run
+    fake.hset(job_id, "status", "completed")
+    fake.rpush(f"{job_id}_log", "log line 1")
+    fake.rpush(f"{job_id}_log", "log line 2")
+    fake.hset(job_id, "results", json.dumps(["ok line", "changed line"]))
 
-    # Simulate one event in runner.events
-    mock_runner.events = [{"stdout": "Sample Output"}]
+    resp, code = unwrap(get_ansible_status)(job_id)
+    assert code == 200
+    assert resp["job_id"] == job_id
+    assert resp["status"] == "completed"
+    assert resp["logs"] == ["log line 1", "log line 2"]
+    assert resp["results"] == ["ok line", "changed line"]
 
-    mock_run_async.return_value = (mock_thread, mock_runner)
 
-    # Mock os.path.exists to return False
-    mock_exists.return_value = False
+@patch("serve.redis.Redis")
+def test_get_ansible_status_unknown_job_returns_404(mock_redis):
+    fake = FakeRedis()
+    mock_redis.return_value = fake
 
-    # Sample input data without "ssh_key"
-    sample_data = json.dumps(
-        {
-            "hosts": "localhost",
-            "playbook": "sample_playbook",
-            "vault_password": "password",
-            "become_file": "become_file_path",
-        }
-    )
-
-    # Call the function
-    response, headers = unwrap(run_ansible)(inp_data=sample_data)
-
-    # Check headers
-    assert headers["Content-Type"] == "text/plain"
-
-    # Consume the generator to test its output
-    output = b"".join(list(response)).decode("utf-8")
-
-    # Check that the output contains the expected event output
-    assert "<div>Sample Output</div>" in output
-
-    # Ensure mocks were called
-    mock_run_ansible.assert_called_once()
-    mock_run_async.assert_called_once()
-    mock_rmtree.assert_called_once()
+    resp, code = unwrap(get_ansible_status)("ansible_job_missing")
+    assert code == 404
+    assert resp == {"error": "Job not found"}

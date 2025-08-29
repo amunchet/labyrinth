@@ -66,7 +66,7 @@ exports = async function() {
 
     Learn more about http client here: https://www.mongodb.com/docs/atlas/app-services/functions/context/#std-label-context-http
   */
-  const mongodb = context.services.get("altamont");
+  const mongodb = context.services.get("XXXXXX"); // Company name
   const metrics_current  = mongodb.db("labyrinth").collection("metrics-latest");
   
   

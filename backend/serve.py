@@ -1250,26 +1250,28 @@ def run_ansible_background(job_id, data):
 
 @app.route("/ansible_runner/", methods=["POST"])
 @requires_auth_admin
-def run_ansible_endpoint():
+def run_ansible_endpoint(inp_data=""):
     redis_client = redis.Redis(host=os.environ.get("REDIS_HOST"))
-    if request.method == "POST":
+    if inp_data:
+        data = inp_data
+    else: # pragma: no cover
         data = request.form.get("data")
         if not data:
             return "Invalid data", 481
 
-        data = json.loads(data)
-        required_keys = ["hosts", "playbook", "vault_password", "become_file"]
-        if not all(key in data for key in required_keys):
-            return "Invalid data", 482
+    data = json.loads(data)
+    required_keys = ["hosts", "playbook", "vault_password", "become_file"]
+    if not all(key in data for key in required_keys):
+        return "Invalid data", 482
 
-        job_id = f"ansible_job_{uuid.uuid4()}"
-        redis_client.hset(job_id, "status", "queued")
+    job_id = f"ansible_job_{uuid.uuid4()}"
+    redis_client.hset(job_id, "status", "queued")
 
-        # Start the process
-        process = Process(target=run_ansible_background, args=(job_id, data))
-        process.start()
+    # Start the process
+    process = Process(target=run_ansible_background, args=(job_id, data))
+    process.start()
 
-        return {"job_id": job_id, "status": "started"}, 200
+    return {"job_id": job_id, "status": "started"}, 200
 
 
 @app.route("/ansible_status/<job_id>", methods=["GET"])

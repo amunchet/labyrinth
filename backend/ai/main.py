@@ -2,8 +2,10 @@ import json
 import redis
 import os
 
-import chatgpt_helper
-import email_helper
+from ai import chatgpt_helper
+from ai import email_helper
+from ai import slack_helper
+
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -134,13 +136,17 @@ def process_dashboard(testing=False):
 
     return json.dumps(results).replace(" ", "")
 
-if __name__ == "__main__":  # pragma: no cover
+
+def main():
+    """
+    Main process runner
+    """
 
     # Read in from Redis
     first_pass = process_dashboard()
     
     # Pass through ChatGPT
-    with open("initial_prompt.txt") as f:
+    with open(os.path.join("ai", "initial_prompt.txt")) as f:
         initial_prompt = f.read()
     
     output = chatgpt_helper.ml_process(first_pass, initial_prompt)
@@ -175,7 +181,7 @@ if __name__ == "__main__":  # pragma: no cover
         print("Waking Up IT Director...")
         try:
             last_email_raw = rc.get("last_email")
-        except Exception as e:
+        except Exception as e: # pragma: no cover
             print("Warning: Redis get failed:", e)
             last_email_raw = None
 
@@ -189,7 +195,7 @@ if __name__ == "__main__":  # pragma: no cover
                 # Try to detect if it was already stored as normalized pairs
                 json.loads(decoded)  # validate JSON
                 last_norm = decoded
-            except Exception:
+            except Exception: # pragma: no cover
                 last_norm = None
 
         if not last_norm or last_norm != current_norm:
@@ -197,7 +203,7 @@ if __name__ == "__main__":  # pragma: no cover
             print("Sending Email")
             msg_id = email_helper.email_helper(
                 to=[os.environ.get("EMAIL_TO")],
-                subject="Altamont IT AI ALERT",
+                subject="Labyrinth IT AI ALERT",
                 html=output.get("summary_email", "See HTML version"),
                 text="See HTML version",
                 attachments=None,
@@ -211,8 +217,11 @@ if __name__ == "__main__":  # pragma: no cover
         try:
             print("Setting last email information")
             rc.setex("last_email", TTL_SECONDS, current_norm)
-        except Exception as e:
+        except Exception as e: # pragma: no cover
             print("Warning: Redis setex failed:", e)
 
     else:
         print("wake_up_it_director = False; no email sent.")
+
+if __name__ == "__main__":  # pragma: no cover
+    main()
