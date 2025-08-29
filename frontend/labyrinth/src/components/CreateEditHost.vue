@@ -295,6 +295,16 @@
           warning. If set to error, then each service can have its level set
           individually.
         </div>
+        <hr />
+        <h6>Host Level Expire Date</h6>
+        <b-form-datepicker 
+          v-model="host.service_level_expire_date"
+        />
+        <div class="mt-2 text-small">
+          Date on which the selected service level expires.  This field will be removed, 
+          setting behaviour back to default.
+        </div>
+
       </b-col>
       <b-col>
         <h5>
