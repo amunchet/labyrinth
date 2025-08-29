@@ -41,8 +41,8 @@ jobs:
         uses: actions/setup-node@v2
         with:
           node-version: '10'
-          cache: 'npm'
-          cache-dependency-path: frontend/labyrinth
+          # cache: 'npm'
+          # cache-dependency-path: frontend/labyrinth
       
       - name: Install vue
         run: npm install -g @vue/cli
