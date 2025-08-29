@@ -20,7 +20,7 @@ def update_service_expire_dates():
     if not hosts_with_expire_date:
         return 0  # nothing to do
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now()
 
     bulk_ops = []
     for host in hosts_with_expire_date:
