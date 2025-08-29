@@ -2,20 +2,7 @@
   [
     "old-website",
     [
-      "closed_ports",
-      {
-        "state": false,
-        "found_service": { "name": "closed_ports" },
-        "latest_metric": {
-          "name": "open_ports",
-          "timestamp": 1756308964.077,
-          "fields": {
-            "ports": [22, 25, 110, 111, 143, 587, 993, 995, 3306, 9090],
-            "ip": "11.5.0.7"
-          },
-          "tags": { "host": "", "ip": "11.5.0.7" }
-        }
-      },
+      
       "aws-internal-super-server",
       {
         "state": false,
@@ -78,20 +65,7 @@
   [
     "website-backup.ds1.example.com",
     [
-      "closed_ports",
-      {
-        "state": false,
-        "found_service": { "name": "closed_ports" },
-        "latest_metric": {
-          "name": "open_ports",
-          "timestamp": 1756313344.428,
-          "fields": { "ports": [22, 4444], "ip": "10.0.9.105" },
-          "tags": {
-            "host": "website-backup.ds1.example.com",
-            "ip": "10.0.9.105"
-          }
-        }
-      },
+      
       "website.backup",
       {
         "state": false,
