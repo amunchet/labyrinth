@@ -154,7 +154,7 @@
 <b-row class="mt-2 outer pt-1 smartbar">
               <b-col class="text-left" cols="4">
                 <b-button variant="outline-primary" size="sm" class="mr-2"
-                @click="selected_ips = Object.fromEntries((parsed_data?.map(x=>x?.groups?.map(y=>y?.hosts?.map(z=>z.display != false ? z.ip : null).filter(z=>z != null)))?.flat(Infinity)).map(key => [key, true])); $forceUpdate()"
+                @click="selected_ips = all_ips_map"
                 >
                   Select&nbsp;All
                   </b-button>
@@ -401,6 +401,16 @@ export default {
     DoughnutChart,
   },
   computed: {
+    all_ips_map: function() {
+      return Object.fromEntries(
+        (this.parsed_data ?? [])
+          .flatMap(x => x?.groups ?? [])
+          .flatMap(g => g?.hosts ?? [])
+          .map(h => (h.display !== false ? h.ip : null))
+          .filter(ip => ip != null)
+          .map(ip => [ip, true])
+      )
+    },
     parsed_data: function () {
       let data = this.full_data;
       if (this.smartbar == "") {
