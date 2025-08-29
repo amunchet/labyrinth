@@ -2,6 +2,7 @@ import json
 import os
 from ai import main
 
+
 def test_main():
     with open(os.path.join("ai", "sample_input.json")) as f:
         sample_input = json.load(f)

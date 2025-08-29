@@ -1,14 +1,26 @@
 <template>
   <div
     draggable
-    :class="'noselect ' + passed_class + ' ' + drag_class + ' ' + (selected ? 'selected' : '')"
+    :class="
+      'noselect ' +
+      passed_class +
+      ' ' +
+      drag_class +
+      ' ' +
+      (selected ? 'selected' : '')
+    "
     @dragstart="drag_start(ip)"
     @dragend="drag_end"
     v-if="!monitored_only || (monitored_only && monitor)"
   >
     <div class="top">
-      <div :class="monitor ? 'number' : 'number unmonitored'"
-        @click="()=>{$emit('selected_changed')}"
+      <div
+        :class="monitor ? 'number' : 'number unmonitored'"
+        @click="
+          () => {
+            $emit('selected_changed');
+          }
+        "
       >
         .{{ ip.split(".")[ip.split(".").length - 1] }}
       </div>
@@ -156,7 +168,7 @@ export default {
     "display",
     "service_level",
     "service_levels",
-    "selected"
+    "selected",
   ],
   data() {
     return {
@@ -334,8 +346,7 @@ export default {
   }
 }
 
-.selected{
+.selected {
   border: 4px solid orange !important;
 }
-
 </style>

@@ -249,12 +249,13 @@
       <b-col>
         <b-card no-body>
           <b-tabs pills card>
-            <b-tab v-if="manual_ips"
-            title="Multiple IPs"
-            class="pl-5 pr-5"
-            active
+            <b-tab
+              v-if="manual_ips"
+              title="Multiple IPs"
+              class="pl-5 pr-5"
+              active
             >
-            Passed in IPs: {{ips}}
+              Passed in IPs: {{ ips }}
             </b-tab>
             <b-tab
               title="Deploy to Single Host"
@@ -325,9 +326,6 @@
               Host: <br /><b>sampleclient - ({{ sample_ip }})</b> <br />Backend
               ip is {{ ip }}
             </b-tab>
-
-
-
           </b-tabs>
         </b-card>
       </b-col>
@@ -503,16 +501,15 @@
           <div
             class="playbook_result mb-4"
             ref="playbookResultDiv"
-            v-if="playbook_result && playbook_loaded "
+            v-if="playbook_result && playbook_loaded"
           >
             <pre
               v-for="(item, playbook_idx) in playbook_results"
               v-bind:key="'playbook_idx' + playbook_idx"
             >
-              {{ (item || '').replace(/^\s+/gm, ' ') }}
+              {{ (item || "").replace(/^\s+/gm, " ") }}
             </pre>
           </div>
-
 
           <b-spinner class="m-2" v-if="!playbook_loaded" />
         </div>
@@ -965,12 +962,12 @@ export default {
 
       this.loadHosts();
 
-      const ips = this.$route.query.ips?.split(",").filter(x=>x != "") || []
-      if(ips.length > 0){
-        this.manual_ips = true
+      const ips =
+        this.$route.query.ips?.split(",").filter((x) => x != "") || [];
+      if (ips.length > 0) {
+        this.manual_ips = true;
       }
-      this.ips = ips
-
+      this.ips = ips;
     } catch (e) {
       this.$store.commit("updateError", e);
     }
@@ -980,7 +977,7 @@ export default {
 <style lang="scss" scoped>
 @import "@/assets/variables.scss";
 
-pre{
+pre {
   margin: 0 !important;
   padding: 0 !important;
   line-height: 20px !important;

@@ -16,7 +16,7 @@ def ml_process(
     initial_prompt: str,
     additional_prompts: str = "",
     model_override=None,
-): # pragma: no cover
+):  # pragma: no cover
     """
     Processes the ML query
     - Basically sends out the request and stores the result

@@ -10,6 +10,7 @@ from common.test import unwrap
 
 class FakeRedis:
     """A minimal Redis drop-in used by endpoint/status tests."""
+
     def __init__(self):
         self.h = {}
         self.l = {}
@@ -44,7 +45,7 @@ class FakeRedis:
         seq = self.l[name]
         if end == -1:
             return seq[start:]
-        return seq[start:end + 1]
+        return seq[start : end + 1]
 
 
 def _sample_payload(**overrides):
@@ -76,7 +77,9 @@ def test_run_ansible_endpoint_starts_background_process(mock_process, mock_redis
     assert resp["job_id"].startswith("ansible_job_")
 
     # Ensure process was created with correct target and args and started
-    assert mock_process.call_args.kwargs.get("target").__name__ == "run_ansible_background"
+    assert (
+        mock_process.call_args.kwargs.get("target").__name__ == "run_ansible_background"
+    )
     args = mock_process.call_args.kwargs.get("args")
     assert len(args) == 2  # (job_id, data)
     assert args[0] == resp["job_id"]
@@ -89,11 +92,13 @@ def test_run_ansible_endpoint_starts_background_process(mock_process, mock_redis
 
 def test_run_ansible_endpoint_missing_required_field_returns_482():
     # missing vault_password
-    bad_payload = json.dumps({
-        "hosts": "localhost",
-        "playbook": "sample_playbook",
-        "become_file": "become_file_path",
-    })
+    bad_payload = json.dumps(
+        {
+            "hosts": "localhost",
+            "playbook": "sample_playbook",
+            "become_file": "become_file_path",
+        }
+    )
 
     resp, code = unwrap(run_ansible_endpoint)(inp_data=bad_payload)
     assert resp == "Invalid data"

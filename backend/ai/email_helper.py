@@ -154,4 +154,3 @@ def email_helper(
         raise RuntimeError(f"Failed to send email: {e}") from e
 
     return msgid
-
