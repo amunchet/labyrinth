@@ -42,7 +42,7 @@ jobs:
         with:
           node-version: '16'
           cache: 'npm'
-          #cache-dependency-path: frontend/labyrinth
+          cache-dependency-path: frontend/labyrinth
       
       - name: Install vue
         run: npm install -g @vue/cli
