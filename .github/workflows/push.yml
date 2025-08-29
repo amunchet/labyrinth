@@ -40,7 +40,7 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v2
         with:
-          node-version: '12'
+          node-version: 'lts/-1'
           # cache: 'npm'
           # cache-dependency-path: frontend/labyrinth
       
