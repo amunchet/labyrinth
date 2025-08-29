@@ -1254,7 +1254,7 @@ def run_ansible_endpoint(inp_data=""):
     redis_client = redis.Redis(host=os.environ.get("REDIS_HOST"))
     if inp_data:
         data = inp_data
-    else: # pragma: no cover
+    else:  # pragma: no cover
         data = request.form.get("data")
         if not data:
             return "Invalid data", 481
@@ -1312,7 +1312,6 @@ def update_ip(mac, new_ip):
         {"mac": mac}, {"$set": {"ip": new_ip}}
     )
     return "Success", 200
-
 
 
 # Dashboard

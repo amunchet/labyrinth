@@ -8,7 +8,9 @@ from ai import slack_helper
 
 
 from dotenv import load_dotenv
+
 load_dotenv()
+
 
 def process_dashboard(testing=False):
     """
@@ -20,7 +22,7 @@ def process_dashboard(testing=False):
     """
     if testing:
         data = testing
-    else: # pragma: no cover
+    else:  # pragma: no cover
         rc = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
         cachedboard = rc.get("dashboard")
 
@@ -32,7 +34,15 @@ def process_dashboard(testing=False):
     results = []
 
     # keep only the bits we actually use to make a judgement
-    FOUND_KEEP = ("display_name", "name", "metric", "comparison", "value", "tag_name", "tag_value")
+    FOUND_KEEP = (
+        "display_name",
+        "name",
+        "metric",
+        "comparison",
+        "value",
+        "tag_name",
+        "tag_value",
+    )
     METRIC_FIELDS_KEEP = (
         "service_output",
         "long_service_output",
@@ -102,7 +112,9 @@ def process_dashboard(testing=False):
                         if isinstance(found, str):
                             name = found.strip()
                         elif isinstance(found, dict):
-                            name = ((found.get("display_name") or found.get("name") or "")).strip()
+                            name = (
+                                (found.get("display_name") or found.get("name") or "")
+                            ).strip()
 
                     # only consider hard failures; ignore 'new_host' and services lowered to 'warning'
                     if (
@@ -144,11 +156,11 @@ def main():
 
     # Read in from Redis
     first_pass = process_dashboard()
-    
+
     # Pass through ChatGPT
     with open(os.path.join("ai", "initial_prompt.txt")) as f:
         initial_prompt = f.read()
-    
+
     output = chatgpt_helper.ml_process(first_pass, initial_prompt)
 
     # Determine if we need to send email
@@ -181,7 +193,7 @@ def main():
         print("Waking Up IT Director...")
         try:
             last_email_raw = rc.get("last_email")
-        except Exception as e: # pragma: no cover
+        except Exception as e:  # pragma: no cover
             print("Warning: Redis get failed:", e)
             last_email_raw = None
 
@@ -195,7 +207,7 @@ def main():
                 # Try to detect if it was already stored as normalized pairs
                 json.loads(decoded)  # validate JSON
                 last_norm = decoded
-            except Exception: # pragma: no cover
+            except Exception:  # pragma: no cover
                 last_norm = None
 
         if not last_norm or last_norm != current_norm:
@@ -217,11 +229,12 @@ def main():
         try:
             print("Setting last email information")
             rc.setex("last_email", TTL_SECONDS, current_norm)
-        except Exception as e: # pragma: no cover
+        except Exception as e:  # pragma: no cover
             print("Warning: Redis setex failed:", e)
 
     else:
         print("wake_up_it_director = False; no email sent.")
+
 
 if __name__ == "__main__":  # pragma: no cover
     main()

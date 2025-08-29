@@ -116,11 +116,7 @@ def check_file(filename, file_type, raw=""):
 
 
 def run_ansible(
-    hosts: List, 
-    playbook: str, 
-    vault_password: str, 
-    become_file: str, 
-    ssh_key_file=""
+    hosts: List, playbook: str, vault_password: str, become_file: str, ssh_key_file=""
 ):
     """
     Runs ansible playbook

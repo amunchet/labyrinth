@@ -1,21 +1,29 @@
 import json
 from ai import main as app_main
 
+
 def test_ignores_non_monitored_hosts_and_warning_host_level():
     data = [
         {
             "groups": [
                 {
                     "hosts": [
-                        {"host": "ignored-1", "monitor": False, "services": [
-                            {"name": "svc", "state": False}
-                        ]},
-                        {"host": "ignored-2", "monitor": True, "service_level": "warning", "services": [
-                            {"name": "svc", "state": False}
-                        ]},
-                        {"host": "kept", "monitor": True, "services": [
-                            {"name": "svc", "state": False}
-                        ]},
+                        {
+                            "host": "ignored-1",
+                            "monitor": False,
+                            "services": [{"name": "svc", "state": False}],
+                        },
+                        {
+                            "host": "ignored-2",
+                            "monitor": True,
+                            "service_level": "warning",
+                            "services": [{"name": "svc", "state": False}],
+                        },
+                        {
+                            "host": "kept",
+                            "monitor": True,
+                            "services": [{"name": "svc", "state": False}],
+                        },
                     ]
                 }
             ]
@@ -23,6 +31,7 @@ def test_ignores_non_monitored_hosts_and_warning_host_level():
     ]
     out = json.loads(app_main.process_dashboard(data))
     assert out == [["kept", ["svc", {"state": False}]]]
+
 
 def test_ignores_services_set_to_warning_level_for_host():
     data = [
@@ -48,6 +57,7 @@ def test_ignores_services_set_to_warning_level_for_host():
     ]
     out = json.loads(app_main.process_dashboard(data))
     assert out == [["app-1", ["svc_real_fail", {"state": False}]]]
+
 
 def test_ignores_new_host_and_open_closed_ports_failures():
     data = [

@@ -39,7 +39,7 @@ class FakeRedis:
         seq = self.l[name]
         if end == -1:
             return seq[start:]
-        return seq[start:end + 1]
+        return seq[start : end + 1]
 
 
 def _input_data(**overrides):
@@ -63,7 +63,13 @@ def _input_data(**overrides):
 @patch("serve.redis.Redis")
 @patch("serve.time.sleep", lambda *args, **kwargs: None)  # speed up loop
 def test_run_ansible_background_streams_events_and_completes(
-    mock_redis, mock_run_ansible, mock_run_async, mock_listdir, mock_exists, mock_remove, mock_rmtree
+    mock_redis,
+    mock_run_ansible,
+    mock_run_async,
+    mock_listdir,
+    mock_exists,
+    mock_remove,
+    mock_rmtree,
 ):
     # Fake redis instance
     fake = FakeRedis()
@@ -77,7 +83,9 @@ def test_run_ansible_background_streams_events_and_completes(
     mock_thread.is_alive.side_effect = [True, False]  # one loop pass
     mock_runner = MagicMock()
     mock_runner.events = [
-        {"stdout": "TASK [ping] *********************************************************"},
+        {
+            "stdout": "TASK [ping] *********************************************************"
+        },
         {"stdout": "ok: [localhost]"},
     ]
     mock_run_async.return_value = (mock_thread, mock_runner)
@@ -116,7 +124,13 @@ def test_run_ansible_background_streams_events_and_completes(
 @patch("serve.redis.Redis")
 @patch("serve.time.sleep", lambda *args, **kwargs: None)
 def test_run_ansible_background_sets_error_on_exception(
-    mock_redis, mock_run_ansible, mock_run_async, mock_listdir, mock_exists, mock_remove, mock_rmtree
+    mock_redis,
+    mock_run_ansible,
+    mock_run_async,
+    mock_listdir,
+    mock_exists,
+    mock_remove,
+    mock_rmtree,
 ):
     fake = FakeRedis()
     mock_redis.return_value = fake
