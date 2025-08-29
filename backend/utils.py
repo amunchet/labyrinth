@@ -28,6 +28,7 @@ def update_service_expire_dates():
         expire_date = host.get("service_level_expire_date")
         if expire_date is None:
             continue
+        expire_date = expire_date.split("+")[0]
 
         # Normalize to datetime if stored as string
         if isinstance(expire_date, str):
