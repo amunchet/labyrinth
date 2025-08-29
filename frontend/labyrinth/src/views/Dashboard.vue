@@ -54,8 +54,7 @@
             />
              
               
-            </b-col
-          ><b-col cols="0" class="text-left pt-2">
+            </b-col><b-col cols="0" class="text-left pt-2">
             <b-button
               variant="primary"
               v-b-modal.smartbar_help
