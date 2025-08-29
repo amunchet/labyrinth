@@ -29,7 +29,7 @@ class FakeRedis:
 
 def load_main_with_mocks(monkeypatch, redis_obj, ml_json_payload, email_enabled=True, alert_ttl="7200"):
     # Mock environment
-    os.environ["REDIS_HOST"] = "ignored"
+    # os.environ["REDIS_HOST"] = "ignored"
     os.environ["EMAIL_TO"] = "alerts@example.com"
     os.environ["ALERT_TTL_SECONDS"] = alert_ttl
 
