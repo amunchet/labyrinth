@@ -27,7 +27,7 @@
     "popper.js": "^1.16.1",
     "portal-vue": "^2.1.7",
     "register-service-worker": "^1.7.1",
-    "sanitize-html": "^1.27.5",
+    "sanitize-html": "^2.7.1",
     "vue": "^2.6.11",
     "vue-chartjs": "^3.5.1",
     "vue-codemirror": "^4.0.6",
