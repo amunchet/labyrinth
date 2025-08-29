@@ -3,21 +3,21 @@ services:
 
   # Will build a new version of static site on docker-compose up
   # Remove this service if you want to build the vue app manually
-#  devel:
-#    container_name: "labyrinth_devel"
-#    environment:
-#      COMPOSE_CONVERT_WINDOWS_PATHS: 1
-#      CHOKIDAR_USEPOLLING: "true"
-#
-#    build: ./frontend
-#    ports:
-#      - "8001:8000"
-#      - "8002:8080"
-#    networks:
-#      - labyrinth
-#    volumes:
-#      - ./frontend:/src
-#      - /src/labyrinth/node_modules
+  devel:
+    container_name: "labyrinth_devel"
+    environment:
+      COMPOSE_CONVERT_WINDOWS_PATHS: 1
+      CHOKIDAR_USEPOLLING: "true"
+
+    build: ./frontend
+    # ports:
+    #  - "8001:8000"
+    #  - "8002:8080"
+    # networks:
+    #  - labyrinth
+    volumes:
+      - ./frontend:/src
+      - /src/labyrinth/node_modules
 
   backend:
     build: 
