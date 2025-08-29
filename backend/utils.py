@@ -4,6 +4,7 @@ import serve
 from datetime import datetime, timezone
 from pymongo import UpdateOne
 
+
 def update_service_expire_dates():
     """
     Finds all hosts with a service_level_expire_date.
@@ -52,5 +53,6 @@ def update_service_expire_dates():
 
     return 0
 
-if __name__ == "__main__": # pragma: no cover
+
+if __name__ == "__main__":  # pragma: no cover
     update_service_expire_dates()
