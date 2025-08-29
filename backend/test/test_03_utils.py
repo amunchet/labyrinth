@@ -3,8 +3,8 @@ import re
 from datetime import datetime, timezone
 import pytest
 
-import serve  
-import utils  
+import serve
+import utils
 
 TEST_HOST_PREFIX = "testutils_"  # used to ensure we only clean up what we created
 
@@ -34,11 +34,13 @@ def test_update_service_expire_dates_clears_only_expired_and_spares_others(setup
     future_iso = "2999-01-01T00:00:00+00:00"
 
     # Control doc that should NEVER be touched (not ours)
-    control_id = coll.insert_one({
-        "host": "production-db-01",
-        "service_level": "warning",
-        "service_level_expire_date": future_iso,
-    }).inserted_id
+    control_id = coll.insert_one(
+        {
+            "host": "production-db-01",
+            "service_level": "warning",
+            "service_level_expire_date": future_iso,
+        }
+    ).inserted_id
 
     # Test docs (ours) with the prefix
     docs = [
@@ -119,12 +121,14 @@ def test_update_service_expire_dates_idempotent(setup):
     coll = _hosts_coll()
     expired_iso = "2020-01-01T00:00:00+00:00"
 
-    coll.insert_one({
-        "_id": f"{TEST_HOST_PREFIX}once_only",
-        "host": f"{TEST_HOST_PREFIX}expired.example",
-        "service_level": "warning",
-        "service_level_expire_date": expired_iso,
-    })
+    coll.insert_one(
+        {
+            "_id": f"{TEST_HOST_PREFIX}once_only",
+            "host": f"{TEST_HOST_PREFIX}expired.example",
+            "service_level": "warning",
+            "service_level_expire_date": expired_iso,
+        }
+    )
 
     first = utils.update_service_expire_dates()
     assert first == 1
@@ -156,7 +160,8 @@ def test_update_service_expire_dates_handles_multiple(setup):
                 "service_level_expire_date": expired_iso,
             }
             for _id in expired_ids
-        ] + [
+        ]
+        + [
             {
                 "_id": _id,
                 "host": f"{TEST_HOST_PREFIX}{_id}.example",
