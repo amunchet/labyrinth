@@ -197,7 +197,7 @@ if __name__ == "__main__":  # pragma: no cover
             print("Sending Email")
             msg_id = email_helper.email_helper(
                 to=[os.environ.get("EMAIL_TO")],
-                subject="Altamont IT AI ALERT",
+                subject="Labyrinth IT AI ALERT",
                 html=output.get("summary_email", "See HTML version"),
                 text="See HTML version",
                 attachments=None,
