@@ -158,7 +158,7 @@ def main(initial_prompt=""):
     first_pass = process_dashboard()
 
     # Pass through ChatGPT
-    if not initial_prompt: # pragma: no cover
+    if not initial_prompt:  # pragma: no cover
         with open(os.path.join("ai", prompt_filename)) as f:
             initial_prompt = f.read()
 
@@ -175,7 +175,8 @@ def main(initial_prompt=""):
     def _pairs_set_from_crit(crit):
         s = set()
         for item in crit or []:
-            h = item.get("host"); sv = item.get("service_name")
+            h = item.get("host")
+            sv = item.get("service_name")
             if h is not None and sv is not None:
                 s.add((str(h).lower(), str(sv).lower()))  # case-insensitive
         return s

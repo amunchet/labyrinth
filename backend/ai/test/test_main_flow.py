@@ -38,6 +38,7 @@ def load_main_with_mocks(
 
     # Mock redis.Redis to return our fake
     import redis as redis_mod
+
     monkeypatch.setattr(redis_mod, "Redis", lambda host=None: redis_obj)
 
     # Mock chatgpt_helper.ml_process -> returns an object with .json()
@@ -46,6 +47,7 @@ def load_main_with_mocks(
             return ml_json_payload
 
     from ai import chatgpt_helper
+
     monkeypatch.setattr(chatgpt_helper, "ml_process", lambda *a, **k: FakeResp())
 
     # Mock email_helper.email_helper
@@ -57,6 +59,7 @@ def load_main_with_mocks(
         return "<fake@msg>"
 
     from ai import email_helper
+
     monkeypatch.setattr(
         email_helper,
         "email_helper",
@@ -65,6 +68,7 @@ def load_main_with_mocks(
 
     # Reload main to pick up monkeypatches/env
     from ai import main as app_main
+
     importlib.reload(app_main)
     return app_main, sent
 

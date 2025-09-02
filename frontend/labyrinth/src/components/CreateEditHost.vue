@@ -473,25 +473,25 @@ export default {
         });
     },
     loadServices: /* istanbul ignore next */ function () {
-    const auth = this.$auth;
-    Helper.apiCall("services", "all", auth)
-      .then((res = []) => {
-        const seen = new Set();
-        const unique = [];
+      const auth = this.$auth;
+      Helper.apiCall("services", "all", auth)
+        .then((res = []) => {
+          const seen = new Set();
+          const unique = [];
 
-        for (const x of res) {
-          const name = (x?.display_name || "").trim();
-          if (!name) continue; // skip empties
-          const key = name.toLowerCase(); // case-insensitive dedupe
-          if (seen.has(key)) continue;     // already added
-          seen.add(key);
-          unique.push({ text: name, value: name });
-        }
+          for (const x of res) {
+            const name = (x?.display_name || "").trim();
+            if (!name) continue; // skip empties
+            const key = name.toLowerCase(); // case-insensitive dedupe
+            if (seen.has(key)) continue; // already added
+            seen.add(key);
+            unique.push({ text: name, value: name });
+          }
 
-        this.services = unique;
-      })
-      .catch((e) => this.$store.commit("updateError", e));
-  },
+          this.services = unique;
+        })
+        .catch((e) => this.$store.commit("updateError", e));
+    },
     loadMetrics: /* istanbul ignore next */ function () {
       let auth = this.$auth;
       Helper.apiCall("metrics", this.host.mac, auth)
