@@ -149,7 +149,7 @@ def process_dashboard(testing=False):
     return json.dumps(results).replace(" ", "")
 
 
-def main():
+def main(prompt_filename="initial_prompt.txt"):
     """
     Main process runner
     """
@@ -158,7 +158,7 @@ def main():
     first_pass = process_dashboard()
 
     # Pass through ChatGPT
-    with open(os.path.join("ai", "initial_prompt.txt")) as f:
+    with open(os.path.join("ai", prompt_filename)) as f:
         initial_prompt = f.read()
 
     output = chatgpt_helper.ml_process(first_pass, initial_prompt)
@@ -170,25 +170,29 @@ def main():
 
     rc = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
 
-    # Helper to normalize critical_services for stable comparison
-    def _normalize_critical_services(crit):
-        """
-        Return a deterministic, order-insensitive JSON string representing
-        only (host, service_name) pairs.
-        """
-        pairs = []
+    # Helper: build a set of (host, service) from current output
+    def _pairs_set_from_crit(crit):
+        s = set()
         for item in crit or []:
-            host = item.get("host")
-            service = item.get("service_name")
-            if host is not None and service is not None:
-                pairs.append((str(host), str(service)))
-        # sort by host then service for deterministic order
-        pairs.sort(key=lambda x: (x[0], x[1]))
-        return json.dumps(pairs, separators=(",", ":"))  # compact, deterministic
+            h = item.get("host"); sv = item.get("service_name")
+            if h is not None and sv is not None:
+                s.add((str(h).lower(), str(sv).lower()))  # case-insensitive
+        return s
 
-    TTL_SECONDS = int(os.environ.get("ALERT_TTL_SECONDS", "7200"))  # default 2 hours
+    # Helper: parse stored normalized pairs JSON -> set of tuples
+    def _pairs_set_from_norm(norm_str):
+        try:
+            data = json.loads(norm_str)
+            pairs = set()
+            for it in data:
+                if isinstance(it, (list, tuple)) and len(it) == 2:
+                    pairs.add((str(it[0]).lower(), str(it[1]).lower()))
+            return pairs
+        except Exception:
+            return set()
 
-    # Determine if we need to wake up the IT director (i.e., send the email)
+    TTL_SECONDS = int(os.environ.get("ALERT_TTL_SECONDS", "7200"))
+
     if output.get("wake_up_it_director"):
         print("Waking Up IT Director...")
         try:
@@ -197,22 +201,31 @@ def main():
             print("Warning: Redis get failed:", e)
             last_email_raw = None
 
-        current_norm = _normalize_critical_services(output.get("critical_services"))
+        current_set = _pairs_set_from_crit(output.get("critical_services"))
+        current_norm = json.dumps(sorted(list(current_set)), separators=(",", ":"))
 
+        # last_norm may be absent on first run
         last_norm = None
         if last_email_raw:
+            decoded = last_email_raw.decode("utf-8")
+            # accept only valid JSON; legacy handled by _pairs_set_from_norm
             try:
-                # legacy format handling: previously stored as JSON list OR normalized pairs
-                decoded = last_email_raw.decode("utf-8")
-                # Try to detect if it was already stored as normalized pairs
-                json.loads(decoded)  # validate JSON
+                json.loads(decoded)
                 last_norm = decoded
             except Exception:  # pragma: no cover
                 last_norm = None
 
-        if not last_norm or last_norm != current_norm:
-            print("Difference in critical services since last email")
-            print("Sending Email")
+        last_set = _pairs_set_from_norm(last_norm) if last_norm else set()
+
+        # ✅ Only new problems (present now but not in last state)
+        new_issues = current_set - last_set
+
+        if (not last_norm) or new_issues:
+            if new_issues:
+                print("New critical issues since last email:", sorted(list(new_issues)))
+            else:
+                print("First run (no baseline); sending email.")
+
             msg_id = email_helper.email_helper(
                 to=[os.environ.get("EMAIL_TO")],
                 subject="Labyrinth IT AI ALERT",
@@ -223,15 +236,13 @@ def main():
             )
             print("Message-ID:", msg_id)
         else:
-            print("No critical differences from last email")
+            print("No NEW critical issues since last email")
 
-        # --- COMPLETE TODO: Update last_email in Redis with TTL ---
+        # Always update baseline to current state so reappearances trigger later
         try:
-            print("Setting last email information")
             rc.setex("last_email", TTL_SECONDS, current_norm)
         except Exception as e:  # pragma: no cover
             print("Warning: Redis setex failed:", e)
-
     else:
         print("wake_up_it_director = False; no email sent.")
 
