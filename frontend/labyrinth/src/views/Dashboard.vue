@@ -51,10 +51,7 @@
               v-model="smartbar"
               lazy
               placeholder="Enter filter (i.e. port=22)"
-            />
-             
-              
-            </b-col
+            /> </b-col
           ><b-col cols="0" class="text-left pt-2">
             <b-button
               variant="primary"
@@ -64,7 +61,11 @@
             >
               <font-awesome-icon icon="question" size="1x"
             /></b-button>
-            <b-modal id="smartbar_help" title="🔍 Smartbar Filter Help" size="lg">
+            <b-modal
+              id="smartbar_help"
+              title="🔍 Smartbar Filter Help"
+              size="lg"
+            >
               <div id="smartbar-help" class="help-content">
                 <p>
                   You can use the <strong>smartbar</strong> to filter subnet
@@ -75,10 +76,13 @@
                 <h5>🔧 Available Filters:</h5>
                 <ul>
                   <li>
-                    <strong>service_state</strong> – Filter by service state (e.g.,
-                    <code>service_state=false service=apt</code> or <code>service_state=false</code>). 
-                    <br /> This can be applied to either a service or all services.
-                    <br /><i>NOTE: Needs to come before service (if specified).</i>
+                    <strong>service_state</strong> – Filter by service state
+                    (e.g., <code>service_state=false service=apt</code> or
+                    <code>service_state=false</code>). <br />
+                    This can be applied to either a service or all services.
+                    <br /><i
+                      >NOTE: Needs to come before service (if specified).</i
+                    >
                   </li>
                   <li>
                     <strong>service</strong> – Filter by service name (e.g.,
@@ -128,7 +132,8 @@
                     <code>ip=10.0.0.15</code> – Host with specific IP address
                   </li>
                   <li>
-                    <code>service_state=false service=apt</code> – All hosts needing apt update.  NOTE: service_state comes first.
+                    <code>service_state=false service=apt</code> – All hosts
+                    needing apt update. NOTE: service_state comes first.
                   </li>
                 </ul>
 
@@ -152,29 +157,42 @@
             </b-button>
           </b-col>
         </b-row>
-<b-row class="mt-2 outer pt-1 smartbar">
-              <b-col class="text-left" cols="4">
-                <b-button variant="outline-primary" size="sm" class="mr-2"
-                @click="selected_ips = Object.fromEntries((parsed_data?.map(x=>x?.groups?.map(y=>y?.hosts?.map(z=>z.display != false ? z.ip : null).filter(z=>z != null)))?.flat(Infinity)).map(key => [key, true])); $forceUpdate()"
-                >
-                  Select&nbsp;All
-                  </b-button>
-                <b-button variant="outline-primary" class="mr-2" size="sm"
-                @click="selected_ips = {}"
-                >
-                  Unselect&nbsp;All
-                  </b-button>
-                  <div class="float-right float-end">
-                  <a 
-                  v-if="Object.keys(selected_ips).length > 0"
-                  :href="'/deploy?ips=' + Object.keys(selected_ips).reduce((total, x)=>total += x + ',', '')">
+        <b-row class="mt-2 outer pt-1 smartbar">
+          <b-col class="text-left" cols="4">
+            <b-button
+              variant="outline-primary"
+              size="sm"
+              class="mr-2"
+              @click="selected_ips = all_ips_map"
+            >
+              Select&nbsp;All
+            </b-button>
+            <b-button
+              variant="outline-primary"
+              class="mr-2"
+              size="sm"
+              @click="selected_ips = {}"
+            >
+              Unselect&nbsp;All
+            </b-button>
+            <div class="float-right float-end">
+              <a
+                v-if="Object.keys(selected_ips).length > 0"
+                :href="
+                  '/deploy?ips=' +
+                  Object.keys(selected_ips).reduce(
+                    (total, x) => (total += x + ','),
+                    ''
+                  )
+                "
+              >
                 <b-button variant="success" class="" size="sm">
                   Deploy&nbsp;to&nbsp;Selected
-                  </b-button>
-                  </a>
-                  </div>
-                </b-col>
-              </b-row>
+                </b-button>
+              </a>
+            </div>
+          </b-col>
+        </b-row>
 
         <div
           :class="'outer ' + (subnet.minimized ? 'minimized' : '')"
@@ -328,14 +346,16 @@
                     :host="host.host"
                     :display="host.display"
                     :selected="selected_ips[host.ip] != undefined"
-                    @selected_changed="()=>{
-                      if(selected_ips[host.ip] == undefined){
-                        selected_ips[host.ip] = 1
-                      }else{
-                        delete selected_ips[host.ip]
+                    @selected_changed="
+                      () => {
+                        if (selected_ips[host.ip] == undefined) {
+                          selected_ips[host.ip] = 1;
+                        } else {
+                          delete selected_ips[host.ip];
+                        }
+                        $forceUpdate();
                       }
-                      $forceUpdate()
-                      }"
+                    "
                   />
                 </div>
               </div>
@@ -402,6 +422,16 @@ export default {
     DoughnutChart,
   },
   computed: {
+    all_ips_map: function () {
+      return Object.fromEntries(
+        (this.parsed_data ?? [])
+          .flatMap((x) => x?.groups ?? [])
+          .flatMap((g) => g?.hosts ?? [])
+          .map((h) => (h.display !== false ? h.ip : null))
+          .filter((ip) => ip != null)
+          .map((ip) => [ip, true])
+      );
+    },
     parsed_data: function () {
       let data = this.full_data;
       if (this.smartbar == "") {
@@ -441,8 +471,8 @@ export default {
             temp.field.push({ field: field_name, value: right });
           } else {
             switch (left) {
-              case "service_state": 
-                temp.service_state = right
+              case "service_state":
+                temp.service_state = right;
                 break;
               case "service":
                 temp.service = right;
@@ -537,43 +567,41 @@ export default {
     checkHostFilter(host, searches) {
       let retval = false;
 
-      let desired_state = null
-      var has_service = searches.filter(x=>x?.service != "").length > 0
+      let desired_state = null;
+      var has_service = searches.filter((x) => x?.service != "").length > 0;
       searches.forEach((search) => {
-
         // Services state
-        if(search.service_state != undefined && search.service_state != null){
-          desired_state = search.service_state == "true"
+        if (search.service_state != undefined && search.service_state != null) {
+          desired_state = search.service_state == "true";
 
           // I want to check if the host has a service in the desired state
 
-          var ignored_services = host?.service_levels?.filter(x=>x?.level == 'warning')?.map(x=>x?.service) || []
+          var ignored_services =
+            host?.service_levels
+              ?.filter((x) => x?.level == "warning")
+              ?.map((x) => x?.service) || [];
 
-
-          retval = host.services?.filter(x=>ignored_services.indexOf(x?.name) == -1)
-          retval = retval.filter(x=>x?.state == desired_state).length > 0
-
-
+          retval = host.services?.filter(
+            (x) => ignored_services.indexOf(x?.name) == -1
+          );
+          retval = retval.filter((x) => x?.state == desired_state).length > 0;
         }
 
         // Services Search
 
         var found_service = host.services
-            .map((x) => (x ? x.name.toLowerCase() : ""))
-            .indexOf(search.service.toLowerCase())
-        if (
-          found_service != -1
-        ) {
-          var service_state = host.services[found_service]?.state
-          if(desired_state != null){
-            retval = service_state == desired_state
-          }else{
+          .map((x) => (x ? x.name.toLowerCase() : ""))
+          .indexOf(search.service.toLowerCase());
+        if (found_service != -1) {
+          var service_state = host.services[found_service]?.state;
+          if (desired_state != null) {
+            retval = service_state == desired_state;
+          } else {
             retval = true;
           }
-          
-        }else{
-          if(has_service){
-            retval = false
+        } else {
+          if (has_service) {
+            retval = false;
           }
         }
         // Open Ports Search

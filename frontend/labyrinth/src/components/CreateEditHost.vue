@@ -295,6 +295,13 @@
           warning. If set to error, then each service can have its level set
           individually.
         </div>
+        <hr />
+        <h6>Host Level Expire Date</h6>
+        <b-form-datepicker v-model="host.service_level_expire_date" />
+        <div class="mt-2 text-small">
+          Date on which the selected service level expires. This field will be
+          removed, setting behaviour back to default.
+        </div>
       </b-col>
       <b-col>
         <h5>
@@ -466,19 +473,24 @@ export default {
         });
     },
     loadServices: /* istanbul ignore next */ function () {
-      let auth = this.$auth;
+      const auth = this.$auth;
       Helper.apiCall("services", "all", auth)
-        .then((res) => {
-          this.services = res.map((x) => {
-            return {
-              text: x.display_name,
-              value: x.display_name,
-            };
-          });
+        .then((res = []) => {
+          const seen = new Set();
+          const unique = [];
+
+          for (const x of res) {
+            const name = (x?.display_name || "").trim();
+            if (!name) continue; // skip empties
+            const key = name.toLowerCase(); // case-insensitive dedupe
+            if (seen.has(key)) continue; // already added
+            seen.add(key);
+            unique.push({ text: name, value: name });
+          }
+
+          this.services = unique;
         })
-        .catch((e) => {
-          this.$store.commit("updateError", e);
-        });
+        .catch((e) => this.$store.commit("updateError", e));
     },
     loadMetrics: /* istanbul ignore next */ function () {
       let auth = this.$auth;
