@@ -5,7 +5,7 @@
       <template #modal-footer="{ ok, cancel }">
         <div style="width: 100%">
           <b-button
-            @click="deleteService(selected_service.name)"
+            @click="deleteService(selected_service.display_name)"
             variant="danger"
             v-if="selected_service['_id'] != undefined"
             class="float-left"
