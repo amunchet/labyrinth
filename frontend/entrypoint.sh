@@ -21,8 +21,9 @@ if [[ -z "${TESTBED:-}" ]]; then
   mv /tmp/dist/* /src/labyrinth/dist
 else
   echo "Starting Vue UI (dev) ..."
-  cd /src
+  cd /src/labyrinth
   # vue ui serves on 0.0.0.0:8000 by default
-  vue ui -D -H 0.0.0.0
+  # vue ui -D -H 0.0.0.0
+  npm run serve
 fi
 
