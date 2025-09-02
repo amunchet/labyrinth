@@ -123,7 +123,7 @@ def test_main_sends_email_on_new_critical_services(monkeypatch, capsys):
         monkeypatch, redis_obj, ml_json_payload=ml_json
     )
 
-    app_main.main()
+    app_main.main("inital_prompt.txt.example")
 
     out = capsys.readouterr().out
     assert "Waking Up IT Director..." in out
@@ -171,7 +171,8 @@ def test_main_skips_email_if_same_critical_services(monkeypatch, capsys):
     app_main, sent = load_main_with_mocks(
         monkeypatch, redis_obj, ml_json_payload=ml_json
     )
-    app_main.main()
+    
+    app_main.main("inital_prompt.txt.example")
     out = capsys.readouterr().out
     assert "No critical differences from last email" in out
     assert sent["called"] is False  # no email
@@ -200,7 +201,7 @@ def test_main_no_wakeup(monkeypatch, capsys):
     app_main, sent = load_main_with_mocks(
         monkeypatch, redis_obj, ml_json_payload=ml_json
     )
-    app_main.main()
+    app_main.main("inital_prompt.txt.example")
     out = capsys.readouterr().out
     assert "wake_up_it_director = False; no email sent." in out
     assert sent["called"] is False
@@ -238,7 +239,7 @@ def test_main_handles_legacy_last_email_format(monkeypatch, capsys):
     app_main, sent = load_main_with_mocks(
         monkeypatch, redis_obj, ml_json_payload=ml_json
     )
-    app_main.main()
+    app_main.main("inital_prompt.txt.example")
     out = capsys.readouterr().out
     # Because legacy JSON != normalized pairs JSON, we expect an email to be sent
     assert "Difference in critical services since last email" in out
@@ -280,7 +281,8 @@ def test_main_fatal_when_dashboard_redis_fails(monkeypatch, capsys):
     with pytest.raises(
         Exception
     ):  # or pytest.raises(RuntimeError) if your FakeRedis raises RuntimeError
-        app_main.main()
+        app_main.main("inital_prompt.txt.example")
+
 
     # Ensure we did NOT proceed to email, since we died before that stage
     assert sent["called"] is False
