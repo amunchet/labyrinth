@@ -33,13 +33,11 @@ def load_main_with_mocks(
     monkeypatch, redis_obj, ml_json_payload, email_enabled=True, alert_ttl="7200"
 ):
     # Mock environment
-    # os.environ["REDIS_HOST"] = "ignored"
     os.environ["EMAIL_TO"] = "alerts@example.com"
     os.environ["ALERT_TTL_SECONDS"] = alert_ttl
 
     # Mock redis.Redis to return our fake
     import redis as redis_mod
-
     monkeypatch.setattr(redis_mod, "Redis", lambda host=None: redis_obj)
 
     # Mock chatgpt_helper.ml_process -> returns an object with .json()
@@ -48,7 +46,6 @@ def load_main_with_mocks(
             return ml_json_payload
 
     from ai import chatgpt_helper
-
     monkeypatch.setattr(chatgpt_helper, "ml_process", lambda *a, **k: FakeResp())
 
     # Mock email_helper.email_helper
@@ -60,7 +57,6 @@ def load_main_with_mocks(
         return "<fake@msg>"
 
     from ai import email_helper
-
     monkeypatch.setattr(
         email_helper,
         "email_helper",
@@ -69,7 +65,6 @@ def load_main_with_mocks(
 
     # Reload main to pick up monkeypatches/env
     from ai import main as app_main
-
     importlib.reload(app_main)
     return app_main, sent
 
@@ -127,15 +122,14 @@ def test_main_sends_email_on_new_critical_services(monkeypatch, capsys):
 
     out = capsys.readouterr().out
     assert "Waking Up IT Director..." in out
-    assert "Difference in critical services since last email" in out
-    assert "Sending Email" in out
+    assert "New critical issues since last email" in out  # updated message
     assert sent["called"] is True
     # last_email stored with TTL
     assert redis_obj.setex_calls
     key, ttl, value = redis_obj.setex_calls[0]
     assert key == "last_email"
     assert ttl == int(os.environ["ALERT_TTL_SECONDS"])
-    # normalized pairs JSON
+    # normalized pairs JSON (sorted list of pairs)
     assert value == json.dumps([("api-1", "db_conn")], separators=(",", ":"))
 
 
@@ -171,10 +165,10 @@ def test_main_skips_email_if_same_critical_services(monkeypatch, capsys):
     app_main, sent = load_main_with_mocks(
         monkeypatch, redis_obj, ml_json_payload=ml_json
     )
-    
+
     app_main.main("inital_prompt.txt.example")
     out = capsys.readouterr().out
-    assert "No critical differences from last email" in out
+    assert "No NEW critical issues since last email" in out  # updated message
     assert sent["called"] is False  # no email
 
 
@@ -209,7 +203,8 @@ def test_main_no_wakeup(monkeypatch, capsys):
 
 def test_main_handles_legacy_last_email_format(monkeypatch, capsys):
     dashboard = minimal_dashboard_with_failure()
-    # Legacy last_email could be some other JSON; main treats decoded JSON as "already normalized"
+    # Legacy last_email could be some other JSON; new logic treats it as empty baseline,
+    # so current issues are considered "new".
     legacy = json.dumps([{"host": "api-1", "service_name": "db_conn"}])
     redis_obj = FakeRedis(
         store={
@@ -241,8 +236,7 @@ def test_main_handles_legacy_last_email_format(monkeypatch, capsys):
     )
     app_main.main("inital_prompt.txt.example")
     out = capsys.readouterr().out
-    # Because legacy JSON != normalized pairs JSON, we expect an email to be sent
-    assert "Difference in critical services since last email" in out
+    assert "New critical issues since last email" in out  # updated message
     assert sent["called"] is True
 
 
@@ -278,11 +272,8 @@ def test_main_fatal_when_dashboard_redis_fails(monkeypatch, capsys):
     )
 
     # Expect the *entire* run to be fatal due to the initial dashboard fetch
-    with pytest.raises(
-        Exception
-    ):  # or pytest.raises(RuntimeError) if your FakeRedis raises RuntimeError
+    with pytest.raises(Exception):
         app_main.main("inital_prompt.txt.example")
-
 
     # Ensure we did NOT proceed to email, since we died before that stage
     assert sent["called"] is False
