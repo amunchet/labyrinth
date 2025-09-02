@@ -149,7 +149,7 @@ def process_dashboard(testing=False):
     return json.dumps(results).replace(" ", "")
 
 
-def main(prompt_filename="initial_prompt.txt"):
+def main(initial_prompt=""):
     """
     Main process runner
     """
@@ -158,8 +158,9 @@ def main(prompt_filename="initial_prompt.txt"):
     first_pass = process_dashboard()
 
     # Pass through ChatGPT
-    with open(os.path.join("ai", prompt_filename)) as f:
-        initial_prompt = f.read()
+    if not initial_prompt: # pragma: no cover
+        with open(os.path.join("ai", prompt_filename)) as f:
+            initial_prompt = f.read()
 
     output = chatgpt_helper.ml_process(first_pass, initial_prompt)
 
