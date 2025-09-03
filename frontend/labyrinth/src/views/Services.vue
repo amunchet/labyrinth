@@ -178,11 +178,11 @@
 <script>
 import Helper from "@/helper";
 import ServiceComponent from "@/components/Service";
+
 export default {
   name: "Services",
-  components: {
-    ServiceComponent,
-  },
+  components: { ServiceComponent },
+
   data() {
     return {
       default_backend: "",
@@ -202,113 +202,56 @@ export default {
       testOutput: "",
     };
   },
-  watch: {
-    selected_host: /* istanbul ignore next */ async function (val) {
-      if (val != "" && val != "TEST") {
-        let auth = this.$auth;
-        await Helper.apiCall("load_service", val, auth)
-          .then((res) => {
-            if (res != "") {
-              this.output_data = res;
-            }
-            this.loadSuggestedFields();
-          })
-          .catch((e) => {
-            this.$store.commit("updateError", e);
-          });
-      }
 
-      this.loadSuggestedFields();
+  watch: {
+    // Load existing conf for selected host (skip TEST),
+    // then (once) apply suggested fields.
+    selected_host: /* istanbul ignore next */ async function (val) {
+      try {
+        if (val && val !== "TEST") {
+          const res = await this.apiCall("load_service", val);
+          if (res) this.output_data = res;
+        }
+      } catch (e) {
+        /* apiCall already commits error */
+      } finally {
+        await this.loadSuggestedFields();
+      }
     },
   },
+
   methods: {
-    add: function (data) {
-      // Handle undefined at top
-      this.$forceUpdate();
-      let output = JSON.parse(data);
-
-      // Need to handle deep nests - assume every parent is an object, except for the arrays
-
-      let item = output.item;
-      let parent = output.parent.replace("undefined.", "") || "";
-      let name = output.name;
-
-      let temp = JSON.parse(JSON.stringify(this.output_data));
-      this.output_data = "";
-      this.$forceUpdate();
-
-      const set = (obj, path, val) => {
-        const keys = path.split(".");
-        const lastKey = keys.pop();
-        const lastObj = keys.reduce((obj, key) => {
-          return (obj[key] = obj[key] || {});
-        }, obj);
-        lastObj[lastKey] = val;
-      };
-      let outtie = parent + "." + name;
-
-      set(temp, outtie, item);
-
-      if (temp[""] != undefined) {
-        let keys = Object.keys(temp[""]);
-        for (let i = 0; i < keys.length; i++) {
-          let next_key = keys[i];
-          if (temp[next_key] == undefined) {
-            temp[next_key] = temp[""][next_key];
-          }
-        }
-        delete temp[""];
+    // ---------- DRY helpers (kill duplicate chunks) ----------
+    async apiCall(name, arg = "") {
+      try {
+        return await Helper.apiCall(name, arg, this.$auth);
+      } catch (e) {
+        this.$store.commit("updateError", e);
+        throw e;
       }
-
-      this.output_data = temp;
-
-      this.loadSuggestedFields();
-      this.$forceUpdate();
     },
-
-    loadDefaultBackendLocation: /* istanbul ignore next */ async function () {
-      let auth = this.$auth;
-      await Helper.apiCall("settings", "default_telegraf_backend", auth)
-        .then((res) => {
-          this.default_backend = res;
-        })
-        .catch((e) => {
-          if (e.status == undefined || e.status != 481) {
-            this.$store.commit("updateError", e);
-          } else {
-            this.$store.commit(
-              "updateError",
-              "Error: Please update default backend location in Settings."
-            );
-          }
-        });
+    async apiPost(route, subpath, param, formData) {
+      try {
+        return await Helper.apiPost(route, subpath, param, this.$auth, formData);
+      } catch (e) {
+        this.$store.commit("updateError", e);
+        throw e;
+      }
     },
-    loadTelegrafKey: /* istanbul ignore next */ async function () {
-      let auth = this.$auth;
-      await Helper.apiCall("telegraf_key", "", auth)
-        .then((res) => {
-          this.telegraf_key = res;
-        })
-        .catch((e) => {
-          this.$store.commit("updateError", e);
-        });
+    async withSaving(fn) {
+      this.saving_conf = true;
+      try {
+        return await fn();
+      } finally {
+        this.saving_conf = false;
+      }
     },
-    loadSuggestedFields: async function () {
-      // Any time we add, force global tags to be host
-      // Also add predetermined outputs
-
-      if (this.output_data["global_tags"] == undefined) {
-        this.output_data["global_tags"] = {};
-      }
-
-      if (this.output_data["outputs"] == undefined) {
-        this.output_data["outputs"] = {};
-      }
-
-      if (this.default_backend == "") {
-        await this.loadDefaultBackendLocation();
-      }
-      this.output_data["outputs"]["http"] = {
+    ensureOutputScaffold() {
+      if (!this.output_data["global_tags"]) this.output_data["global_tags"] = {};
+      if (!this.output_data["outputs"]) this.output_data["outputs"] = {};
+    },
+    buildHttpOutput() {
+      return {
         url: this.default_backend,
         timeout: "5s",
         method: "POST",
@@ -321,149 +264,162 @@ export default {
           Authorization: this.telegraf_key,
         },
       };
+    },
+    computeHostTags(host = {}) {
+      const tag_names = ["mac", "host", "ip"];
+      const tags = {};
+      for (const k of tag_names) {
+        const v = host?.[k];
+        if (v) tags[k] = v;
+      }
+      return tags;
+    },
 
-      let found_host = this.raw_hosts.filter(
-        (x) => x.ip == this.selected_host
-      )[0];
-      let found_tags = {};
-      let tag_names = ["mac", "host", "ip"];
-      for (let i = 0; i < tag_names.length; i++) {
-        if (
-          found_host[tag_names[i]] != undefined &&
-          found_host[tag_names[i]] != ""
-        ) {
-          found_tags[tag_names[i]] = found_host[tag_names[i]];
+    // ---------- Existing actions, now using helpers ----------
+    add(data) {
+      this.$forceUpdate();
+      const output = JSON.parse(data);
+      const item = output.item;
+      const parent = output.parent.replace("undefined.", "") || "";
+      const name = output.name;
+
+      const temp = JSON.parse(JSON.stringify(this.output_data));
+      this.output_data = ""; // force reactivity reset
+      this.$forceUpdate();
+
+      const set = (obj, path, val) => {
+        const keys = path.split(".");
+        const lastKey = keys.pop();
+        const lastObj = keys.reduce((o, k) => (o[k] = o[k] || {}), obj);
+        lastObj[lastKey] = val;
+      };
+
+      set(temp, `${parent}.${name}`, item);
+
+      if (temp[""] !== undefined) {
+        for (const next_key of Object.keys(temp[""])) {
+          if (temp[next_key] === undefined) temp[next_key] = temp[""][next_key];
+        }
+        delete temp[""];
+      }
+
+      this.output_data = temp;
+      this.loadSuggestedFields();
+      this.$forceUpdate();
+    },
+
+    async loadDefaultBackendLocation() {
+      try {
+        this.default_backend = await this.apiCall("settings", "default_telegraf_backend");
+      } catch (e) {
+        // Keep prior behavior / messaging
+        if (!e.status || e.status !== 481) {
+          // already committed in apiCall
+        } else {
+          this.$store.commit(
+            "updateError",
+            "Error: Please update default backend location in Settings."
+          );
         }
       }
-      this.output_data["global_tags"] = found_tags;
     },
 
-    loadStructure: /* istanbul ignore next */ function () {
-      let auth = this.$auth;
-      Helper.apiCall("redis", "get_structure", auth)
-        .then((res) => {
-          this.data = res;
-          this.loaded = true;
-        })
-        .catch((e) => {
-          this.$store.commit("updateError", e);
-        });
+    async loadTelegrafKey() {
+      this.telegraf_key = await this.apiCall("telegraf_key", "");
     },
-    putStructure: /* istanbul ignore next */ function () {
-      let auth = this.$auth;
-      Helper.apiCall("redis", "put_structure", auth)
-        .then((res) => {
-          this.$store.commit("updateError", res);
-        })
-        .catch((e) => {
-          this.$store.commit("updateError", e);
-        });
+
+    async loadSuggestedFields() {
+      this.ensureOutputScaffold();
+
+      if (!this.default_backend) await this.loadDefaultBackendLocation();
+      if (!this.telegraf_key) await this.loadTelegrafKey();
+
+      // outputs.http (canonicalized in one place)
+      this.output_data["outputs"]["http"] = this.buildHttpOutput();
+
+      // global_tags for selected host
+      const found_host =
+        this.raw_hosts.find((x) => x.ip === this.selected_host) || {};
+      this.output_data["global_tags"] = this.computeHostTags(found_host);
     },
-    getAutosave: /* istanbul ignore next */ function () {
-      let auth = this.$auth;
-      Helper.apiCall("redis", "autosave", auth)
-        .then((res) => {
-          this.output_data = res;
-        })
-        .catch(() => {
-          this.output_data = {};
-        });
+
+    async loadStructure() {
+      this.data = await this.apiCall("redis", "get_structure");
+      this.loaded = true;
     },
-    autoSave: /* istanbul ignore next */ function () {
-      let auth = this.$auth;
-      let formData = new FormData();
+
+    async putStructure() {
+      const res = await this.apiCall("redis", "put_structure");
+      this.$store.commit("updateError", res);
+    },
+
+    async getAutosave() {
+      try {
+        this.output_data = await this.apiCall("redis", "autosave");
+      } catch {
+        this.output_data = {};
+      }
+    },
+
+    async autoSave() {
+      const formData = new FormData();
       formData.append("data", JSON.stringify(this.output_data));
-      Helper.apiPost("redis", "", "autosave", auth, formData).catch(() => {
+      try {
+        await this.apiPost("redis", "", "autosave", formData);
+      } catch {
         this.autoSaved = false;
+      }
+    },
+
+    async listHosts() {
+      const res = await this.apiCall("hosts", "");
+      this.raw_hosts = res;
+      // Deduplicate IPs succinctly
+      const seen = new Set();
+      this.hosts = res.reduce((acc, x) => {
+        const ip = (x.ip || "").trim();
+        if (ip && !seen.has(ip)) {
+          seen.add(ip);
+          acc.push({ value: ip, text: ip });
+        }
+        return acc;
+      }, []);
+    },
+
+    async loadFile() {
+      this.loadedFile = await this.apiCall("load_service", `${this.selected_host}/text`);
+    },
+
+    async runTest(outputs) {
+      this.testOutput = await this.apiCall("run_conf", `${this.selected_host}/${outputs}`);
+    },
+
+    async saveRaw() {
+      await this.withSaving(async () => {
+        const fd = new FormData();
+        fd.append("raw", this.loadedFile);
+        fd.append("data", "{}");
+        const res = await this.apiPost("save_conf", "", this.selected_host, fd);
+        this.$store.commit("updateError", res);
+        // Refresh structured view to reflect saved raw
+        const after = await this.apiCall("load_service", this.selected_host);
+        this.output_data = after;
+        await this.loadSuggestedFields();
       });
     },
-    listHosts: /* istanbul ignore next */ function () {
-      let auth = this.$auth;
-      Helper.apiCall("hosts", "", auth)
-        .then((res) => {
-          this.raw_hosts = res;
 
-          // No duplicates in hosts allowed
-          var hosts = [];
-          var seen = {};
-          res.forEach((x) => {
-            var ip = x.ip.trim();
-            if (seen[ip] == undefined) {
-              seen[ip] = true;
-              hosts.push({
-                value: ip,
-                text: ip,
-              });
-            }
-          });
-          this.hosts = hosts;
-        })
-        .catch((e) => {
-          this.$store.commit("updateError", e);
-        });
-    },
-    loadFile: /* istanbul ignore next */ function () {
-      let auth = this.$auth;
-      Helper.apiCall("load_service", this.selected_host + "/text", auth)
-        .then((res) => {
-          this.loadedFile = res;
-        })
-        .catch((e) => {
-          this.$store.commit("updateError", e);
-        });
-    },
-    runTest: /* istanbul ignore next */ function (outputs) {
-      let auth = this.$auth;
-      Helper.apiCall("run_conf", this.selected_host + "/" + outputs, auth)
-        .then((res) => {
-          this.testOutput = res;
-        })
-        .catch((e) => {
-          this.$store.commit("updateError", e);
-        });
-    },
-    saveRaw: /* istanbul ignore next */ function () {
-      let auth = this.$auth;
-      let formData = new FormData();
-      formData.append("raw", this.loadedFile);
-      formData.append("data", "{}");
-      this.saving_conf = true;
-      Helper.apiPost("save_conf", "", this.selected_host, auth, formData)
-        .then((res) => {
-          this.$store.commit("updateError", res);
-          this.saving_conf = false;
-          Helper.apiCall("load_service", this.selected_host, auth)
-            .then((res) => {
-              this.output_data = res;
-              this.loadSuggestedFields();
-            })
-            .catch((e) => {
-              this.$store.commit("updateError", e);
-            });
-        })
-        .catch((e) => {
-          this.saving_conf = false;
-          this.$store.commit("updateError", e);
-        });
-    },
-    saveConf: /* istanbul ignore next */ function () {
-      let auth = this.$auth;
-      let formData = new FormData();
-      formData.append("data", JSON.stringify(this.output_data));
-      this.saving_conf = true;
-      Helper.apiPost("save_conf", "", this.selected_host, auth, formData)
-        .then((res) => {
-          this.hasBeenSaved = true;
-          this.loadFile();
-          this.$store.commit("updateError", res);
-          this.saving_conf = false;
-        })
-        .catch((e) => {
-          this.saving_conf = false;
-          this.$store.commit("updateError", e);
-        });
+    async saveConf() {
+      await this.withSaving(async () => {
+        const fd = new FormData();
+        fd.append("data", JSON.stringify(this.output_data));
+        const res = await this.apiPost("save_conf", "", this.selected_host, fd);
+        this.hasBeenSaved = true;
+        await this.loadFile(); // keep previous flow
+        this.$store.commit("updateError", res);
+      });
     },
   },
+
   mounted: /* istanbul ignore next */ async function () {
     try {
       this.loadStructure();
@@ -472,6 +428,7 @@ export default {
       await this.loadDefaultBackendLocation();
       await this.loadTelegrafKey();
     } catch (e) {
+      // apiCall already commits errors
       this.$store.commit("updateError", e);
     }
   },
