@@ -182,4 +182,3 @@ describe("Services.vue (refactor)", () => {
     expect(wrapper.vm.$data.output_data).toStrictEqual(expected);
   });
 });
-

@@ -232,7 +232,13 @@ export default {
     },
     async apiPost(route, subpath, param, formData) {
       try {
-        return await Helper.apiPost(route, subpath, param, this.$auth, formData);
+        return await Helper.apiPost(
+          route,
+          subpath,
+          param,
+          this.$auth,
+          formData
+        );
       } catch (e) {
         this.$store.commit("updateError", e);
         throw e;
@@ -247,7 +253,8 @@ export default {
       }
     },
     ensureOutputScaffold() {
-      if (!this.output_data["global_tags"]) this.output_data["global_tags"] = {};
+      if (!this.output_data["global_tags"])
+        this.output_data["global_tags"] = {};
       if (!this.output_data["outputs"]) this.output_data["outputs"] = {};
     },
     buildHttpOutput() {
@@ -310,7 +317,10 @@ export default {
 
     async loadDefaultBackendLocation() {
       try {
-        this.default_backend = await this.apiCall("settings", "default_telegraf_backend");
+        this.default_backend = await this.apiCall(
+          "settings",
+          "default_telegraf_backend"
+        );
       } catch (e) {
         // Keep prior behavior / messaging
         if (!e.status || e.status !== 481) {
@@ -387,11 +397,17 @@ export default {
     },
 
     async loadFile() {
-      this.loadedFile = await this.apiCall("load_service", `${this.selected_host}/text`);
+      this.loadedFile = await this.apiCall(
+        "load_service",
+        `${this.selected_host}/text`
+      );
     },
 
     async runTest(outputs) {
-      this.testOutput = await this.apiCall("run_conf", `${this.selected_host}/${outputs}`);
+      this.testOutput = await this.apiCall(
+        "run_conf",
+        `${this.selected_host}/${outputs}`
+      );
     },
 
     async saveRaw() {
