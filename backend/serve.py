@@ -1287,7 +1287,6 @@ def get_ansible_status(job_id):
     results = redis_client.hget(job_id, "results")
 
     return {
-        "job_id": job_id,
         "status": status.decode("utf-8"),
         "logs": [log.decode("utf-8") for log in logs],
         "results": json.loads(results.decode("utf-8")) if results else None,
