@@ -8,6 +8,7 @@ from ai import slack_helper
 
 
 from dotenv import load_dotenv
+from datetime import date
 
 load_dotenv()
 
@@ -151,7 +152,7 @@ def process_dashboard(testing=False):
     return json.dumps(results).replace(" ", "")
 
 
-def main(initial_prompt=""):
+def main(initial_prompt="", prompt_filename="initial_prompt.txt"):
     """
     Main process runner
     """
@@ -232,7 +233,7 @@ def main(initial_prompt=""):
 
             msg_id = email_helper.email_helper(
                 to=[os.environ.get("EMAIL_TO")],
-                subject="Labyrinth IT AI ALERT",
+                subject=f"Labyrinth IT AI ALERT [{date.today()}]",
                 html=output.get("summary_email", "See HTML version"),
                 text="See HTML version",
                 attachments=None,
