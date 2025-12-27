@@ -48,6 +48,8 @@ def process_dashboard(testing=False):
         "long_service_output",
         "state",
         "http_response_code",
+        "restart_count",
+        "uptime_ns",
         "status_code",
         "result_code",
         "result_type",
@@ -56,7 +58,7 @@ def process_dashboard(testing=False):
         "ports",
         "ip",
     )
-    METRIC_TAGS_KEEP = ("server", "status_code", "method", "result", "host", "ip")
+    METRIC_TAGS_KEEP = ("server", "status_code", "method", "result", "host", "ip", "restart_count", "uptime_ns")
 
     def slim_found_service(found):
         if isinstance(found, str):
