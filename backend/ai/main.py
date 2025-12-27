@@ -59,7 +59,16 @@ def process_dashboard(testing=False):
         "ports",
         "ip",
     )
-    METRIC_TAGS_KEEP = ("server", "status_code", "method", "result", "host", "ip", "restart_count", "uptime_ns")
+    METRIC_TAGS_KEEP = (
+        "server",
+        "status_code",
+        "method",
+        "result",
+        "host",
+        "ip",
+        "restart_count",
+        "uptime_ns",
+    )
 
     def slim_found_service(found):
         if isinstance(found, str):
