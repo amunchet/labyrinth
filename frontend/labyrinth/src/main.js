@@ -1,4 +1,3 @@
-
 import "mutationobserver-shim";
 import Vue from "vue";
 import "./plugins/fontawesome";
