@@ -259,6 +259,7 @@ def main(initial_prompt="", prompt_filename="initial_prompt.txt"):
             print("Warning: Redis setex failed:", e)
     else:
         print("wake_up_it_director = False; no email sent.")
+        print(output)
 
 
 if __name__ == "__main__":  # pragma: no cover
