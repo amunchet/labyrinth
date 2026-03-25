@@ -109,6 +109,25 @@ services:
     volumes:
       - ./alertmanager:/src
 
+  # MCP Server
+  mcp:
+    build:
+      context: .
+      dockerfile: backend/ai/mcp/Dockerfile
+      args:
+        TZ: ${TZ}
+    restart: always
+    depends_on:
+      - redis
+    networks:
+      - labyrinth
+    volumes:
+      - ./backend:/app/backend
+    environment:
+      REDIS_HOST: redis
+      MCP_PORT: 8765
+      MCP_HOST: 0.0.0.0
+      PRODUCTION: 1
       
   # Scanner and Watcher Cron
   samplecron:

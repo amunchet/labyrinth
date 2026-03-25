@@ -122,6 +122,27 @@ services:
     volumes:
       - ./alertmanager:/src
 
+  # MCP Server
+  mcp:
+    build:
+      context: .
+      dockerfile: backend/ai/mcp/Dockerfile
+    depends_on:
+      - mongo
+      - redis
+    networks:
+      - labyrinth
+    volumes:
+      - ./backend:/app/backend
+    environment:
+      MONGO_USERNAME: root
+      MONGO_PASSWORD: temp
+      MONGO_HOST: mongo
+      REDIS_HOST: redis
+      MCP_PORT: 8765
+      MCP_HOST: 0.0.0.0
+      TESTBED: 1
+
   # Vulnerable server running on the network 
   sampledva:
     image: vulnerables/web-dvwa
