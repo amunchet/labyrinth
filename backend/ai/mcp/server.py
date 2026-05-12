@@ -21,11 +21,17 @@ from common.test import unwrap  # type: ignore
 import serve  # type: ignore
 
 try:
-    from mcp.server.fastmcp import FastMCPServer
-except ImportError as exc:  # pragma: no cover
-    raise SystemExit(
-        "modelcontextprotocol is required. Install with `pip install modelcontextprotocol`."
-    ) from exc
+    # Newer MCP versions
+    from mcp.server.fastmcp import FastMCP as _FastMCP
+except ImportError:
+    try:
+        # Older MCP versions
+        from mcp.server.fastmcp import FastMCPServer as _FastMCP
+    except ImportError as exc:  # pragma: no cover
+        raise SystemExit(
+            "Unable to import MCP server runtime from `mcp.server.fastmcp` "
+            f"({exc}). Ensure `modelcontextprotocol` is installed with a compatible version."
+        ) from exc
 
 
 class LabyrinthClient:
@@ -124,7 +130,7 @@ class LabyrinthClient:
 
 
 client = LabyrinthClient()
-app = FastMCPServer("labyrinth-mcp")
+app = _FastMCP("labyrinth-mcp")
 
 
 @app.tool()
