@@ -206,16 +206,12 @@ async def async_main() -> None:  # pragma: no cover
     port = int(os.environ.get("MCP_PORT", "8765"))
     host = os.environ.get("MCP_HOST", "0.0.0.0")
     print(f"Starting Labyrinth MCP server on {host}:{port}")
-    # FastMCP is async-based; use app directly without calling run()
-    # which may be non-blocking or version-dependent.
-    # Serve via uvicorn or the app's built-in server.
+    # FastMCP.run() tries to call anyio.run(), which conflicts with asyncio.run().
+    # Call run_stdio_async() directly instead to use the existing event loop.
     try:
-        # Attempt to use the app as an async context manager (newer MCP versions)
-        async with app:
-            # Keep the server running indefinitely
-            await asyncio.sleep(float("inf"))
-    except TypeError:
-        # Fallback: use app.run() without arguments for older versions
+        await app.run_stdio_async()
+    except AttributeError:
+        # Fallback for older MCP versions without run_stdio_async()
         app.run()
 
 
