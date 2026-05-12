@@ -9,8 +9,9 @@ The beautiful network analyzer, mapper, and monitor.
 
 
 ## Install
-1. `sudo bash install.sh` - this will walk you through the setup needed for Auth0 information.
-2.  If you are running docker as non-root, then remove the top section from `install.sh` and re-run.
+1. `sudo bash install.sh` - this will walk you through the setup needed for Auth0 plus the Caddy/Cloudflare DNS certificate configuration.
+2.  Have your public domain name and a Cloudflare API token ready for the Caddy ACME DNS challenge setup.
+3.  If you are running docker as non-root, then remove the top section from `install.sh` and re-run.
 
 ## Redis notes
 Redis is also going to be used a write cache for incoming metrics.  This way, the load on the metric database server will be greatly reduced.  We can tune the time to write the metrics as well.
@@ -111,7 +112,7 @@ Start a development docker-compose stack with the following commands:
 - `docker-compose -f docker-compose-development.yml up --build -d`
 - Port `8100` will be the Vue frontend server.  Go there to start up the development server.
 - Once the Vue frontend server has been started, navigate to `:8101` to see the live frontend.
-- Certificates: you may need to point your browser to `:7200` to accept the self-signed certificate.  If you navigate to the frontend without doing that, you will receive "Network Error" messages.
+- Certificates: Caddy uses an internal development CA on `https://localhost:7210`. Your browser may prompt you to accept the local certificate before the frontend can talk to the backend cleanly.
 
 # TODO
 - Documentation on setting up Auth0 for the system.  Also notes on how to disable using auth (can just have it as an ENV variable in the docker compose)
