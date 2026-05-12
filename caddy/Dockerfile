@@ -5,8 +5,8 @@ RUN xcaddy build \
 
 FROM caddy:2.11
 
-# These defaults can be overridden at build time if a deployment needs a
-# different non-root UID/GID for Caddy's persisted state.
+# These defaults can be overridden at build time, e.g.
+# `docker build --build-arg CADDY_UID=2000 --build-arg CADDY_GID=2000 ./caddy`.
 ARG CADDY_UID=1000
 ARG CADDY_GID=1000
 
@@ -17,6 +17,7 @@ RUN mkdir -p /config/caddy /data/caddy \
 
 COPY --from=builder /usr/bin/caddy /usr/bin/caddy
 
+# Keep low-port binding for HTTPS after switching away from root.
 RUN setcap cap_net_bind_service=+ep /usr/bin/caddy
 
 USER ${CADDY_UID}:${CADDY_GID}
