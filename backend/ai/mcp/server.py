@@ -9,6 +9,7 @@ import asyncio
 import json
 import os
 import sys
+import inspect
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -205,7 +206,20 @@ def main() -> None:  # pragma: no cover
     port = int(os.environ.get("MCP_PORT", "8765"))
     host = os.environ.get("MCP_HOST", "0.0.0.0")
     print(f"Starting Labyrinth MCP server on {host}:{port}")
-    app.run(host=host, port=port)
+    # FastMCP `run()` signature differs across versions.
+    # Pass only supported kwargs to stay compatible.
+    run_sig = inspect.signature(app.run)
+    run_params = run_sig.parameters
+    run_kwargs: Dict[str, Any] = {}
+    if "host" in run_params:
+        run_kwargs["host"] = host
+    if "port" in run_params:
+        run_kwargs["port"] = port
+
+    if run_kwargs:
+        app.run(**run_kwargs)
+    else:
+        app.run()
 
 
 if __name__ == "__main__":  # pragma: no cover
