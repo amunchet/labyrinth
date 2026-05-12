@@ -202,24 +202,13 @@ async def mcp_read_metrics(
     return client.get_metrics(host_key, service, count)
 
 
-async def async_main() -> None:  # pragma: no cover
+def main() -> None:  # pragma: no cover
     port = int(os.environ.get("MCP_PORT", "8765"))
     host = os.environ.get("MCP_HOST", "0.0.0.0")
     print(f"Starting Labyrinth MCP server on {host}:{port}")
-    # FastMCP.run() tries to call anyio.run(), which conflicts with asyncio.run().
-    # Call run_stdio_async() directly instead to use the existing event loop.
-    try:
-        await app.run_stdio_async()
-    except AttributeError:
-        # Fallback for older MCP versions without run_stdio_async()
-        app.run()
-
-
-def main() -> None:  # pragma: no cover
-    try:
-        asyncio.run(async_main())
-    except KeyboardInterrupt:
-        pass
+    # FastMCP.run() manages its own event loop via anyio.
+    # Call it directly without wrapping in asyncio.run().
+    app.run()
 
 
 if __name__ == "__main__":  # pragma: no cover
