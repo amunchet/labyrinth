@@ -1,2 +1,15 @@
-bson
 modelcontextprotocol
+flask==2.*
+flask-cors
+python-dotenv
+python-jose
+pymongo[srv]
+redis
+requests
+pyyaml
+pillow
+pid
+ansible-runner
+ansi2html
+six
+git+https://github.com/amunchet/toml.git
