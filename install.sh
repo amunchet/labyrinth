@@ -25,7 +25,7 @@ echo "Setting up .env..."
 source install_functions.sh
 
 if [ -f "$ENV_FOLDER/.env" ]; then
-echo ".env already exists.  Do you want to skip?  Enter is yes, any other entry else will create a new configuration."
+echo ".env already exists.  Do you want to skip?  Enter is yes; any other input will create a new configuration."
 read
 if [ -z "$REPLY" ]; then
 echo "Skipping Auth0 Configuration"
