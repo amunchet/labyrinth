@@ -5,11 +5,14 @@ RUN xcaddy build \
 
 FROM caddy:2.11
 
-RUN mkdir -p /config /data \
-    && chown -R 1000:1000 /config /data
+ARG CADDY_UID=1000
+ARG CADDY_GID=1000
+
+RUN mkdir -p /config/caddy /data/caddy \
+    && chown -R ${CADDY_UID}:${CADDY_GID} /config/caddy /data/caddy
 
 COPY --from=builder /usr/bin/caddy /usr/bin/caddy
 
 RUN setcap cap_net_bind_service=+ep /usr/bin/caddy
 
-USER 1000:1000
+USER ${CADDY_UID}:${CADDY_GID}
