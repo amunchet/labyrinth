@@ -4,11 +4,13 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app/backend
 
 WORKDIR /app
+RUN apt update && apt upgrade -y && apt install -y \
+       git
 
 # Install dependencies (reuse backend requirements + MCP extras)
-COPY backend/requirements.txt /tmp/requirements.txt
-COPY backend/ai/mcp/requirements.txt /tmp/requirements-mcp.txt
-RUN pip install --no-cache-dir -r /tmp/requirements-mcp.txt
+COPY backend/requirements.txt /requirements.txt
+COPY backend/ai/mcp/requirements.txt /requirements-mcp.txt
+RUN pip install --no-cache-dir -r /requirements-mcp.txt
 
 # Copy source
 COPY backend /app/backend
