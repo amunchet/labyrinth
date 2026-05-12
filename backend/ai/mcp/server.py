@@ -202,24 +202,28 @@ async def mcp_read_metrics(
     return client.get_metrics(host_key, service, count)
 
 
-def main() -> None:  # pragma: no cover
+async def async_main() -> None:  # pragma: no cover
     port = int(os.environ.get("MCP_PORT", "8765"))
     host = os.environ.get("MCP_HOST", "0.0.0.0")
     print(f"Starting Labyrinth MCP server on {host}:{port}")
-    # FastMCP `run()` signature differs across versions.
-    # Pass only supported kwargs to stay compatible.
-    run_sig = inspect.signature(app.run)
-    run_params = run_sig.parameters
-    run_kwargs: Dict[str, Any] = {}
-    if "host" in run_params:
-        run_kwargs["host"] = host
-    if "port" in run_params:
-        run_kwargs["port"] = port
-
-    if run_kwargs:
-        app.run(**run_kwargs)
-    else:
+    # FastMCP is async-based; use app directly without calling run()
+    # which may be non-blocking or version-dependent.
+    # Serve via uvicorn or the app's built-in server.
+    try:
+        # Attempt to use the app as an async context manager (newer MCP versions)
+        async with app:
+            # Keep the server running indefinitely
+            await asyncio.sleep(float("inf"))
+    except TypeError:
+        # Fallback: use app.run() without arguments for older versions
         app.run()
+
+
+def main() -> None:  # pragma: no cover
+    try:
+        asyncio.run(async_main())
+    except KeyboardInterrupt:
+        pass
 
 
 if __name__ == "__main__":  # pragma: no cover
