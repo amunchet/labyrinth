@@ -5,9 +5,13 @@ RUN xcaddy build \
 
 FROM caddy:2.11
 
+# These defaults can be overridden at build time if a deployment needs a
+# different non-root UID/GID for Caddy's persisted state.
 ARG CADDY_UID=1000
 ARG CADDY_GID=1000
 
+# Docker copies these seeded subdirectories into a new named volume on first
+# mount, so keeping them owned by the runtime UID/GID makes Caddy writable.
 RUN mkdir -p /config/caddy /data/caddy \
     && chown -R ${CADDY_UID}:${CADDY_GID} /config/caddy /data/caddy
 
