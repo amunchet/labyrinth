@@ -43,8 +43,8 @@ services:
       - labyrinth
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
+      - caddy_data:/data/caddy
+      - caddy_config:/config/caddy
       - ./frontend/labyrinth/dist/:/dist:ro
     env_file:
       - caddy/.env
