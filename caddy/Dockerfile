@@ -13,7 +13,7 @@ ARG CADDY_GID=1000
 # Docker copies these seeded subdirectories into a new named volume on first
 # mount, so keeping them owned by the runtime UID/GID makes Caddy writable.
 RUN mkdir -p /config/caddy /data/caddy \
-    && chown -R ${CADDY_UID}:${CADDY_GID} /config/caddy /data/caddy
+    && chown ${CADDY_UID}:${CADDY_GID} /config/caddy /data/caddy
 
 COPY --from=builder /usr/bin/caddy /usr/bin/caddy
 

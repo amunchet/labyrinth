@@ -1,5 +1,7 @@
 #!/bin/sh
 
+echo "Caddy state is managed by Docker volumes."
+
 ENV_FOLDER="backend"
 ALERTMANAGER_FOLDER="alertmanager"
 AUTH0JSON_FOLDER="frontend/labyrinth/src/"
