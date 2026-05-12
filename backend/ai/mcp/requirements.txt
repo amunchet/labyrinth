@@ -1,4 +1,5 @@
 modelcontextprotocol
+uvicorn[standard]
 flask==2.*
 flask-cors
 python-dotenv

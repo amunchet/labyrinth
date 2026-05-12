@@ -202,14 +202,10 @@ async def mcp_read_metrics(
     return client.get_metrics(host_key, service, count)
 
 
-def main() -> None:  # pragma: no cover
+if __name__ == "__main__":  # pragma: no cover
+    import uvicorn
     port = int(os.environ.get("MCP_PORT", "8765"))
     host = os.environ.get("MCP_HOST", "0.0.0.0")
     print(f"Starting Labyrinth MCP server on {host}:{port}")
-    # FastMCP.run() manages its own event loop via anyio.
-    # Call it directly without wrapping in asyncio.run().
-    app.run()
-
-
-if __name__ == "__main__":  # pragma: no cover
-    main()
+    # FastMCP is a Starlette app; serve via uvicorn for proper long-running operation
+    uvicorn.run(app, host=host, port=port, log_level="info")

@@ -15,4 +15,4 @@ COPY backend /app/backend
 
 EXPOSE 8765
 
-CMD ["python", "backend/ai/mcp/server.py"]
+CMD ["uvicorn", "backend.ai.mcp.server:app", "--host", "0.0.0.0", "--port", "8765"]
