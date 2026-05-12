@@ -24,10 +24,10 @@ echo "Setting up .env..."
 
 source install_functions.sh
 
-if [ -f "$ENV_FOLDER/.env" ]; then
+if [[ -f "$ENV_FOLDER/.env" ]]; then
 echo ".env already exists.  Do you want to skip?  Enter is yes; any other input will create a new configuration."
 read
-if [ -z "$REPLY" ]; then
+if [[ -z "$REPLY" ]]; then
 echo "Skipping Auth0 Configuration"
 else
 auth_zero
@@ -48,7 +48,7 @@ AUTH0DOMAIN=$(cat $ENV_FOLDER/.env | grep AUTH0DOMAIN | sed 's/.*=//g' | xargs)
 
 echo "Setting up auth_config.json..."
 
-if [ -f "$AUTH0JSON_FOLDER/auth_config.json" ]; then
+if [[ -f "$AUTH0JSON_FOLDER/auth_config.json" ]]; then
 echo "auth_config.json exists.  Continuing..."
 else
     auth_config
@@ -58,10 +58,10 @@ clear || cls
 
 # alertmanager.yml.sample - check if exists
 
-if [ -f $ALERTMANAGER_FOLDER/alertmanager.yml ]; then
+if [[ -f $ALERTMANAGER_FOLDER/alertmanager.yml ]]; then
 echo "Alertmanager configuration already found. Overwrite configuration?  Enter is Keep configuration, any other key will create new configuration"
     read
-if [ -z "$REPLY" ]; then
+if [[ -z "$REPLY" ]]; then
 echo "Skipping alertmanager configuration..."
 else
 alertmanager
@@ -76,7 +76,7 @@ echo "Domain name of this server?"
 read
 DOMAINNAME=$REPLY
 
-if [ -f $CADDYDIR/.env ]; then
+if [[ -f $CADDYDIR/.env ]]; then
 echo "Caddy environment already exists.  Continuing..."
 else
 echo "Copying over caddy .env..."
@@ -90,7 +90,7 @@ sed -i "s|NEWDOMAIN|$DOMAINNAME|" $CADDYDIR/.env
 
 mkdir -p $CADDYDIR/data $CADDYDIR/config
 
-if [ -f $CADDYDIR/Caddyfile ]; then
+if [[ -f $CADDYDIR/Caddyfile ]]; then
 echo "Leaving Caddyfile as it already exists..."
 else
 echo "Copying sample Caddyfile..."
