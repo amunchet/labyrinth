@@ -48,8 +48,8 @@ services:
       - labyrinth
     volumes:
       - ./caddy/Caddyfile.development:/etc/caddy/Caddyfile:ro
-      - ./caddy/data:/data
-      - ./caddy/config:/config
+      - caddy_data:/data
+      - caddy_config:/config
       - ./frontend/labyrinth/dist/:/dist:ro
     environment:
       COMPOSE_CONVERT_WINDOWS_PATHS: 1
@@ -141,3 +141,7 @@ services:
 networks:
   labyrinth:
     external: true
+
+volumes:
+  caddy_data:
+  caddy_config:

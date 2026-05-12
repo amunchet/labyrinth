@@ -88,8 +88,6 @@ read
 sed -i "s|CLOUDFLAREDNS|$REPLY|" $CADDYDIR/.env
 sed -i "s|NEWDOMAIN|$DOMAINNAME|" $CADDYDIR/.env
 
-mkdir -p $CADDYDIR/data $CADDYDIR/config
-
 if [[ -f $CADDYDIR/Caddyfile ]]; then
 echo "Leaving Caddyfile as it already exists..."
 else

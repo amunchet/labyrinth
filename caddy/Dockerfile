@@ -5,6 +5,12 @@ RUN xcaddy build \
 
 FROM caddy:2.11
 
-RUN apk add --no-cache curl
+RUN addgroup -S caddy \
+    && adduser -S -D -h /var/lib/caddy -s /sbin/nologin -G caddy caddy \
+    && chown -R caddy:caddy /config /data /etc/caddy /usr/share/caddy
 
 COPY --from=builder /usr/bin/caddy /usr/bin/caddy
+
+RUN setcap cap_net_bind_service=+ep /usr/bin/caddy
+
+USER caddy

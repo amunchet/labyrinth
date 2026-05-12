@@ -1,8 +1,5 @@
 #!/bin/sh
 
-echo "Preparing Caddy state..."
-mkdir -p caddy/data caddy/config
-
 ENV_FOLDER="backend"
 ALERTMANAGER_FOLDER="alertmanager"
 AUTH0JSON_FOLDER="frontend/labyrinth/src/"
