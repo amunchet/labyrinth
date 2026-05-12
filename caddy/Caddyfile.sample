@@ -1,25 +1,25 @@
 {$DOMAIN} {
-    encode zstd gzip
+	encode zstd gzip
 
-    handle /health {
-        respond "ok" 200
-    }
+	handle /health {
+		respond "ok" 200
+	}
 
-    handle_path /api/* {
-        reverse_proxy backend:7000
-    }
+	handle_path /api/* {
+		reverse_proxy backend:7000
+	}
 
-    handle_path /alertmanager/* {
-        reverse_proxy alertmanager:9093
-    }
+	handle_path /alertmanager/* {
+		reverse_proxy alertmanager:9093
+	}
 
-    handle {
-        root * /dist
-        try_files {path} /index.html
-        file_server
-    }
+	handle {
+		root * /dist
+		try_files {path} /index.html
+		file_server
+	}
 
-    tls {
-        dns cloudflare {$CLOUDFLARE_API_TOKEN}
-    }
+	tls {
+		dns cloudflare {$CLOUDFLARE_API_TOKEN}
+	}
 }
