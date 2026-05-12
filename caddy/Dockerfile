@@ -5,9 +5,9 @@ RUN xcaddy build \
 
 FROM caddy:2.11
 
-RUN addgroup -S caddy \
-    && adduser -S -D -h /var/lib/caddy -s /sbin/nologin -G caddy caddy \
-    && chown -R caddy:caddy /config /data /etc/caddy /usr/share/caddy
+RUN grep -q '^caddy:' /etc/group || addgroup -S caddy \
+    && grep -q '^caddy:' /etc/passwd || adduser -S -D -h /var/lib/caddy -s /sbin/nologin -G caddy caddy \
+    && chown -R caddy:caddy /config /data
 
 COPY --from=builder /usr/bin/caddy /usr/bin/caddy
 
