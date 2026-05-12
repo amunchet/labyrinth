@@ -48,6 +48,7 @@ services:
       - labyrinth
     volumes:
       - ./caddy/Caddyfile.development:/etc/caddy/Caddyfile:ro
+      # Caddy stores runtime state below the XDG homes at /data/caddy and /config/caddy.
       - caddy_data:/data/caddy
       - caddy_config:/config/caddy
       - ./frontend/labyrinth/dist/:/dist:ro

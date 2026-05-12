@@ -6,7 +6,7 @@ RUN xcaddy build \
 FROM caddy:2.11
 
 # These defaults can be overridden at build time, e.g.
-# `docker build --build-arg CADDY_UID=2000 --build-arg CADDY_GID=2000 ./caddy`.
+# `docker build -f caddy/Dockerfile --build-arg CADDY_UID=2000 --build-arg CADDY_GID=2000 ./caddy`.
 ARG CADDY_UID=1000
 ARG CADDY_GID=1000
 
