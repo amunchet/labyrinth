@@ -1,6 +1,7 @@
 import json
 import redis
 import os
+from datetime import datetime
 
 from ai import chatgpt_helper
 from ai import email_helper
@@ -8,7 +9,6 @@ from ai import slack_helper
 
 
 from dotenv import load_dotenv
-from datetime import date
 
 load_dotenv()
 
@@ -242,7 +242,7 @@ def main(initial_prompt="", prompt_filename="initial_prompt.txt"):
 
             msg_id = email_helper.email_helper(
                 to=[os.environ.get("EMAIL_TO")],
-                subject=f"Labyrinth IT AI ALERT [{date.today()}]",
+                subject=f"Labyrinth IT AI ALERT [{datetime.now().strftime('%Y-%m-%d %H:00')}]",
                 html=output.get("summary_email", "See HTML version"),
                 text="See HTML version",
                 attachments=None,
