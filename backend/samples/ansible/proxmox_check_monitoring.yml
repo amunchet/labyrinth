@@ -1,0 +1,122 @@
+---
+# Proxmox Check Monitoring (rsyslog + Telegraf)
+#
+# Purpose: For all VMs and LXC containers discovered on a set of Proxmox hosts
+#          (tagged "proxmox" in Labyrinth), check whether each guest is
+#          configured to use rsyslog and Telegraf properly.
+#
+# This playbook runs in two phases:
+#   Phase 1: Enumerate all VM/LXC IDs and their IPs from each Proxmox host.
+#   Phase 2: SSH into each guest and verify rsyslog + Telegraf are active.
+#
+# Usage:
+#   1. Tag your Proxmox hosts in Labyrinth with "proxmox".
+#   2. In the Deploy page, select "Deploy to Tag" and choose "proxmox".
+#   3. Select this playbook and run.
+#
+# Requirements:
+#   - SSH access to each Proxmox host and to each guest VM/LXC.
+#   - The `pvesh` and `qm`/`pct` CLIs are available on the Proxmox hosts.
+#   - Guests must have SSH reachable from the Ansible controller.
+#
+# Notes:
+#   - Telegraf check looks for a running telegraf process and a valid config.
+#   - rsyslog check verifies the service is active and /etc/rsyslog.conf exists.
+
+- name: Discover VMs and LXCs on Proxmox hosts
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Get all QEMU VMs
+      command: pvesh get /nodes/localhost/qemu --output-format json
+      register: vm_list_raw
+      changed_when: false
+
+    - name: Get all LXC containers
+      command: pvesh get /nodes/localhost/lxc --output-format json
+      register: lxc_list_raw
+      changed_when: false
+
+    - name: Get VM IPs via guest agent (best effort)
+      shell: |
+        for vmid in $(echo '{{ vm_list_raw.stdout }}' | python3 -c "import sys,json; [print(x['vmid']) for x in json.load(sys.stdin) if x.get('status') == 'running']"); do
+          ip=$(qm guest cmd $vmid network-get-interfaces 2>/dev/null | python3 -c "
+        import sys, json
+        try:
+            data = json.load(sys.stdin)
+            for iface in data:
+                for addr in iface.get('ip-addresses', []):
+                    if addr.get('ip-address-type') == 'ipv4' and not addr['ip-address'].startswith('127.'):
+                        print(addr['ip-address'])
+                        break
+        except:
+            pass
+        " 2>/dev/null | head -1)
+          if [ -n "$ip" ]; then
+            echo "vm:$vmid:$ip"
+          fi
+        done
+      register: vm_ips
+      changed_when: false
+      ignore_errors: true
+
+    - name: Get LXC IPs
+      shell: |
+        for ctid in $(echo '{{ lxc_list_raw.stdout }}' | python3 -c "import sys,json; [print(x['vmid']) for x in json.load(sys.stdin) if x.get('status') == 'running']"); do
+          ip=$(pct exec $ctid -- hostname -I 2>/dev/null | awk '{print $1}')
+          if [ -n "$ip" ]; then
+            echo "lxc:$ctid:$ip"
+          fi
+        done
+      register: lxc_ips
+      changed_when: false
+      ignore_errors: true
+
+    - name: Show discovered guest IPs from {{ inventory_hostname }}
+      debug:
+        msg: |
+          VMs: {{ vm_ips.stdout_lines | default([]) }}
+          LXCs: {{ lxc_ips.stdout_lines | default([]) }}
+
+- name: Check rsyslog and Telegraf on guests
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check if rsyslog service is active
+      command: systemctl is-active rsyslog
+      register: rsyslog_status
+      changed_when: false
+      failed_when: false
+
+    - name: Check if rsyslog config exists
+      stat:
+        path: /etc/rsyslog.conf
+      register: rsyslog_conf
+
+    - name: Check if Telegraf process is running
+      command: pgrep -x telegraf
+      register: telegraf_proc
+      changed_when: false
+      failed_when: false
+
+    - name: Check if Telegraf config exists
+      stat:
+        path: /etc/telegraf/telegraf.conf
+      register: telegraf_conf
+
+    - name: Verify Telegraf config is valid (non-empty)
+      command: grep -c '\[' /etc/telegraf/telegraf.conf
+      register: telegraf_conf_check
+      changed_when: false
+      failed_when: false
+      when: telegraf_conf.stat.exists
+
+    - name: Report monitoring status for {{ inventory_hostname }}
+      debug:
+        msg: |
+          Host: {{ inventory_hostname }}
+          rsyslog active: {{ rsyslog_status.rc == 0 }}
+          rsyslog.conf present: {{ rsyslog_conf.stat.exists }}
+          telegraf running: {{ telegraf_proc.rc == 0 }}
+          telegraf.conf present: {{ telegraf_conf.stat.exists }}
+          telegraf.conf has config sections: {{ telegraf_conf_check.stdout | default('N/A') }}

@@ -286,6 +286,7 @@
                 () => {
                   isTesting = false;
                   selected_host = null;
+                  selected_tag = '';
                 }
               "
             >
@@ -310,6 +311,35 @@
             </b-tab>
 
             <b-tab
+              title="Deploy to Tag"
+              @click="
+                () => {
+                  isTesting = false;
+                  selected_host = null;
+                  selected_group = '';
+                  selected_subnet = '';
+                  ips = [];
+                }
+              "
+            >
+              <b-row>
+                <b-col>
+                  Tag:
+                  <b-select
+                    :state="selected_tag != ''"
+                    v-model="selected_tag"
+                    :options="tags"
+                  />
+                </b-col>
+              </b-row>
+              <b-row v-if="selected_tag">
+                <b-col class="text-muted text-small">
+                  Hosts with this tag: {{ ips.join(", ") || "None" }}
+                </b-col>
+              </b-row>
+            </b-tab>
+
+            <b-tab
               title="Deployment Testing"
               class="bg-dark text-success"
               @click="
@@ -319,6 +349,7 @@
                   ips = [];
                   selected_group = '';
                   selected_subnet = '';
+                  selected_tag = '';
                 }
               "
             >
@@ -549,10 +580,12 @@ export default {
       hosts: [],
       subnets: [],
       groups: [],
+      tags: [],
       ips: [],
 
       selected_subnet: "",
       selected_group: "",
+      selected_tag: "",
       selected_host: "",
 
       vault_password: "",
@@ -612,6 +645,11 @@ export default {
     selected_group: /* istanbul ignore next */ function (val) {
       if (val != "") {
         this.loadGroupMembers();
+      }
+    },
+    selected_tag: /* istanbul ignore next */ function (val) {
+      if (val != "") {
+        this.loadTagMembers();
       }
     },
   },
@@ -924,6 +962,28 @@ export default {
         });
     },
 
+    loadTags: /* istanbul ignore next */ function () {
+      let auth = this.$auth;
+      Helper.apiCall("tags", "", auth)
+        .then((res) => {
+          this.tags = res;
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
+    },
+
+    loadTagMembers: /* istanbul ignore next */ function () {
+      let auth = this.$auth;
+      Helper.apiCall("tags", this.selected_tag, auth)
+        .then((res) => {
+          this.ips = res;
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
+    },
+
     loadHosts: /* istanbul ignore next */ function () {
       let auth = this.$auth;
       Helper.apiCall("hosts", "", auth)
@@ -959,6 +1019,7 @@ export default {
 
       this.loadIP();
       this.loadSubnets();
+      this.loadTags();
 
       this.loadHosts();
 

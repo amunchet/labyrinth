@@ -394,6 +394,74 @@ def test_group_add_service(setup):
     assert ["open_ports", "closed_ports", "check_hd-1"] in c
 
 
+def test_list_tags(setup):
+    """Tests listing all unique tags across all hosts"""
+    test_create_edit_host(setup)
+
+    # No tags yet
+    b = unwrap(serve.list_tags)()
+    assert b[1] == 200
+    assert json.loads(b[0]) == []
+
+    # Add tags to host
+    serve.mongo_client["labyrinth"]["hosts"].update_many(
+        {"ip": "192.168.10.176"}, {"$set": {"tags": "proxmox, linux"}}
+    )
+
+    b = unwrap(serve.list_tags)()
+    assert b[1] == 200
+    c = json.loads(b[0])
+    assert "proxmox" in c
+    assert "linux" in c
+
+
+def test_list_tag_members(setup):
+    """Tests listing hosts by tag (cross-subnet)"""
+    test_create_edit_host(setup)
+
+    serve.mongo_client["labyrinth"]["hosts"].update_many(
+        {"ip": "192.168.10.176"}, {"$set": {"tags": "proxmox, linux"}}
+    )
+
+    b = unwrap(serve.list_tag_members)("proxmox")
+    assert b[1] == 200
+    c = json.loads(b[0])
+    assert "192.168.10.176" in c
+
+    b = unwrap(serve.list_tag_members)("linux")
+    assert b[1] == 200
+    c = json.loads(b[0])
+    assert "192.168.10.176" in c
+
+    b = unwrap(serve.list_tag_members)("windows")
+    assert b[1] == 200
+    c = json.loads(b[0])
+    assert c == []
+
+
+def test_update_host_tags(setup):
+    """Tests updating tags on a host"""
+    test_create_edit_host(setup)
+
+    # Update tags
+    b = unwrap(serve.update_host_tags)("192.168.10.176", "proxmox,linux")
+    assert b[1] == 200
+
+    found = serve.mongo_client["labyrinth"]["hosts"].find_one({"ip": "192.168.10.176"})
+    assert found["tags"] == "proxmox,linux"
+
+    # Clear tags
+    b = unwrap(serve.update_host_tags)("192.168.10.176")
+    assert b[1] == 200
+
+    found = serve.mongo_client["labyrinth"]["hosts"].find_one({"ip": "192.168.10.176"})
+    assert found["tags"] == ""
+
+    # Not found
+    b = unwrap(serve.update_host_tags)("192.168.99.99", "proxmox")
+    assert b[1] == 498
+
+
 def test_read_service(setup):
     """Reads a given service"""
     port_service = {
