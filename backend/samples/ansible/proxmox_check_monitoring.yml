@@ -25,15 +25,20 @@
 
 - name: Discover VMs and LXCs on Proxmox hosts
   hosts: all
-  gather_facts: false
+  gather_facts: true
   tasks:
+    - name: Get Proxmox node name
+      command: hostname -s
+      register: proxmox_node
+      changed_when: false
+
     - name: Get all QEMU VMs
-      command: pvesh get /nodes/localhost/qemu --output-format json
+      command: pvesh get /nodes/{{ proxmox_node.stdout }}/qemu --output-format json
       register: vm_list_raw
       changed_when: false
 
     - name: Get all LXC containers
-      command: pvesh get /nodes/localhost/lxc --output-format json
+      command: pvesh get /nodes/{{ proxmox_node.stdout }}/lxc --output-format json
       register: lxc_list_raw
       changed_when: false
 
@@ -49,7 +54,7 @@
                     if addr.get('ip-address-type') == 'ipv4' and not addr['ip-address'].startswith('127.'):
                         print(addr['ip-address'])
                         break
-        except:
+        except Exception:
             pass
         " 2>/dev/null | head -1)
           if [ -n "$ip" ]; then
@@ -104,8 +109,8 @@
         path: /etc/telegraf/telegraf.conf
       register: telegraf_conf
 
-    - name: Verify Telegraf config is valid (non-empty)
-      command: grep -c '\[' /etc/telegraf/telegraf.conf
+    - name: Check if Telegraf config has configuration sections
+      command: grep -q '\[' /etc/telegraf/telegraf.conf
       register: telegraf_conf_check
       changed_when: false
       failed_when: false
@@ -119,4 +124,4 @@
           rsyslog.conf present: {{ rsyslog_conf.stat.exists }}
           telegraf running: {{ telegraf_proc.rc == 0 }}
           telegraf.conf present: {{ telegraf_conf.stat.exists }}
-          telegraf.conf has config sections: {{ telegraf_conf_check.stdout | default('N/A') }}
+          telegraf.conf has config sections: {{ telegraf_conf_check.rc == 0 if telegraf_conf.stat.exists else 'N/A' }}

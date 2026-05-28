@@ -19,15 +19,20 @@
 #   - Results are printed per host to the Ansible output log.
 
 - hosts: all
-  gather_facts: false
+  gather_facts: true
   tasks:
+    - name: Get Proxmox node name
+      command: hostname -s
+      register: proxmox_node
+      changed_when: false
+
     - name: List all VMs (QEMU) on Proxmox host
-      command: pvesh get /nodes/localhost/qemu --output-format json
+      command: pvesh get /nodes/{{ proxmox_node.stdout }}/qemu --output-format json
       register: vm_list
       changed_when: false
 
     - name: List all LXC containers on Proxmox host
-      command: pvesh get /nodes/localhost/lxc --output-format json
+      command: pvesh get /nodes/{{ proxmox_node.stdout }}/lxc --output-format json
       register: lxc_list
       changed_when: false
 
