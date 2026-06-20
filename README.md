@@ -11,6 +11,16 @@ The beautiful network analyzer, mapper, and monitor.
 ## Install
 1. `sudo bash install.sh` - this will walk you through the setup needed for Auth0 plus the Caddy/Cloudflare DNS certificate configuration.
 2.  Have your public domain name and a Cloudflare API token ready for the Caddy ACME DNS challenge setup.
+    - Your domain must already be added to Cloudflare and using Cloudflare DNS.
+    - In Cloudflare, open **My Profile** -> **API Tokens**.
+    - Click **Create Token**.
+    - Start from the **Edit zone DNS** template, or create a custom token with:
+      - **Zone** -> **DNS** -> **Edit**
+      - **Zone** -> **Zone** -> **Read**
+    - Under **Zone Resources**, limit the token to your specific domain if possible.
+    - Continue through the summary and click **Create Token**.
+    - Copy the token immediately; Cloudflare only shows the full value once.
+    - Paste that token when `install.sh` asks for the Cloudflare API token for the DNS challenge.
 3.  If you are running docker as non-root, then remove the top section from `install.sh` and re-run.
 
 ## Redis notes
