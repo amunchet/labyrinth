@@ -611,6 +611,7 @@ export default {
     },
     selected_group: /* istanbul ignore next */ function (val) {
       if (val != "") {
+        this.ips = [];
         this.loadGroupMembers();
       }
     },
@@ -768,6 +769,7 @@ export default {
 
       let auth = this.$auth;
       this.running = true;
+      this.playbook_loaded = false;
       this.playbook_result = "";
       this.playbook_results = [];
 
@@ -847,11 +849,13 @@ export default {
         // Final result
         this.playbook_result = result;
         this.running = false;
+        this.playbook_loaded = true;
       } catch (error) {
         // Handle any errors
         console.log(error);
         this.$store.commit("updateError", error.message || error);
         this.running = false;
+        this.playbook_loaded = true;
       }
     },
 
