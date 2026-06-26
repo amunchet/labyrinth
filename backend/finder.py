@@ -61,7 +61,7 @@ def scan(subnet: str, callback_fn, verbose=False) -> List:  # pragma: no cover
     results = []
 
     arguments = "-sV -O -A --script vulners"
-    arguments = "-sT -PU0 -Pn"  # Removed vulners, since security scanning will be done externally
+    arguments = "-sT -PU0 -Pn --top-ports 2500"  # Removed vulners, since security scanning will be done externally
     callback_fn(search + "\n\n" + f"Hosts Count:{len(arr)}")
 
     for line in scanner.scan(hosts=search, arguments=arguments):

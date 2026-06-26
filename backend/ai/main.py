@@ -1,6 +1,7 @@
 import json
 import redis
 import os
+from datetime import datetime
 
 from ai import chatgpt_helper
 from ai import email_helper
@@ -48,6 +49,8 @@ def process_dashboard(testing=False):
         "long_service_output",
         "state",
         "http_response_code",
+        "restart_count",
+        "uptime_ns",
         "status_code",
         "result_code",
         "result_type",
@@ -56,7 +59,16 @@ def process_dashboard(testing=False):
         "ports",
         "ip",
     )
-    METRIC_TAGS_KEEP = ("server", "status_code", "method", "result", "host", "ip")
+    METRIC_TAGS_KEEP = (
+        "server",
+        "status_code",
+        "method",
+        "result",
+        "host",
+        "ip",
+        "restart_count",
+        "uptime_ns",
+    )
 
     def slim_found_service(found):
         if isinstance(found, str):
@@ -149,7 +161,7 @@ def process_dashboard(testing=False):
     return json.dumps(results).replace(" ", "")
 
 
-def main(initial_prompt=""):
+def main(initial_prompt="", prompt_filename="initial_prompt.txt"):
     """
     Main process runner
     """
@@ -230,7 +242,7 @@ def main(initial_prompt=""):
 
             msg_id = email_helper.email_helper(
                 to=[os.environ.get("EMAIL_TO")],
-                subject="Labyrinth IT AI ALERT",
+                subject=f"Labyrinth IT AI ALERT [{datetime.now().strftime('%Y-%m-%d %H:00')}]",
                 html=output.get("summary_email", "See HTML version"),
                 text="See HTML version",
                 attachments=None,
@@ -247,6 +259,7 @@ def main(initial_prompt=""):
             print("Warning: Redis setex failed:", e)
     else:
         print("wake_up_it_director = False; no email sent.")
+        print(output)
 
 
 if __name__ == "__main__":  # pragma: no cover

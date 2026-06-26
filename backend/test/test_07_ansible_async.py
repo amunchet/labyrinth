@@ -119,7 +119,7 @@ def test_get_ansible_status_returns_logs_and_results(mock_redis):
 
     resp, code = unwrap(get_ansible_status)(job_id)
     assert code == 200
-    # assert resp["job_id"] == job_id
+    assert resp["job_id"] == job_id
     assert resp["status"] == "completed"
     assert resp["logs"] == ["log line 1", "log line 2"]
     assert resp["results"] == ["ok line", "changed line"]
@@ -133,3 +133,16 @@ def test_get_ansible_status_unknown_job_returns_404(mock_redis):
     resp, code = unwrap(get_ansible_status)("ansible_job_missing")
     assert code == 404
     assert resp == {"error": "Job not found"}
+
+
+@patch("serve.redis.Redis")
+def test_get_ansible_status_escapes_job_id(mock_redis):
+    fake = FakeRedis()
+    mock_redis.return_value = fake
+    job_id = '<script>alert("x")</script>'
+    fake.hset(job_id, "status", "completed")
+
+    resp, code = unwrap(get_ansible_status)(job_id)
+
+    assert code == 200
+    assert resp["job_id"] == "&lt;script&gt;alert(&#34;x&#34;)&lt;/script&gt;"
