@@ -568,9 +568,7 @@ def update_host_tags(ip, tags=""):
     found = mongo_client["labyrinth"]["hosts"].find_one({"ip": ip})
     if not found:
         return "Not found", 498
-    mongo_client["labyrinth"]["hosts"].update_many(
-        {"ip": ip}, {"$set": {"tags": tags}}
-    )
+    mongo_client["labyrinth"]["hosts"].update_many({"ip": ip}, {"$set": {"tags": tags}})
     return "Success", 200
 
 
