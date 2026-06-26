@@ -37,6 +37,17 @@
       </b-col>
     </b-row>
     <b-row>
+      <b-col>Do Not Scan</b-col>
+      <b-col>
+        <b-form-checkbox
+          size="lg"
+          name="no-scan"
+          switch
+          v-model="subnet.no_scan"
+        />
+      </b-col>
+    </b-row>
+    <b-row>
       <b-col>Minimize Subnet?</b-col>
       <b-col>
         <b-form-checkbox

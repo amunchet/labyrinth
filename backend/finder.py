@@ -12,7 +12,6 @@ from threading import Thread
 
 import redis
 
-from pid import PidFile
 from typing import Dict, List
 from nmap import PortScannerYield as ps
 
@@ -60,8 +59,7 @@ def scan(subnet: str, callback_fn, verbose=False) -> List:  # pragma: no cover
     scanner = ps()
     results = []
 
-    arguments = "-sV -O -A --script vulners"
-    arguments = "-sT -PU0 -Pn --top-ports 2500"  # Removed vulners, since security scanning will be done externally
+    arguments = "-sT -PU0 -Pn -p-"  # Scan all ports; removed --top-ports limit to catch non-common ports (e.g. 27017)
     callback_fn(search + "\n\n" + f"Hosts Count:{len(arr)}")
 
     for line in scanner.scan(hosts=search, arguments=arguments):
@@ -157,15 +155,60 @@ def main():  # pragma: no cover
         output = rclient.get("output-{}".format(subnet)).decode("utf-8")
         rclient.set("output-{}".format(subnet), output + str(msg))
 
-    with PidFile("labyrinth-finder") as p:
-        # List each subnet
-        subnets = json.loads(unwrap(list_subnets)()[0])
+    # Use Redis-based distributed lock instead of a file-based PidFile so that
+    # multiple containers sharing the same Redis instance cannot start duplicate
+    # scanners.  The key expires after 1 hour as a safety net; a background
+    # thread refreshes it while the scanner is running.
+    global_lock_key = "labyrinth-finder-lock"
+    global_lock_expiry = 3600  # seconds
 
-        def scan_subnet(subnet):
-            """
-            Scans a subnet
-            """
-            rclient.set("output-{}".format(subnet), "")
+    if not rclient.set(global_lock_key, "1", nx=True, ex=global_lock_expiry):
+        print("Finder already running (Redis lock held), skipping")
+        return
+
+    def _refresh_global_lock():
+        """Refreshes the global Redis lock so it does not expire while running."""
+        while True:
+            time.sleep(global_lock_expiry // 2)
+            rclient.expire(global_lock_key, global_lock_expiry)
+
+    refresh_thread = Thread(target=_refresh_global_lock, daemon=True)
+    refresh_thread.start()
+
+    # List each subnet
+    subnets = json.loads(unwrap(list_subnets)()[0])
+
+    def scan_subnet(subnet):
+        """
+        Scans a subnet
+        """
+        rclient.set("output-{}".format(subnet), "")
+
+        # Check if this subnet has the "do not scan" flag set
+        try:
+            subnet_result = unwrap(list_subnet)(subnet)
+            if subnet_result[1] == 200:
+                subnet_info = json.loads(subnet_result[0])
+                if subnet_info.get("no_scan", False):
+                    update_redis(
+                        "\nSubnet {} has 'do not scan' flag set, skipping".format(subnet),
+                        subnet,
+                    )
+                    return
+        except Exception as exc:
+            update_redis("\nCould not check no_scan flag: " + str(exc), subnet)
+
+        # Per-subnet Redis lock prevents two scanner threads (or two containers)
+        # from scanning the same subnet concurrently.
+        subnet_lock_key = "scanning-lock-{}".format(subnet)
+        if not rclient.set(subnet_lock_key, "1", nx=True, ex=7200):
+            update_redis(
+                "\nSubnet {} scan already in progress, skipping".format(subnet),
+                subnet,
+            )
+            return
+
+        try:
             update_redis("\nStarting {}".format(subnet), subnet)
             results = scan(subnet, lambda x: update_redis(x, subnet))
 
@@ -195,35 +238,37 @@ def main():  # pragma: no cover
                     update_redis("\nException occurred: " + str(exc), subnet)
 
             update_redis("Finished.\n", subnet)
+        finally:
+            rclient.delete(subnet_lock_key)
 
-        # Set up a queue for subnets
-        subnet_queue = queue.Queue()
+    # Set up a queue for subnets
+    subnet_queue = queue.Queue()
 
-        # Add all subnets to the queue initially
-        for subnet in subnets:
+    # Add all subnets to the queue initially
+    for subnet in subnets:
+        subnet_queue.put(subnet)
+
+    def worker():
+        """Worker thread that scans subnets and continually rescans them."""
+        while True:
+            # Get a subnet from the queue
+            subnet = subnet_queue.get()
+            scan_subnet(subnet)
+            subnet_queue.task_done()  # Mark this subnet as done
+            # Put the subnet back into the queue to scan again
             subnet_queue.put(subnet)
 
-        def worker():
-            """Worker thread that scans subnets and continually rescans them."""
-            while True:
-                # Get a subnet from the queue
-                subnet = subnet_queue.get()
-                scan_subnet(subnet)
-                subnet_queue.task_done()  # Mark this subnet as done
-                # Put the subnet back into the queue to scan again
-                subnet_queue.put(subnet)
+    # Start a thread pool to process subnets concurrently
+    num_threads = 4  # You can adjust the number of concurrent threads
+    threads = []
+    for _ in range(num_threads):
+        t = Thread(target=worker)
+        t.start()
+        threads.append(t)
 
-        # Start a thread pool to process subnets concurrently
-        num_threads = 4  # You can adjust the number of concurrent threads
-        threads = []
-        for _ in range(num_threads):
-            t = Thread(target=worker)
-            t.start()
-            threads.append(t)
-
-        # Keep the main thread alive indefinitely
-        for t in threads:
-            t.join()
+    # Keep the main thread alive indefinitely
+    for t in threads:
+        t.join()
 
 
 if __name__ == "__main__":

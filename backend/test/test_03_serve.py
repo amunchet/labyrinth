@@ -570,6 +570,80 @@ def test_delete_service(setup):
     assert c[0]["services"] == ["closed_ports"]
 
 
+def test_delete_service_same_name(setup):
+    """
+    Bug: Can't delete a service
+        - Happens if multiple services share the same service name (but have
+          different display names).
+        - Creating a service without a display_name used to default to "", causing
+          the upsert duplicate check to silently delete an unrelated service that
+          also had display_name "".
+        - After fix, display_name defaults to the service's name field.
+    """
+    service_a = {
+        "name": "labyrinth-lego",
+        "type": "check",
+        "display_name": "lego-check-a",
+    }
+    service_b = {
+        "name": "labyrinth-lego",
+        "type": "check",
+        "display_name": "lego-check-b",
+    }
+    service_no_display = {
+        "name": "other-check",
+        "type": "check",
+    }
+
+    # Create service_a
+    a = unwrap(serve.create_edit_service)(service_a)
+    assert a[1] == 200
+
+    # Create service_b (same name, different display_name) - must NOT delete service_a
+    a = unwrap(serve.create_edit_service)(service_b)
+    assert a[1] == 200
+
+    b = serve.mongo_client["labyrinth"]["services"].find({})
+    c = [x for x in b]
+    assert len(c) == 2
+    display_names = {x["display_name"] for x in c}
+    assert display_names == {"lego-check-a", "lego-check-b"}
+
+    # Create a service without display_name - should default to its name, not ""
+    a = unwrap(serve.create_edit_service)(service_no_display)
+    assert a[1] == 200
+
+    b = serve.mongo_client["labyrinth"]["services"].find({})
+    c = [x for x in b]
+    assert len(c) == 3
+
+    # The service without display_name should have display_name == name
+    found = [x for x in c if x.get("name") == "other-check"]
+    assert len(found) == 1
+    assert found[0]["display_name"] == "other-check"
+
+    # Creating it again (edit) should replace it, not create a duplicate
+    service_no_display_edited = dict(service_no_display)
+    service_no_display_edited["value"] = 42
+    a = unwrap(serve.create_edit_service)(service_no_display_edited)
+    assert a[1] == 200
+
+    b = serve.mongo_client["labyrinth"]["services"].find({})
+    c = [x for x in b]
+    assert len(c) == 3  # Still 3 - not 4
+
+    # Delete one service by display_name - other should be unaffected
+    a = unwrap(serve.delete_service)("lego-check-a")
+    assert a[1] == 200
+
+    b = serve.mongo_client["labyrinth"]["services"].find({})
+    c = [x for x in b]
+    assert len(c) == 2
+    display_names = {x["display_name"] for x in c}
+    assert "lego-check-b" in display_names
+    assert "lego-check-a" not in display_names
+
+
 def test_update_mac_address(setup):
     """
     There may be an odd case where a hardware failure (or VMWare reconfiguration)

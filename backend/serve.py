@@ -586,8 +586,8 @@ def create_edit_service(service=""):
     if "_id" in data:
         del data["_id"]
 
-    if "display_name" not in data:
-        data["display_name"] = ""
+    if "display_name" not in data or data["display_name"] == "":
+        data["display_name"] = data["name"]
 
     if [
         x
