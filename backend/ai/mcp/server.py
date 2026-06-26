@@ -5,6 +5,7 @@ Exposes tools to manage hosts and services via the existing Flask backend
 functions (accessed through unwrap to bypass auth decorators for internal use).
 Intended to run as a separate process/container alongside the backend.
 """
+
 import asyncio
 import json
 import os
@@ -204,6 +205,7 @@ async def mcp_read_metrics(
 
 if __name__ == "__main__":  # pragma: no cover
     import uvicorn
+
     port = int(os.environ.get("MCP_PORT", "8765"))
     host = os.environ.get("MCP_HOST", "0.0.0.0")
     print(f"Starting Labyrinth MCP server on {host}:{port}")
