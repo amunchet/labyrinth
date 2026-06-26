@@ -15,7 +15,7 @@ RUN pip install --no-cache-dir -r /requirements-mcp.txt
 # Copy source
 COPY backend /app/backend
 
-RUN useradd --create-home --shell /usr/sbin/nologin appuser \
+RUN useradd --system --no-create-home --shell /usr/sbin/nologin appuser \
     && chown -R appuser:appuser /app
 USER appuser
 
