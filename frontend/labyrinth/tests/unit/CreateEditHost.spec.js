@@ -94,4 +94,35 @@ describe("CreateEditHost.vue", () => {
     expect(wrapper.vm.$data.host).toStrictEqual(wrapper.vm.$data.safe_host);
     expect(wrapper.vm.$data.metrics).toStrictEqual([]);
   });
+
+  test("cloneHost", async () => {
+    wrapper.setData({
+      isNew: false,
+      host: {
+        _id: "abc123",
+        ip: "192.168.1.10",
+        mac: "aa:bb:cc:dd:ee:ff",
+        subnet: "192.168.1",
+        host: "test-server",
+        services: [{ name: "ssh", state: true }],
+        group: "servers",
+      },
+      metrics: [{ name: "cpu" }],
+    });
+    await wrapper.vm.$forceUpdate();
+
+    wrapper.vm.cloneHost();
+    await wrapper.vm.$forceUpdate();
+
+    expect(wrapper.vm.$data.isNew).toBe(true);
+    expect(wrapper.vm.$data.host._id).toBeUndefined();
+    expect(wrapper.vm.$data.host.ip).toBe("");
+    expect(wrapper.vm.$data.host.mac).toBe("");
+    expect(wrapper.vm.$data.host.subnet).toBe("192.168.1");
+    expect(wrapper.vm.$data.host.host).toBe("test-server");
+    expect(wrapper.vm.$data.host.services).toStrictEqual([
+      { name: "ssh", state: true },
+    ]);
+    expect(wrapper.vm.$data.metrics).toStrictEqual([]);
+  });
 });

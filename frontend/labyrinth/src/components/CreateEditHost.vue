@@ -549,7 +549,8 @@ export default {
       this.isNew = true;
       this.metrics = [];
     },
-    deleteHost: /* istanbul ignore next */ function () {      let host = this.host;
+    deleteHost: /* istanbul ignore next */ function () {
+      let host = this.host;
       let auth = this.$auth;
       this.$bvModal
         .msgBoxConfirm("Are you sure you want to delete this host?")
