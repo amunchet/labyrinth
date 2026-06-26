@@ -186,6 +186,10 @@ def render_email_html(host_alerts):
         },
         ...
       ]
+
+    Returns:
+        str: HTML string suitable for use as an email body. Returns a simple
+             "No active alerts" paragraph when host_alerts is empty or None.
     """
     if not host_alerts:
         return "<p>No active alerts.</p>"
@@ -314,6 +318,9 @@ def main(initial_prompt="", prompt_filename="initial_prompt.txt"):
             msg_id = email_helper.email_helper(
                 to=[os.environ.get("EMAIL_TO")],
                 subject=f"Labyrinth IT AI ALERT [{datetime.now().strftime('%Y-%m-%d %H:00')}]",
+                # Use the structured template when host_alerts is present (even if empty —
+                # an empty list is a valid "no alerts" state distinct from a missing field).
+                # Fall back to legacy summary_email for backward compatibility.
                 html=render_email_html(output.get("host_alerts"))
                 if output.get("host_alerts") is not None
                 else output.get("summary_email", "See HTML version"),
