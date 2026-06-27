@@ -57,12 +57,18 @@
             >
               Rename
             </b-button>
-            <b-button size="sm" variant="outline-danger" @click="deleteFile(file)">
+            <b-button
+              size="sm"
+              variant="outline-danger"
+              @click="deleteFile(file)"
+            >
               Delete
             </b-button>
           </b-col>
         </b-row>
-        <div v-if="files.length === 0" class="text-muted">No files uploaded.</div>
+        <div v-if="files.length === 0" class="text-muted">
+          No files uploaded.
+        </div>
       </div>
     </b-container>
   </div>

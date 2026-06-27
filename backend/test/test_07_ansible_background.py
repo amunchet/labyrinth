@@ -60,10 +60,12 @@ def _input_data(**overrides):
 @patch("serve.os.listdir")
 @patch("serve.ansible_runner.run_async")
 @patch("serve.ansible_helper.run_ansible")
+@patch("serve.build_ansible_cmdline", return_value="-vvvvv --vault-password-file ../vault.pass")
 @patch("serve.redis.Redis")
 @patch("serve.time.sleep", lambda *args, **kwargs: None)  # speed up loop
 def test_run_ansible_background_streams_events_and_completes(
     mock_redis,
+    mock_cmdline,
     mock_run_ansible,
     mock_run_async,
     mock_listdir,
@@ -121,10 +123,12 @@ def test_run_ansible_background_streams_events_and_completes(
 @patch("serve.os.listdir")
 @patch("serve.ansible_runner.run_async")
 @patch("serve.ansible_helper.run_ansible")
+@patch("serve.build_ansible_cmdline", return_value="-vvvvv --vault-password-file ../vault.pass")
 @patch("serve.redis.Redis")
 @patch("serve.time.sleep", lambda *args, **kwargs: None)
 def test_run_ansible_background_sets_error_on_exception(
     mock_redis,
+    mock_cmdline,
     mock_run_ansible,
     mock_run_async,
     mock_listdir,
