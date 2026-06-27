@@ -384,6 +384,15 @@
               />
             </b-col>
           </b-row>
+          <b-row class="mt-3" v-if="files_list['totp'] && files_list['totp'].length > 0">
+            <b-col>
+              <b>2FA / TOTP File</b> (optional - for hosts requiring two-factor authentication):<br />
+              <b-select
+                :options="[{ text: 'None', value: '' }, ...files_list['totp'].map(f => ({ text: f, value: f.replace(/\.yml$/, '') }))]"
+                v-model="selected['totp']"
+              />
+            </b-col>
+          </b-row>
         </b-card>
       </b-col>
     </b-row>
@@ -532,6 +541,7 @@ export default {
         ssh: "",
         become: "",
         other: "",
+        totp: "",
       },
 
       generated_ansible: {},
@@ -778,6 +788,7 @@ export default {
         vault_password: this.vault_password,
         become_file: this.selected["become"].replace(".yml", ""),
         ssh_key: this.selected["ssh"],
+        totp_file: this.selected["totp"] || "",
       };
 
       // Use FormData to prepare the request

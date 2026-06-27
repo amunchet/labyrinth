@@ -116,7 +116,12 @@ def check_file(filename, file_type, raw=""):
 
 
 def run_ansible(
-    hosts: List, playbook: str, vault_password: str, become_file: str, ssh_key_file=""
+    hosts: List,
+    playbook: str,
+    vault_password: str,
+    become_file: str,
+    ssh_key_file="",
+    totp_file="",
 ):
     """
     Runs ansible playbook
@@ -127,7 +132,8 @@ def run_ansible(
     :param vault_password - this is the temporary vault password to store 
     :param become_file - Encrypted vault file that contains the become password
 
-    :param ssh_key_file - SSH key to use for hosts
+    :param ssh_key_file - SSH key to use for hosts (optional)
+    :param totp_file - TOTP secret file for 2FA hosts (optional)
 
     ```
     ansible_runner.run(\
@@ -141,6 +147,7 @@ def run_ansible(
     SRC_DIR = "/src/uploads/ansible"
     BECOME_DIR = "/src/uploads/become"
     SSH_DIR = "/src/uploads/ssh"
+    TOTP_DIR = "/src/uploads/totp"
 
     if not os.path.exists("/run"):  # pragma: no cover
         os.mkdir("/run")
@@ -176,11 +183,22 @@ def run_ansible(
 
     shutil.copy(old_become, "{}/vars/{}.yml".format(RUN_DIR, become_file))
 
-    # Write password
-    with open("{}/vault.pass".format(RUN_DIR), "w") as f:
-        f.write(vault_password)
+    # SSH key file (optional)
+    if ssh_key_file:
+        ssh_key_path = "{}/{}".format(SSH_DIR, ssh_key_file)
+        if ssh_key_file not in os.listdir(SSH_DIR):
+            raise Exception("SSH key file not found: " + str(ssh_key_path))
+        shutil.copy(ssh_key_path, "{}/env/ssh_key".format(RUN_DIR))
+        os.chmod("{}/env/ssh_key".format(RUN_DIR), 0o600)
 
-    # Write password
+    # TOTP file for 2FA hosts (optional)
+    if totp_file:
+        old_totp = "{}/{}.yml".format(TOTP_DIR, totp_file)
+        if "{}.yml".format(totp_file) not in os.listdir(TOTP_DIR):
+            raise Exception("TOTP file not found: " + str(old_totp))
+        shutil.copy(old_totp, "{}/vars/{}.yml".format(RUN_DIR, totp_file))
+
+    # Write vault password
     with open("{}/vault.pass".format(RUN_DIR), "w") as f:
         f.write(vault_password)
 
