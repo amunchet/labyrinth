@@ -185,24 +185,35 @@ def run_ansible(
 
     # SSH key file (optional)
     if ssh_key_file:
-        ssh_key_path = "{}/{}".format(SSH_DIR, ssh_key_file)
-        if ssh_key_file not in os.listdir(SSH_DIR):
+        safe_ssh_key = secure_filename(ssh_key_file)
+        ssh_key_path = os.path.realpath(os.path.join(SSH_DIR, safe_ssh_key))
+        # Verify path stays within SSH_DIR to prevent directory traversal
+        if not ssh_key_path.startswith(os.path.realpath(SSH_DIR) + os.sep):
+            raise Exception("Invalid SSH key file path: " + ssh_key_file)
+        if not os.path.exists(ssh_key_path):
             raise Exception("SSH key file not found: " + str(ssh_key_path))
-        shutil.copy(ssh_key_path, "{}/env/ssh_key".format(RUN_DIR))
-        os.chmod("{}/env/ssh_key".format(RUN_DIR), 0o600)
+        dest_key = "{}/env/ssh_key".format(RUN_DIR)
+        shutil.copy(ssh_key_path, dest_key)
+        os.chmod(dest_key, 0o600)
 
     # TOTP file for 2FA hosts (optional)
     if totp_file:
-        old_totp = "{}/{}.yml".format(TOTP_DIR, totp_file)
-        if "{}.yml".format(totp_file) not in os.listdir(TOTP_DIR):
-            raise Exception("TOTP file not found: " + str(old_totp))
-        shutil.copy(old_totp, "{}/vars/{}.yml".format(RUN_DIR, totp_file))
+        safe_totp = secure_filename(totp_file + ".yml")
+        totp_path = os.path.realpath(os.path.join(TOTP_DIR, safe_totp))
+        # Verify path stays within TOTP_DIR to prevent directory traversal
+        if not totp_path.startswith(os.path.realpath(TOTP_DIR) + os.sep):
+            raise Exception("Invalid TOTP file path: " + totp_file)
+        if not os.path.exists(totp_path):
+            raise Exception("TOTP file not found: " + str(totp_path))
+        shutil.copy(totp_path, "{}/vars/{}.yml".format(RUN_DIR, secure_filename(totp_file)))
 
-    # Write vault password to a restrictive temp file (required by ansible-runner)
+    # Write vault password to a restrictive temp file (required by ansible-runner).
+    # The password is necessarily stored as plain text here because ansible-vault
+    # reads it from a file at runtime.
     vault_pass_path = "{}/vault.pass".format(RUN_DIR)
-    with open(vault_pass_path, "w") as f:
+    fd = os.open(vault_pass_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
         f.write(vault_password)
-    os.chmod(vault_pass_path, 0o600)
 
     # Run ansible and return HTML
 
