@@ -59,6 +59,11 @@ export default {
     }
     return [year, month, day].join("-");
   },
+  isEnabledValue(value) {
+    return ["1", "true", "yes", "on"].includes(
+      (value || "").toString().toLowerCase()
+    );
+  },
 
   listColors: function () {
     var retval = [

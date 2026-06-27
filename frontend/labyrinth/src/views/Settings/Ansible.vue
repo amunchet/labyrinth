@@ -69,9 +69,7 @@ export default {
           "ansible_manage_vars_files",
           auth
         );
-        this.manage_vars_files = ["1", "true", "yes", "on"].includes(
-          (value || "").toString().toLowerCase()
-        );
+        this.manage_vars_files = Helper.isEnabledValue(value);
       } catch (e) {
         if (e.status === undefined || e.status !== 481) {
           this.$store.commit("updateError", e);

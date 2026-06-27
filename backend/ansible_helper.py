@@ -204,7 +204,7 @@ def run_ansible(
         parsed_ssh = secure_filename(ssh_key_file)
         old_ssh = "{}/{}".format(SSH_DIR, parsed_ssh)
         if parsed_ssh not in os.listdir(SSH_DIR):
-            raise Exception("SSH key file not found" + str(old_ssh))
+            raise Exception(f"SSH key file not found: {old_ssh}")
 
     # Write password
     with open("{}/vault.pass".format(RUN_DIR), "w") as f:

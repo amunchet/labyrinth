@@ -148,12 +148,14 @@ def setting_enabled(setting, default="0"):
     """
     Returns a boolean for string-backed settings.
     """
-    return str(get_setting_value(setting, default)).lower() in [
-        "1",
-        "true",
-        "yes",
-        "on",
-    ]
+    return is_enabled_value(get_setting_value(setting, default))
+
+
+def is_enabled_value(value):
+    """
+    Returns whether a value is truthy for Labyrinth settings.
+    """
+    return str(value).lower() in ["1", "true", "yes", "on"]
 
 
 def ensure_upload_dir(file_type):
@@ -1346,12 +1348,16 @@ def save_ansible_file(fname, inp_data="", vars_file=""):
         except yaml.YAMLError as exc:
             return "YAML Read Error: {}".format(exc), 471
         parsed = list(parsed)[0]
+        if not isinstance(parsed, list):
+            parsed = [parsed]
         for item in parsed:
             existing = item.get("vars_files", [])
             if isinstance(existing, str):
                 existing = [existing]
             existing = [
-                x for x in existing if not str(x).startswith(MANAGED_BECOME_PREFIX)
+                vars_file_path
+                for vars_file_path in existing
+                if not str(vars_file_path).startswith(MANAGED_BECOME_PREFIX)
             ]
             managed_path = get_safe_upload_path("become", vars_file)
             item["vars_files"] = [managed_path] + existing
@@ -1365,14 +1371,16 @@ def save_ansible_file(fname, inp_data="", vars_file=""):
         parsed_fname = normalize_managed_filename("ansible", fname).replace(".yml", "")
     except ValueError:
         return "Invalid filename", 448
-    x = ansible_helper.check_file(filename=parsed_fname, raw=data, file_type="ansible")
-    if isinstance(x, list) and x[0]:
+    validation_result = ansible_helper.check_file(
+        filename=parsed_fname, raw=data, file_type="ansible"
+    )
+    if isinstance(validation_result, list) and validation_result[0]:
         return "Success", 200
-    elif isinstance(x, bool) and x:
+    elif isinstance(validation_result, bool) and validation_result:
         return "Success", 200
     else:
-        if isinstance(x, list):
-            return json.dumps(x, default=str), 471
+        if isinstance(validation_result, list):
+            return json.dumps(validation_result, default=str), 471
         else:
             return "Invalid ansible file", 471
 
