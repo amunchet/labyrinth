@@ -58,7 +58,7 @@ export default {
           auth
         );
       } catch (e) {
-        if (e.status == undefined || e.status != 481) {
+        if (e.status === undefined || e.status !== 481) {
           this.$store.commit("updateError", e);
         }
       }
@@ -73,7 +73,7 @@ export default {
           (value || "").toString().toLowerCase()
         );
       } catch (e) {
-        if (e.status == undefined || e.status != 481) {
+        if (e.status === undefined || e.status !== 481) {
           this.$store.commit("updateError", e);
         }
       }

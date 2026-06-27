@@ -1348,7 +1348,7 @@ def save_ansible_file(fname, inp_data="", vars_file=""):
         parsed = list(parsed)[0]
         for item in parsed:
             existing = item.get("vars_files", [])
-            if type(existing) == str:
+            if isinstance(existing, str):
                 existing = [existing]
             existing = [
                 x for x in existing if not str(x).startswith(MANAGED_BECOME_PREFIX)
@@ -1366,12 +1366,12 @@ def save_ansible_file(fname, inp_data="", vars_file=""):
     except ValueError:
         return "Invalid filename", 448
     x = ansible_helper.check_file(filename=parsed_fname, raw=data, file_type="ansible")
-    if type(x) == type([]) and x[0]:
+    if isinstance(x, list) and x[0]:
         return "Success", 200
-    elif type(x) == type(True) and x:
+    elif isinstance(x, bool) and x:
         return "Success", 200
     else:
-        if type(x) == type([]):
+        if isinstance(x, list):
             return json.dumps(x, default=str), 471
         else:
             return "Invalid ansible file", 471
