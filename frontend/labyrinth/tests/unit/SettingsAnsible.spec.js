@@ -41,7 +41,7 @@ afterEach(() => {
 
 describe("SettingsAnsible.vue", () => {
   test("is a Vue instance", () => {
-    expect(wrapper.isVueInstance).toBeTruthy();
+    expect(wrapper.exists()).toBe(true);
   });
 
   test("defaults manage_vars_files to enabled", () => {

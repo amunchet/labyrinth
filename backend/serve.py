@@ -182,10 +182,7 @@ def normalize_managed_filename(file_type, filename):
     if filename == "":
         raise ValueError("Invalid filename")
 
-    if file_type in ["become", "ansible", "ssh"] and "." not in filename:
-        filename = "{}.yml".format(filename)
-
-    return filename
+    return ansible_helper.ensure_managed_extension(file_type, filename)
 
 
 def get_safe_upload_path(file_type, filename=""):
@@ -1344,13 +1341,14 @@ def save_ansible_file(fname, inp_data="", vars_file=""):
         "ansible_manage_vars_files", DEFAULT_ANSIBLE_VARS_FILES
     ):
         try:
-            parsed = yaml.safe_load_all(data)
+            parsed_documents = list(yaml.safe_load_all(data))
         except yaml.YAMLError as exc:
             return "YAML Read Error: {}".format(exc), 471
-        parsed = list(parsed)[0]
-        if not isinstance(parsed, list):
-            parsed = [parsed]
-        for item in parsed:
+        parsed_document = parsed_documents[0]
+        parsed_items = (
+            parsed_document if isinstance(parsed_document, list) else [parsed_document]
+        )
+        for item in parsed_items:
             existing = item.get("vars_files", [])
             if isinstance(existing, str):
                 existing = [existing]
@@ -1368,7 +1366,9 @@ def save_ansible_file(fname, inp_data="", vars_file=""):
             return "YAML Dump Error: {}".format(exc), 471
 
     try:
-        parsed_fname = normalize_managed_filename("ansible", fname).replace(".yml", "")
+        parsed_fname = normalize_managed_filename("ansible", fname)
+        if parsed_fname.endswith(".yml"):
+            parsed_fname = parsed_fname[:-4]
     except ValueError:
         return "Invalid filename", 448
     validation_result = ansible_helper.check_file(

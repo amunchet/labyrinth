@@ -25,6 +25,7 @@ from werkzeug.utils import secure_filename
 from typing import List
 
 APP_TEMP_DIR = os.environ.get("LABYRINTH_TMP_DIR", "/var/tmp/labyrinth")
+YML_MANAGED_TYPES = ["become", "ansible", "ssh"]
 
 
 def ensure_temp_dir():
@@ -43,6 +44,15 @@ def temp_path(name=""):
     if name == "":
         return os.path.join(APP_TEMP_DIR, str(uuid.uuid1()))
     return os.path.join(APP_TEMP_DIR, secure_filename(name))
+
+
+def ensure_managed_extension(file_type, filename):
+    """
+    Ensures managed file types get a .yml extension when missing.
+    """
+    if file_type in YML_MANAGED_TYPES and "." not in filename:
+        return "{}.yml".format(filename)
+    return filename
 
 
 def check_file(filename, file_type, raw="", override_path=""):
@@ -80,8 +90,7 @@ def check_file(filename, file_type, raw="", override_path=""):
         if retval:
             if not os.path.exists("/src/uploads/ansible"):  # pragma: no cover
                 os.makedirs("/src/uploads/ansible")
-            if not filename.endswith(".yml"):
-                filename = "{}.yml".format(filename)
+            filename = ensure_managed_extension("ansible", filename)
             shutil.move(temp_file, "/src/uploads/ansible/{}".format(filename))
         elif os.path.exists(temp_file):
             os.remove(temp_file)
