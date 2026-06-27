@@ -198,9 +198,11 @@ def run_ansible(
             raise Exception("TOTP file not found: " + str(old_totp))
         shutil.copy(old_totp, "{}/vars/{}.yml".format(RUN_DIR, totp_file))
 
-    # Write vault password
-    with open("{}/vault.pass".format(RUN_DIR), "w") as f:
+    # Write vault password to a restrictive temp file (required by ansible-runner)
+    vault_pass_path = "{}/vault.pass".format(RUN_DIR)
+    with open(vault_pass_path, "w") as f:
         f.write(vault_password)
+    os.chmod(vault_pass_path, 0o600)
 
     # Run ansible and return HTML
 

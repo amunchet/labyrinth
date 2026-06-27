@@ -19,6 +19,13 @@ from nmap import PortScannerYield as ps
 from common.test import unwrap
 from serve import list_subnet, list_subnets, create_edit_host, list_host, insert_metric
 
+# Redis lock expiration times (in seconds).
+# The global lock prevents multiple finder processes from running simultaneously.
+GLOBAL_LOCK_TIMEOUT_SECONDS = 3600
+# The subnet lock prevents concurrent scans of the same subnet across instances.
+# Set longer than a typical full-port scan to handle slow hosts.
+SUBNET_LOCK_TIMEOUT_SECONDS = 7200
+
 
 def scan(subnet: str, callback_fn, verbose=False) -> List:  # pragma: no cover
     """Scans a given subnet"""
@@ -157,7 +164,7 @@ def main():  # pragma: no cover
 
     # Use Redis-based global lock so multiple Docker containers don't duplicate work
     global_lock_key = "labyrinth_finder_lock"
-    lock_acquired = rclient.set(global_lock_key, "1", nx=True, ex=3600)
+    lock_acquired = rclient.set(global_lock_key, "1", nx=True, ex=GLOBAL_LOCK_TIMEOUT_SECONDS)
     if not lock_acquired:
         print("Another finder instance is already running. Exiting.")
         return
@@ -181,7 +188,7 @@ def main():  # pragma: no cover
 
             # Acquire per-subnet Redis lock to prevent concurrent scans of the same subnet
             subnet_lock_key = "scan_lock_{}".format(subnet)
-            subnet_lock = rclient.set(subnet_lock_key, "1", nx=True, ex=7200)
+            subnet_lock = rclient.set(subnet_lock_key, "1", nx=True, ex=SUBNET_LOCK_TIMEOUT_SECONDS)
             if not subnet_lock:
                 print(f"Subnet {subnet} is already being scanned. Skipping.")
                 return
