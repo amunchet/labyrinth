@@ -48,6 +48,10 @@ executor = ThreadPoolExecutor(2)
 
 
 TELEGRAF_KEY = os.environ.get("TELEGRAF_KEY") or "TEST"
+UPLOAD_ROOT = "/src/uploads"
+MANAGED_BECOME_PREFIX = "/src/uploads/become/"
+DEFAULT_ANSIBLE_VERBOSITY = "5"
+DEFAULT_ANSIBLE_VARS_FILES = "1"
 
 
 def _requires_header(f, permission):  # pragma: no cover
@@ -130,6 +134,103 @@ def secure():
 valid_type = ["ssh", "totp", "become", "telegraf", "ansible", "other"]
 
 
+def get_setting_value(setting, default=""):
+    """
+    Returns a settings value with a default fallback.
+    """
+    item = mongo_client["labyrinth"]["settings"].find_one({"name": setting})
+    if item and "value" in item:
+        return item["value"]
+    return default
+
+
+def setting_enabled(setting, default="0"):
+    """
+    Returns a boolean for string-backed settings.
+    """
+    return str(get_setting_value(setting, default)).lower() in [
+        "1",
+        "true",
+        "yes",
+        "on",
+    ]
+
+
+def ensure_upload_dir(file_type):
+    """
+    Ensures an upload directory exists and returns it.
+    """
+    if file_type not in valid_type:
+        raise ValueError("Invalid type")
+    os.makedirs(UPLOAD_ROOT, exist_ok=True)
+    folder = os.path.join(UPLOAD_ROOT, file_type)
+    os.makedirs(folder, exist_ok=True)
+    return folder
+
+
+def normalize_managed_filename(file_type, filename):
+    """
+    Normalizes uploaded filenames for managed folders.
+    """
+    raw_filename = filename or ""
+    if "/" in raw_filename or "\\" in raw_filename or raw_filename in [".", ".."]:
+        raise ValueError("Invalid filename")
+
+    filename = secure_filename(raw_filename)
+    if filename == "":
+        raise ValueError("Invalid filename")
+
+    if file_type in ["become", "ansible", "ssh"] and "." not in filename:
+        filename = "{}.yml".format(filename)
+
+    return filename
+
+
+def get_safe_upload_path(file_type, filename=""):
+    """
+    Returns a safe path inside an allowed upload directory.
+    """
+    file_type = secure_filename(file_type)
+    if file_type not in valid_type:
+        raise ValueError("Invalid type")
+
+    folder = os.path.realpath(ensure_upload_dir(file_type))
+    if filename == "":
+        return folder
+
+    normalized = normalize_managed_filename(file_type, filename)
+    path = os.path.realpath(os.path.join(folder, normalized))
+    if os.path.commonpath([folder, path]) != folder:
+        raise ValueError("Invalid path")
+    return path
+
+
+def list_upload_entries(file_type):
+    """
+    Lists upload folder entries.
+    """
+    folder = get_safe_upload_path(file_type)
+    return os.listdir(folder)
+
+
+def build_ansible_cmdline():
+    """
+    Builds the ansible-runner command line from saved settings.
+    """
+    verbosity = str(get_setting_value("ansible_verbosity", DEFAULT_ANSIBLE_VERBOSITY))
+    try:
+        verbosity = max(0, min(5, int(verbosity)))
+    except ValueError:
+        verbosity = int(DEFAULT_ANSIBLE_VERBOSITY)
+
+    verbosity_flags = ""
+    if verbosity > 0:
+        verbosity_flags = "-" + ("v" * verbosity)
+
+    cmd_parts = [verbosity_flags, "--vault-password-file", "../vault.pass"]
+    return " ".join([x for x in cmd_parts if x])
+
+
 @app.route("/upload/<file_type>/<override_token>", methods=["POST"])
 @requires_auth_admin
 def upload(file_type, override_token):  # pragma: no cover
@@ -138,6 +239,7 @@ def upload(file_type, override_token):  # pragma: no cover
         - Two file_types: straight upload and form data upload
         - Form data upload comes from manual additions of vault files
     """
+    file_type = secure_filename(file_type)
     if file_type not in valid_type:
         return "Invalid type", 412
 
@@ -154,57 +256,57 @@ def upload(file_type, override_token):  # pragma: no cover
         data = request.form["file"]
         filename = request.form["filename"]
 
-    file_type = secure_filename(file_type)
-    filename = secure_filename(filename)
-
     if file != "" and file.filename == "":
         return "No file selected", 409
 
-    if not os.path.exists("/src/uploads"):
-        os.makedirs("/src/uploads")
-
-    if not os.path.exists("/src/uploads/{}".format(file_type)):
-        os.mkdir("/src/uploads/{}".format(file_type))
+    ensure_upload_dir(file_type)
 
     if data:
         data = data.replace("\r\n", "\n")
-        with open("/tmp/{}".format(filename), "w") as f:
+        try:
+            filename = normalize_managed_filename(file_type, filename)
+            destination = get_safe_upload_path(file_type, filename)
+        except ValueError:
+            return "Invalid filename", 448
+        temp_path = ansible_helper.temp_path("{}-{}".format(uuid.uuid1(), filename))
+        with open(temp_path, "w") as f:
             f.write(data)
 
-        if "{}.yml".format(filename.replace(".yml", "")) in os.listdir(
-            "/src/uploads/become/"
-        ):
-            os.remove("/src/uploads/become/{}.yml".format(filename.replace(".yml", "")))
+        if os.path.exists(destination):
+            os.remove(destination)
 
-        if ansible_helper.check_file(filename, file_type):
-            shutil.move(
-                "/tmp/{}".format(filename),
-                "/src/uploads/become/{}.yml".format(filename.replace(".yml", "")),
-            )
+        if ansible_helper.check_file(filename, file_type, override_path=temp_path):
+            shutil.move(temp_path, destination)
             return escape(filename), 200
-        os.remove("/tmp/{}".format(filename))
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
         return "File check failed", 522
 
     elif file:
-        filename = secure_filename(file.filename)
+        try:
+            filename = normalize_managed_filename(file_type, file.filename)
+            destination = get_safe_upload_path(file_type, filename)
+        except ValueError:
+            return "Invalid filename", 448
+        temp_path = ansible_helper.temp_path("{}-{}".format(uuid.uuid1(), filename))
 
-        # file.save("/tmp/{}".format(filename))
         file_contents = file.read().decode("utf-8")
         file_contents = file_contents.replace("\r\n", "\n")
-        with open(os.path.join("/tmp", filename), "w") as f:
+        with open(temp_path, "w") as f:
             f.write(file_contents)
 
-        check_results = ansible_helper.check_file(filename, file_type)
+        check_results = ansible_helper.check_file(
+            filename, file_type, override_path=temp_path
+        )
         if check_results:
-            shutil.move(
-                "/tmp/{}".format(filename),
-                "/src/uploads/{}/{}".format(file_type, filename),
-            )
+            shutil.move(temp_path, destination)
         else:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
             return f"File check failed: {check_results}", 521
 
     # Chmod
-    chmod_filename = "/src/uploads/{}/{}".format(file_type, filename)
+    chmod_filename = get_safe_upload_path(file_type, filename)
     os.chmod(chmod_filename, 0o600)
     return escape(filename), 200
 
@@ -217,10 +319,7 @@ def list_uploads(file_type):
     """
     file_type = secure_filename(file_type)
     if file_type in valid_type:
-        fname = "/src/uploads/{}".format(file_type)
-        if not os.path.exists(fname):
-            os.mkdir(fname)
-        return json.dumps(os.listdir(fname), default=str), 200
+        return json.dumps(list_upload_entries(file_type), default=str), 200
     return "Not found", 409
 
 
@@ -1123,10 +1222,73 @@ def list_directory(file_type):
     if file_type not in valid_type:  # pragma: no cover
         return "Invalid type", 446
 
-    if not os.path.exists("/src/uploads/{}".format(file_type)):  # pragma: no cover
-        return "No folder", 447
+    return json.dumps(list_upload_entries(file_type)), 200
 
-    return json.dumps(os.listdir("/src/uploads/{}".format(file_type))), 200
+
+@app.route("/files/<file_type>", methods=["GET"])
+@app.route("/files/<file_type>/", methods=["GET"])
+@requires_auth_admin
+def list_files(file_type):
+    """
+    Lists files for a managed upload folder.
+    """
+    file_type = secure_filename(file_type)
+    if file_type not in valid_type:
+        return "Invalid type", 446
+    return json.dumps(list_upload_entries(file_type)), 200
+
+
+@app.route("/files/<file_type>/rename", methods=["POST"])
+@app.route("/files/<file_type>/rename/", methods=["POST"])
+@requires_auth_admin
+def rename_file(file_type, old_name="", new_name=""):
+    """
+    Renames a file inside an allowed upload folder.
+    """
+    file_type = secure_filename(file_type)
+    if file_type not in valid_type:
+        return "Invalid type", 446
+
+    if old_name == "" and new_name == "" and request.method == "POST":  # pragma: no cover
+        old_name = request.form.get("old_name", old_name)
+        new_name = request.form.get("new_name", new_name)
+
+    try:
+        old_path = get_safe_upload_path(file_type, old_name)
+        new_path = get_safe_upload_path(file_type, new_name)
+    except ValueError:
+        return "Invalid filename", 448
+
+    if not os.path.exists(old_path):
+        return "Not found", 404
+    if os.path.exists(new_path):
+        return "File already exists", 407
+
+    os.rename(old_path, new_path)
+    os.chmod(new_path, 0o600)
+    return escape(os.path.basename(new_path)), 200
+
+
+@app.route("/files/<file_type>/<filename>", methods=["DELETE"])
+@requires_auth_admin
+def delete_file(file_type, filename):
+    """
+    Deletes a file inside an allowed upload folder.
+    """
+    file_type = secure_filename(file_type)
+    if file_type not in valid_type:
+        return "Invalid type", 446
+
+    try:
+        file_path = get_safe_upload_path(file_type, filename)
+    except ValueError:
+        return "Invalid filename", 448
+
+    if not os.path.exists(file_path):
+        return "Not found", 404
+
+    os.remove(file_path)
+    return "Success", 200
 
 
 @app.route("/new_ansible_file/<fname>")
@@ -1135,8 +1297,10 @@ def new_ansible_file(fname):
     """
     Creates a new ansible file
     """
-    fname = secure_filename(fname)
-    filename = "/src/uploads/ansible/{}.yml".format(fname.replace(".yml", ""))
+    try:
+        filename = get_safe_upload_path("ansible", fname)
+    except ValueError:
+        return "Invalid filename", 448
     if os.path.exists(filename):
         return "File already exists", 407
     with open(filename, "w") as f:
@@ -1150,9 +1314,11 @@ def get_ansible_file(fname):
     """
     Returns the given ansible file
     """
-    fname = secure_filename(fname)
-    parsed = fname.replace(".yml", "")
-    with open("/src/uploads/ansible/{}.yml".format(parsed)) as f:
+    try:
+        filename = get_safe_upload_path("ansible", fname)
+    except ValueError:
+        return "Invalid filename", 448
+    with open(filename) as f:
         return f.read(), 200
 
 
@@ -1171,24 +1337,35 @@ def save_ansible_file(fname, inp_data="", vars_file=""):
     else:  # pragma: no cover
         return "Invalid request", 417
 
-    filename = "/src/uploads/ansible/{}.yml".format(fname.replace(".yml", ""))
-
     # Check YAML file
-    if vars_file != "":
+    if vars_file != "" and setting_enabled(
+        "ansible_manage_vars_files", DEFAULT_ANSIBLE_VARS_FILES
+    ):
         try:
             parsed = yaml.safe_load_all(data)
         except yaml.YAMLError as exc:
             return "YAML Read Error: {}".format(exc), 471
         parsed = list(parsed)[0]
         for item in parsed:
-            item["vars_files"] = ["/src/uploads/become/{}.yml".format(vars_file)]
+            existing = item.get("vars_files", [])
+            if type(existing) == str:
+                existing = [existing]
+            existing = [
+                x for x in existing if not str(x).startswith(MANAGED_BECOME_PREFIX)
+            ]
+            managed_path = get_safe_upload_path("become", vars_file)
+            item["vars_files"] = [managed_path] + existing
 
         try:
             data = yaml.safe_dump(parsed, sort_keys=False)
         except yaml.YAMLError as exc:
             return "YAML Dump Error: {}".format(exc), 471
 
-    x = ansible_helper.check_file(filename=fname, raw=data, file_type="ansible")
+    try:
+        parsed_fname = normalize_managed_filename("ansible", fname).replace(".yml", "")
+    except ValueError:
+        return "Invalid filename", 448
+    x = ansible_helper.check_file(filename=parsed_fname, raw=data, file_type="ansible")
     if type(x) == type([]) and x[0]:
         return "Success", 200
     elif type(x) == type(True) and x:
@@ -1220,7 +1397,7 @@ def run_ansible_background(job_id, data):
         thread, runner = ansible_runner.run_async(
             private_data_dir=RUN_DIR,
             playbook=f"{playbook}.yml",
-            cmdline="-vvvvv --vault-password-file ../vault.pass",
+            cmdline=build_ansible_cmdline(),
             quiet=True,
         )
 
@@ -1714,17 +1891,23 @@ def custom_dashboard_image_upload(override=""):
         os.makedirs("/src/uploads/images")
 
     if override:
-        filename = override
+        filename = secure_filename(os.path.basename(override))
     elif file:  # pragma: no cover
         filename = secure_filename(file.filename)
-        file.save("/tmp/{}".format(filename))
+        temp_path = ansible_helper.temp_path("{}-{}".format(uuid.uuid1(), filename))
+        file.save(temp_path)
+
+    if override:
+        temp_path = override
+        if not os.path.isabs(temp_path):
+            temp_path = ansible_helper.temp_path(temp_path)
 
     try:
-        Image.open("/tmp/{}".format(filename)).verify()
+        Image.open(temp_path).verify()
     except Exception:
         return "Invalid file", 484
 
-    shutil.move("/tmp/{}".format(filename), "/src/uploads/images/{}".format(filename))
+    shutil.move(temp_path, "/src/uploads/images/{}".format(filename))
     return "Success", 200
 
 

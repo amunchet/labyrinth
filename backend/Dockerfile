@@ -33,5 +33,7 @@ ADD entrypoint.sh /
 RUN dos2unix -n /entrypoint.sh /entrypoint-fixed.sh
 RUN chmod a+x /entrypoint-fixed.sh
 
+# Backend stays root because network discovery shells out to nmap with scan
+# modes that require elevated privileges/capabilities in deployed environments.
 
 CMD exec /bin/bash -c '/entrypoint-fixed.sh'

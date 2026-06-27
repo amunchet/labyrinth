@@ -72,7 +72,7 @@
     "webpack": "^4"
   },
   "vue": {
-    "outputDir": "/tmp/dist"
+    "outputDir": "/var/tmp/labyrinth/dist"
   },
   "jest": {
     "collectCoverage": true,

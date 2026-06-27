@@ -6,6 +6,7 @@ import shutil
 
 import pytest
 import serve
+import ansible_helper
 
 from copy import deepcopy
 
@@ -23,11 +24,13 @@ def tearDown():
     if os.path.exists("/src/uploads/images"):
         shutil.rmtree("/src/uploads/images")
 
-    if os.path.exists("/tmp/floorplan.jpg"):
-        os.remove("/tmp/floorplan.jpg")
+    floorplan_tmp = ansible_helper.temp_path("floorplan.jpg")
+    broken_tmp = ansible_helper.temp_path("broken.jpg")
+    if os.path.exists(floorplan_tmp):
+        os.remove(floorplan_tmp)
 
-    if os.path.exists("/tmp/broken.jpg"):
-        os.remove("/tmp/broken.jpg")
+    if os.path.exists(broken_tmp):
+        os.remove(broken_tmp)
 
     serve.mongo_client["labyrinth"]["dashboards"].delete_many({})
 
@@ -40,8 +43,8 @@ def setup():
     floorplan = "/src/test/images/floorplan.jpg"
     broken = "/src/test/images/broken.jpg"
 
-    shutil.copy(floorplan, "/tmp/floorplan.jpg")
-    shutil.copy(broken, "/tmp/broken.jpg")
+    shutil.copy(floorplan, ansible_helper.temp_path("floorplan.jpg"))
+    shutil.copy(broken, ansible_helper.temp_path("broken.jpg"))
 
     yield "Setting up"
     tearDown()

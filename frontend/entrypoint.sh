@@ -15,10 +15,10 @@ if [[ -z "${TESTBED:-}" ]]; then
   echo "Building vue app..."
   npm run build
 
-  echo "Moving from /tmp/dist..."
+  echo "Moving from /var/tmp/labyrinth/dist..."
   mkdir -p /src/labyrinth/dist
-  # package.json writes to /tmp/dist via vue.outputDir
-  mv /tmp/dist/* /src/labyrinth/dist
+  # package.json writes to /var/tmp/labyrinth/dist via vue.outputDir
+  mv /var/tmp/labyrinth/dist/* /src/labyrinth/dist
 else
   echo "Starting Vue UI (dev) ..."
   cd /src/labyrinth
@@ -26,4 +26,3 @@ else
   # vue ui -D -H 0.0.0.0
   npm run serve
 fi
-

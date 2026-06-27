@@ -24,21 +24,41 @@ import ansible_runner
 from werkzeug.utils import secure_filename
 from typing import List
 
+APP_TEMP_DIR = os.environ.get("LABYRINTH_TMP_DIR", "/var/tmp/labyrinth")
 
-def check_file(filename, file_type, raw=""):
+
+def ensure_temp_dir():
+    """
+    Returns the Labyrinth temp directory, creating it if needed.
+    """
+    os.makedirs(APP_TEMP_DIR, exist_ok=True)
+    return APP_TEMP_DIR
+
+
+def temp_path(name=""):
+    """
+    Returns a path inside the Labyrinth temp directory.
+    """
+    ensure_temp_dir()
+    if name == "":
+        return os.path.join(APP_TEMP_DIR, str(uuid.uuid1()))
+    return os.path.join(APP_TEMP_DIR, secure_filename(name))
+
+
+def check_file(filename, file_type, raw="", override_path=""):
     """
     Verifies the file uploaded is a valid file of the specified type
     """
     retval = False
-    temp_file = "/tmp/{}".format(str(uuid.uuid1()))
+    temp_file = temp_path()
 
     filename = secure_filename(filename)
     file_type = secure_filename(file_type)
 
-    look_file = "/src/uploads/{}/{}".format(file_type, filename)
-
-    if filename not in os.listdir("/src/uploads/{}".format(file_type)):
-        look_file = "/tmp/{}".format(filename)
+    if override_path:
+        look_file = override_path
+    else:
+        look_file = "/src/uploads/{}/{}".format(file_type, filename)
 
     if raw == "" and not os.path.exists(look_file):
         return False
@@ -60,7 +80,11 @@ def check_file(filename, file_type, raw=""):
         if retval:
             if not os.path.exists("/src/uploads/ansible"):  # pragma: no cover
                 os.makedirs("/src/uploads/ansible")
-            shutil.move(temp_file, "/src/uploads/ansible/{}.yml".format(filename))
+            if not filename.endswith(".yml"):
+                filename = "{}.yml".format(filename)
+            shutil.move(temp_file, "/src/uploads/ansible/{}".format(filename))
+        elif os.path.exists(temp_file):
+            os.remove(temp_file)
 
         return [retval, x.stdout, x.stderr]
 
@@ -175,6 +199,12 @@ def run_ansible(
         raise Exception("Become file not found" + str(old_become))
 
     shutil.copy(old_become, "{}/vars/{}.yml".format(RUN_DIR, become_file))
+
+    if ssh_key_file:
+        parsed_ssh = secure_filename(ssh_key_file)
+        old_ssh = "{}/{}".format(SSH_DIR, parsed_ssh)
+        if parsed_ssh not in os.listdir(SSH_DIR):
+            raise Exception("SSH key file not found" + str(old_ssh))
 
     # Write password
     with open("{}/vault.pass".format(RUN_DIR), "w") as f:

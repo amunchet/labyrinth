@@ -12,6 +12,16 @@
             <Telegraf />
           </div>
         </b-tab>
+        <b-tab title="Files" lazy>
+          <div class="main">
+            <Files />
+          </div>
+        </b-tab>
+        <b-tab title="Ansible" lazy>
+          <div class="main">
+            <Ansible />
+          </div>
+        </b-tab>
         <b-tab title="Custom Dashboards" lazy>
           <div class="main">
             <CustomDashboards />
@@ -31,6 +41,8 @@ import Icons from "@/views/Settings/Icons";
 import Telegraf from "@/views/Settings/Telegraf";
 import CustomDashboards from "@/views/Settings/CustomDashboards";
 import Maintenance from "@/views/Settings/Maintenance";
+import Files from "@/views/Settings/Files";
+import Ansible from "@/views/Settings/Ansible";
 export default {
   name: "Settings",
   data() {
@@ -41,6 +53,8 @@ export default {
   components: {
     Icons,
     Telegraf,
+    Files,
+    Ansible,
     CustomDashboards,
     Maintenance,
   },

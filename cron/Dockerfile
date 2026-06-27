@@ -31,6 +31,7 @@ ADD cron/entrypoint.sh /
 RUN dos2unix -n /entrypoint.sh /entrypoint-fixed.sh
 RUN chmod a+x /entrypoint-fixed.sh
 
+# Cron stays root because it installs system crontabs and also executes
+# network-discovery jobs that rely on privileged nmap access.
 
 CMD exec /bin/bash -c '/entrypoint-fixed.sh'
-

@@ -11,14 +11,21 @@ import os
 
 
 import pytest
+import serve
 
 from common.test import unwrap
 from ansible_helper import check_file, run_ansible
 from serve import (
+    build_ansible_cmdline,
+    delete_file,
     find_ip,
+    list_files,
     list_directory,
     get_ansible_file,
+    normalize_managed_filename,
+    rename_file,
     save_ansible_file,
+    save_setting,
     new_ansible_file,
 )
 
@@ -27,12 +34,15 @@ valid_type = ["ssh", "totp", "become", "telegraf", "ansible", "other"]
 
 @pytest.fixture
 def setup():  # pragma: no cover
+    serve.mongo_client["labyrinth"]["settings"].delete_many({})
     if not os.path.exists("/src/uploads/ansible"):
         os.mkdir("/src/uploads/ansible")
     if not os.path.exists("/src/uploads/ansible/deploy.yml"):
         shutil.copy(
             "/src/test/ansible/project/deploy.yml", "/src/uploads/ansible/deploy.yml"
         )
+    if not os.path.exists("/src/uploads/become"):
+        os.mkdir("/src/uploads/become")
 
 
 def test_get_ansible_file(setup):
@@ -62,6 +72,13 @@ def test_save_ansible_file(setup):
             )
             == f.read()
         )
+
+    unwrap(save_setting)("ansible_manage_vars_files", "0")
+    a = unwrap(save_ansible_file)(inp_data=lines, fname="test3", vars_file="vault")
+    assert a[1] == 200
+
+    with open("/src/uploads/ansible/test3.yml") as f:
+        assert f.read() == lines
 
     # Broken file - check if valid
     with open("/src/test/sample_dashboard.json") as f:
@@ -114,6 +131,52 @@ def test_create_ansible_file():
 
     if os.path.exists("/src/uploads/ansible/test-cicd.yml"):
         os.remove("/src/uploads/ansible/test-cicd.yml")
+
+
+def test_file_management(setup):
+    become_dir = "/src/uploads/become"
+    source = os.path.join(become_dir, "test_file")
+    renamed = os.path.join(become_dir, "renamed_file.yml")
+
+    if os.path.exists(source):
+        os.remove(source)
+    if os.path.exists(source + ".yml"):
+        os.remove(source + ".yml")
+    if os.path.exists(renamed):
+        os.remove(renamed)
+
+    with open(source + ".yml", "w") as f:
+        f.write("test")
+
+    a = unwrap(list_files)("become")
+    assert a[1] == 200
+    assert "test_file.yml" in json.loads(a[0])
+
+    b = unwrap(rename_file)("become", "test_file.yml", "renamed_file")
+    assert b[1] == 200
+    assert b[0] == "renamed_file.yml"
+    assert os.path.exists(renamed)
+
+    c = unwrap(rename_file)("become", "../renamed_file.yml", "ignored")
+    assert c[1] == 448
+
+    d = unwrap(delete_file)("become", "renamed_file.yml")
+    assert d[1] == 200
+    assert not os.path.exists(renamed)
+
+
+def test_build_ansible_cmdline_from_settings():
+    serve.mongo_client["labyrinth"]["settings"].delete_many({})
+    assert build_ansible_cmdline() == "-vvvvv --vault-password-file ../vault.pass"
+
+    unwrap(save_setting)("ansible_verbosity", "2")
+    assert build_ansible_cmdline() == "-vv --vault-password-file ../vault.pass"
+
+
+def test_filename_normalization():
+    assert normalize_managed_filename("become", "vault") == "vault.yml"
+    assert normalize_managed_filename("ssh", "id_rsa") == "id_rsa.yml"
+    assert normalize_managed_filename("telegraf", "agent.conf") == "agent.conf"
 
 
 def test_find_ip():
