@@ -186,9 +186,10 @@ def run_ansible(
     # SSH key file (optional)
     if ssh_key_file:
         safe_ssh_key = secure_filename(ssh_key_file)
+        ssh_dir_real = os.path.realpath(SSH_DIR)
         ssh_key_path = os.path.realpath(os.path.join(SSH_DIR, safe_ssh_key))
-        # Verify path stays within SSH_DIR to prevent directory traversal
-        if not ssh_key_path.startswith(os.path.realpath(SSH_DIR) + os.sep):
+        # Verify resolved path stays within SSH_DIR to prevent directory traversal
+        if os.path.commonpath([ssh_dir_real, ssh_key_path]) != ssh_dir_real:
             raise Exception("Invalid SSH key file path: " + ssh_key_file)
         if not os.path.exists(ssh_key_path):
             raise Exception("SSH key file not found: " + str(ssh_key_path))
@@ -199,9 +200,10 @@ def run_ansible(
     # TOTP file for 2FA hosts (optional)
     if totp_file:
         safe_totp = secure_filename(totp_file + ".yml")
+        totp_dir_real = os.path.realpath(TOTP_DIR)
         totp_path = os.path.realpath(os.path.join(TOTP_DIR, safe_totp))
-        # Verify path stays within TOTP_DIR to prevent directory traversal
-        if not totp_path.startswith(os.path.realpath(TOTP_DIR) + os.sep):
+        # Verify resolved path stays within TOTP_DIR to prevent directory traversal
+        if os.path.commonpath([totp_dir_real, totp_path]) != totp_dir_real:
             raise Exception("Invalid TOTP file path: " + totp_file)
         if not os.path.exists(totp_path):
             raise Exception("TOTP file not found: " + str(totp_path))
