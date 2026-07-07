@@ -522,6 +522,56 @@ def group_delete_service(subnet, name, new_service):
     return "Success", 200
 
 
+# Tags (cross-subnet)
+
+
+@app.route("/tags/")
+@requires_auth_read
+def list_tags():
+    """
+    Lists all unique tags across all hosts (cross-subnet)
+    """
+    all_tags = set()
+    for host in mongo_client["labyrinth"]["hosts"].find({}):
+        raw = host.get("tags", "")
+        if raw:
+            for tag in raw.split(","):
+                tag = tag.strip()
+                if tag:
+                    all_tags.add(tag)
+    return json.dumps(sorted(all_tags), default=str), 200
+
+
+@app.route("/tags/<tag>")
+@requires_auth_read
+def list_tag_members(tag):
+    """
+    Lists IPs of all hosts that have a given tag (cross-subnet)
+    """
+    ips = []
+    for host in mongo_client["labyrinth"]["hosts"].find({}):
+        raw = host.get("tags", "")
+        if raw:
+            host_tags = [t.strip() for t in raw.split(",")]
+            if tag in host_tags:
+                ips.append(host["ip"])
+    return json.dumps(ips, default=str), 200
+
+
+@app.route("/host_tags/<ip>/")
+@app.route("/host_tags/<ip>/<tags>/")
+@requires_auth_write
+def update_host_tags(ip, tags=""):
+    """
+    Updates the tags for a given host (by IP). Tags is a comma-delimited string.
+    """
+    found = mongo_client["labyrinth"]["hosts"].find_one({"ip": ip})
+    if not found:
+        return "Not found", 498
+    mongo_client["labyrinth"]["hosts"].update_many({"ip": ip}, {"$set": {"tags": tags}})
+    return "Success", 200
+
+
 # Services
 
 

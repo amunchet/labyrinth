@@ -58,6 +58,15 @@
       <b-row
         ><b-col>Group </b-col><b-col><b-input v-model="host.group" /></b-col
       ></b-row>
+      <b-row>
+        <b-col>Tags</b-col>
+        <b-col>
+          <b-input v-model="host.tags" placeholder="E.g. proxmox, linux" />
+          <span class="text-small">
+            Comma-separated tags (cross-subnet, unlike groups).
+          </span>
+        </b-col>
+      </b-row>
       <b-row
         ><b-col>Subnet</b-col
         ><b-col
@@ -419,6 +428,7 @@ export default {
         subnet: "",
         mac: "",
         group: "",
+        tags: "",
         icon: "",
         services: [],
         class: "",

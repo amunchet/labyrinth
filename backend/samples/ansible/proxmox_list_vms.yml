@@ -1,0 +1,45 @@
+---
+# Proxmox List VMs and LXCs
+#
+# Purpose: Given a tag set of Proxmox hosts, connect to each Proxmox host
+#          and list all VMs (qemu) and LXC containers with their IDs,
+#          names, and current status.
+#
+# Usage:
+#   1. Tag your Proxmox hosts in Labyrinth with a tag (e.g. "proxmox").
+#   2. In the Deploy page, select "Deploy to Tag" and choose "proxmox".
+#   3. Select this playbook and run.
+#
+# Requirements:
+#   - SSH access to each Proxmox host.
+#   - The `pvesh` CLI tool is available on all Proxmox hosts (it is by default).
+#
+# Notes:
+#   - Become (sudo/root) is not required as pvesh works for root-level Proxmox access.
+#   - Results are printed per host to the Ansible output log.
+
+- hosts: all
+  gather_facts: true
+  tasks:
+    - name: Get Proxmox node name
+      command: hostname -s
+      register: proxmox_node
+      changed_when: false
+
+    - name: List all VMs (QEMU) on Proxmox host
+      command: pvesh get /nodes/{{ proxmox_node.stdout }}/qemu --output-format json
+      register: vm_list
+      changed_when: false
+
+    - name: List all LXC containers on Proxmox host
+      command: pvesh get /nodes/{{ proxmox_node.stdout }}/lxc --output-format json
+      register: lxc_list
+      changed_when: false
+
+    - name: Show VMs on {{ inventory_hostname }}
+      debug:
+        msg: "VMs on {{ inventory_hostname }}: {{ vm_list.stdout }}"
+
+    - name: Show LXCs on {{ inventory_hostname }}
+      debug:
+        msg: "LXCs on {{ inventory_hostname }}: {{ lxc_list.stdout }}"
