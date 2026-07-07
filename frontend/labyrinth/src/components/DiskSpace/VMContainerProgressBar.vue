@@ -2,13 +2,8 @@
   <div class="vm-container-progress-bar">
     <div class="vm-title text-truncate" :title="item.name">
       <strong>{{ item.name || `ID ${item.id}` }}</strong>
+      <span class="text-muted id-inline">({{ item.id }})</span>
     </div>
-    <small class="text-muted d-block mb-1">
-      ID: {{ item.id }} | {{ type.toUpperCase() }}
-      <span v-if="item.status">
-        | <b-badge :variant="statusVariant" class="compact-status">{{ item.status }}</b-badge>
-      </span>
-    </small>
 
     <div v-if="hasDiskInfo" class="metric-line mb-1">
       <small class="text-muted d-block">Disk {{ diskUsagePercentage.toFixed(0) }}%</small>
@@ -20,7 +15,7 @@
       ></b-progress>
     </div>
 
-    <div v-if="hasMemInfo" class="metric-line">
+    <div v-if="showMemory && hasMemInfo" class="metric-line">
       <small class="text-muted d-block">Mem {{ memUsagePercentage.toFixed(0) }}%</small>
       <b-progress
         :value="memUsagePercentage"
@@ -43,6 +38,10 @@ export default {
       type: String,
       required: true,
       validator: (value) => ["vm", "container"].includes(value),
+    },
+    showMemory: {
+      type: Boolean,
+      default: false,
     },
   },
   computed: {
@@ -74,11 +73,6 @@ export default {
       if (this.memUsagePercentage >= 75) return "warning";
       return "success";
     },
-    statusVariant() {
-      if (this.item.status === "running") return "success";
-      if (this.item.status === "stopped") return "secondary";
-      return "warning";
-    },
   },
   methods: {
     formatBytes(bytes) {
@@ -100,15 +94,15 @@ export default {
     font-size: 0.8rem;
     line-height: 1.1;
     margin-bottom: 0.1rem;
+
+    .id-inline {
+      font-weight: 400;
+      margin-left: 0.2rem;
+    }
   }
 
   .metric-line {
     line-height: 1.05;
-  }
-
-  .compact-status {
-    font-size: 0.62rem;
-    padding: 0.1rem 0.25rem;
   }
 }
 </style>

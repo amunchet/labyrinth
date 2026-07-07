@@ -57,11 +57,11 @@
               <div class="node-panel vm-panel">
                 <div class="panel-title">Instances</div>
 
-                <div v-if="node.vms && node.vms.length" class="mb-2">
+                <div v-if="runningVMs(node).length" class="mb-2">
                   <div class="instance-subtitle">Virtual Machines</div>
                   <div class="vm-grid">
                     <div
-                      v-for="vm in node.vms"
+                      v-for="vm in runningVMs(node)"
                       :key="`vm-${node.name}-${vm.id}`"
                       class="vm-grid-item"
                     >
@@ -72,11 +72,11 @@
                   </div>
                 </div>
 
-                <div v-if="node.containers && node.containers.length">
+                <div v-if="runningContainers(node).length">
                   <div class="instance-subtitle">LXC Containers</div>
                   <div class="vm-grid">
                     <div
-                      v-for="container in node.containers"
+                      v-for="container in runningContainers(node)"
                       :key="`container-${node.name}-${container.id}`"
                       class="vm-grid-item"
                     >
@@ -91,11 +91,11 @@
                 </div>
 
                 <b-alert
-                  v-if="(!node.vms || !node.vms.length) && (!node.containers || !node.containers.length)"
+                  v-if="!runningVMs(node).length && !runningContainers(node).length"
                   variant="warning"
                   class="small mb-0 py-1 px-2"
                 >
-                  No VM/LXC information available
+                  No running VM/LXC information available
                 </b-alert>
               </div>
             </b-col>
@@ -139,6 +139,17 @@ export default {
         const used = this.toNumber(item.used);
         return !(total === 0 && used === 0);
       });
+    },
+    normalizeStatus(item) {
+      return ((item && item.status) || "").toString().toLowerCase();
+    },
+    runningVMs(node) {
+      const vms = (node && node.vms) || [];
+      return vms.filter((vm) => this.normalizeStatus(vm) === "running");
+    },
+    runningContainers(node) {
+      const containers = (node && node.containers) || [];
+      return containers.filter((container) => this.normalizeStatus(container) === "running");
     },
   },
   computed: {
