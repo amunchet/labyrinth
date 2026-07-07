@@ -52,6 +52,7 @@
         </b-col>
       </b-row>
 
+
       <b-row
         ><b-col>MAC </b-col><b-col><b-input v-model="host.mac" /></b-col
       ></b-row>
@@ -72,6 +73,20 @@
           </div>
           <span class="text-small">
             Comma-separated tags (cross-subnet, unlike groups).
+          </span>
+        </b-col>
+      </b-row>
+
+      <b-row>
+        <b-col>Proxmox API Key</b-col>
+        <b-col>
+          <b-input
+            v-model="host.proxmox_api_key"
+            type="password"
+            placeholder="user@pam!token_id=token_secret"
+          />
+          <span class="text-small">
+            Optional per-host key. Used by Disk Space checks before global key.
           </span>
         </b-col>
       </b-row>
@@ -435,8 +450,10 @@ export default {
         ip: "",
         subnet: "",
         mac: "",
+        host: "",
         group: "",
         tags: "",
+        proxmox_api_key: "",
         icon: "",
         services: [],
         class: "",
