@@ -2022,11 +2022,21 @@ def get_proxmox_disk_space():
             host_mac = host.get("mac")
             host_name = host.get("host", host_ip)
 
-            # Check for host-specific API key
+            # Resolve API key priority:
+            # 1) host.proxmox_api_key (new per-host field)
+            # 2) legacy settings key proxmox_api_key_<mac>
+            # 3) global key proxmox_api_key
+            host_api_key = (host.get("proxmox_api_key") or "").strip()
+
+            # Legacy host-specific API key setting fallback
             api_key_setting = mongo_client["labyrinth"]["settings"].find_one(
                 {"name": f"proxmox_api_key_{host_mac}"}
             )
-            api_key = api_key_setting.get("value") if api_key_setting else global_key
+            settings_host_key = (
+                (api_key_setting.get("value") or "").strip() if api_key_setting else ""
+            )
+
+            api_key = host_api_key or settings_host_key or global_key
 
             if not api_key:
                 result["proxmox_hosts"].append({
@@ -2170,14 +2180,16 @@ def get_disk_space_settings():
         # Get list of hosts with API keys
         for host in mongo_client["labyrinth"]["hosts"].find({}):
             mac = host.get("mac")
+            host_level_key = (host.get("proxmox_api_key") or "").strip()
             host_key = mongo_client["labyrinth"]["settings"].find_one(
                 {"name": f"proxmox_api_key_{mac}"}
             )
-            if host_key:
+            if host_level_key or host_key:
                 result["host_specific_keys"].append({
                     "mac": mac,
                     "ip": host.get("ip"),
-                    "name": host.get("name")
+                    "name": host.get("host") or host.get("name"),
+                    "source": "host" if host_level_key else "settings",
                 })
 
         return json.dumps(result, default=str), 200
@@ -2227,6 +2239,11 @@ def set_host_proxmox_api_key(mac):
 
         setting_name = f"proxmox_api_key_{mac}"
 
+        # Persist on host document (preferred source)
+        mongo_client["labyrinth"]["hosts"].update_one(
+            {"mac": mac}, {"$set": {"proxmox_api_key": api_key}}
+        )
+
         # Delete existing key if present
         mongo_client["labyrinth"]["settings"].delete_one({"name": setting_name})
 
@@ -2262,6 +2279,9 @@ def delete_host_proxmox_api_key(mac):
     """
     try:
         setting_name = f"proxmox_api_key_{mac}"
+        mongo_client["labyrinth"]["hosts"].update_one(
+            {"mac": mac}, {"$unset": {"proxmox_api_key": ""}}
+        )
         mongo_client["labyrinth"]["settings"].delete_one({"name": setting_name})
         return json.dumps({"status": "deleted"}), 200
     except Exception as e:

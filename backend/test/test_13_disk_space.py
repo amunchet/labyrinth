@@ -74,6 +74,39 @@ def test_get_proxmox_disk_space_uses_tag_and_key_resolution(setup, monkeypatch):
     assert ("10.1.1.2", "global-key") in calls
 
 
+def test_get_proxmox_disk_space_prefers_host_field_api_key(setup, monkeypatch):
+    """Uses host.proxmox_api_key before legacy per-mac settings and global key."""
+    serve.mongo_client["labyrinth"]["settings"].insert_many(
+        [
+            {"name": "proxmox_tag", "value": "Proxmox"},
+            {"name": "proxmox_api_key", "value": "global-key"},
+            {"name": "proxmox_api_key_00-00-00-00-99", "value": "legacy-host-key"},
+        ]
+    )
+
+    serve.mongo_client["labyrinth"]["hosts"].insert_one(
+        {
+            "ip": "10.1.9.9",
+            "mac": "00-00-00-00-99",
+            "host": "pve-prefer-host-field",
+            "tags": "Proxmox",
+            "proxmox_api_key": "host-field-key",
+        }
+    )
+
+    calls = []
+
+    def fake_get_proxmox_disk_data(host_ip, api_key):
+        calls.append((host_ip, api_key))
+        return {"nodes": []}
+
+    monkeypatch.setattr(serve.proxmox_helper, "get_proxmox_disk_data", fake_get_proxmox_disk_data)
+
+    response = unwrap(serve.get_proxmox_disk_space)()
+    assert response[1] == 200
+    assert ("10.1.9.9", "host-field-key") in calls
+
+
 def test_get_proxmox_disk_space_no_api_key_returns_host_error(setup):
     """Returns per-host error if no global or host key is configured."""
     serve.mongo_client["labyrinth"]["hosts"].insert_one(
@@ -181,6 +214,8 @@ def test_disk_space_settings_and_api_key_management(setup):
     assert settings["proxmox_tag"] == "Proxmox"
     assert settings["global_api_key_configured"] is True
     assert settings["host_specific_keys"][0]["mac"] == "AA-BB-CC-DD-EE"
+    host_doc = serve.mongo_client["labyrinth"]["hosts"].find_one({"mac": "AA-BB-CC-DD-EE"})
+    assert host_doc["proxmox_api_key"] == "host-123"
 
     delete_global_resp = unwrap(serve.delete_global_proxmox_api_key)()
     assert delete_global_resp[1] == 200
@@ -198,3 +233,5 @@ def test_disk_space_settings_and_api_key_management(setup):
         )
         is None
     )
+    host_doc = serve.mongo_client["labyrinth"]["hosts"].find_one({"mac": "AA-BB-CC-DD-EE"})
+    assert "proxmox_api_key" not in host_doc
