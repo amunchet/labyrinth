@@ -1,7 +1,7 @@
 <template>
-  <div class="disk-space-view">
+  <div class="disk-space-view text-left text-start">
     <b-row class="mb-3">
-      <b-col>
+      <b-col class="text-left text-start">
         <b-button
           variant="primary"
           @click="refreshData"
@@ -25,6 +25,9 @@
         Proxmox Hosts
       </h4>
       <b-card v-for="host in proxmoxData" :key="`proxmox-${host.ip}`" class="mb-3">
+        <small class="text-muted d-block mb-2">
+          Hostname: {{ host.host || host.name || "N/A" }} | IP: {{ host.ip || "N/A" }}
+        </small>
         <ProxmoxHostCard :host="host" />
       </b-card>
     </div>
@@ -36,6 +39,9 @@
         Manually Configured Hosts
       </h4>
       <b-card v-for="host in manualData" :key="`manual-${host.id}`" class="mb-3">
+        <small class="text-muted d-block mb-2">
+          Hostname: {{ host.host || host.name || "N/A" }} | IP: {{ host.ip || "N/A" }}
+        </small>
         <ManualHostCard :host="host" @delete="deleteManualHost" />
       </b-card>
     </div>

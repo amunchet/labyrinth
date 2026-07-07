@@ -2,7 +2,7 @@
   <div class="proxmox-documentation">
     <b-card class="mb-4">
       <b-card-title>Proxmox Setup Guide</b-card-title>
-      <b-card-body>
+      <b-card-body class="text-left text-start">
         <h5>1. Creating Proxmox API Token</h5>
         <p>
           To use Disk Space Check with Proxmox, you need to create an API token that
@@ -68,7 +68,7 @@
       </b-card-body>
     </b-card>
 
-    <b-card class="mb-4">
+    <b-card class="mb-4 text-left text-start">
       <b-card-title>Tagging Proxmox Hosts</b-card-title>
       <b-card-body>
         <p>
@@ -92,7 +92,7 @@
       </b-card-body>
     </b-card>
 
-    <b-card class="mb-4">
+    <b-card class="mb-4 text-left text-start">
       <b-card-title>API Key Management</b-card-title>
       <b-card-body>
         <h6>Global API Key vs Host-Specific Keys:</h6>
@@ -128,7 +128,7 @@
       </b-card-body>
     </b-card>
 
-    <b-card class="mb-4">
+    <b-card class="mb-4 text-left text-start">
       <b-card-title>QEMU Guest Agent Setup</b-card-title>
       <b-card-body>
         <p>
@@ -188,7 +188,7 @@
       </b-card-body>
     </b-card>
 
-    <b-card class="mb-4">
+    <b-card class="mb-4 text-left text-start">
       <b-card-title>Manual Hosts Setup</b-card-title>
       <b-card-body>
         <p>
@@ -235,7 +235,7 @@
       </b-card-body>
     </b-card>
 
-    <b-card>
+    <b-card class="text-left text-start">
       <b-card-title>Troubleshooting</b-card-title>
       <b-card-body>
         <h6>No Proxmox hosts appearing:</h6>

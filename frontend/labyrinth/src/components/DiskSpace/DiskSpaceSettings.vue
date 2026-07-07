@@ -135,7 +135,7 @@
       <b-tab title="Manual Hosts" lazy>
         <div class="mt-3">
           <!-- Add New Host -->
-          <b-card class="mb-4">
+          <b-card class="mb-4 text-left text-start">
             <b-card-title>Add Manual Host</b-card-title>
             <b-card-sub-title>
               Add AWS EC2, OPNsense, or other custom hosts for disk space monitoring
@@ -186,7 +186,7 @@
           </b-card>
 
           <!-- Existing Manual Hosts -->
-          <b-card v-if="manualHosts.length > 0">
+          <b-card v-if="manualHosts.length > 0" class="text-left text-start">
             <b-card-title>Configured Hosts</b-card-title>
             <b-list-group>
               <b-list-group-item v-for="host in manualHosts" :key="host.id">
