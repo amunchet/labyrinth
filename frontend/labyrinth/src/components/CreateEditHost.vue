@@ -62,6 +62,9 @@
         <b-col>Tags</b-col>
         <b-col>
           <b-input v-model="host.tags" placeholder="E.g. proxmox, linux" />
+          <div v-if="parsedTags.length" class="tags-preview mt-2 mb-1">
+            <span v-for="tag in parsedTags" :key="tag" class="tag-badge bg-secondary text-light">{{ tag }}</span>
+          </div>
           <span class="text-small">
             Comma-separated tags (cross-subnet, unlike groups).
           </span>
@@ -580,6 +583,15 @@ export default {
       this.$store.commit("updateError", e);
     }
   },
+  computed: {
+    parsedTags() {
+      const raw = (this.host && this.host.tags) || "";
+      return raw
+        .split(",")
+        .map((x) => x.trim())
+        .filter((x) => x);
+    },
+  },
   validations: {
     host: {
       ip: {
@@ -607,5 +619,19 @@ h4 {
 .text-small {
   font-size: 9pt;
   color: grey;
+}
+.tags-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tag-badge {
+  display: inline-block;
+  background-color: #e9ecef;
+  color: #495057;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 9pt;
+  white-space: nowrap;
 }
 </style>
