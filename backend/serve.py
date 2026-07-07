@@ -1989,7 +1989,7 @@ def bulk_insert():
 @requires_auth_read
 def get_proxmox_disk_space():
     """
-    Get disk space data from all Proxmox hosts tagged with the configured Proxmox tag
+    Get disk space data from all configured Proxmox clusters
     """
     try:
         def to_int(value):
@@ -2024,59 +2024,21 @@ def get_proxmox_disk_space():
 
             return payload
 
-        tag_setting = mongo_client["labyrinth"]["settings"].find_one(
-            {"name": "proxmox_tag"}
-        )
-        proxmox_tag = tag_setting.get("value") if tag_setting else "Proxmox"
-
-        # Get all clusters
-        clusters = {}
-        for cluster in mongo_client["labyrinth"]["proxmox_clusters"].find({}):
-            clusters[str(cluster["_id"])] = cluster
-            clusters[cluster["name"]] = cluster
-
-        # Find all hosts with Proxmox tag
-        proxmox_hosts = []
-        for host in mongo_client["labyrinth"]["hosts"].find({}):
-            raw_tags = host.get("tags", "")
-            if raw_tags:
-                host_tags = [t.strip() for t in raw_tags.split(",")]
-                if proxmox_tag in host_tags:
-                    proxmox_hosts.append(host)
+        clusters = list(mongo_client["labyrinth"]["proxmox_clusters"].find({}))
 
         result = {
             "proxmox_hosts": []
         }
 
-        for host in proxmox_hosts:
-            host_ip = host.get("ip")
-            host_mac = host.get("mac")
-            host_name = host.get("host", host_ip)
+        for cluster in clusters:
+            cluster_host = cluster.get("host")
+            cluster_name = cluster.get("name")
 
-            # Get cluster reference from host (can be cluster ID or name)
-            cluster_ref = (host.get("proxmox_cluster") or "").strip()
-            
-            # Resolve cluster configuration
-            cluster_config = None
-            if cluster_ref:
-                cluster_config = clusters.get(cluster_ref)
-            
-            if not cluster_config:
-                result["proxmox_hosts"].append({
-                    "host": host_name,
-                    "ip": host_ip,
-                    "mac": host_mac,
-                    "error": f"No Proxmox cluster configured for this host" if not cluster_ref else f"Cluster '{cluster_ref}' not found"
-                })
-                continue
-
-            # Fetch Proxmox data using cluster configuration
-            data = proxmox_helper.get_proxmox_disk_data(host_ip, cluster_config)
+            data = proxmox_helper.get_proxmox_disk_data(cluster_host, cluster)
             data = enrich_qemu_flags(data)
-            data["host"] = host_name
-            data["ip"] = host_ip
-            data["mac"] = host_mac
-            data["cluster_name"] = cluster_config.get("name")
+            data["cluster_name"] = cluster_name
+            data["host"] = cluster_host
+            data["_id"] = str(cluster.get("_id"))
             result["proxmox_hosts"].append(data)
 
         return json.dumps(result, default=str), 200

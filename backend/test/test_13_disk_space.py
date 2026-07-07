@@ -26,56 +26,26 @@ def setup():
     return "Done"
 
 
-def test_get_proxmox_disk_space_uses_tag_and_cluster_lookup(setup, monkeypatch):
-    """Uses configured proxmox tag and resolves cluster from host reference."""
-    # Create clusters
-    cluster1_id = serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one({
-        "name": "cluster-1",
-        "host": "10.1.1.1",
-        "user": "root@pam",
-        "token_id": "token-1",
-        "token_secret": "secret-1",
-        "verify_ssl": False,
-    }).inserted_id
-
-    cluster2_id = serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one({
-        "name": "cluster-2",
-        "host": "10.1.1.2",
-        "user": "root@pam",
-        "token_id": "token-2",
-        "token_secret": "secret-2",
-        "verify_ssl": False,
-    }).inserted_id
-
-    serve.mongo_client["labyrinth"]["settings"].insert_one({
-        "name": "proxmox_tag",
-        "value": "hypervisor",
-    })
-
-    serve.mongo_client["labyrinth"]["hosts"].insert_many(
-        [
-            {
-                "ip": "10.1.1.1",
-                "mac": "00-00-00-00-01",
-                "name": "pve-a",
-                "tags": "hypervisor,linux",
-                "proxmox_cluster": str(cluster1_id),
-            },
-            {
-                "ip": "10.1.1.2",
-                "mac": "00-00-00-00-02",
-                "name": "pve-b",
-                "tags": "hypervisor",
-                "proxmox_cluster": "cluster-2",
-            },
-            {
-                "ip": "10.1.1.3",
-                "mac": "00-00-00-00-03",
-                "name": "ignored",
-                "tags": "linux",
-            },
-        ]
-    )
+def test_get_proxmox_disk_space_queries_all_clusters(setup, monkeypatch):
+    """Queries each configured cluster directly using its own host IP."""
+    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_many([
+        {
+            "name": "cluster-1",
+            "host": "10.1.1.1",
+            "user": "root@pam",
+            "token_id": "token-1",
+            "token_secret": "secret-1",
+            "verify_ssl": False,
+        },
+        {
+            "name": "cluster-2",
+            "host": "10.1.1.2",
+            "user": "root@pam",
+            "token_id": "token-2",
+            "token_secret": "secret-2",
+            "verify_ssl": False,
+        },
+    ])
 
     calls = []
 
@@ -90,84 +60,28 @@ def test_get_proxmox_disk_space_uses_tag_and_cluster_lookup(setup, monkeypatch):
 
     data = json.loads(response[0])
     assert len(data["proxmox_hosts"]) == 2
-
     assert ("10.1.1.1", "cluster-1") in calls
     assert ("10.1.1.2", "cluster-2") in calls
 
 
-def test_get_proxmox_disk_space_cluster_not_found_returns_error(setup):
-    """Returns per-host error if referenced cluster is not found."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one({
-        "name": "proxmox_tag",
-        "value": "Proxmox",
-    })
-
-    serve.mongo_client["labyrinth"]["hosts"].insert_one(
-        {
-            "ip": "10.1.9.9",
-            "mac": "00-00-00-00-99",
-            "host": "pve-bad-cluster",
-            "tags": "Proxmox",
-            "proxmox_cluster": "nonexistent-cluster",
-        }
-    )
-
+def test_get_proxmox_disk_space_no_clusters_returns_empty(setup):
+    """Returns empty list when no clusters are configured."""
     response = unwrap(serve.get_proxmox_disk_space)()
     assert response[1] == 200
     data = json.loads(response[0])
-    assert len(data["proxmox_hosts"]) == 1
-    assert "not found" in data["proxmox_hosts"][0]["error"]
-
-
-def test_get_proxmox_disk_space_no_cluster_returns_host_error(setup):
-    """Returns per-host error if no cluster is configured for host."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one({
-        "name": "proxmox_tag",
-        "value": "Proxmox",
-    })
-
-    serve.mongo_client["labyrinth"]["hosts"].insert_one(
-        {
-            "ip": "10.2.2.2",
-            "mac": "00-00-00-00-22",
-            "name": "pve-no-cluster",
-            "tags": "Proxmox",
-        }
-    )
-
-    response = unwrap(serve.get_proxmox_disk_space)()
-    assert response[1] == 200
-
-    data = json.loads(response[0])
-    assert len(data["proxmox_hosts"]) == 1
-    assert "No Proxmox cluster configured" in data["proxmox_hosts"][0]["error"]
+    assert data["proxmox_hosts"] == []
 
 
 def test_get_proxmox_disk_space_backfills_qemu_warning_fields(setup, monkeypatch):
     """Adds QEMU guest-agent flags to API output even when helper returns old VM shape."""
-    cluster_id = serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one({
+    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one({
         "name": "cluster-old",
         "host": "10.5.5.5",
         "user": "root@pam",
         "token_id": "token-old",
         "token_secret": "secret-old",
         "verify_ssl": False,
-    }).inserted_id
-
-    serve.mongo_client["labyrinth"]["settings"].insert_one({
-        "name": "proxmox_tag",
-        "value": "Proxmox",
     })
-
-    serve.mongo_client["labyrinth"]["hosts"].insert_one(
-        {
-            "ip": "10.5.5.5",
-            "mac": "00-00-00-55-55",
-            "host": "pve-old-shape",
-            "tags": "Proxmox",
-            "proxmox_cluster": str(cluster_id),
-        }
-    )
 
     def fake_get_proxmox_disk_data(host_ip, cluster_config):
         return {
