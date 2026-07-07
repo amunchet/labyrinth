@@ -1,49 +1,33 @@
 <template>
   <div class="vm-container-progress-bar">
-    <b-row class="mb-2">
-      <b-col lg="3">
-        <strong>{{ item.name }}</strong>
-        <br />
-        <small class="text-muted">ID: {{ item.id }} | {{ type.toUpperCase() }}</small>
-      </b-col>
-      <b-col lg="9">
-        <!-- Disk Usage -->
-        <div v-if="hasDiskInfo" class="mb-2">
-          <small><strong>Disk:</strong></small>
-          <b-progress
-            :value="diskUsagePercentage"
-            :variant="diskProgressVariant"
-            class="mb-1"
-          ></b-progress>
-          <small class="text-muted">
-            {{ formatBytes(item.disk) }} / {{ formatBytes(item.maxdisk) }}
-            ({{ diskUsagePercentage.toFixed(1) }}%)
-          </small>
-        </div>
+    <div class="vm-title text-truncate" :title="item.name">
+      <strong>{{ item.name || `ID ${item.id}` }}</strong>
+    </div>
+    <small class="text-muted d-block mb-1">
+      ID: {{ item.id }} | {{ type.toUpperCase() }}
+      <span v-if="item.status">
+        | <b-badge :variant="statusVariant" class="compact-status">{{ item.status }}</b-badge>
+      </span>
+    </small>
 
-        <!-- Memory Usage -->
-        <div v-if="hasMemInfo">
-          <small><strong>Memory:</strong></small>
-          <b-progress
-            :value="memUsagePercentage"
-            :variant="memProgressVariant"
-            class="mb-1"
-          ></b-progress>
-          <small class="text-muted">
-            {{ formatBytes(item.mem) }} / {{ formatBytes(item.maxmem) }}
-            ({{ memUsagePercentage.toFixed(1) }}%)
-          </small>
-        </div>
-      </b-col>
-    </b-row>
-    <b-row v-if="item.status" class="mt-2">
-      <b-col lg="12">
-        <small class="text-muted">
-          Status:
-          <b-badge :variant="statusVariant">{{ item.status }}</b-badge>
-        </small>
-      </b-col>
-    </b-row>
+    <div v-if="hasDiskInfo" class="metric-line mb-1">
+      <small class="text-muted d-block">Disk {{ diskUsagePercentage.toFixed(0) }}%</small>
+      <b-progress
+        :value="diskUsagePercentage"
+        :variant="diskProgressVariant"
+        height="8px"
+        class="mb-1"
+      ></b-progress>
+    </div>
+
+    <div v-if="hasMemInfo" class="metric-line">
+      <small class="text-muted d-block">Mem {{ memUsagePercentage.toFixed(0) }}%</small>
+      <b-progress
+        :value="memUsagePercentage"
+        :variant="memProgressVariant"
+        height="8px"
+      ></b-progress>
+    </div>
   </div>
 </template>
 
@@ -110,6 +94,21 @@ export default {
 
 <style lang="scss" scoped>
 .vm-container-progress-bar {
-  padding: 0.5rem 0;
+  padding: 0.1rem 0;
+
+  .vm-title {
+    font-size: 0.8rem;
+    line-height: 1.1;
+    margin-bottom: 0.1rem;
+  }
+
+  .metric-line {
+    line-height: 1.05;
+  }
+
+  .compact-status {
+    font-size: 0.62rem;
+    padding: 0.1rem 0.25rem;
+  }
 }
 </style>
