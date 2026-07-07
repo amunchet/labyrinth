@@ -395,9 +395,9 @@ export default {
         const formData = new FormData();
         formData.append("api_key", this.hostApiKeys[mac] || "");
         await Helper.apiPost(
-          `disk-space/settings/proxmox-api-key/${mac}`,
-          "",
-          "",
+          "disk-space/settings",
+          "proxmox-api-key",
+          mac,
           auth,
           formData
         );
@@ -445,7 +445,7 @@ export default {
         formData.append("ip", this.newHost.ip);
         formData.append("type", this.newHost.type);
         formData.append("description", this.newHost.description || "");
-        await Helper.apiPost("disk-space/manual", "", "", auth, formData);
+        await Helper.apiPost("disk-space", "manual", "", auth, formData);
 
         this.successMessage = "Manual host added successfully!";
         this.newHost = {
