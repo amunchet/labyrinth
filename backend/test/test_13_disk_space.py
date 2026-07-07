@@ -108,6 +108,58 @@ def test_get_proxmox_disk_space_prefers_host_field_api_key(setup, monkeypatch):
     assert ("10.1.9.9", "host-field-key") in calls
 
 
+def test_get_proxmox_disk_space_backfills_qemu_warning_fields(setup, monkeypatch):
+    """Adds QEMU guest-agent flags to API output even when helper returns old VM shape."""
+    serve.mongo_client["labyrinth"]["settings"].insert_many(
+        [
+            {"name": "proxmox_tag", "value": "Proxmox"},
+            {"name": "proxmox_api_key", "value": "global-key"},
+        ]
+    )
+
+    serve.mongo_client["labyrinth"]["hosts"].insert_one(
+        {
+            "ip": "10.5.5.5",
+            "mac": "00-00-00-55-55",
+            "host": "pve-old-shape",
+            "tags": "Proxmox",
+        }
+    )
+
+    def fake_get_proxmox_disk_data(host_ip, api_key):
+        return {
+            "nodes": [
+                {
+                    "name": "pve-node",
+                    "storage": [],
+                    "containers": [],
+                    "vms": [
+                        {
+                            "id": 101,
+                            "name": "vm-101",
+                            "status": "running",
+                            "maxdisk": 10737418240,
+                            "disk": 0,
+                            "maxmem": 1024,
+                            "mem": 512,
+                        }
+                    ],
+                }
+            ]
+        }
+
+    monkeypatch.setattr(serve.proxmox_helper, "get_proxmox_disk_data", fake_get_proxmox_disk_data)
+
+    response = unwrap(serve.get_proxmox_disk_space)()
+    assert response[1] == 200
+
+    payload = json.loads(response[0])
+    vm = payload["proxmox_hosts"][0]["nodes"][0]["vms"][0]
+    assert vm["qemu_guest_agent_warning_inferred"] is True
+    assert vm["qemu_guest_agent_installed"] is False
+    assert "QEMU guest agent" in vm["qemu_guest_agent_error"]
+
+
 def test_get_proxmox_disk_space_no_api_key_returns_host_error(setup):
     """Returns per-host error if no global or host key is configured."""
     serve.mongo_client["labyrinth"]["hosts"].insert_one(

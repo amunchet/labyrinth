@@ -1991,6 +1991,38 @@ def get_proxmox_disk_space():
     Get disk space data from all Proxmox hosts tagged with the configured Proxmox tag
     """
     try:
+        def to_int(value):
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return 0
+
+        def enrich_qemu_flags(payload):
+            for node in payload.get("nodes", []):
+                for vm in node.get("vms", []):
+                    is_running = str(vm.get("status") or "").lower() == "running"
+                    inferred_warning = (
+                        is_running
+                        and to_int(vm.get("maxdisk")) > 0
+                        and to_int(vm.get("disk")) == 0
+                    )
+
+                    if "qemu_guest_agent_warning_inferred" not in vm:
+                        vm["qemu_guest_agent_warning_inferred"] = inferred_warning
+
+                    if "qemu_guest_agent_installed" not in vm:
+                        vm["qemu_guest_agent_installed"] = not inferred_warning
+
+                    if inferred_warning:
+                        vm["qemu_guest_agent_installed"] = False
+                        if not vm.get("qemu_guest_agent_error"):
+                            vm["qemu_guest_agent_error"] = (
+                                "Guest disk reported as zero for a running VM; "
+                                "QEMU guest agent may not be installed or available"
+                            )
+
+            return payload
+
         tag_setting = mongo_client["labyrinth"]["settings"].find_one(
             {"name": "proxmox_tag"}
         )
@@ -2049,6 +2081,7 @@ def get_proxmox_disk_space():
 
             # Fetch Proxmox data
             data = proxmox_helper.get_proxmox_disk_data(host_ip, api_key)
+            data = enrich_qemu_flags(data)
             data["host"] = host_name
             data["ip"] = host_ip
             data["mac"] = host_mac
