@@ -48,6 +48,7 @@
 </template>
 
 <script>
+import Helper from "@/helper";
 import ProxmoxHostCard from "./ProxmoxHostCard";
 import ManualHostCard from "./ManualHostCard";
 
@@ -69,25 +70,31 @@ export default {
     this.refreshData();
   },
   methods: {
+    parseMaybeJSON(payload) {
+      if (typeof payload === "string") {
+        try {
+          return JSON.parse(payload);
+        } catch (e) {
+          return payload;
+        }
+      }
+      return payload;
+    },
+
     async refreshData() {
       this.loading = true;
       this.error = null;
 
       try {
+        const auth = this.$auth;
         // Fetch Proxmox data
-        const proxmoxResponse = await fetch("/disk-space/proxmox");
-        if (!proxmoxResponse.ok) {
-          throw new Error("Failed to fetch Proxmox data");
-        }
-        const proxmoxJson = await proxmoxResponse.json();
+        const proxmoxResponse = await Helper.apiCall("disk-space", "proxmox", auth);
+        const proxmoxJson = this.parseMaybeJSON(proxmoxResponse);
         this.proxmoxData = proxmoxJson.proxmox_hosts || [];
 
         // Fetch manual hosts data
-        const manualResponse = await fetch("/disk-space/manual");
-        if (!manualResponse.ok) {
-          throw new Error("Failed to fetch manual hosts data");
-        }
-        const manualJson = await manualResponse.json();
+        const manualResponse = await Helper.apiCall("disk-space", "manual", auth);
+        const manualJson = this.parseMaybeJSON(manualResponse);
         this.manualData = manualJson.manual_hosts || [];
       } catch (err) {
         this.error = err.message;
@@ -102,13 +109,8 @@ export default {
       }
 
       try {
-        const response = await fetch(`/disk-space/manual/${hostId}`, {
-          method: "DELETE",
-        });
-
-        if (!response.ok) {
-          throw new Error("Failed to delete host");
-        }
+        const auth = this.$auth;
+        await Helper.apiDelete("disk-space/manual", hostId, auth);
 
         await this.refreshData();
       } catch (err) {

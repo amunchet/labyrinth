@@ -5,7 +5,7 @@
       <b-tab title="Proxmox Configuration" lazy>
         <div class="mt-3">
           <!-- Tag Configuration -->
-          <b-card class="mb-4">
+          <b-card class="mb-4 text-left text-start">
             <b-card-title>Proxmox Tag</b-card-title>
             <b-card-sub-title>
               Hosts with this tag are included in disk space monitoring
@@ -32,7 +32,7 @@
           </b-card>
 
           <!-- Global API Key Section -->
-          <b-card class="mb-4">
+          <b-card class="mb-4 text-start text-left">
             <b-card-title>Global Proxmox API Key</b-card-title>
             <b-card-sub-title>
               Applied to all Proxmox hosts unless overridden at host level
@@ -78,7 +78,7 @@
           </b-card>
 
           <!-- Host-Specific Keys Section -->
-          <b-card v-if="proxmoxHosts.length > 0">
+          <b-card v-if="proxmoxHosts.length > 0" class="text-start text-left">
             <b-card-title>Host-Specific API Keys</b-card-title>
             <b-card-sub-title>
               Override global key for specific Proxmox hosts
@@ -86,7 +86,7 @@
 
             <b-list-group>
               <b-list-group-item v-for="host in proxmoxHosts" :key="host.mac">
-                <b-row class="align-items-center">
+                <b-row class="align-items-start">
                   <b-col lg="4">
                     <strong>{{ host.name }}</strong>
                     <br />
@@ -100,7 +100,7 @@
                       size="sm"
                     ></b-form-input>
                   </b-col>
-                  <b-col lg="3" class="text-right">
+                  <b-col lg="3" class="text-left">
                     <b-button
                       variant="success"
                       size="sm"
@@ -190,7 +190,7 @@
             <b-card-title>Configured Hosts</b-card-title>
             <b-list-group>
               <b-list-group-item v-for="host in manualHosts" :key="host.id">
-                <b-row class="align-items-center">
+                <b-row class="align-items-start">
                   <b-col lg="8">
                     <strong>{{ host.name }}</strong>
                     <br />
@@ -202,7 +202,7 @@
                       {{ host.description }}
                     </small>
                   </b-col>
-                  <b-col lg="4" class="text-right">
+                  <b-col lg="4" class="text-left">
                     <b-button
                       variant="danger"
                       size="sm"
@@ -242,6 +242,7 @@
 </template>
 
 <script>
+import Helper from "@/helper";
 import ProxmoxDocumentation from "./ProxmoxDocumentation";
 
 export default {
@@ -283,12 +284,23 @@ export default {
     this.loadSettings();
   },
   methods: {
+    parseMaybeJSON(payload) {
+      if (typeof payload === "string") {
+        try {
+          return JSON.parse(payload);
+        } catch (e) {
+          return payload;
+        }
+      }
+      return payload;
+    },
+
     async loadSettings() {
       try {
-        const response = await fetch("/disk-space/settings");
-        if (!response.ok) throw new Error("Failed to load settings");
+        const auth = this.$auth;
+        const settingsResponse = await Helper.apiCall("disk-space", "settings", auth);
+        const data = this.parseMaybeJSON(settingsResponse);
 
-        const data = await response.json();
         this.proxmoxTag = data.proxmox_tag || "Proxmox";
         this.globalKeyConfigured = data.global_api_key_configured;
         this.proxmoxHosts = data.host_specific_keys || [];
@@ -299,11 +311,9 @@ export default {
         });
 
         // Load manual hosts
-        const manualResponse = await fetch("/disk-space/manual");
-        if (manualResponse.ok) {
-          const manualData = await manualResponse.json();
-          this.manualHosts = manualData.manual_hosts || [];
-        }
+        const manualResponse = await Helper.apiCall("disk-space", "manual", auth);
+        const manualData = this.parseMaybeJSON(manualResponse);
+        this.manualHosts = manualData.manual_hosts || [];
       } catch (err) {
         this.errorMessage = err.message;
       }
@@ -317,16 +327,12 @@ export default {
 
       this.savingTag = true;
       try {
+        const auth = this.$auth;
         const formData = new FormData();
         formData.append("name", "proxmox_tag");
         formData.append("value", this.proxmoxTag);
 
-        const response = await fetch("/settings", {
-          method: "POST",
-          body: formData,
-        });
-
-        if (!response.ok) throw new Error("Failed to save tag");
+        await Helper.apiPost("settings", "", "", auth, formData);
 
         this.successMessage = "Proxmox tag saved successfully!";
       } catch (err) {
@@ -344,13 +350,16 @@ export default {
 
       this.savingGlobalKey = true;
       try {
-        const response = await fetch("/disk-space/settings/proxmox-api-key", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ api_key: this.globalApiKey }),
-        });
-
-        if (!response.ok) throw new Error("Failed to save API key");
+        const auth = this.$auth;
+        const formData = new FormData();
+        formData.append("api_key", this.globalApiKey);
+        await Helper.apiPost(
+          "disk-space/settings/proxmox-api-key",
+          "",
+          "",
+          auth,
+          formData
+        );
 
         this.globalApiKey = "";
         this.globalKeyConfigured = true;
@@ -367,11 +376,8 @@ export default {
 
       this.savingGlobalKey = true;
       try {
-        const response = await fetch("/disk-space/settings/proxmox-api-key", {
-          method: "DELETE",
-        });
-
-        if (!response.ok) throw new Error("Failed to delete API key");
+        const auth = this.$auth;
+        await Helper.apiDelete("disk-space/settings", "proxmox-api-key", auth);
 
         this.globalKeyConfigured = false;
         this.successMessage = "Global API key deleted successfully!";
@@ -385,13 +391,16 @@ export default {
     async saveHostApiKey(mac) {
       this.$set(this.savingHostKeys, mac, true);
       try {
-        const response = await fetch(`/disk-space/settings/proxmox-api-key/${mac}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ api_key: this.hostApiKeys[mac] }),
-        });
-
-        if (!response.ok) throw new Error("Failed to save host API key");
+        const auth = this.$auth;
+        const formData = new FormData();
+        formData.append("api_key", this.hostApiKeys[mac] || "");
+        await Helper.apiPost(
+          `disk-space/settings/proxmox-api-key/${mac}`,
+          "",
+          "",
+          auth,
+          formData
+        );
 
         this.successMessage = `API key saved for host ${mac}`;
       } catch (err) {
@@ -406,12 +415,12 @@ export default {
 
       this.$set(this.savingHostKeys, mac, true);
       try {
-        const response = await fetch(
-          `/disk-space/settings/proxmox-api-key/${mac}`,
-          { method: "DELETE" }
+        const auth = this.$auth;
+        await Helper.apiDelete(
+          "disk-space/settings/proxmox-api-key",
+          mac,
+          auth
         );
-
-        if (!response.ok) throw new Error("Failed to delete host API key");
 
         this.hostApiKeys[mac] = "";
         this.successMessage = "Host API key deleted successfully!";
@@ -430,13 +439,13 @@ export default {
 
       this.addingHost = true;
       try {
-        const response = await fetch("/disk-space/manual", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(this.newHost),
-        });
-
-        if (!response.ok) throw new Error("Failed to add host");
+        const auth = this.$auth;
+        const formData = new FormData();
+        formData.append("name", this.newHost.name);
+        formData.append("ip", this.newHost.ip);
+        formData.append("type", this.newHost.type);
+        formData.append("description", this.newHost.description || "");
+        await Helper.apiPost("disk-space/manual", "", "", auth, formData);
 
         this.successMessage = "Manual host added successfully!";
         this.newHost = {
@@ -457,11 +466,8 @@ export default {
       if (!confirm("Delete this manual host?")) return;
 
       try {
-        const response = await fetch(`/disk-space/manual/${hostId}`, {
-          method: "DELETE",
-        });
-
-        if (!response.ok) throw new Error("Failed to delete host");
+        const auth = this.$auth;
+        await Helper.apiDelete("disk-space/manual", hostId, auth);
 
         this.successMessage = "Manual host deleted successfully!";
         await this.loadSettings();
