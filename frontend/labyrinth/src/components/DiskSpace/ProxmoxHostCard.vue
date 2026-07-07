@@ -32,12 +32,22 @@
       <div v-if="host.nodes && host.nodes.length > 0" class="mb-4">
         <h6 class="mb-3">Storage Information</h6>
         <div v-for="node in host.nodes" :key="node.name" class="node-storage mb-3">
-          <h6 class="text-secondary">{{ node.name }}</h6>
-          <b-list-group v-if="node.storage && node.storage.length > 0">
-            <b-list-group-item v-for="storage in node.storage" :key="storage.name">
-              <StorageProgressBar :storage="storage" />
-            </b-list-group-item>
-          </b-list-group>
+          <h6 class="text-secondary">
+          {{ node.name }}</h6>
+          <b-row v-if="node.storage && node.storage.length > 0" class="storage-grid">
+            <b-col
+              v-for="storage in node.storage"
+              :key="storage.name"
+              cols="12"
+              md="6"
+              xl="4"
+              class="mb-2"
+            >
+              <b-card class="storage-card h-100">
+                <StorageProgressBar :storage="storage" />
+              </b-card>
+            </b-col>
+          </b-row>
           <b-alert v-else variant="warning" class="small mb-0">
             No storage information available
           </b-alert>
@@ -148,6 +158,20 @@ export default {
     background-color: #f8f9fa;
     padding: 1rem;
     border-radius: 4px;
+  }
+
+  .storage-grid {
+    margin-left: -0.35rem;
+    margin-right: -0.35rem;
+  }
+
+  .storage-grid > [class*="col-"] {
+    padding-left: 0.35rem;
+    padding-right: 0.35rem;
+  }
+
+  .storage-card {
+    border: 1px solid #eceff3;
   }
 }
 </style>
