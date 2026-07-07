@@ -1,0 +1,228 @@
+#!/usr/bin/env python3
+"""
+Proxmox API integration for disk space monitoring
+"""
+
+import os
+import requests
+import json
+import ssl
+from typing import Dict, List, Optional, Tuple
+
+# Suppress SSL warnings for self-signed certificates
+try:
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+except ImportError:
+    pass
+
+
+class ProxmoxClient:
+    """Client for interacting with Proxmox API"""
+
+    def __init__(self, host: str, user: str, token_id: str, token_secret: str, verify_ssl: bool = False):
+        """
+        Initialize Proxmox client
+        
+        :param host: Proxmox host IP or hostname
+        :param user: Proxmox user (e.g., root@pam)
+        :param token_id: API token ID
+        :param token_secret: API token secret
+        :param verify_ssl: Whether to verify SSL certificates
+        """
+        self.host = host
+        self.user = user
+        self.token_id = token_id
+        self.token_secret = token_secret
+        self.verify_ssl = verify_ssl
+        self.base_url = f"https://{host}:8006/api2/json"
+        self.session = requests.Session()
+        self.session.verify = verify_ssl
+        self.session.headers.update({
+            "Authorization": f"PVEAPIToken={user}!{token_id}={token_secret}"
+        })
+
+    def get_nodes(self) -> List[Dict]:
+        """Get list of all nodes in cluster"""
+        try:
+            response = self.session.get(f"{self.base_url}/nodes", timeout=10)
+            response.raise_for_status()
+            return response.json().get("data", [])
+        except Exception as e:
+            print(f"Error getting nodes: {e}")
+            return []
+
+    def get_storage(self, node: str) -> List[Dict]:
+        """Get storage information for a node"""
+        try:
+            response = self.session.get(
+                f"{self.base_url}/nodes/{node}/storage",
+                timeout=10
+            )
+            response.raise_for_status()
+            return response.json().get("data", [])
+        except Exception as e:
+            print(f"Error getting storage for {node}: {e}")
+            return []
+
+    def get_vms_and_containers(self, node: str) -> Tuple[List[Dict], List[Dict]]:
+        """Get VMs and containers (LXCs) on a node"""
+        vms = []
+        containers = []
+        try:
+            response = self.session.get(
+                f"{self.base_url}/nodes/{node}/qemu",
+                timeout=10
+            )
+            response.raise_for_status()
+            vms = response.json().get("data", [])
+        except Exception as e:
+            print(f"Error getting VMs for {node}: {e}")
+
+        try:
+            response = self.session.get(
+                f"{self.base_url}/nodes/{node}/lxc",
+                timeout=10
+            )
+            response.raise_for_status()
+            containers = response.json().get("data", [])
+        except Exception as e:
+            print(f"Error getting LXCs for {node}: {e}")
+
+        return vms, containers
+
+    def get_vm_status(self, node: str, vmid: str) -> Optional[Dict]:
+        """Get detailed status for a VM including disk usage"""
+        try:
+            response = self.session.get(
+                f"{self.base_url}/nodes/{node}/qemu/{vmid}/status/current",
+                timeout=10
+            )
+            response.raise_for_status()
+            return response.json().get("data", {})
+        except Exception as e:
+            print(f"Error getting VM status for {node}/{vmid}: {e}")
+            return None
+
+    def get_container_status(self, node: str, vmid: str) -> Optional[Dict]:
+        """Get detailed status for a container including disk usage"""
+        try:
+            response = self.session.get(
+                f"{self.base_url}/nodes/{node}/lxc/{vmid}/status/current",
+                timeout=10
+            )
+            response.raise_for_status()
+            return response.json().get("data", {})
+        except Exception as e:
+            print(f"Error getting container status for {node}/{vmid}: {e}")
+            return None
+
+    def get_disk_info(self, node: str, storage: str) -> Optional[Dict]:
+        """Get detailed disk information for a storage"""
+        try:
+            response = self.session.get(
+                f"{self.base_url}/nodes/{node}/storage/{storage}/content",
+                timeout=10
+            )
+            response.raise_for_status()
+            return response.json().get("data", {})
+        except Exception as e:
+            print(f"Error getting disk info for {node}/{storage}: {e}")
+            return None
+
+
+def get_proxmox_disk_data(host_ip: str, api_key: str) -> Dict:
+    """
+    Retrieve disk space data from a Proxmox host
+    
+    :param host_ip: Proxmox host IP
+    :param api_key: Proxmox API key in format "user@pam!token_id=token_secret"
+    :return: Dictionary with disk space information
+    """
+    try:
+        # Parse API key format
+        if "=" not in api_key or "!" not in api_key:
+            return {"error": "Invalid API key format. Expected: user@pam!token_id=token_secret"}
+
+        user, token_part = api_key.split("!")
+        token_id, token_secret = token_part.split("=")
+
+        client = ProxmoxClient(
+            host=host_ip,
+            user=user,
+            token_id=token_id,
+            token_secret=token_secret
+        )
+
+        result = {
+            "host": host_ip,
+            "nodes": [],
+            "error": None
+        }
+
+        nodes = client.get_nodes()
+        if not nodes:
+            result["error"] = "Could not retrieve nodes"
+            return result
+
+        for node in nodes:
+            node_name = node.get("node")
+            node_info = {
+                "name": node_name,
+                "status": node.get("status"),
+                "storage": [],
+                "vms": [],
+                "containers": []
+            }
+
+            # Get storage info
+            storage_list = client.get_storage(node_name)
+            for storage in storage_list:
+                storage_name = storage.get("storage")
+                storage_info = {
+                    "name": storage_name,
+                    "type": storage.get("type"),
+                    "enabled": storage.get("enabled", 1),
+                    "total": storage.get("total"),
+                    "used": storage.get("used"),
+                    "available": storage.get("available")
+                }
+                node_info["storage"].append(storage_info)
+
+            # Get VMs and containers
+            vms, containers = client.get_vms_and_containers(node_name)
+
+            for vm in vms:
+                vmid = vm.get("vmid")
+                vm_status = client.get_vm_status(node_name, str(vmid))
+                vm_info = {
+                    "id": vmid,
+                    "name": vm.get("name"),
+                    "status": vm.get("status"),
+                    "maxdisk": vm.get("maxdisk"),
+                    "disk": vm_status.get("disk") if vm_status else None,
+                    "maxmem": vm.get("maxmem"),
+                    "mem": vm_status.get("mem") if vm_status else None
+                }
+                node_info["vms"].append(vm_info)
+
+            for container in containers:
+                vmid = container.get("vmid")
+                container_status = client.get_container_status(node_name, str(vmid))
+                container_info = {
+                    "id": vmid,
+                    "name": container.get("name"),
+                    "status": container.get("status"),
+                    "maxdisk": container.get("maxdisk"),
+                    "disk": container_status.get("disk") if container_status else None,
+                    "maxmem": container.get("maxmem"),
+                    "mem": container_status.get("mem") if container_status else None
+                }
+                node_info["containers"].append(container_info)
+
+            result["nodes"].append(node_info)
+
+        return result
+
+    except Exception as e:
+        return {"error": f"Failed to get Proxmox data: {str(e)}", "host": host_ip}

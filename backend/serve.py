@@ -24,6 +24,7 @@ import watcher
 
 import shutil
 import services as svcs
+import proxmox_helper
 
 from common import auth
 from common.test import unwrap
@@ -1980,6 +1981,283 @@ def bulk_insert():
         mongo_client["labyrinth"]["metrics"].bulk_write(metrics_updates)
 
     return len(metrics), 200
+
+
+# Disk Space Monitoring
+@app.route("/disk-space/proxmox")
+@requires_auth_read
+def get_proxmox_disk_space():
+    """
+    Get disk space data from all Proxmox hosts tagged with the configured Proxmox tag
+    """
+    try:
+        tag_setting = mongo_client["labyrinth"]["settings"].find_one(
+            {"name": "proxmox_tag"}
+        )
+        proxmox_tag = tag_setting.get("value") if tag_setting else "Proxmox"
+
+        # Get global Proxmox API key
+        global_key = None
+        global_key_setting = mongo_client["labyrinth"]["settings"].find_one(
+            {"name": "proxmox_api_key"}
+        )
+        if global_key_setting:
+            global_key = global_key_setting.get("value")
+
+        # Find all hosts with Proxmox tag
+        proxmox_hosts = []
+        for host in mongo_client["labyrinth"]["hosts"].find({}):
+            raw_tags = host.get("tags", "")
+            if raw_tags:
+                host_tags = [t.strip() for t in raw_tags.split(",")]
+                if proxmox_tag in host_tags:
+                    proxmox_hosts.append(host)
+
+        result = {
+            "proxmox_hosts": []
+        }
+
+        for host in proxmox_hosts:
+            host_ip = host.get("ip")
+            host_mac = host.get("mac")
+            host_name = host.get("name", host_ip)
+
+            # Check for host-specific API key
+            api_key_setting = mongo_client["labyrinth"]["settings"].find_one(
+                {"name": f"proxmox_api_key_{host_mac}"}
+            )
+            api_key = api_key_setting.get("value") if api_key_setting else global_key
+
+            if not api_key:
+                result["proxmox_hosts"].append({
+                    "host": host_name,
+                    "ip": host_ip,
+                    "mac": host_mac,
+                    "error": "No API key configured"
+                })
+                continue
+
+            # Fetch Proxmox data
+            data = proxmox_helper.get_proxmox_disk_data(host_ip, api_key)
+            data["host"] = host_name
+            data["ip"] = host_ip
+            data["mac"] = host_mac
+            result["proxmox_hosts"].append(data)
+
+        return json.dumps(result, default=str), 200
+    except Exception as e:
+        return json.dumps({"error": str(e)}), 500
+
+
+@app.route("/disk-space/manual")
+@requires_auth_read
+def get_manual_disk_space():
+    """
+    Get disk space data from manually configured hosts
+    """
+    try:
+        manual_hosts = []
+        for setting in mongo_client["labyrinth"]["settings"].find(
+            {"name": {"$regex": "^manual_disk_host_"}}
+        ):
+            host_config = setting.get("value")
+            if isinstance(host_config, str):
+                host_config = json.loads(host_config)
+            host_config.setdefault("id", setting["name"].replace("manual_disk_host_", ""))
+            manual_hosts.append(host_config)
+
+        result = {
+            "manual_hosts": manual_hosts
+        }
+
+        return json.dumps(result, default=str), 200
+    except Exception as e:
+        return json.dumps({"error": str(e)}), 500
+
+
+@app.route("/disk-space/manual", methods=["POST"])
+@requires_auth_admin
+def add_manual_disk_host():
+    """
+    Add a manually configured host for disk space monitoring
+    Expected JSON: {"name": "host_name", "ip": "ip_address", "type": "ec2|oraclevbox|generic"}
+    """
+    try:
+        data = request.get_json()
+        if data is None:
+            return json.dumps({"error": "Invalid JSON body"}), 400
+
+        required_fields = ["name", "ip", "type"]
+
+        if not all(field in data for field in required_fields):
+            return json.dumps({"error": "Missing required fields"}), 400
+
+        # Generate unique ID
+        host_id = str(uuid.uuid4())
+        setting_name = f"manual_disk_host_{host_id}"
+
+        stored_data = {
+            "id": host_id,
+            "name": data["name"],
+            "ip": data["ip"],
+            "type": data["type"],
+            "description": data.get("description", ""),
+            "created": datetime.datetime.utcnow().isoformat(),
+            "updated": datetime.datetime.utcnow().isoformat(),
+        }
+
+        mongo_client["labyrinth"]["settings"].insert_one({
+            "name": setting_name,
+            "value": json.dumps(stored_data)
+        })
+
+        return json.dumps({"id": host_id, "status": "created"}), 201
+    except Exception as e:
+        return json.dumps({"error": str(e)}), 500
+
+
+@app.route("/disk-space/manual/<host_id>", methods=["DELETE"])
+@requires_auth_admin
+def delete_manual_disk_host(host_id):
+    """
+    Delete a manually configured disk space monitoring host
+    """
+    try:
+        setting_name = f"manual_disk_host_{host_id}"
+        result = mongo_client["labyrinth"]["settings"].delete_one(
+            {"name": setting_name}
+        )
+        
+        if result.deleted_count == 0:
+            return json.dumps({"error": "Host not found"}), 404
+
+        return json.dumps({"status": "deleted"}), 200
+    except Exception as e:
+        return json.dumps({"error": str(e)}), 500
+
+
+@app.route("/disk-space/settings", methods=["GET"])
+@requires_auth_read
+def get_disk_space_settings():
+    """
+    Get disk space monitoring settings (API keys, tags)
+    """
+    try:
+        tag_setting = mongo_client["labyrinth"]["settings"].find_one(
+            {"name": "proxmox_tag"}
+        )
+        result = {
+            "proxmox_tag": tag_setting.get("value") if tag_setting else "Proxmox",
+            "global_api_key_configured": False,
+            "host_specific_keys": []
+        }
+
+        # Check for global API key
+        global_key = mongo_client["labyrinth"]["settings"].find_one(
+            {"name": "proxmox_api_key"}
+        )
+        if global_key:
+            result["global_api_key_configured"] = True
+
+        # Get list of hosts with API keys
+        for host in mongo_client["labyrinth"]["hosts"].find({}):
+            mac = host.get("mac")
+            host_key = mongo_client["labyrinth"]["settings"].find_one(
+                {"name": f"proxmox_api_key_{mac}"}
+            )
+            if host_key:
+                result["host_specific_keys"].append({
+                    "mac": mac,
+                    "ip": host.get("ip"),
+                    "name": host.get("name")
+                })
+
+        return json.dumps(result, default=str), 200
+    except Exception as e:
+        return json.dumps({"error": str(e)}), 500
+
+
+@app.route("/disk-space/settings/proxmox-api-key", methods=["POST"])
+@requires_auth_admin
+def set_global_proxmox_api_key():
+    """
+    Set global Proxmox API key
+    Expected form data: api_key (in format "user@pam!token_id=token_secret")
+    """
+    try:
+        api_key = request.form.get("api_key") or (request.get_json() or {}).get("api_key")
+        
+        if not api_key:
+            return json.dumps({"error": "api_key is required"}), 400
+
+        # Delete existing key if present
+        mongo_client["labyrinth"]["settings"].delete_one({"name": "proxmox_api_key"})
+
+        # Insert new key
+        mongo_client["labyrinth"]["settings"].insert_one({
+            "name": "proxmox_api_key",
+            "value": api_key
+        })
+
+        return json.dumps({"status": "updated"}), 200
+    except Exception as e:
+        return json.dumps({"error": str(e)}), 500
+
+
+@app.route("/disk-space/settings/proxmox-api-key/<mac>", methods=["POST"])
+@requires_auth_admin
+def set_host_proxmox_api_key(mac):
+    """
+    Set Proxmox API key for a specific host
+    Expected form data: api_key (in format "user@pam!token_id=token_secret")
+    """
+    try:
+        api_key = request.form.get("api_key") or (request.get_json() or {}).get("api_key")
+        
+        if not api_key:
+            return json.dumps({"error": "api_key is required"}), 400
+
+        setting_name = f"proxmox_api_key_{mac}"
+
+        # Delete existing key if present
+        mongo_client["labyrinth"]["settings"].delete_one({"name": setting_name})
+
+        # Insert new key
+        mongo_client["labyrinth"]["settings"].insert_one({
+            "name": setting_name,
+            "value": api_key
+        })
+
+        return json.dumps({"status": "updated"}), 200
+    except Exception as e:
+        return json.dumps({"error": str(e)}), 500
+
+
+@app.route("/disk-space/settings/proxmox-api-key", methods=["DELETE"])
+@requires_auth_admin
+def delete_global_proxmox_api_key():
+    """
+    Delete global Proxmox API key
+    """
+    try:
+        mongo_client["labyrinth"]["settings"].delete_one({"name": "proxmox_api_key"})
+        return json.dumps({"status": "deleted"}), 200
+    except Exception as e:
+        return json.dumps({"error": str(e)}), 500
+
+
+@app.route("/disk-space/settings/proxmox-api-key/<mac>", methods=["DELETE"])
+@requires_auth_admin
+def delete_host_proxmox_api_key(mac):
+    """
+    Delete Proxmox API key for a specific host
+    """
+    try:
+        setting_name = f"proxmox_api_key_{mac}"
+        mongo_client["labyrinth"]["settings"].delete_one({"name": setting_name})
+        return json.dumps({"status": "deleted"}), 200
+    except Exception as e:
+        return json.dumps({"error": str(e)}), 500
 
 
 if __name__ == "__main__":  # pragma: no cover
