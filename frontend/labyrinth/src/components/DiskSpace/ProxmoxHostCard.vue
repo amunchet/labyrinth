@@ -1,24 +1,19 @@
 <template>
   <div class="proxmox-host-card">
     <!-- Host Header -->
-    <b-row class="mb-3 pb-3 border-bottom">
+    <b-row class="mb-1 pb-1 border-bottom align-items-center">
       <b-col lg="6">
-        <h5>
-          <b-button
-            variant="link"
-            @click="collapsed = !collapsed"
-            class="text-decoration-none"
-          >
-            <b-icon :icon="collapsed ? 'chevron-right' : 'chevron-down'"></b-icon>
-            {{ host.cluster_name || host.host }}
-          </b-button>
-        </h5>
+        <b-button
+          variant="link"
+          @click="collapsed = !collapsed"
+          class="text-decoration-none p-0 font-weight-bold"
+        >
+          <b-icon :icon="collapsed ? 'chevron-down' : 'chevron-right'" class="pt-1 mr-1"></b-icon>
+          {{ host.cluster_name || host.host }}
+        </b-button>
       </b-col>
       <b-col lg="6" class="text-right">
-        <b-badge
-          v-if="host.error"
-          variant="danger"
-        >
+        <b-badge v-if="host.error" variant="danger">
           Error: {{ host.error }}
         </b-badge>
         <b-badge v-else variant="success">Connected</b-badge>
@@ -26,7 +21,7 @@
     </b-row>
 
     <!-- Expandable Content -->
-    <b-collapse v-model="collapsed" class="mt-3">
+    <b-collapse v-model="collapsed" class="mt-2">
       <div v-if="host.nodes && host.nodes.length > 0" class="mb-2">
         <div v-for="node in host.nodes" :key="node.name" class="node-storage mb-3">
           <h6 class="text-secondary mb-2">{{ node.name }}</h6>

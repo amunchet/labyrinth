@@ -189,31 +189,6 @@
           <b-alert v-else variant="info" class="mt-3">
             No clusters configured yet.
           </b-alert>
-
-          <!-- Unconfigured Proxmox Hosts -->
-          <b-card
-            v-if="unconfiguredHosts.length > 0"
-            class="mt-4 text-left text-start border-warning"
-          >
-            <b-card-title class="text-warning">
-              Unconfigured Proxmox Hosts
-            </b-card-title>
-            <b-card-sub-title>
-              These hosts have the Proxmox tag but are not assigned to a cluster
-            </b-card-sub-title>
-            <b-list-group>
-              <b-list-group-item
-                v-for="host in unconfiguredHosts"
-                :key="host.mac"
-              >
-                <strong>{{ host.name }}</strong>
-                <br />
-                <small class="text-muted">
-                  {{ host.ip }} | {{ host.mac }}
-                </small>
-              </b-list-group-item>
-            </b-list-group>
-          </b-card>
         </div>
       </b-tab>
 
@@ -355,7 +330,6 @@ export default {
     return {
       proxmoxTag: "Proxmox",
       clusters: [],
-      unconfiguredHosts: [],
       newCluster: {
         name: "",
         host: "",
@@ -416,7 +390,6 @@ export default {
 
         this.proxmoxTag = data.proxmox_tag || "Proxmox";
         this.clusters = data.clusters || [];
-        this.unconfiguredHosts = data.unconfigured_proxmox_hosts || [];
 
         // Load manual hosts
         const manualResponse = await Helper.apiCall(

@@ -3,7 +3,7 @@
     <b-card no-body>
       <b-tabs card pills>
         <!-- Disk Space Tab -->
-        <b-tab title="Disk Space Check" lazy>
+        <b-tab title="Disk Space Check" lazy class="mt-0 pt-0 pb-0 mb-0">
           <DiskSpaceView />
         </b-tab>
 

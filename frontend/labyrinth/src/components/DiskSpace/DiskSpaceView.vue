@@ -5,58 +5,71 @@
       {{ error }}
     </b-alert>
 
-    <!-- Proxmox Hosts Section -->
-    <div v-if="proxmoxData.length > 0" class="mb-4">
-      <b-row class="align-items-center mb-3">
-        <b-col>
-          <h4 class="mb-0">
-            <b-icon icon="server"></b-icon>
-            Proxmox Clusters
-          </h4>
-        </b-col>
-        <b-col cols="auto">
-          <b-button
-            variant="outline-secondary"
-            size="sm"
-            @click="refreshData"
-            :disabled="loading"
-          >
-            <font-awesome-icon :icon="loading ? 'spinner' : 'sync'" :spin="loading" class="mr-1" />
-            Refresh
-          </b-button>
-        </b-col>
-      </b-row>
-      <b-card v-for="host in proxmoxData" :key="`proxmox-${host._id || host.cluster_name}`" class="mb-3">
-        <ProxmoxHostCard :host="host" />
-      </b-card>
+    <!-- Loading State -->
+    <div v-if="loading" class="loading-state text-center py-5">
+      <b-spinner variant="primary" style="width: 3rem; height: 3rem;" class="mb-3"></b-spinner>
+      <p class="text-muted">Loading disk space data...</p>
     </div>
 
-    <!-- Manual Hosts Section -->
-    <div v-if="manualData.length > 0" class="mb-4">
-      <h4>
-        <b-icon icon="cloud"></b-icon>
-        Manually Configured Hosts
-      </h4>
-      <b-card v-for="host in manualData" :key="`manual-${host.id}`" class="mb-3">
-        <small class="text-muted d-block mb-2">
-          Hostname: {{ host.host || host.name || "N/A" }} | IP: {{ host.ip || "N/A" }}
-        </small>
-        <ManualHostCard :host="host" @delete="deleteManualHost" />
-      </b-card>
-    </div>
+    <template v-else>
+      <!-- Proxmox Hosts Section -->
+      <div v-if="proxmoxData.length > 0" class="mb-4">
+        <b-row class="align-items-center mb-3">
+          <b-col>
+            <h4 class="mb-0">
+              <b-icon icon="server"></b-icon>
+              Proxmox Clusters
+            </h4>
+          </b-col>
+          <b-col cols="auto">
+            <b-button
+              variant="outline-secondary"
+              size="sm"
+              @click="refreshData"
+              :disabled="loading"
+            >
+              <font-awesome-icon icon="sync" class="mr-1" />
+              Refresh
+            </b-button>
+          </b-col>
+        </b-row>
+        <b-card
+          v-for="host in proxmoxData"
+          :key="`proxmox-${host._id || host.cluster_name}`"
+          class="mb-2"
+          body-class="py-2 px-3"
+        >
+          <ProxmoxHostCard :host="host" />
+        </b-card>
+      </div>
 
-    <!-- Empty State -->
-    <b-alert v-if="proxmoxData.length === 0 && manualData.length === 0" variant="info">
-      <b-row class="align-items-center">
-        <b-col>No disk space data available. Please configure Proxmox clusters in the Settings tab.</b-col>
-        <b-col cols="auto">
-          <b-button variant="outline-secondary" size="sm" @click="refreshData" :disabled="loading">
-            <font-awesome-icon :icon="loading ? 'spinner' : 'sync'" :spin="loading" class="mr-1" />
-            Refresh
-          </b-button>
-        </b-col>
-      </b-row>
-    </b-alert>
+      <!-- Manual Hosts Section -->
+      <div v-if="manualData.length > 0" class="mb-4">
+        <h4>
+          <b-icon icon="cloud"></b-icon>
+          Manually Configured Hosts
+        </h4>
+        <b-card v-for="host in manualData" :key="`manual-${host.id}`" class="mb-3">
+          <small class="text-muted d-block mb-2">
+            Hostname: {{ host.host || host.name || "N/A" }} | IP: {{ host.ip || "N/A" }}
+          </small>
+          <ManualHostCard :host="host" @delete="deleteManualHost" />
+        </b-card>
+      </div>
+
+      <!-- Empty State -->
+      <b-alert v-if="proxmoxData.length === 0 && manualData.length === 0" variant="info">
+        <b-row class="align-items-center">
+          <b-col>No disk space data available. Please configure Proxmox clusters in the Settings tab.</b-col>
+          <b-col cols="auto">
+            <b-button variant="outline-secondary" size="sm" @click="refreshData">
+              <font-awesome-icon icon="sync" class="mr-1" />
+              Refresh
+            </b-button>
+          </b-col>
+        </b-row>
+      </b-alert>
+    </template>
   </div>
 </template>
 
@@ -149,7 +162,6 @@ export default {
   h4 {
     margin-top: 2rem;
     margin-bottom: 1rem;
-    border-bottom: 2px solid #007bff;
     padding-bottom: 0.5rem;
   }
 }
