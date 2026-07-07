@@ -35,7 +35,10 @@
                 <router-link to="/scan">Scan</router-link>
               </b-nav-item>
               <b-nav-item href="/services">
-                <router-link to="/services">Metrics</router-link>
+                <router-link to="/services">Scan Metrics</router-link>
+              </b-nav-item>
+              <b-nav-item href="/disk-space">
+                <router-link to="/disk-space">Disk Space</router-link>
               </b-nav-item>
               <b-nav-item href="/deploy">
                 <router-link to="/deploy">Deploy</router-link>
