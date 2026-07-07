@@ -87,6 +87,16 @@ export default {
       return payload;
     },
 
+    getHostName(host) {
+      return (host && (host.host || host.name || "")).toString().toLowerCase();
+    },
+
+    sortProxmoxHosts(hosts) {
+      return [...(hosts || [])].sort((a, b) =>
+        this.getHostName(a).localeCompare(this.getHostName(b))
+      );
+    },
+
     async refreshData() {
       this.loading = true;
       this.error = null;
@@ -96,7 +106,7 @@ export default {
         // Fetch Proxmox data
         const proxmoxResponse = await Helper.apiCall("disk-space", "proxmox", auth);
         const proxmoxJson = this.parseMaybeJSON(proxmoxResponse);
-        this.proxmoxData = proxmoxJson.proxmox_hosts || [];
+        this.proxmoxData = this.sortProxmoxHosts(proxmoxJson.proxmox_hosts || []);
 
         // Fetch manual hosts data
         const manualResponse = await Helper.apiCall("disk-space", "manual", auth);
