@@ -1,5 +1,4 @@
 auth_config.json
-frontend/labyrinth/package-lock.json
 **.env
 **.pyc
 **/**.pyc
