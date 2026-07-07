@@ -34,9 +34,9 @@
         <div v-for="node in host.nodes" :key="node.name" class="node-storage mb-3">
           <h6 class="text-secondary">
           {{ node.name }}</h6>
-          <div v-if="node.storage && node.storage.length > 0" class="storage-grid">
+          <div v-if="visibleStorage(node).length > 0" class="storage-grid">
             <div
-              v-for="storage in node.storage"
+              v-for="storage in visibleStorage(node)"
               :key="storage.name"
               class="storage-grid-item"
             >
@@ -100,6 +100,20 @@ export default {
     return {
       collapsed: true,
     };
+  },
+  methods: {
+    toNumber(value) {
+      const n = Number(value);
+      return Number.isFinite(n) ? n : 0;
+    },
+    visibleStorage(node) {
+      const storage = (node && node.storage) || [];
+      return storage.filter((item) => {
+        const total = this.toNumber(item.total);
+        const used = this.toNumber(item.used);
+        return !(total === 0 && used === 0);
+      });
+    },
   },
   computed: {
     hasVMs() {
