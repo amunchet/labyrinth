@@ -2220,7 +2220,8 @@ def get_disk_space_settings():
         return json.dumps({"error": str(e)}), 500
 
 
-@app.route("/proxmox-clusters", methods=["GET"])
+@app.route("/proxmox-clusters")
+@app.route("/proxmox-clusters/", methods=["GET"])
 @requires_auth_read
 def list_proxmox_clusters():
     """
@@ -2237,6 +2238,7 @@ def list_proxmox_clusters():
 
 
 @app.route("/proxmox-clusters", methods=["POST"])
+@app.route("/proxmox-clusters/", methods=["POST"])
 @requires_auth_admin
 def create_proxmox_cluster():
     """
