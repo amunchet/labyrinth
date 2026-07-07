@@ -1,13 +1,17 @@
 <template>
   <div class="vm-container-progress-bar">
     <div class="vm-title text-truncate" :title="item.name">
+      <font-awesome-icon
+        v-if="showQemuWarning"
+        icon="exclamation-triangle"
+        class="qemu-warning-icon mb-1 mr-1 me-1"
+        v-b-tooltip.hover
+        title="QEMU Guest Agent not installed or unavailable."
+      />
+
       <strong>{{ item.name || `ID ${item.id}` }}</strong>
       <span class="text-muted id-inline">({{ item.id }})</span>
     </div>
-
-    <small v-if="showQemuWarning" class="text-danger d-block mb-1 qemu-warning">
-      QEMU guest agent not installed or unavailable
-    </small>
 
     <div v-if="hasDiskInfo" class="metric-line mb-1">
       <small class="text-muted d-block">Disk {{ diskUsagePercentage.toFixed(0) }}%</small>
@@ -118,9 +122,11 @@ export default {
     line-height: 1.05;
   }
 
-  .qemu-warning {
-    font-size: 0.7rem;
-    line-height: 1.05;
+  .qemu-warning-icon {
+    color: #dc3545;
+    font-size: 0.72rem;
+    margin-left: 0.25rem;
+    vertical-align: middle;
   }
 }
 </style>
