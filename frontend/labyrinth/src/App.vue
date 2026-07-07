@@ -24,9 +24,9 @@
             <b-nav-item href="/checks">
               <router-link to="/checks">Checks</router-link>
             </b-nav-item>
-
+            <b-nav-text class="text-muted px-2">|</b-nav-text>
             <b-nav-item href="/disk-space">
-              <router-link to="/disk-space">Disk Space</router-link>
+              <router-link to="/disk-space">Proxmox</router-link>
             </b-nav-item>
           </b-navbar-nav>
 
