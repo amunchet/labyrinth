@@ -78,18 +78,18 @@
       </b-row>
 
       <b-row>
-        <b-col>Proxmox API Key</b-col>
+        <b-col>Proxmox Cluster</b-col>
         <b-col>
           <b-input
-            v-model="host.proxmox_api_key"
-            type="password"
-            placeholder="user@pam!token_id=token_secret"
+            v-model="host.proxmox_cluster"
+            placeholder="Cluster name or ID"
           />
           <span class="text-small">
-            Optional per-host key. Used by Disk Space checks before global key.
+            If this host is a Proxmox cluster, specify which cluster it belongs to.
           </span>
         </b-col>
       </b-row>
+
       <b-row
         ><b-col>Subnet</b-col
         ><b-col
@@ -453,7 +453,7 @@ export default {
         host: "",
         group: "",
         tags: "",
-        proxmox_api_key: "",
+        proxmox_cluster: "",
         icon: "",
         services: [],
         class: "",

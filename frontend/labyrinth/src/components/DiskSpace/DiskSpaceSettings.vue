@@ -1,8 +1,8 @@
 <template>
   <div class="disk-space-settings">
     <b-tabs pills card>
-      <!-- Proxmox Settings -->
-      <b-tab title="Proxmox Configuration" lazy>
+      <!-- Proxmox Clusters Tab -->
+      <b-tab title="Proxmox Clusters" lazy>
         <div class="mt-3">
           <!-- Tag Configuration -->
           <b-card class="mb-4 text-left text-start">
@@ -31,92 +31,142 @@
             </b-form>
           </b-card>
 
-          <!-- Global API Key Section -->
-          <b-card class="mb-4 text-start text-left">
-            <b-card-title>Global Proxmox API Key</b-card-title>
+          <!-- Add New Cluster -->
+          <b-card class="mb-4 text-left text-start">
+            <b-card-title>Add Proxmox Cluster</b-card-title>
             <b-card-sub-title>
-              Applied to all Proxmox hosts unless overridden at host level
+              Define Proxmox cluster nodes and their API credentials
             </b-card-sub-title>
 
-            <b-form @submit.prevent="saveGlobalApiKey">
+            <b-form @submit.prevent="addCluster">
               <b-form-group
-                label="API Key:"
-                label-for="global-api-key"
-                description="Format: user@pam!token_id=token_secret"
+                label="Cluster Name:"
+                label-for="cluster-name"
+                description="Unique identifier for this cluster"
               >
                 <b-form-input
-                  id="global-api-key"
-                  v-model="globalApiKey"
-                  type="password"
-                  placeholder="Enter API key"
+                  id="cluster-name"
+                  v-model="newCluster.name"
+                  placeholder="e.g., production-pve"
+                  required
                 ></b-form-input>
               </b-form-group>
 
-              <b-button variant="primary" type="submit" :disabled="savingGlobalKey">
-                <b-spinner small v-if="savingGlobalKey" class="mr-2"></b-spinner>
-                Save Global Key
-              </b-button>
+              <b-form-group
+                label="Host IP:"
+                label-for="cluster-host"
+                description="IP address of any cluster node"
+              >
+                <b-form-input
+                  id="cluster-host"
+                  v-model="newCluster.host"
+                  placeholder="e.g., 10.1.1.1"
+                  required
+                ></b-form-input>
+              </b-form-group>
+
+              <b-form-group
+                label="User:"
+                label-for="cluster-user"
+                description="Proxmox user (e.g., root@pam)"
+              >
+                <b-form-input
+                  id="cluster-user"
+                  v-model="newCluster.user"
+                  placeholder="root@pam"
+                  required
+                ></b-form-input>
+              </b-form-group>
+
+              <b-form-group
+                label="Token ID:"
+                label-for="cluster-token-id"
+                description="API token ID"
+              >
+                <b-form-input
+                  id="cluster-token-id"
+                  v-model="newCluster.token_id"
+                  placeholder="e.g., token-1"
+                  required
+                ></b-form-input>
+              </b-form-group>
+
+              <b-form-group
+                label="Token Secret:"
+                label-for="cluster-token-secret"
+                description="API token secret (keep secure)"
+              >
+                <b-form-input
+                  id="cluster-token-secret"
+                  v-model="newCluster.token_secret"
+                  type="password"
+                  placeholder="e.g., abcd1234..."
+                  required
+                ></b-form-input>
+              </b-form-group>
+
+              <b-form-group label="SSL Verification:">
+                <b-form-checkbox v-model="newCluster.verify_ssl">
+                  Verify SSL certificates
+                </b-form-checkbox>
+                <small class="text-muted">
+                  Recommended for production; disable for self-signed
+                  certificates
+                </small>
+              </b-form-group>
 
               <b-button
-                v-if="globalKeyConfigured"
-                variant="danger"
-                @click="deleteGlobalApiKey"
-                :disabled="savingGlobalKey"
-                class="ml-2"
+                variant="primary"
+                type="submit"
+                :disabled="addingCluster"
               >
-                Delete Key
+                <b-spinner small v-if="addingCluster" class="mr-2"></b-spinner>
+                Add Cluster
               </b-button>
-
-              <b-alert
-                v-if="globalKeyConfigured"
-                variant="success"
-                class="mt-2 mb-0"
-              >
-                Global API key is configured
-              </b-alert>
             </b-form>
           </b-card>
 
-          <!-- Host-Specific Keys Section -->
-          <b-card v-if="proxmoxHosts.length > 0" class="text-start text-left">
-            <b-card-title>Host-Specific API Keys</b-card-title>
-            <b-card-sub-title>
-              Override global key for specific Proxmox hosts
-            </b-card-sub-title>
-
+          <!-- Configured Clusters -->
+          <b-card v-if="clusters.length > 0" class="text-left text-start">
+            <b-card-title>Configured Clusters</b-card-title>
             <b-list-group>
-              <b-list-group-item v-for="host in proxmoxHosts" :key="host.mac">
-                <b-row class="align-items-start">
-                  <b-col lg="4">
-                    <strong>{{ host.name }}</strong>
-                    <br />
-                    <small class="text-muted">{{ host.ip }} | {{ host.mac }}</small>
-                  </b-col>
+              <b-list-group-item v-for="cluster in clusters" :key="cluster._id">
+                <b-row class="align-items-center">
                   <b-col lg="5">
-                    <b-form-input
-                      v-model="hostApiKeys[host.mac]"
-                      type="password"
-                      placeholder="Leave empty to use global key"
-                      size="sm"
-                    ></b-form-input>
+                    <strong>{{ cluster.name }}</strong>
+                    <br />
+                    <small class="text-muted">
+                      {{ cluster.user }}@{{ cluster.host }}
+                    </small>
                   </b-col>
-                  <b-col lg="3" class="text-left">
+                  <b-col lg="3">
+                    <small class="text-muted">
+                      {{
+                        cluster.verify_ssl ? "SSL verified" : "SSL unverified"
+                      }}
+                    </small>
+                  </b-col>
+                  <b-col lg="4" class="text-left">
                     <b-button
-                      variant="success"
+                      variant="outline-primary"
                       size="sm"
-                      @click="saveHostApiKey(host.mac)"
-                      :disabled="savingHostKeys[host.mac]"
+                      @click="editCluster(cluster)"
                       class="mr-2"
                     >
-                      <b-spinner small v-if="savingHostKeys[host.mac]"></b-spinner>
-                      Save
+                      <b-icon icon="pencil"></b-icon>
+                      Edit
                     </b-button>
                     <b-button
-                      variant="outline-danger"
+                      variant="danger"
                       size="sm"
-                      @click="deleteHostApiKey(host.mac)"
-                      :disabled="savingHostKeys[host.mac]"
+                      @click="deleteCluster(cluster._id)"
+                      :disabled="deletingCluster === cluster._id"
                     >
+                      <b-spinner
+                        small
+                        v-if="deletingCluster === cluster._id"
+                        class="mr-1"
+                      ></b-spinner>
                       Delete
                     </b-button>
                   </b-col>
@@ -126,8 +176,33 @@
           </b-card>
 
           <b-alert v-else variant="info" class="mt-3">
-            No Proxmox hosts found. Tag hosts with "Proxmox" to configure API keys.
+            No clusters configured yet.
           </b-alert>
+
+          <!-- Unconfigured Proxmox Hosts -->
+          <b-card
+            v-if="unconfiguredHosts.length > 0"
+            class="mt-4 text-left text-start border-warning"
+          >
+            <b-card-title class="text-warning">
+              Unconfigured Proxmox Hosts
+            </b-card-title>
+            <b-card-sub-title>
+              These hosts have the Proxmox tag but are not assigned to a cluster
+            </b-card-sub-title>
+            <b-list-group>
+              <b-list-group-item
+                v-for="host in unconfiguredHosts"
+                :key="host.mac"
+              >
+                <strong>{{ host.name }}</strong>
+                <br />
+                <small class="text-muted">
+                  {{ host.ip }} | {{ host.mac }}
+                </small>
+              </b-list-group-item>
+            </b-list-group>
+          </b-card>
         </div>
       </b-tab>
 
@@ -169,7 +244,10 @@
                 ></b-form-select>
               </b-form-group>
 
-              <b-form-group label="Description (optional):" label-for="host-description">
+              <b-form-group
+                label="Description (optional):"
+                label-for="host-description"
+              >
                 <b-form-textarea
                   id="host-description"
                   v-model="newHost.description"
@@ -232,10 +310,22 @@
     </b-tabs>
 
     <!-- Alert Messages -->
-    <b-alert v-if="successMessage" variant="success" dismissible @dismissed="successMessage = null" class="mt-3">
+    <b-alert
+      v-if="successMessage"
+      variant="success"
+      dismissible
+      @dismissed="successMessage = null"
+      class="mt-3"
+    >
       {{ successMessage }}
     </b-alert>
-    <b-alert v-if="errorMessage" variant="danger" dismissible @dismissed="errorMessage = null" class="mt-3">
+    <b-alert
+      v-if="errorMessage"
+      variant="danger"
+      dismissible
+      @dismissed="errorMessage = null"
+      class="mt-3"
+    >
       {{ errorMessage }}
     </b-alert>
   </div>
@@ -253,13 +343,20 @@ export default {
   data() {
     return {
       proxmoxTag: "Proxmox",
-      globalApiKey: "",
-      globalKeyConfigured: false,
-      proxmoxHosts: [],
-      hostApiKeys: {},
+      clusters: [],
+      unconfiguredHosts: [],
+      newCluster: {
+        name: "",
+        host: "",
+        user: "root@pam",
+        token_id: "",
+        token_secret: "",
+        verify_ssl: false,
+      },
+      editingCluster: null,
+      addingCluster: false,
+      deletingCluster: null,
       savingTag: false,
-      savingGlobalKey: false,
-      savingHostKeys: {},
       manualHosts: [],
       newHost: {
         name: "",
@@ -298,20 +395,23 @@ export default {
     async loadSettings() {
       try {
         const auth = this.$auth;
-        const settingsResponse = await Helper.apiCall("disk-space", "settings", auth);
+        const settingsResponse = await Helper.apiCall(
+          "disk-space",
+          "settings",
+          auth
+        );
         const data = this.parseMaybeJSON(settingsResponse);
 
         this.proxmoxTag = data.proxmox_tag || "Proxmox";
-        this.globalKeyConfigured = data.global_api_key_configured;
-        this.proxmoxHosts = data.host_specific_keys || [];
-
-        this.proxmoxHosts.forEach((host) => {
-          this.$set(this.hostApiKeys, host.mac, "");
-          this.$set(this.savingHostKeys, host.mac, false);
-        });
+        this.clusters = data.clusters || [];
+        this.unconfiguredHosts = data.unconfigured_proxmox_hosts || [];
 
         // Load manual hosts
-        const manualResponse = await Helper.apiCall("disk-space", "manual", auth);
+        const manualResponse = await Helper.apiCall(
+          "disk-space",
+          "manual",
+          auth
+        );
         const manualData = this.parseMaybeJSON(manualResponse);
         this.manualHosts = manualData.manual_hosts || [];
       } catch (err) {
@@ -342,92 +442,59 @@ export default {
       }
     },
 
-    async saveGlobalApiKey() {
-      if (!this.globalApiKey.trim()) {
-        this.errorMessage = "API key cannot be empty";
+    async addCluster() {
+      if (
+        !this.newCluster.name ||
+        !this.newCluster.host ||
+        !this.newCluster.token_id ||
+        !this.newCluster.token_secret
+      ) {
+        this.errorMessage = "Please fill in all required fields";
         return;
       }
 
-      this.savingGlobalKey = true;
+      this.addingCluster = true;
       try {
         const auth = this.$auth;
-        const formData = new FormData();
-        formData.append("api_key", this.globalApiKey);
-        await Helper.apiPost(
-          "disk-space/settings",
-          "",
-          "proxmox-api-key",
-          auth,
-          formData
-        );
+        const body = JSON.stringify(this.newCluster);
+        await Helper.apiPost("proxmox-clusters", "", "", auth, body);
 
-        this.globalApiKey = "";
-        this.globalKeyConfigured = true;
-        this.successMessage = "Global API key saved successfully!";
+        this.successMessage = "Proxmox cluster added successfully!";
+        this.newCluster = {
+          name: "",
+          host: "",
+          user: "root@pam",
+          token_id: "",
+          token_secret: "",
+          verify_ssl: false,
+        };
+        await this.loadSettings();
       } catch (err) {
         this.errorMessage = err.message;
       } finally {
-        this.savingGlobalKey = false;
+        this.addingCluster = false;
       }
     },
 
-    async deleteGlobalApiKey() {
-      if (!confirm("Delete global Proxmox API key?")) return;
-
-      this.savingGlobalKey = true;
-      try {
-        const auth = this.$auth;
-        await Helper.apiDelete("disk-space/settings", "proxmox-api-key", auth);
-
-        this.globalKeyConfigured = false;
-        this.successMessage = "Global API key deleted successfully!";
-      } catch (err) {
-        this.errorMessage = err.message;
-      } finally {
-        this.savingGlobalKey = false;
-      }
+    editCluster() {
+      // For now, show edit in a modal or toast
+      this.errorMessage = "Edit functionality coming soon. Delete and re-add to modify.";
     },
 
-    async saveHostApiKey(mac) {
-      this.$set(this.savingHostKeys, mac, true);
+    async deleteCluster(clusterId) {
+      if (!confirm("Delete this Proxmox cluster configuration?")) return;
+
+      this.deletingCluster = clusterId;
       try {
         const auth = this.$auth;
-        const formData = new FormData();
-        formData.append("api_key", this.hostApiKeys[mac] || "");
-        await Helper.apiPost(
-          "disk-space/settings",
-          "proxmox-api-key",
-          mac,
-          auth,
-          formData
-        );
+        await Helper.apiDelete("proxmox-clusters", clusterId, auth);
 
-        this.successMessage = `API key saved for host ${mac}`;
+        this.successMessage = "Proxmox cluster deleted successfully!";
+        await this.loadSettings();
       } catch (err) {
         this.errorMessage = err.message;
       } finally {
-        this.$set(this.savingHostKeys, mac, false);
-      }
-    },
-
-    async deleteHostApiKey(mac) {
-      if (!confirm("Delete host-specific API key?")) return;
-
-      this.$set(this.savingHostKeys, mac, true);
-      try {
-        const auth = this.$auth;
-        await Helper.apiDelete(
-          "disk-space/settings/proxmox-api-key",
-          mac,
-          auth
-        );
-
-        this.hostApiKeys[mac] = "";
-        this.successMessage = "Host API key deleted successfully!";
-      } catch (err) {
-        this.errorMessage = err.message;
-      } finally {
-        this.$set(this.savingHostKeys, mac, false);
+        this.deletingCluster = null;
       }
     },
 

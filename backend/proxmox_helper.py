@@ -163,27 +163,30 @@ class ProxmoxClient:
             return None
 
 
-def get_proxmox_disk_data(host_ip: str, api_key: str) -> Dict:
+def get_proxmox_disk_data(host_ip: str, cluster_config: Dict) -> Dict:
     """
     Retrieve disk space data from a Proxmox host
     
-    :param host_ip: Proxmox host IP
-    :param api_key: Proxmox API key in format "user@pam!token_id=token_secret"
+    :param host_ip: Proxmox cluster host IP
+    :param cluster_config: Cluster configuration dict with keys: host, user, token_id, token_secret, verify_ssl (optional)
     :return: Dictionary with disk space information
     """
     try:
-        # Parse API key format
-        if "=" not in api_key or "!" not in api_key:
-            return {"error": "Invalid API key format. Expected: user@pam!token_id=token_secret"}
+        # Extract credentials from cluster config
+        user = cluster_config.get("user")
+        token_id = cluster_config.get("token_id")
+        token_secret = cluster_config.get("token_secret")
+        verify_ssl = cluster_config.get("verify_ssl", False)
 
-        user, token_part = api_key.split("!")
-        token_id, token_secret = token_part.split("=")
+        if not all([user, token_id, token_secret]):
+            return {"error": "Invalid cluster configuration. Missing user, token_id, or token_secret"}
 
         client = ProxmoxClient(
             host=host_ip,
             user=user,
             token_id=token_id,
-            token_secret=token_secret
+            token_secret=token_secret,
+            verify_ssl=verify_ssl
         )
 
         def _to_int(value):

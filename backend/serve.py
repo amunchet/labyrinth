@@ -1396,6 +1396,7 @@ def index_helper():  # pragma: no cover
     mongo_client["labyrinth"]["hosts"].create_index("mac")
     mongo_client["labyrinth"]["hosts"].create_index("subnet")
     mongo_client["labyrinth"]["settings"].create_index("name")
+    mongo_client["labyrinth"]["proxmox_clusters"].create_index("name")
     # mongo_client["labyrinth"]["metrics"].create_index([("timestamp", -1)])
 
     # Make Metrics Latest expire after a certain time period
@@ -2028,13 +2029,11 @@ def get_proxmox_disk_space():
         )
         proxmox_tag = tag_setting.get("value") if tag_setting else "Proxmox"
 
-        # Get global Proxmox API key
-        global_key = None
-        global_key_setting = mongo_client["labyrinth"]["settings"].find_one(
-            {"name": "proxmox_api_key"}
-        )
-        if global_key_setting:
-            global_key = global_key_setting.get("value")
+        # Get all clusters
+        clusters = {}
+        for cluster in mongo_client["labyrinth"]["proxmox_clusters"].find({}):
+            clusters[str(cluster["_id"])] = cluster
+            clusters[cluster["name"]] = cluster
 
         # Find all hosts with Proxmox tag
         proxmox_hosts = []
@@ -2054,37 +2053,30 @@ def get_proxmox_disk_space():
             host_mac = host.get("mac")
             host_name = host.get("host", host_ip)
 
-            # Resolve API key priority:
-            # 1) host.proxmox_api_key (new per-host field)
-            # 2) legacy settings key proxmox_api_key_<mac>
-            # 3) global key proxmox_api_key
-            host_api_key = (host.get("proxmox_api_key") or "").strip()
-
-            # Legacy host-specific API key setting fallback
-            api_key_setting = mongo_client["labyrinth"]["settings"].find_one(
-                {"name": f"proxmox_api_key_{host_mac}"}
-            )
-            settings_host_key = (
-                (api_key_setting.get("value") or "").strip() if api_key_setting else ""
-            )
-
-            api_key = host_api_key or settings_host_key or global_key
-
-            if not api_key:
+            # Get cluster reference from host (can be cluster ID or name)
+            cluster_ref = (host.get("proxmox_cluster") or "").strip()
+            
+            # Resolve cluster configuration
+            cluster_config = None
+            if cluster_ref:
+                cluster_config = clusters.get(cluster_ref)
+            
+            if not cluster_config:
                 result["proxmox_hosts"].append({
                     "host": host_name,
                     "ip": host_ip,
                     "mac": host_mac,
-                    "error": "No API key configured"
+                    "error": f"No Proxmox cluster configured for this host" if not cluster_ref else f"Cluster '{cluster_ref}' not found"
                 })
                 continue
 
-            # Fetch Proxmox data
-            data = proxmox_helper.get_proxmox_disk_data(host_ip, api_key)
+            # Fetch Proxmox data using cluster configuration
+            data = proxmox_helper.get_proxmox_disk_data(host_ip, cluster_config)
             data = enrich_qemu_flags(data)
             data["host"] = host_name
             data["ip"] = host_ip
             data["mac"] = host_mac
+            data["cluster_name"] = cluster_config.get("name")
             result["proxmox_hosts"].append(data)
 
         return json.dumps(result, default=str), 200
@@ -2191,7 +2183,7 @@ def delete_manual_disk_host(host_id):
 @requires_auth_read
 def get_disk_space_settings():
     """
-    Get disk space monitoring settings (API keys, tags)
+    Get disk space monitoring settings (clusters, tags)
     """
     try:
         tag_setting = mongo_client["labyrinth"]["settings"].find_one(
@@ -2199,33 +2191,171 @@ def get_disk_space_settings():
         )
         result = {
             "proxmox_tag": tag_setting.get("value") if tag_setting else "Proxmox",
-            "global_api_key_configured": False,
-            "host_specific_keys": []
+            "clusters": [],
+            "unconfigured_proxmox_hosts": []
         }
 
-        # Check for global API key
-        global_key = mongo_client["labyrinth"]["settings"].find_one(
-            {"name": "proxmox_api_key"}
-        )
-        if global_key:
-            result["global_api_key_configured"] = True
+        # Get all clusters
+        clusters = list(mongo_client["labyrinth"]["proxmox_clusters"].find({}))
+        for cluster in clusters:
+            cluster.pop("token_secret", None)
+            cluster["_id"] = str(cluster["_id"])
+            result["clusters"].append(cluster)
 
-        # Get list of hosts with API keys
+        # Get list of Proxmox-tagged hosts without cluster assignment
+        proxmox_tag = result["proxmox_tag"]
         for host in mongo_client["labyrinth"]["hosts"].find({}):
-            mac = host.get("mac")
-            host_level_key = (host.get("proxmox_api_key") or "").strip()
-            host_key = mongo_client["labyrinth"]["settings"].find_one(
-                {"name": f"proxmox_api_key_{mac}"}
-            )
-            if host_level_key or host_key:
-                result["host_specific_keys"].append({
-                    "mac": mac,
-                    "ip": host.get("ip"),
-                    "name": host.get("host") or host.get("name"),
-                    "source": "host" if host_level_key else "settings",
-                })
+            raw_tags = host.get("tags", "")
+            if raw_tags:
+                host_tags = [t.strip() for t in raw_tags.split(",")]
+                if proxmox_tag in host_tags and not (host.get("proxmox_cluster") or "").strip():
+                    result["unconfigured_proxmox_hosts"].append({
+                        "mac": host.get("mac"),
+                        "ip": host.get("ip"),
+                        "name": host.get("host") or host.get("name"),
+                    })
 
         return json.dumps(result, default=str), 200
+    except Exception as e:
+        return json.dumps({"error": str(e)}), 500
+
+
+@app.route("/proxmox-clusters", methods=["GET"])
+@requires_auth_read
+def list_proxmox_clusters():
+    """
+    List all Proxmox clusters
+    """
+    try:
+        clusters = list(mongo_client["labyrinth"]["proxmox_clusters"].find({}))
+        # Remove sensitive data from response
+        for cluster in clusters:
+            cluster.pop("token_secret", None)
+        return json.dumps(clusters, default=str), 200
+    except Exception as e:
+        return json.dumps({"error": str(e)}), 500
+
+
+@app.route("/proxmox-clusters", methods=["POST"])
+@requires_auth_admin
+def create_proxmox_cluster():
+    """
+    Create a new Proxmox cluster configuration
+    Expected JSON: {
+        "name": "cluster-1",
+        "host": "10.1.1.1",
+        "user": "root@pam",
+        "token_id": "token-id",
+        "token_secret": "token-secret",
+        "verify_ssl": false
+    }
+    """
+    try:
+        data = request.get_json(silent=True)
+        if data is None:
+            return json.dumps({"error": "Invalid JSON body"}), 400
+
+        required_fields = ["name", "host", "user", "token_id", "token_secret"]
+        if not all(data.get(field) for field in required_fields):
+            return json.dumps({"error": f"Missing required fields: {', '.join(required_fields)}"}), 400
+
+        # Check if cluster with this name already exists
+        if mongo_client["labyrinth"]["proxmox_clusters"].find_one({"name": data["name"]}):
+            return json.dumps({"error": "Cluster with this name already exists"}), 409
+
+        cluster_doc = {
+            "name": data["name"],
+            "host": data["host"],
+            "user": data["user"],
+            "token_id": data["token_id"],
+            "token_secret": data["token_secret"],
+            "verify_ssl": data.get("verify_ssl", False),
+            "created": datetime.datetime.utcnow().isoformat(),
+            "updated": datetime.datetime.utcnow().isoformat(),
+        }
+
+        result = mongo_client["labyrinth"]["proxmox_clusters"].insert_one(cluster_doc)
+        cluster_doc["_id"] = str(cluster_doc["_id"])
+        cluster_doc.pop("token_secret", None)
+
+        return json.dumps({"id": str(result.inserted_id), "cluster": cluster_doc}), 201
+    except Exception as e:
+        return json.dumps({"error": str(e)}), 500
+
+
+@app.route("/proxmox-clusters/<cluster_id>", methods=["GET"])
+@requires_auth_read
+def get_proxmox_cluster(cluster_id):
+    """
+    Get a specific Proxmox cluster configuration
+    """
+    try:
+        cluster = mongo_client["labyrinth"]["proxmox_clusters"].find_one(
+            {"_id": bson.ObjectId(cluster_id)}
+        )
+        if not cluster:
+            return json.dumps({"error": "Cluster not found"}), 404
+
+        cluster.pop("token_secret", None)
+        return json.dumps(cluster, default=str), 200
+    except Exception as e:
+        return json.dumps({"error": str(e)}), 500
+
+
+@app.route("/proxmox-clusters/<cluster_id>", methods=["PUT"])
+@requires_auth_admin
+def update_proxmox_cluster(cluster_id):
+    """
+    Update a Proxmox cluster configuration
+    """
+    try:
+        data = request.get_json(silent=True)
+        if data is None:
+            return json.dumps({"error": "Invalid JSON body"}), 400
+
+        cluster = mongo_client["labyrinth"]["proxmox_clusters"].find_one(
+            {"_id": bson.ObjectId(cluster_id)}
+        )
+        if not cluster:
+            return json.dumps({"error": "Cluster not found"}), 404
+
+        # Update allowed fields
+        update_doc = {}
+        allowed_fields = ["host", "user", "token_id", "token_secret", "verify_ssl"]
+        for field in allowed_fields:
+            if field in data:
+                update_doc[field] = data[field]
+
+        if update_doc:
+            update_doc["updated"] = datetime.datetime.utcnow().isoformat()
+            mongo_client["labyrinth"]["proxmox_clusters"].update_one(
+                {"_id": bson.ObjectId(cluster_id)},
+                {"$set": update_doc}
+            )
+
+        updated_cluster = mongo_client["labyrinth"]["proxmox_clusters"].find_one(
+            {"_id": bson.ObjectId(cluster_id)}
+        )
+        updated_cluster.pop("token_secret", None)
+        return json.dumps(updated_cluster, default=str), 200
+    except Exception as e:
+        return json.dumps({"error": str(e)}), 500
+
+
+@app.route("/proxmox-clusters/<cluster_id>", methods=["DELETE"])
+@requires_auth_admin
+def delete_proxmox_cluster(cluster_id):
+    """
+    Delete a Proxmox cluster configuration
+    """
+    try:
+        result = mongo_client["labyrinth"]["proxmox_clusters"].delete_one(
+            {"_id": bson.ObjectId(cluster_id)}
+        )
+        if result.deleted_count == 0:
+            return json.dumps({"error": "Cluster not found"}), 404
+
+        return json.dumps({"status": "deleted"}), 200
     except Exception as e:
         return json.dumps({"error": str(e)}), 500
 
@@ -2234,8 +2364,8 @@ def get_disk_space_settings():
 @requires_auth_admin
 def set_global_proxmox_api_key():
     """
-    Set global Proxmox API key
-    Expected form data: api_key (in format "user@pam!token_id=token_secret")
+    DEPRECATED: Set global Proxmox API key
+    Use /proxmox-clusters endpoints instead
     """
     try:
         api_key = request.form.get("api_key") or (request.get_json() or {}).get("api_key")
@@ -2261,8 +2391,8 @@ def set_global_proxmox_api_key():
 @requires_auth_admin
 def set_host_proxmox_api_key(mac):
     """
-    Set Proxmox API key for a specific host
-    Expected form data: api_key (in format "user@pam!token_id=token_secret")
+    DEPRECATED: Set Proxmox API key for a specific host
+    Use /proxmox-clusters endpoints instead
     """
     try:
         api_key = request.form.get("api_key") or (request.get_json() or {}).get("api_key")
@@ -2295,7 +2425,8 @@ def set_host_proxmox_api_key(mac):
 @requires_auth_admin
 def delete_global_proxmox_api_key():
     """
-    Delete global Proxmox API key
+    DEPRECATED: Delete global Proxmox API key
+    Use /proxmox-clusters endpoints instead
     """
     try:
         mongo_client["labyrinth"]["settings"].delete_one({"name": "proxmox_api_key"})
