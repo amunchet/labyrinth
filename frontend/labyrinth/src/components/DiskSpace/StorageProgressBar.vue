@@ -1,23 +1,19 @@
 <template>
   <div class="storage-progress-bar">
-    <b-row class="mb-2">
-      <b-col lg="3">
-        <strong>{{ storage.name }}</strong>
-        <br />
-        <small class="text-muted">{{ storage.type }}</small>
-      </b-col>
-      <b-col lg="9">
-        <b-progress
-          :value="usagePercentage"
-          :variant="progressVariant"
-          class="mb-2"
-        ></b-progress>
-        <small class="text-muted">
-          {{ formatBytes(storage.used) }} / {{ formatBytes(storage.total) }}
-          ({{ usagePercentage.toFixed(1) }}%)
-        </small>
-      </b-col>
-    </b-row>
+    <div class="storage-name text-truncate" :title="storage.name">
+      <strong>{{ storage.name }}</strong>
+      <small class="text-muted d-block">{{ storage.type }}</small>
+    </div>
+    <b-progress
+      :value="usagePercentage"
+      :variant="progressVariant"
+      height="10px"
+      class="mb-1"
+    ></b-progress>
+    <small class="text-muted storage-meta d-block">
+      {{ formatBytes(storage.used) }} / {{ formatBytes(storage.total) }}
+    </small>
+    <small class="text-muted d-block">{{ usagePercentage.toFixed(1) }}%</small>
   </div>
 </template>
 
@@ -61,6 +57,17 @@ export default {
 
 <style lang="scss" scoped>
 .storage-progress-bar {
-  padding: 0.5rem 0;
+  padding: 0.1rem 0;
+
+  .storage-name {
+    line-height: 1.1;
+    margin-bottom: 0.25rem;
+    font-size: 0.78rem;
+  }
+
+  .storage-meta {
+    line-height: 1.05;
+    font-size: 0.72rem;
+  }
 }
 </style>

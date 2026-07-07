@@ -34,20 +34,17 @@
         <div v-for="node in host.nodes" :key="node.name" class="node-storage mb-3">
           <h6 class="text-secondary">
           {{ node.name }}</h6>
-          <b-row v-if="node.storage && node.storage.length > 0" class="storage-grid">
-            <b-col
+          <div v-if="node.storage && node.storage.length > 0" class="storage-grid">
+            <div
               v-for="storage in node.storage"
               :key="storage.name"
-              cols="12"
-              md="6"
-              xl="4"
-              class="mb-2"
+              class="storage-grid-item"
             >
-              <b-card class="storage-card h-100">
+              <div class="storage-card">
                 <StorageProgressBar :storage="storage" />
-              </b-card>
-            </b-col>
-          </b-row>
+              </div>
+            </div>
+          </div>
           <b-alert v-else variant="warning" class="small mb-0">
             No storage information available
           </b-alert>
@@ -156,22 +153,25 @@ export default {
 
   .node-storage {
     background-color: #f8f9fa;
-    padding: 1rem;
+    padding: 0.5rem;
     border-radius: 4px;
   }
 
   .storage-grid {
-    margin-left: -0.35rem;
-    margin-right: -0.35rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
+    gap: 0.35rem;
   }
 
-  .storage-grid > [class*="col-"] {
-    padding-left: 0.35rem;
-    padding-right: 0.35rem;
+  .storage-grid-item {
+    min-width: 0;
   }
 
   .storage-card {
+    background: #fff;
     border: 1px solid #eceff3;
+    border-radius: 4px;
+    padding: 0.25rem 0.35rem;
   }
 }
 </style>
