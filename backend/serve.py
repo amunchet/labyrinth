@@ -2255,7 +2255,11 @@ def create_proxmox_cluster():
     try:
         data = request.get_json(silent=True)
         if data is None:
-            return json.dumps({"error": "Invalid JSON body"}), 400
+            # Try to parse raw request body as JSON
+            try:
+                data = json.loads(request.get_data(as_text=True))
+            except (ValueError, json.JSONDecodeError):
+                return json.dumps({"error": "Invalid JSON body"}), 400
 
         required_fields = ["name", "host", "user", "token_id", "token_secret"]
         if not all(data.get(field) for field in required_fields):
