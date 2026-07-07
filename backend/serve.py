@@ -2083,13 +2083,21 @@ def add_manual_disk_host():
     Expected JSON: {"name": "host_name", "ip": "ip_address", "type": "ec2|oraclevbox|generic"}
     """
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
+        if data is None:
+            data = {
+                "name": request.form.get("name"),
+                "ip": request.form.get("ip"),
+                "type": request.form.get("type"),
+                "description": request.form.get("description", ""),
+            }
+
         if data is None:
             return json.dumps({"error": "Invalid JSON body"}), 400
 
         required_fields = ["name", "ip", "type"]
 
-        if not all(field in data for field in required_fields):
+        if not all(data.get(field) for field in required_fields):
             return json.dumps({"error": "Missing required fields"}), 400
 
         # Generate unique ID
