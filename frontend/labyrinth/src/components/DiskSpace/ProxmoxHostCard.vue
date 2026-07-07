@@ -10,10 +10,9 @@
             class="text-decoration-none"
           >
             <b-icon :icon="collapsed ? 'chevron-right' : 'chevron-down'"></b-icon>
-            {{ host.host }}
+            {{ host.cluster_name || host.host }}
           </b-button>
         </h5>
-        <small class="text-muted">{{ host.ip }}</small>
       </b-col>
       <b-col lg="6" class="text-right">
         <b-badge

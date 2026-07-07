@@ -22,12 +22,9 @@
     <div v-if="proxmoxData.length > 0" class="mb-4">
       <h4>
         <b-icon icon="server"></b-icon>
-        Proxmox Hosts
+        Proxmox Clusters
       </h4>
-      <b-card v-for="host in proxmoxData" :key="`proxmox-${host.ip}`" class="mb-3">
-        <small class="text-muted d-block mb-2">
-          Hostname: {{ host.host || host.name || "N/A" }} | IP: {{ host.ip || "N/A" }}
-        </small>
+      <b-card v-for="host in proxmoxData" :key="`proxmox-${host._id || host.cluster_name}`" class="mb-3">
         <ProxmoxHostCard :host="host" />
       </b-card>
     </div>
@@ -48,7 +45,7 @@
 
     <!-- Empty State -->
     <b-alert v-if="proxmoxData.length === 0 && manualData.length === 0" variant="info">
-      <p>No disk space data available. Please configure hosts in Settings tab.</p>
+      <p>No disk space data available. Please configure Proxmox clusters in the Settings tab.</p>
     </b-alert>
   </div>
 </template>
@@ -88,7 +85,7 @@ export default {
     },
 
     getHostName(host) {
-      return (host && (host.host || host.name || "")).toString().toLowerCase();
+      return (host && (host.cluster_name || host.host || "")).toString().toLowerCase();
     },
 
     sortProxmoxHosts(hosts) {
