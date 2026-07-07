@@ -1,18 +1,5 @@
 <template>
   <div class="disk-space-view text-left text-start">
-    <b-row class="mb-3">
-      <b-col class="text-left text-start">
-        <b-button
-          variant="primary"
-          @click="refreshData"
-          :disabled="loading"
-        >
-          <b-spinner small v-if="loading" class="mr-2"></b-spinner>
-          Refresh
-        </b-button>
-      </b-col>
-    </b-row>
-
     <!-- Error Alert -->
     <b-alert v-if="error" variant="danger" dismissible @dismissed="error = null">
       {{ error }}
@@ -20,10 +7,25 @@
 
     <!-- Proxmox Hosts Section -->
     <div v-if="proxmoxData.length > 0" class="mb-4">
-      <h4>
-        <b-icon icon="server"></b-icon>
-        Proxmox Clusters
-      </h4>
+      <b-row class="align-items-center mb-3">
+        <b-col>
+          <h4 class="mb-0">
+            <b-icon icon="server"></b-icon>
+            Proxmox Clusters
+          </h4>
+        </b-col>
+        <b-col cols="auto">
+          <b-button
+            variant="outline-secondary"
+            size="sm"
+            @click="refreshData"
+            :disabled="loading"
+          >
+            <font-awesome-icon :icon="loading ? 'spinner' : 'sync'" :spin="loading" class="mr-1" />
+            Refresh
+          </b-button>
+        </b-col>
+      </b-row>
       <b-card v-for="host in proxmoxData" :key="`proxmox-${host._id || host.cluster_name}`" class="mb-3">
         <ProxmoxHostCard :host="host" />
       </b-card>
@@ -45,7 +47,15 @@
 
     <!-- Empty State -->
     <b-alert v-if="proxmoxData.length === 0 && manualData.length === 0" variant="info">
-      <p>No disk space data available. Please configure Proxmox clusters in the Settings tab.</p>
+      <b-row class="align-items-center">
+        <b-col>No disk space data available. Please configure Proxmox clusters in the Settings tab.</b-col>
+        <b-col cols="auto">
+          <b-button variant="outline-secondary" size="sm" @click="refreshData" :disabled="loading">
+            <font-awesome-icon :icon="loading ? 'spinner' : 'sync'" :spin="loading" class="mr-1" />
+            Refresh
+          </b-button>
+        </b-col>
+      </b-row>
     </b-alert>
   </div>
 </template>

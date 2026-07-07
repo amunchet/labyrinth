@@ -31,14 +31,16 @@
             </b-form>
           </b-card>
 
-          <!-- Add New Cluster -->
+          <!-- Add / Edit Cluster -->
           <b-card class="mb-4 text-left text-start">
-            <b-card-title>Add Proxmox Cluster</b-card-title>
+            <b-card-title>
+              {{ editingClusterId ? `Edit Cluster: ${newCluster.name}` : "Add Proxmox Cluster" }}
+            </b-card-title>
             <b-card-sub-title>
               Define Proxmox cluster nodes and their API credentials
             </b-card-sub-title>
 
-            <b-form @submit.prevent="addCluster">
+            <b-form @submit.prevent="submitClusterForm">
               <b-form-group
                 label="Cluster Name:"
                 label-for="cluster-name"
@@ -48,6 +50,7 @@
                   id="cluster-name"
                   v-model="newCluster.name"
                   placeholder="e.g., production-pve"
+                  :readonly="!!editingClusterId"
                   required
                 ></b-form-input>
               </b-form-group>
@@ -94,14 +97,14 @@
               <b-form-group
                 label="Token Secret:"
                 label-for="cluster-token-secret"
-                description="API token secret (keep secure)"
+                :description="editingClusterId ? 'Leave blank to keep the existing secret' : 'API token secret (keep secure)'"
               >
                 <b-form-input
                   id="cluster-token-secret"
                   v-model="newCluster.token_secret"
                   type="password"
-                  placeholder="e.g., abcd1234..."
-                  required
+                  :placeholder="editingClusterId ? '(unchanged)' : 'e.g., abcd1234...'"
+                  :required="!editingClusterId"
                 ></b-form-input>
               </b-form-group>
 
@@ -119,9 +122,17 @@
                 variant="primary"
                 type="submit"
                 :disabled="addingCluster"
+                class="mr-2"
               >
                 <b-spinner small v-if="addingCluster" class="mr-2"></b-spinner>
-                Add Cluster
+                {{ editingClusterId ? "Save Changes" : "Add Cluster" }}
+              </b-button>
+              <b-button
+                v-if="editingClusterId"
+                variant="secondary"
+                @click="cancelEdit"
+              >
+                Cancel
               </b-button>
             </b-form>
           </b-card>
@@ -354,6 +365,7 @@ export default {
         verify_ssl: false,
       },
       editingCluster: null,
+      editingClusterId: null,
       addingCluster: false,
       deletingCluster: null,
       savingTag: false,
@@ -442,6 +454,14 @@ export default {
       }
     },
 
+    async submitClusterForm() {
+      if (this.editingClusterId) {
+        await this.saveClusterEdit();
+      } else {
+        await this.addCluster();
+      }
+    },
+
     async addCluster() {
       if (
         !this.newCluster.name ||
@@ -460,14 +480,7 @@ export default {
         await Helper.apiPost("proxmox-clusters", "", "", auth, body);
 
         this.successMessage = "Proxmox cluster added successfully!";
-        this.newCluster = {
-          name: "",
-          host: "",
-          user: "root@pam",
-          token_id: "",
-          token_secret: "",
-          verify_ssl: false,
-        };
+        this.resetClusterForm();
         await this.loadSettings();
       } catch (err) {
         this.errorMessage = err.message;
@@ -476,9 +489,69 @@ export default {
       }
     },
 
-    editCluster() {
-      // For now, show edit in a modal or toast
-      this.errorMessage = "Edit functionality coming soon. Delete and re-add to modify.";
+    editCluster(cluster) {
+      this.editingClusterId = cluster._id;
+      this.newCluster = {
+        name: cluster.name,
+        host: cluster.host,
+        user: cluster.user,
+        token_id: cluster.token_id,
+        token_secret: "",
+        verify_ssl: cluster.verify_ssl || false,
+      };
+      // Scroll up to the form
+      this.$nextTick(() => {
+        const el = document.getElementById("cluster-name");
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    },
+
+    async saveClusterEdit() {
+      this.addingCluster = true;
+      try {
+        const auth = this.$auth;
+
+        const payload = {
+          host: this.newCluster.host,
+          user: this.newCluster.user,
+          token_id: this.newCluster.token_id,
+          verify_ssl: this.newCluster.verify_ssl,
+        };
+        if (this.newCluster.token_secret) {
+          payload.token_secret = this.newCluster.token_secret;
+        }
+
+        await Helper.apiPut(
+          "proxmox-clusters",
+          this.editingClusterId,
+          auth,
+          payload
+        );
+
+        this.successMessage = "Cluster updated successfully!";
+        this.resetClusterForm();
+        await this.loadSettings();
+      } catch (err) {
+        this.errorMessage = err.message;
+      } finally {
+        this.addingCluster = false;
+      }
+    },
+
+    cancelEdit() {
+      this.resetClusterForm();
+    },
+
+    resetClusterForm() {
+      this.editingClusterId = null;
+      this.newCluster = {
+        name: "",
+        host: "",
+        user: "root@pam",
+        token_id: "",
+        token_secret: "",
+        verify_ssl: false,
+      };
     },
 
     async deleteCluster(clusterId) {
