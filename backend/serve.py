@@ -2020,7 +2020,7 @@ def get_proxmox_disk_space():
         for host in proxmox_hosts:
             host_ip = host.get("ip")
             host_mac = host.get("mac")
-            host_name = host.get("name", host_ip)
+            host_name = host.get("host", host_ip)
 
             # Check for host-specific API key
             api_key_setting = mongo_client["labyrinth"]["settings"].find_one(
