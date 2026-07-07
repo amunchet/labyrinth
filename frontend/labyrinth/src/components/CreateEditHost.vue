@@ -63,7 +63,12 @@
         <b-col>
           <b-input v-model="host.tags" placeholder="E.g. proxmox, linux" />
           <div v-if="parsedTags.length" class="tags-preview mt-2 mb-1">
-            <span v-for="tag in parsedTags" :key="tag" class="tag-badge bg-secondary text-light">{{ tag }}</span>
+            <span
+              v-for="tag in parsedTags"
+              :key="tag"
+              class="tag-badge bg-secondary text-light"
+              >{{ tag }}</span
+            >
           </div>
           <span class="text-small">
             Comma-separated tags (cross-subnet, unlike groups).
