@@ -78,7 +78,13 @@ export default {
       return "success";
     },
     showQemuWarning() {
-      return this.type === "vm" && this.item.qemu_guest_agent_installed === false;
+      return (
+        this.type === "vm" &&
+        (
+          this.item.qemu_guest_agent_installed === false ||
+          this.item.qemu_guest_agent_warning_inferred === true
+        )
+      );
     },
   },
   methods: {

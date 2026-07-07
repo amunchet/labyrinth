@@ -275,3 +275,42 @@ def test_get_proxmox_disk_data_marks_missing_qemu_guest_agent(monkeypatch):
     vm = result["nodes"][0]["vms"][0]
     assert vm["qemu_guest_agent_installed"] is False
     assert "QEMU guest agent" in vm["qemu_guest_agent_error"]
+
+
+def test_get_proxmox_disk_data_infers_missing_qemu_from_zero_disk(monkeypatch):
+    """Marks running VMs as missing guest-agent data when guest disk is reported as zero."""
+
+    class FakeClient:
+        def __init__(self, host, user, token_id, token_secret, verify_ssl=False):
+            pass
+
+        def get_nodes(self):
+            return [{"node": "pve-1", "status": "online"}]
+
+        def get_storage(self, node):
+            return []
+
+        def get_vms_and_containers(self, node):
+            return (
+                [{"vmid": 102, "name": "vm-102", "status": "running", "maxdisk": 10737418240, "maxmem": 200}],
+                [],
+            )
+
+        def get_vm_status(self, node, vmid):
+            return {"disk": 0, "mem": 50}
+
+        def get_vm_agent_status(self, node, vmid):
+            return {"installed": True, "error": None}
+
+        def get_container_status(self, node, vmid):
+            return {}
+
+    monkeypatch.setattr(proxmox_helper, "ProxmoxClient", FakeClient)
+
+    result = proxmox_helper.get_proxmox_disk_data(
+        "10.0.0.2", "root@pam!token=secret"
+    )
+
+    vm = result["nodes"][0]["vms"][0]
+    assert vm["qemu_guest_agent_warning_inferred"] is True
+    assert vm["qemu_guest_agent_installed"] is False

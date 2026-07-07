@@ -186,6 +186,12 @@ def get_proxmox_disk_data(host_ip: str, api_key: str) -> Dict:
             token_secret=token_secret
         )
 
+        def _to_int(value):
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return 0
+
         result = {
             "host": host_ip,
             "nodes": [],
@@ -228,16 +234,27 @@ def get_proxmox_disk_data(host_ip: str, api_key: str) -> Dict:
                 vmid = vm.get("vmid")
                 vm_status = client.get_vm_status(node_name, str(vmid))
                 agent_status = client.get_vm_agent_status(node_name, str(vmid))
+                maxdisk = vm.get("maxdisk")
+                disk = vm_status.get("disk") if vm_status else None
+                is_running = str(vm.get("status") or "").lower() == "running"
+                qemu_warning_inferred = (
+                    is_running
+                    and _to_int(maxdisk) > 0
+                    and _to_int(disk) == 0
+                )
                 vm_info = {
                     "id": vmid,
                     "name": vm.get("name"),
                     "status": vm.get("status"),
-                    "maxdisk": vm.get("maxdisk"),
-                    "disk": vm_status.get("disk") if vm_status else None,
+                    "maxdisk": maxdisk,
+                    "disk": disk,
                     "maxmem": vm.get("maxmem"),
                     "mem": vm_status.get("mem") if vm_status else None,
-                    "qemu_guest_agent_installed": agent_status.get("installed", False),
+                    "qemu_guest_agent_installed": (
+                        agent_status.get("installed", False) and not qemu_warning_inferred
+                    ),
                     "qemu_guest_agent_error": agent_status.get("error"),
+                    "qemu_guest_agent_warning_inferred": qemu_warning_inferred,
                 }
                 node_info["vms"].append(vm_info)
 
