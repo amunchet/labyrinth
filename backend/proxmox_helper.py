@@ -104,6 +104,38 @@ class ProxmoxClient:
             print(f"Error getting VM status for {node}/{vmid}: {e}")
             return None
 
+    def get_vm_agent_status(self, node: str, vmid: str) -> Dict:
+        """Determine whether the QEMU guest agent is available for a VM."""
+        try:
+            response = self.session.get(
+                f"{self.base_url}/nodes/{node}/qemu/{vmid}/agent/info",
+                timeout=10,
+            )
+            response.raise_for_status()
+            return {"installed": True, "error": None}
+        except requests.HTTPError as error:
+            response = getattr(error, "response", None)
+            message = None
+
+            if response is not None:
+                try:
+                    payload = response.json()
+                    message = payload.get("errors") or payload.get("message") or payload.get("data")
+                    if isinstance(message, dict):
+                        message = json.dumps(message)
+                except Exception:
+                    message = response.text
+
+            return {
+                "installed": False,
+                "error": message or str(error),
+            }
+        except Exception as error:
+            return {
+                "installed": False,
+                "error": str(error),
+            }
+
     def get_container_status(self, node: str, vmid: str) -> Optional[Dict]:
         """Get detailed status for a container including disk usage"""
         try:
@@ -195,6 +227,7 @@ def get_proxmox_disk_data(host_ip: str, api_key: str) -> Dict:
             for vm in vms:
                 vmid = vm.get("vmid")
                 vm_status = client.get_vm_status(node_name, str(vmid))
+                agent_status = client.get_vm_agent_status(node_name, str(vmid))
                 vm_info = {
                     "id": vmid,
                     "name": vm.get("name"),
@@ -202,7 +235,9 @@ def get_proxmox_disk_data(host_ip: str, api_key: str) -> Dict:
                     "maxdisk": vm.get("maxdisk"),
                     "disk": vm_status.get("disk") if vm_status else None,
                     "maxmem": vm.get("maxmem"),
-                    "mem": vm_status.get("mem") if vm_status else None
+                    "mem": vm_status.get("mem") if vm_status else None,
+                    "qemu_guest_agent_installed": agent_status.get("installed", False),
+                    "qemu_guest_agent_error": agent_status.get("error"),
                 }
                 node_info["vms"].append(vm_info)
 

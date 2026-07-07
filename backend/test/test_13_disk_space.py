@@ -3,6 +3,7 @@
 import json
 
 import pytest
+import proxmox_helper
 import serve
 
 from common.test import unwrap
@@ -235,3 +236,42 @@ def test_disk_space_settings_and_api_key_management(setup):
     )
     host_doc = serve.mongo_client["labyrinth"]["hosts"].find_one({"mac": "AA-BB-CC-DD-EE"})
     assert "proxmox_api_key" not in host_doc
+
+
+def test_get_proxmox_disk_data_marks_missing_qemu_guest_agent(monkeypatch):
+    """Annotates VM records when the QEMU guest agent is unavailable."""
+
+    class FakeClient:
+        def __init__(self, host, user, token_id, token_secret, verify_ssl=False):
+            pass
+
+        def get_nodes(self):
+            return [{"node": "pve-1", "status": "online"}]
+
+        def get_storage(self, node):
+            return []
+
+        def get_vms_and_containers(self, node):
+            return (
+                [{"vmid": 101, "name": "vm-101", "status": "running", "maxdisk": 100, "maxmem": 200}],
+                [],
+            )
+
+        def get_vm_status(self, node, vmid):
+            return {"disk": 25, "mem": 50}
+
+        def get_vm_agent_status(self, node, vmid):
+            return {"installed": False, "error": "QEMU guest agent is not running"}
+
+        def get_container_status(self, node, vmid):
+            return {}
+
+    monkeypatch.setattr(proxmox_helper, "ProxmoxClient", FakeClient)
+
+    result = proxmox_helper.get_proxmox_disk_data(
+        "10.0.0.1", "root@pam!token=secret"
+    )
+
+    vm = result["nodes"][0]["vms"][0]
+    assert vm["qemu_guest_agent_installed"] is False
+    assert "QEMU guest agent" in vm["qemu_guest_agent_error"]

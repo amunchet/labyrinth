@@ -5,6 +5,10 @@
       <span class="text-muted id-inline">({{ item.id }})</span>
     </div>
 
+    <small v-if="showQemuWarning" class="text-danger d-block mb-1 qemu-warning">
+      QEMU guest agent not installed or unavailable
+    </small>
+
     <div v-if="hasDiskInfo" class="metric-line mb-1">
       <small class="text-muted d-block">Disk {{ diskUsagePercentage.toFixed(0) }}%</small>
       <b-progress
@@ -73,6 +77,9 @@ export default {
       if (this.memUsagePercentage >= 75) return "warning";
       return "success";
     },
+    showQemuWarning() {
+      return this.type === "vm" && this.item.qemu_guest_agent_installed === false;
+    },
   },
   methods: {
     formatBytes(bytes) {
@@ -102,6 +109,11 @@ export default {
   }
 
   .metric-line {
+    line-height: 1.05;
+  }
+
+  .qemu-warning {
+    font-size: 0.7rem;
     line-height: 1.05;
   }
 }
