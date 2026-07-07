@@ -354,9 +354,9 @@ export default {
         const formData = new FormData();
         formData.append("api_key", this.globalApiKey);
         await Helper.apiPost(
-          "disk-space/settings/proxmox-api-key",
+          "disk-space/settings",
           "",
-          "",
+          "proxmox-api-key",
           auth,
           formData
         );
