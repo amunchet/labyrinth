@@ -24,6 +24,10 @@
             <b-nav-item href="/checks">
               <router-link to="/checks">Checks</router-link>
             </b-nav-item>
+
+            <b-nav-item href="/disk-space">
+              <router-link to="/disk-space">Disk Space</router-link>
+            </b-nav-item>
           </b-navbar-nav>
 
           <!-- Right aligned nav items -->
@@ -36,9 +40,6 @@
               </b-nav-item>
               <b-nav-item href="/services">
                 <router-link to="/services">Scan Metrics</router-link>
-              </b-nav-item>
-              <b-nav-item href="/disk-space">
-                <router-link to="/disk-space">Disk Space</router-link>
               </b-nav-item>
               <b-nav-item href="/deploy">
                 <router-link to="/deploy">Deploy</router-link>
