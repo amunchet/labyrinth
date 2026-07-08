@@ -8,6 +8,7 @@ import requests
 import json
 import ssl
 from typing import Dict, List, Optional, Tuple
+import redis
 
 # Suppress SSL warnings for self-signed certificates
 try:
@@ -15,6 +16,155 @@ try:
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 except ImportError:
     pass
+
+
+PROXMOX_CACHE_PREFIX = "proxmox-disk"
+PROXMOX_CACHE_TTL_SECONDS = int(os.environ.get("PROXMOX_CACHE_TTL_SECONDS", "90"))
+
+
+def get_redis_client():
+    """Return the shared Redis client used for cached Proxmox payloads."""
+    return redis.Redis(host=(os.environ.get("REDIS_HOST") or "redis"))
+
+
+def get_proxmox_cache_key(cluster_or_identifier) -> str:
+    """Build the Redis cache key for a Proxmox cluster."""
+    identifier = cluster_or_identifier
+
+    if isinstance(cluster_or_identifier, dict):
+        identifier = (
+            cluster_or_identifier.get("_id")
+            or cluster_or_identifier.get("name")
+            or cluster_or_identifier.get("host")
+        )
+
+    if identifier is None:
+        raise ValueError("Proxmox cluster identifier is required for cache key generation")
+
+    return f"{PROXMOX_CACHE_PREFIX}:{identifier}"
+
+
+def _to_int(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def enrich_qemu_flags(payload: Dict) -> Dict:
+    """Ensure QEMU warning flags are present on VM payloads."""
+    for node in payload.get("nodes", []):
+        for vm in node.get("vms", []):
+            is_running = str(vm.get("status") or "").lower() == "running"
+            inferred_warning = vm.get("qemu_guest_agent_warning_inferred")
+
+            if inferred_warning is None:
+                inferred_warning = (
+                    is_running
+                    and _to_int(vm.get("maxdisk")) > 0
+                    and _to_int(vm.get("disk")) == 0
+                )
+                vm["qemu_guest_agent_warning_inferred"] = inferred_warning
+
+            if "qemu_guest_agent_installed" not in vm:
+                vm["qemu_guest_agent_installed"] = not inferred_warning
+
+            if inferred_warning and not vm.get("qemu_guest_agent_error"):
+                vm["qemu_guest_agent_error"] = (
+                    "Guest disk reported as zero for a running VM; "
+                    "QEMU guest agent may not be installed or available"
+                )
+
+    return payload
+
+
+def format_proxmox_cluster_payload(cluster: Dict, data: Optional[Dict]) -> Dict:
+    """Normalize cluster payload shape and attach cluster metadata."""
+    payload = dict(data or {})
+    payload = enrich_qemu_flags(payload)
+    payload["cluster_name"] = cluster.get("name")
+    payload["host"] = cluster.get("host")
+
+    if cluster.get("_id") is not None:
+        payload["_id"] = str(cluster.get("_id"))
+
+    return payload
+
+
+def get_cached_proxmox_disk_data(cluster: Dict, redis_client=None) -> Optional[Dict]:
+    """Read cached Proxmox payload for a cluster from Redis."""
+    redis_client = redis_client or get_redis_client()
+
+    try:
+        cached = redis_client.get(get_proxmox_cache_key(cluster))
+    except Exception:
+        return None
+
+    if not cached:
+        return None
+
+    if isinstance(cached, bytes):
+        cached = cached.decode("utf-8")
+
+    try:
+        payload = json.loads(cached)
+    except Exception:
+        return None
+
+    return format_proxmox_cluster_payload(cluster, payload)
+
+
+def set_cached_proxmox_disk_data(cluster: Dict, payload: Dict, redis_client=None) -> Dict:
+    """Store Proxmox payload for a cluster in Redis with TTL."""
+    redis_client = redis_client or get_redis_client()
+    normalized_payload = format_proxmox_cluster_payload(cluster, payload)
+
+    try:
+        redis_client.setex(
+            get_proxmox_cache_key(cluster),
+            PROXMOX_CACHE_TTL_SECONDS,
+            json.dumps(normalized_payload, default=str),
+        )
+    except Exception:
+        pass
+
+    return normalized_payload
+
+
+def delete_cached_proxmox_disk_data(cluster_or_identifier, redis_client=None) -> None:
+    """Delete cached Proxmox payload for a cluster."""
+    redis_client = redis_client or get_redis_client()
+
+    try:
+        redis_client.delete(get_proxmox_cache_key(cluster_or_identifier))
+    except Exception:
+        pass
+
+
+def fetch_and_cache_proxmox_disk_data(cluster: Dict, redis_client=None) -> Dict:
+    """Fetch live Proxmox data for a cluster and cache the normalized payload."""
+    payload = get_proxmox_disk_data(cluster.get("host"), cluster)
+    return set_cached_proxmox_disk_data(cluster, payload, redis_client=redis_client)
+
+
+def get_proxmox_disk_data_cached(cluster: Dict, redis_client=None) -> Dict:
+    """Return cached Proxmox data when available, otherwise fetch live data."""
+    cached_payload = get_cached_proxmox_disk_data(cluster, redis_client=redis_client)
+    if cached_payload is not None:
+        return cached_payload
+
+    return fetch_and_cache_proxmox_disk_data(cluster, redis_client=redis_client)
+
+
+def refresh_proxmox_cluster_cache(clusters: List[Dict], redis_client=None) -> List[Dict]:
+    """Refresh Redis cache entries for all configured Proxmox clusters."""
+    redis_client = redis_client or get_redis_client()
+    results = []
+
+    for cluster in clusters or []:
+        results.append(fetch_and_cache_proxmox_disk_data(cluster, redis_client=redis_client))
+
+    return results
 
 
 class ProxmoxClient:

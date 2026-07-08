@@ -2018,42 +2018,18 @@ def get_proxmox_disk_space():
     Get disk space data from all configured Proxmox clusters
     """
     try:
-        def to_int(value):
-            try:
-                return int(value)
-            except (TypeError, ValueError):
-                return 0
-
-        def enrich_qemu_flags(payload):
-            # This function is now primarily for adding error messages when needed.
-            # The qemu_guest_agent_installed and qemu_guest_agent_warning_inferred
-            # flags are already set correctly by proxmox_helper.py.
-            for node in payload.get("nodes", []):
-                for vm in node.get("vms", []):
-                    # Only add error message if there's an inferred warning and no error yet
-                    if vm.get("qemu_guest_agent_warning_inferred") and not vm.get("qemu_guest_agent_error"):
-                        vm["qemu_guest_agent_error"] = (
-                            "Guest disk reported as zero for a running VM; "
-                            "QEMU guest agent may not be installed or available"
-                        )
-
-            return payload
-
         clusters = list(mongo_client["labyrinth"]["proxmox_clusters"].find({}))
+        redis_client = proxmox_helper.get_redis_client()
 
         result = {
             "proxmox_hosts": []
         }
 
         for cluster in clusters:
-            cluster_host = cluster.get("host")
-            cluster_name = cluster.get("name")
-
-            data = proxmox_helper.get_proxmox_disk_data(cluster_host, cluster)
-            data = enrich_qemu_flags(data)
-            data["cluster_name"] = cluster_name
-            data["host"] = cluster_host
-            data["_id"] = str(cluster.get("_id"))
+            data = proxmox_helper.get_proxmox_disk_data_cached(
+                cluster,
+                redis_client=redis_client,
+            )
             result["proxmox_hosts"].append(data)
 
         return json.dumps(result, default=str), 200
@@ -2258,8 +2234,10 @@ def create_proxmox_cluster():
         }
 
         result = mongo_client["labyrinth"]["proxmox_clusters"].insert_one(cluster_doc)
-        cluster_doc["_id"] = str(cluster_doc["_id"])
+        cluster_doc["_id"] = str(result.inserted_id)
         cluster_doc.pop("token_secret", None)
+
+        proxmox_helper.delete_cached_proxmox_disk_data(str(result.inserted_id))
 
         return json.dumps({"id": str(result.inserted_id), "cluster": cluster_doc}), 201
     except Exception as e:
@@ -2315,6 +2293,7 @@ def update_proxmox_cluster(cluster_id):
                 {"_id": bson.ObjectId(cluster_id)},
                 {"$set": update_doc}
             )
+            proxmox_helper.delete_cached_proxmox_disk_data(cluster_id)
 
         updated_cluster = mongo_client["labyrinth"]["proxmox_clusters"].find_one(
             {"_id": bson.ObjectId(cluster_id)}
@@ -2332,6 +2311,7 @@ def delete_proxmox_cluster(cluster_id):
     Delete a Proxmox cluster configuration
     """
     try:
+        proxmox_helper.delete_cached_proxmox_disk_data(cluster_id)
         result = mongo_client["labyrinth"]["proxmox_clusters"].delete_one(
             {"_id": bson.ObjectId(cluster_id)}
         )
