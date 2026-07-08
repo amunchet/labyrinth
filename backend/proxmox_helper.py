@@ -136,6 +136,19 @@ class ProxmoxClient:
                 "error": str(error),
             }
 
+    def get_vm_guest_fsinfo(self, node: str, vmid: str) -> Optional[Dict]:
+        """Get filesystem information from QEMU guest agent (only works if agent is installed and running)"""
+        try:
+            response = self.session.get(
+                f"{self.base_url}/nodes/{node}/qemu/{vmid}/agent/get-fsinfo",
+                timeout=10,
+            )
+            response.raise_for_status()
+            return response.json().get("data", {})
+        except Exception:
+            # If this fails, guest agent may not have filesystem info available
+            return None
+
     def get_container_status(self, node: str, vmid: str) -> Optional[Dict]:
         """Get detailed status for a container including disk usage"""
         try:
@@ -245,6 +258,19 @@ def get_proxmox_disk_data(host_ip: str, cluster_config: Dict) -> Dict:
                 # If agent/info call succeeds, it's installed
                 qemu_truly_installed = agent_status.get("installed", False)
                 
+                # If agent is installed and running VM has zero disk reported, try to get real disk info from guest
+                guest_disk_info = None
+                if qemu_truly_installed and is_running and _to_int(disk) == 0:
+                    guest_disk_info = client.get_vm_guest_fsinfo(node_name, str(vmid))
+                    # Extract root filesystem info if available
+                    if guest_disk_info:
+                        fsinfo = guest_disk_info.get("filesystems", [])
+                        for fs in fsinfo:
+                            if fs.get("mountpoint") == "/":
+                                disk = fs.get("used-bytes")
+                                maxdisk = fs.get("total-bytes")
+                                break
+                
                 # Check if disk is reported as zero for a running VM (agent may exist but disk metrics unavailable)
                 qemu_warning_inferred = (
                     is_running
@@ -264,6 +290,9 @@ def get_proxmox_disk_data(host_ip: str, cluster_config: Dict) -> Dict:
                     "qemu_guest_agent_error": agent_status.get("error"),
                     "qemu_guest_agent_warning_inferred": qemu_warning_inferred,
                 }
+                # Include raw guest info for debugging if available
+                if guest_disk_info:
+                    vm_info["_debug_guest_fsinfo"] = guest_disk_info
                 node_info["vms"].append(vm_info)
 
             for container in containers:
