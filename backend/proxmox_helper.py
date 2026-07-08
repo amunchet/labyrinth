@@ -240,11 +240,18 @@ def get_proxmox_disk_data(host_ip: str, cluster_config: Dict) -> Dict:
                 maxdisk = vm.get("maxdisk")
                 disk = vm_status.get("disk") if vm_status else None
                 is_running = str(vm.get("status") or "").lower() == "running"
+                
+                # Determine if QEMU guest agent is truly installed
+                # If agent/info call succeeds, it's installed
+                qemu_truly_installed = agent_status.get("installed", False)
+                
+                # Check if disk is reported as zero for a running VM (agent may exist but disk metrics unavailable)
                 qemu_warning_inferred = (
                     is_running
                     and _to_int(maxdisk) > 0
                     and _to_int(disk) == 0
                 )
+                
                 vm_info = {
                     "id": vmid,
                     "name": vm.get("name"),
@@ -253,9 +260,7 @@ def get_proxmox_disk_data(host_ip: str, cluster_config: Dict) -> Dict:
                     "disk": disk,
                     "maxmem": vm.get("maxmem"),
                     "mem": vm_status.get("mem") if vm_status else None,
-                    "qemu_guest_agent_installed": (
-                        agent_status.get("installed", False) and not qemu_warning_inferred
-                    ),
+                    "qemu_guest_agent_installed": qemu_truly_installed,
                     "qemu_guest_agent_error": agent_status.get("error"),
                     "qemu_guest_agent_warning_inferred": qemu_warning_inferred,
                 }

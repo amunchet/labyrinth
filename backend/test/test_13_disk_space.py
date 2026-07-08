@@ -405,4 +405,4 @@ def test_get_proxmox_disk_data_infers_missing_qemu_from_zero_disk(monkeypatch):
 
     vm = result["nodes"][0]["vms"][0]
     assert vm["qemu_guest_agent_warning_inferred"] is True
-    assert vm["qemu_guest_agent_installed"] is False
+    assert vm["qemu_guest_agent_installed"] is True
