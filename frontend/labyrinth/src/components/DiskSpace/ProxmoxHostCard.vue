@@ -23,7 +23,7 @@
     <!-- Expandable Content -->
     <b-collapse v-model="collapsed" class="mt-2">
       <div v-if="host.nodes && host.nodes.length > 0" class="mb-2">
-        <div v-for="node in host.nodes" :key="node.name" class="node-storage mb-3">
+        <div v-for="node in sortedNodes" :key="node.name" class="node-storage mb-3">
           <h6 class="text-secondary mb-2">{{ node.name }}</h6>
 
           <b-row class="node-layout">
@@ -147,6 +147,12 @@ export default {
     },
   },
   computed: {
+    sortedNodes() {
+      const nodes = (this.host && this.host.nodes) || [];
+      return [...nodes].sort((a, b) =>
+        ((a && a.name) || "").toString().localeCompare(((b && b.name) || "").toString())
+      );
+    },
     hasVMs() {
       return (
         this.host.nodes &&
