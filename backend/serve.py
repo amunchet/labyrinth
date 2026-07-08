@@ -2025,28 +2025,17 @@ def get_proxmox_disk_space():
                 return 0
 
         def enrich_qemu_flags(payload):
+            # This function is now primarily for adding error messages when needed.
+            # The qemu_guest_agent_installed and qemu_guest_agent_warning_inferred
+            # flags are already set correctly by proxmox_helper.py.
             for node in payload.get("nodes", []):
                 for vm in node.get("vms", []):
-                    is_running = str(vm.get("status") or "").lower() == "running"
-                    inferred_warning = (
-                        is_running
-                        and to_int(vm.get("maxdisk")) > 0
-                        and to_int(vm.get("disk")) == 0
-                    )
-
-                    if "qemu_guest_agent_warning_inferred" not in vm:
-                        vm["qemu_guest_agent_warning_inferred"] = inferred_warning
-
-                    if "qemu_guest_agent_installed" not in vm:
-                        vm["qemu_guest_agent_installed"] = not inferred_warning
-
-                    if inferred_warning:
-                        vm["qemu_guest_agent_installed"] = False
-                        if not vm.get("qemu_guest_agent_error"):
-                            vm["qemu_guest_agent_error"] = (
-                                "Guest disk reported as zero for a running VM; "
-                                "QEMU guest agent may not be installed or available"
-                            )
+                    # Only add error message if there's an inferred warning and no error yet
+                    if vm.get("qemu_guest_agent_warning_inferred") and not vm.get("qemu_guest_agent_error"):
+                        vm["qemu_guest_agent_error"] = (
+                            "Guest disk reported as zero for a running VM; "
+                            "QEMU guest agent may not be installed or available"
+                        )
 
             return payload
 
