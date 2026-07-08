@@ -31,6 +31,57 @@
             </b-form>
           </b-card>
 
+          <!-- Disk Space Alert Notifications -->
+          <b-card class="mb-4 text-left text-start">
+            <b-card-title>Disk Space Alerts</b-card-title>
+            <b-card-sub-title>
+              Email notifications when a datastore, VM, or container disk
+              usage reaches the threshold below
+            </b-card-sub-title>
+
+            <b-form @submit.prevent="saveAlertSettings">
+              <b-form-group
+                label="Alert threshold (%):"
+                label-for="alert-threshold"
+                description="Send an email when disk usage reaches this percentage"
+              >
+                <b-form-input
+                  id="alert-threshold"
+                  v-model.number="alertThreshold"
+                  type="number"
+                  min="1"
+                  max="100"
+                ></b-form-input>
+              </b-form-group>
+
+              <b-form-group
+                label="Recipient email(s):"
+                label-for="alert-recipients"
+                description="Comma-separated list of email addresses to notify"
+              >
+                <b-form-textarea
+                  id="alert-recipients"
+                  v-model="alertRecipientsText"
+                  rows="2"
+                  placeholder="admin@example.com, ops@example.com"
+                ></b-form-textarea>
+              </b-form-group>
+
+              <b-button
+                variant="primary"
+                type="submit"
+                :disabled="savingAlertSettings"
+              >
+                <b-spinner
+                  small
+                  v-if="savingAlertSettings"
+                  class="mr-2"
+                ></b-spinner>
+                Save Alert Settings
+              </b-button>
+            </b-form>
+          </b-card>
+
           <!-- Add / Edit Cluster -->
           <b-card class="mb-4 text-left text-start">
             <b-card-title>
@@ -341,6 +392,9 @@ export default {
       addingCluster: false,
       deletingCluster: null,
       savingTag: false,
+      alertThreshold: 80,
+      alertRecipientsText: "",
+      savingAlertSettings: false,
         availableHosts: [],
         hostSearch: "",
         selectedHostId: "",
@@ -414,6 +468,15 @@ export default {
 
         this.proxmoxTag = data.proxmox_tag || "Proxmox";
         this.clusters = data.clusters || [];
+        this.alertThreshold =
+          data.disk_space_alert_threshold != null
+            ? data.disk_space_alert_threshold
+            : 80;
+        this.alertRecipientsText = Array.isArray(
+          data.disk_space_alert_recipients
+        )
+          ? data.disk_space_alert_recipients.join(", ")
+          : "";
 
         let hostsResponse = await Helper.apiCall("hosts", "disk-check", auth);
         let hostsData = this.parseMaybeJSON(hostsResponse);
@@ -460,6 +523,35 @@ export default {
         this.errorMessage = err.message;
       } finally {
         this.savingTag = false;
+      }
+    },
+
+    async saveAlertSettings() {
+      const threshold = Number(this.alertThreshold);
+      if (Number.isNaN(threshold) || threshold < 1 || threshold > 100) {
+        this.errorMessage = "Threshold must be a number between 1 and 100";
+        return;
+      }
+
+      this.savingAlertSettings = true;
+      try {
+        const auth = this.$auth;
+
+        const thresholdData = new FormData();
+        thresholdData.append("name", "disk_space_alert_threshold");
+        thresholdData.append("value", threshold);
+        await Helper.apiPost("settings", "", "", auth, thresholdData);
+
+        const recipientsData = new FormData();
+        recipientsData.append("name", "disk_space_alert_recipients");
+        recipientsData.append("value", this.alertRecipientsText);
+        await Helper.apiPost("settings", "", "", auth, recipientsData);
+
+        this.successMessage = "Disk space alert settings saved successfully!";
+      } catch (err) {
+        this.errorMessage = err.message;
+      } finally {
+        this.savingAlertSettings = false;
       }
     },
 

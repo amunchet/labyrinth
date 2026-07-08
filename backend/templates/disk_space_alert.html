@@ -1,0 +1,110 @@
+<html>
+<head>
+    <style>
+        body { font-family: Arial, sans-serif; color: #333; }
+        .header { background-color: #d9534f; color: white; padding: 20px; border-radius: 5px; }
+        .summary { margin: 20px 0; }
+        .issue-group { margin: 20px 0; }
+        .issue-group h3 { color: #d9534f; border-bottom: 2px solid #d9534f; padding-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: #f5f5f5; font-weight: bold; }
+        .percentage-high { color: #d9534f; font-weight: bold; }
+        .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>⚠️ Proxmox Disk Space Alert</h1>
+    </div>
+    
+    <div class="summary">
+        <p><strong>Alert Threshold:</strong> {{ threshold_percent }}%</p>
+        <p><strong>Issues Found:</strong> {{ issues|length }}</p>
+        <p><strong>Generated:</strong> {{ timestamp }}</p>
+    </div>
+    
+    {% if datastores %}
+    <div class="issue-group">
+        <h3>📦 Datastores</h3>
+        <table>
+            <tr>
+                <th>Cluster</th>
+                <th>Node</th>
+                <th>Datastore</th>
+                <th>Type</th>
+                <th>Used / Total</th>
+                <th>Usage %</th>
+            </tr>
+            {% for ds in datastores %}
+            <tr>
+                <td>{{ ds.cluster }}</td>
+                <td>{{ ds.node }}</td>
+                <td>{{ ds.name }}</td>
+                <td>{{ ds.storage_type }}</td>
+                <td>{{ ds.used|format_size }} / {{ ds.total|format_size }}</td>
+                <td class="percentage-high">{{ ds.percentage }}%</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% endif %}
+    
+    {% if vms %}
+    <div class="issue-group">
+        <h3>💾 Virtual Machines</h3>
+        <table>
+            <tr>
+                <th>Cluster</th>
+                <th>Node</th>
+                <th>VM Name</th>
+                <th>Status</th>
+                <th>Disk Used / Max</th>
+                <th>Usage %</th>
+            </tr>
+            {% for vm in vms %}
+            <tr>
+                <td>{{ vm.cluster }}</td>
+                <td>{{ vm.node }}</td>
+                <td>{{ vm.name }} (ID: {{ vm.vm_id }})</td>
+                <td>{{ vm.status }}</td>
+                <td>{{ vm.used|format_size }} / {{ vm.total|format_size }}</td>
+                <td class="percentage-high">{{ vm.percentage }}%</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% endif %}
+    
+    {% if containers %}
+    <div class="issue-group">
+        <h3>📁 Containers (LXC)</h3>
+        <table>
+            <tr>
+                <th>Cluster</th>
+                <th>Node</th>
+                <th>Container Name</th>
+                <th>Status</th>
+                <th>Disk Used / Max</th>
+                <th>Usage %</th>
+            </tr>
+            {% for ct in containers %}
+            <tr>
+                <td>{{ ct.cluster }}</td>
+                <td>{{ ct.node }}</td>
+                <td>{{ ct.name }} (ID: {{ ct.container_id }})</td>
+                <td>{{ ct.status }}</td>
+                <td>{{ ct.used|format_size }} / {{ ct.total|format_size }}</td>
+                <td class="percentage-high">{{ ct.percentage }}%</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% endif %}
+    
+    <div class="footer">
+        <p>This is an automated alert from Labyrinth Proxmox Monitoring.</p>
+        <p>Please review disk usage and take appropriate action to free up space if needed.</p>
+    </div>
+</body>
+</html>

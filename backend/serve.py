@@ -2136,14 +2136,37 @@ def delete_manual_disk_host(host_id):
 @requires_auth_read
 def get_disk_space_settings():
     """
-    Get disk space monitoring settings (clusters, tags)
+    Get disk space monitoring settings (clusters, tags, alert threshold/recipients)
     """
     try:
         tag_setting = mongo_client["labyrinth"]["settings"].find_one(
             {"name": "proxmox_tag"}
         )
+        threshold_setting = mongo_client["labyrinth"]["settings"].find_one(
+            {"name": "disk_space_alert_threshold"}
+        )
+        recipients_setting = mongo_client["labyrinth"]["settings"].find_one(
+            {"name": "disk_space_alert_recipients"}
+        )
+
+        raw_recipients = recipients_setting.get("value") if recipients_setting else ""
+        if isinstance(raw_recipients, str):
+            recipients_list = [r.strip() for r in raw_recipients.split(",") if r.strip()]
+        elif isinstance(raw_recipients, list):
+            recipients_list = raw_recipients
+        else:
+            recipients_list = []
+
+        threshold_value = threshold_setting.get("value") if threshold_setting else None
+        try:
+            threshold_percent = int(threshold_value) if threshold_value not in (None, "") else 80
+        except (TypeError, ValueError):
+            threshold_percent = 80
+
         result = {
             "proxmox_tag": tag_setting.get("value") if tag_setting else "Proxmox",
+            "disk_space_alert_threshold": threshold_percent,
+            "disk_space_alert_recipients": recipients_list,
             "clusters": [],
             "unconfigured_proxmox_hosts": []
         }
