@@ -343,6 +343,9 @@ def test_get_proxmox_disk_data_marks_missing_qemu_guest_agent(monkeypatch):
         def get_vm_agent_status(self, node, vmid):
             return {"installed": False, "error": "QEMU guest agent is not running"}
 
+        def get_vm_guest_fsinfo(self, node, vmid):
+            return None
+
         def get_container_status(self, node, vmid):
             return {}
 
@@ -388,6 +391,9 @@ def test_get_proxmox_disk_data_infers_missing_qemu_from_zero_disk(monkeypatch):
         def get_vm_agent_status(self, node, vmid):
             return {"installed": True, "error": None}
 
+        def get_vm_guest_fsinfo(self, node, vmid):
+            return None
+
         def get_container_status(self, node, vmid):
             return {}
 
@@ -406,3 +412,74 @@ def test_get_proxmox_disk_data_infers_missing_qemu_from_zero_disk(monkeypatch):
     vm = result["nodes"][0]["vms"][0]
     assert vm["qemu_guest_agent_warning_inferred"] is True
     assert vm["qemu_guest_agent_installed"] is True
+
+def test_get_proxmox_disk_data_uses_guest_fsinfo_when_available(monkeypatch):
+    """Uses guest filesystem info from QEMU agent when disk is reported as zero."""
+
+    class FakeClient:
+        def __init__(self, host, user, token_id, token_secret, verify_ssl=False):
+            pass
+
+        def get_nodes(self):
+            return [{"node": "pve-1", "status": "online"}]
+
+        def get_storage(self, node):
+            return []
+
+        def get_vms_and_containers(self, node):
+            return (
+                [{"vmid": 103, "name": "labyrinth", "status": "running", "maxdisk": 268435456000, "maxmem": 13509853184}],
+                [],
+            )
+
+        def get_vm_status(self, node, vmid):
+            return {"disk": 0, "mem": 3662069760}
+
+        def get_vm_agent_status(self, node, vmid):
+            return {"installed": True, "error": None}
+
+        def get_vm_guest_fsinfo(self, node, vmid):
+            # Return actual guest filesystem info with root mount
+            return {
+                "result": [
+                    {
+                        "mountpoint": "/boot",
+                        "total-bytes": 950239232,
+                        "used-bytes": 227233792,
+                        "name": "sda2",
+                        "type": "ext4",
+                    },
+                    {
+                        "mountpoint": "/",
+                        "total-bytes": 250515095552,
+                        "used-bytes": 131229454336,
+                        "name": "dm-0",
+                        "type": "ext4",
+                    }
+                ]
+            }
+
+        def get_container_status(self, node, vmid):
+            return {}
+
+    monkeypatch.setattr(proxmox_helper, "ProxmoxClient", FakeClient)
+
+    result = proxmox_helper.get_proxmox_disk_data(
+        "10.0.0.3",
+        {
+            "user": "root@pam",
+            "token_id": "token",
+            "token_secret": "secret",
+            "verify_ssl": False,
+        }
+    )
+
+    vm = result["nodes"][0]["vms"][0]
+    # Should use the guest fsinfo values instead of zero
+    assert vm["disk"] == 131229454336
+    assert vm["maxdisk"] == 250515095552
+    # Warning should no longer be inferred since disk is non-zero now
+    assert vm["qemu_guest_agent_warning_inferred"] is False
+    assert vm["qemu_guest_agent_installed"] is True
+    # Debug info should be included
+    assert "_debug_guest_fsinfo" in vm

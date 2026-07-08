@@ -264,7 +264,7 @@ def get_proxmox_disk_data(host_ip: str, cluster_config: Dict) -> Dict:
                     guest_disk_info = client.get_vm_guest_fsinfo(node_name, str(vmid))
                     # Extract root filesystem info if available
                     if guest_disk_info:
-                        fsinfo = guest_disk_info.get("filesystems", [])
+                        fsinfo = guest_disk_info.get("result", [])
                         for fs in fsinfo:
                             if fs.get("mountpoint") == "/":
                                 disk = fs.get("used-bytes")
