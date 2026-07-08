@@ -222,13 +222,16 @@ def format_size(bytes_value: int) -> str:
     return f"{bytes_value:.2f} PB"
 
 
+# Register custom filters on the shared Jinja2 environment. This must happen
+# before any call to jinja_env.get_template(), since Jinja2 validates that
+# referenced filters exist at template *compile* time (not render time).
+jinja_env.filters['format_size'] = format_size
+
+
 def render_email_template(issues: List[Dict], threshold_percent: float) -> str:
     """Render Jinja2 email template with disk issues."""
     # Load template from file
     template = jinja_env.get_template('disk_space_alert.html')
-    
-    # Register custom filter for format_size
-    jinja_env.filters['format_size'] = format_size
     
     # Group issues by type
     datastores = [i for i in issues if i["type"] == "datastore"]
