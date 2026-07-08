@@ -109,7 +109,7 @@ export default {
     scheduleNextRefresh() {
       this.stopAutoRefresh();
       this.autoRefreshTimer = window.setTimeout(() => {
-        this.refreshData();
+        this.refreshDataSilent();
       }, 30000);
     },
 
@@ -143,6 +143,33 @@ export default {
       return [...(hosts || [])].sort((a, b) =>
         this.getHostName(a).localeCompare(this.getHostName(b))
       );
+    },
+
+    async refreshDataSilent() {
+      this.stopAutoRefresh();
+
+      if (this.loading) {
+        this.scheduleNextRefresh();
+        return;
+      }
+
+      try {
+        const auth = this.$auth;
+        // Fetch Proxmox data
+        const proxmoxResponse = await Helper.apiCall("disk-space", "proxmox", auth);
+        const proxmoxJson = this.parseMaybeJSON(proxmoxResponse);
+        this.proxmoxData = this.sortProxmoxHosts(proxmoxJson.proxmox_hosts || []);
+
+        // Fetch manual hosts data
+        const manualResponse = await Helper.apiCall("disk-space", "manual", auth);
+        const manualJson = this.parseMaybeJSON(manualResponse);
+        this.manualData = manualJson.manual_hosts || [];
+      } catch (err) {
+        // Silent refresh errors are logged but don't interrupt UX
+        console.warn("Silent refresh error:", err.message);
+      } finally {
+        this.scheduleNextRefresh();
+      }
     },
 
     async refreshData() {
