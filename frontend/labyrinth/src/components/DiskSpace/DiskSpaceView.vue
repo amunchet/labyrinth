@@ -90,12 +90,40 @@ export default {
       error: null,
       proxmoxData: [],
       manualData: [],
+      autoRefreshTimer: null,
     };
   },
   mounted() {
-    this.refreshData();
+    this.startAutoRefresh();
+  },
+  beforeDestroy() {
+    this.stopAutoRefresh();
+  },
+  activated() {
+    this.startAutoRefresh();
+  },
+  deactivated() {
+    this.stopAutoRefresh();
   },
   methods: {
+    scheduleNextRefresh() {
+      this.stopAutoRefresh();
+      this.autoRefreshTimer = window.setTimeout(() => {
+        this.refreshData();
+      }, 30000);
+    },
+
+    startAutoRefresh() {
+      this.refreshData();
+    },
+
+    stopAutoRefresh() {
+      if (this.autoRefreshTimer) {
+        window.clearTimeout(this.autoRefreshTimer);
+        this.autoRefreshTimer = null;
+      }
+    },
+
     parseMaybeJSON(payload) {
       if (typeof payload === "string") {
         try {
@@ -118,6 +146,13 @@ export default {
     },
 
     async refreshData() {
+      this.stopAutoRefresh();
+
+      if (this.loading) {
+        this.scheduleNextRefresh();
+        return;
+      }
+
       this.loading = true;
       this.error = null;
 
@@ -136,6 +171,7 @@ export default {
         this.error = err.message;
       } finally {
         this.loading = false;
+        this.scheduleNextRefresh();
       }
     },
 
