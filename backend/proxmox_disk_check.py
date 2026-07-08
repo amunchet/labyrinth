@@ -127,6 +127,28 @@ def collect_disk_issues(
         for vm in node.get("vms", []):
             maxdisk = vm.get("maxdisk")
             disk = vm.get("disk")
+
+            # A running VM with maxdisk but a zero/blank disk reading means
+            # the QEMU guest agent is missing, not running, or couldn't
+            # report filesystem info - so disk usage cannot be verified at
+            # all. Always surface this, regardless of threshold, since
+            # silently skipping these VMs (previous behavior) could make an
+            # entire cluster look "clean" when its VMs simply couldn't be
+            # measured.
+            if vm.get("qemu_guest_agent_warning_inferred"):
+                issues.append({
+                    "type": "vm_qemu_missing",
+                    "cluster": cluster_name,
+                    "host": host,
+                    "node": node_name,
+                    "name": vm.get("name"),
+                    "vm_id": vm.get("id"),
+                    "status": vm.get("status"),
+                    "maxdisk": maxdisk,
+                    "qemu_agent_installed": vm.get("qemu_guest_agent_installed"),
+                    "qemu_agent_error": vm.get("qemu_guest_agent_error"),
+                })
+                continue
             
             if maxdisk and disk:
                 percent = calculate_percentage(disk, maxdisk)
@@ -237,12 +259,14 @@ def render_email_template(issues: List[Dict], threshold_percent: float) -> str:
     datastores = [i for i in issues if i["type"] == "datastore"]
     vms = [i for i in issues if i["type"] == "vm"]
     containers = [i for i in issues if i["type"] == "container"]
+    qemu_missing = [i for i in issues if i["type"] == "vm_qemu_missing"]
     
     html = template.render(
         issues=issues,
         datastores=datastores,
         vms=vms,
         containers=containers,
+        qemu_missing=qemu_missing,
         threshold_percent=threshold_percent,
         timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC"),
     )
@@ -323,10 +347,15 @@ def send_full_test_email(
     subject = f"[TEST] Proxmox Disk Space Alert - {len(issues)} Issue(s) Found"
     send_alert_email(recipients, issues, threshold_percent, subject=subject)
 
+    issues_by_type = {}
+    for issue in issues:
+        issues_by_type[issue["type"]] = issues_by_type.get(issue["type"], 0) + 1
+
     return {
         "issues_found": len(issues),
         "threshold_percent": threshold_percent,
         "cluster_errors": cluster_errors,
+        "issues_by_type": issues_by_type,
     }
 
 

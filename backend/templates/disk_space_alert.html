@@ -76,6 +76,40 @@
     </div>
     {% endif %}
     
+    {% if qemu_missing %}
+    <div class="issue-group">
+        <h3>⚠️ VMs Missing QEMU Guest Agent (Disk Usage Unknown)</h3>
+        <p style="color: #666; font-size: 13px; margin-top: -5px;">
+            These running VMs report zero disk usage because the QEMU guest
+            agent is missing, not running, or not returning filesystem info.
+            Their actual disk usage cannot be verified and may be over the
+            threshold without being detected above.
+        </p>
+        <table>
+            <tr>
+                <th>Cluster</th>
+                <th>Node</th>
+                <th>VM Name</th>
+                <th>Status</th>
+                <th>Max Disk</th>
+                <th>Agent Installed</th>
+                <th>Details</th>
+            </tr>
+            {% for vm in qemu_missing %}
+            <tr>
+                <td>{{ vm.cluster }}</td>
+                <td>{{ vm.node }}</td>
+                <td>{{ vm.name }} (ID: {{ vm.vm_id }})</td>
+                <td>{{ vm.status }}</td>
+                <td>{{ vm.maxdisk|format_size }}</td>
+                <td class="percentage-high">{{ "Yes" if vm.qemu_agent_installed else "No" }}</td>
+                <td>{{ vm.qemu_agent_error or "Guest agent unavailable or not reporting filesystem info" }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% endif %}
+    
     {% if containers %}
     <div class="issue-group">
         <h3>📁 Containers (LXC)</h3>
