@@ -208,6 +208,30 @@ def test_list_hosts(setup):
     a = unwrap(serve.list_host)()
 
 
+def test_list_hosts_by_tag(setup):
+    """Lists hosts that match a tag or service."""
+    test_create_edit_host(setup)
+
+    # Match by tag
+    with serve.app.test_request_context("/hosts/disk-check", method="GET"):
+        tag_resp = unwrap(serve.list_hosts_by_tag)("disk-check")
+
+    assert tag_resp[1] == 200
+    tagged_hosts = json.loads(tag_resp[0])
+    assert isinstance(tagged_hosts, list)
+
+    # Match by service name when present
+    serve.mongo_client["labyrinth"]["hosts"].update_one(
+        {"ip": "192.168.10.176"}, {"$set": {"services": ["disk-check"]}}
+    )
+    with serve.app.test_request_context("/hosts/disk-check", method="GET"):
+        service_resp = unwrap(serve.list_hosts_by_tag)("disk-check")
+
+    assert service_resp[1] == 200
+    service_hosts = json.loads(service_resp[0])
+    assert any(host["ip"] == "192.168.10.176" for host in service_hosts)
+
+
 def test_create_edit_link(setup):
     """Creates/Edits a link between two subnets"""
     test_create_edit_subnet(setup)

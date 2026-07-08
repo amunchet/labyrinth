@@ -195,54 +195,52 @@
       <!-- Manual Hosts -->
       <b-tab title="Manual Hosts" lazy>
         <div class="mt-3">
-          <!-- Add New Host -->
+          <!-- Add Existing Host -->
           <b-card class="mb-4 text-left text-start">
-            <b-card-title>Add Manual Host</b-card-title>
+            <b-card-title>Add Existing Host</b-card-title>
             <b-card-sub-title>
-              Add AWS EC2, OPNsense, or other custom hosts for disk space monitoring
+              Pick an existing labyrinth host tagged or serviced as disk-check
             </b-card-sub-title>
 
-            <b-form @submit.prevent="addManualHost">
-              <b-form-group label="Host Name:" label-for="host-name">
+            <b-form @submit.prevent="addSelectedHost">
+              <b-form-group label="Search hosts:" label-for="host-search">
                 <b-form-input
-                  id="host-name"
-                  v-model="newHost.name"
-                  placeholder="e.g., my-ec2-instance"
-                  required
+                  id="host-search"
+                  v-model="hostSearch"
+                  placeholder="Filter by name, IP, tag, or service"
                 ></b-form-input>
               </b-form-group>
 
-              <b-form-group label="IP Address:" label-for="host-ip">
-                <b-form-input
-                  id="host-ip"
-                  v-model="newHost.ip"
-                  placeholder="e.g., 192.168.1.100"
-                  required
-                ></b-form-input>
-              </b-form-group>
-
-              <b-form-group label="Host Type:" label-for="host-type">
+              <b-form-group label="Available Hosts:" label-for="host-select">
                 <b-form-select
-                  id="host-type"
-                  v-model="newHost.type"
-                  :options="hostTypes"
+                  id="host-select"
+                  v-model="selectedHostId"
+                  :options="availableHostOptions"
+                  :disabled="availableHostOptions.length === 0"
                   required
                 ></b-form-select>
               </b-form-group>
 
+              <b-alert v-if="availableHostOptions.length === 0" variant="info" class="mb-3">
+                No disk-check hosts were found. Showing all hosts is not currently enabled for this environment.
+              </b-alert>
+
               <b-form-group
-                label="Description (optional):"
-                label-for="host-description"
+                v-if="selectedHost"
+                label="Selected Host Preview:"
+                label-for="host-preview"
               >
-                <b-form-textarea
-                  id="host-description"
-                  v-model="newHost.description"
-                  placeholder="Optional notes about this host"
-                  rows="3"
-                ></b-form-textarea>
+                <div id="host-preview" class="text-muted small">
+                  <div><strong>{{ selectedHostDisplayName }}</strong></div>
+                  <div>{{ selectedHost.ip || "N/A" }}</div>
+                  <div v-if="selectedHost.tags">Tags: {{ selectedHost.tags }}</div>
+                  <div v-if="selectedHost.services && selectedHost.services.length">
+                    Services: {{ selectedHost.services.join(", ") }}
+                  </div>
+                </div>
               </b-form-group>
 
-              <b-button variant="primary" type="submit" :disabled="addingHost">
+              <b-button variant="primary" type="submit" :disabled="addingHost || !selectedHostId">
                 <b-spinner small v-if="addingHost" class="mr-2"></b-spinner>
                 Add Host
               </b-button>
@@ -251,7 +249,7 @@
 
           <!-- Existing Manual Hosts -->
           <b-card v-if="manualHosts.length > 0" class="text-left text-start">
-            <b-card-title>Configured Hosts</b-card-title>
+            <b-card-title>Selected Hosts</b-card-title>
             <b-list-group>
               <b-list-group-item v-for="host in manualHosts" :key="host.id">
                 <b-row class="align-items-start">
@@ -343,21 +341,10 @@ export default {
       addingCluster: false,
       deletingCluster: null,
       savingTag: false,
+        availableHosts: [],
+        hostSearch: "",
+        selectedHostId: "",
       manualHosts: [],
-      newHost: {
-        name: "",
-        ip: "",
-        type: "generic",
-        description: "",
-      },
-      hostTypes: [
-        { value: "ec2", text: "AWS EC2" },
-        { value: "azure", text: "Azure VM" },
-        { value: "gcp", text: "Google Cloud" },
-        { value: "opnsense", text: "OPNsense" },
-        { value: "freebsd", text: "FreeBSD" },
-        { value: "generic", text: "Generic Linux/Unix" },
-      ],
       addingHost: false,
       successMessage: "",
       errorMessage: "",
@@ -365,6 +352,43 @@ export default {
   },
   mounted() {
     this.loadSettings();
+  },
+  computed: {
+    filteredAvailableHosts() {
+      const search = this.hostSearch.trim().toLowerCase();
+      if (!search) {
+        return this.availableHosts;
+      }
+
+      return this.availableHosts.filter((host) => {
+        const haystack = [
+          host._id,
+          host.host,
+          host.name,
+          host.ip,
+          host.mac,
+          host.tags,
+          Array.isArray(host.services) ? host.services.join(" ") : "",
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        return haystack.includes(search);
+      });
+    },
+    availableHostOptions() {
+      return this.filteredAvailableHosts.map((host) => ({
+        value: host._id,
+        text: this.hostDisplayName(host),
+      }));
+    },
+    selectedHost() {
+      return this.availableHosts.find((host) => host._id === this.selectedHostId);
+    },
+    selectedHostDisplayName() {
+      return this.selectedHost ? this.hostDisplayName(this.selectedHost) : "";
+    },
   },
   methods: {
     parseMaybeJSON(payload) {
@@ -390,6 +414,18 @@ export default {
 
         this.proxmoxTag = data.proxmox_tag || "Proxmox";
         this.clusters = data.clusters || [];
+
+        let hostsResponse = await Helper.apiCall("hosts", "disk-check", auth);
+        let hostsData = this.parseMaybeJSON(hostsResponse);
+        this.availableHosts = Array.isArray(hostsData) ? hostsData : [];
+
+        if (!this.availableHosts.length) {
+          hostsResponse = await Helper.apiCall("hosts", "", auth);
+          hostsData = this.parseMaybeJSON(hostsResponse);
+          this.availableHosts = Array.isArray(hostsData) ? hostsData : [];
+        }
+
+        this.selectedHostId = this.availableHostOptions.length > 0 ? this.availableHostOptions[0].value : "";
 
         // Load manual hosts
         const manualResponse = await Helper.apiCall(
@@ -425,6 +461,12 @@ export default {
       } finally {
         this.savingTag = false;
       }
+    },
+
+    hostDisplayName(host) {
+      const label = host.host || host.name || host.ip || host.mac || host._id || "Unknown host";
+      const ip = host.ip ? ` (${host.ip})` : "";
+      return `${label}${ip}`;
     },
 
     async submitClusterForm() {
@@ -544,9 +586,10 @@ export default {
       }
     },
 
-    async addManualHost() {
-      if (!this.newHost.name || !this.newHost.ip || !this.newHost.type) {
-        this.errorMessage = "Please fill in all required fields";
+    async addSelectedHost() {
+      const selectedHost = this.selectedHost;
+      if (!selectedHost) {
+        this.errorMessage = "Please select a host";
         return;
       }
 
@@ -554,19 +597,17 @@ export default {
       try {
         const auth = this.$auth;
         const formData = new FormData();
-        formData.append("name", this.newHost.name);
-        formData.append("ip", this.newHost.ip);
-        formData.append("type", this.newHost.type);
-        formData.append("description", this.newHost.description || "");
+        formData.append("name", selectedHost.host || selectedHost.name || selectedHost.ip);
+        formData.append("ip", selectedHost.ip || "");
+        formData.append("type", "disk-check");
+        formData.append(
+          "description",
+          `Selected from existing host${selectedHost.tags ? ` | Tags: ${selectedHost.tags}` : ""}`
+        );
         await Helper.apiPost("disk-space", "manual", "", auth, formData);
 
         this.successMessage = "Manual host added successfully!";
-        this.newHost = {
-          name: "",
-          ip: "",
-          type: "generic",
-          description: "",
-        };
+        this.selectedHostId = this.availableHostOptions.length > 0 ? this.availableHostOptions[0].value : "";
         await this.loadSettings();
       } catch (err) {
         this.errorMessage = err.message;

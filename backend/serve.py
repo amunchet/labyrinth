@@ -379,6 +379,32 @@ def list_hosts():
     )
 
 
+@app.route("/hosts/<tag>")
+@requires_auth_read
+def list_hosts_by_tag(tag):
+    """Lists hosts that match a given tag or service name."""
+    normalized_tag = str(tag).strip().lower()
+    matching_hosts = []
+
+    for host in mongo_client["labyrinth"]["hosts"].find({}):
+        raw_tags = host.get("tags", "") or ""
+        host_tags = [item.strip().lower() for item in raw_tags.split(",") if item.strip()]
+
+        host_services = []
+        for service in host.get("services", []) or []:
+            if isinstance(service, dict):
+                service_name = service.get("name") or service.get("display_name") or ""
+            else:
+                service_name = str(service)
+            if service_name:
+                host_services.append(service_name.strip().lower())
+
+        if normalized_tag in host_tags or normalized_tag in host_services:
+            matching_hosts.append(host)
+
+    return json.dumps(matching_hosts, default=str), 200
+
+
 @app.route("/host/<host>", methods=["DELETE"])
 @requires_auth_write
 def delete_host(host):
