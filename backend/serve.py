@@ -25,6 +25,7 @@ import watcher
 import shutil
 import services as svcs
 import proxmox_helper
+import proxmox_disk_check
 
 from common import auth
 from common.test import unwrap
@@ -2192,6 +2193,82 @@ def get_disk_space_settings():
                     })
 
         return json.dumps(result, default=str), 200
+    except Exception as e:
+        return json.dumps({"error": str(e)}), 500
+
+
+@app.route("/disk-space/test-email", methods=["POST"])
+@app.route("/disk-space/test-email/", methods=["POST"])
+@requires_auth_admin
+def send_disk_space_test_email():
+    """
+    Manually trigger a disk space alert test email.
+
+    Expected JSON body: {
+        "mode": "simple" | "full",   # default "simple"
+        "recipients": ["a@example.com"]  # optional, overrides saved settings
+    }
+
+    - "simple": sends a minimal message confirming SMTP is configured
+      correctly, without querying Proxmox.
+    - "full": queries live/cached Proxmox cluster data using the saved (or
+      overridden) alert threshold and sends the real alert template,
+      always sending even if zero disks are currently over threshold, so
+      admins can preview formatting and confirm delivery.
+    """
+    try:
+        data = request.get_json(silent=True)
+        if data is None:
+            try:
+                data = json.loads(request.get_data(as_text=True)) if request.get_data(as_text=True) else {}
+            except (ValueError, json.JSONDecodeError):
+                return json.dumps({"error": "Invalid JSON body"}), 400
+
+        mode = (data.get("mode") or "simple").lower()
+        if mode not in ("simple", "full"):
+            return json.dumps({"error": "mode must be 'simple' or 'full'"}), 400
+
+        recipients = data.get("recipients")
+        if isinstance(recipients, str):
+            recipients = [r.strip() for r in recipients.split(",") if r.strip()]
+
+        if not recipients:
+            # Fall back to saved recipients (same settings the alert cron uses)
+            recipients_setting = mongo_client["labyrinth"]["settings"].find_one(
+                {"name": "disk_space_alert_recipients"}
+            )
+            raw_recipients = recipients_setting.get("value") if recipients_setting else ""
+            if isinstance(raw_recipients, str):
+                recipients = [r.strip() for r in raw_recipients.split(",") if r.strip()]
+            elif isinstance(raw_recipients, list):
+                recipients = raw_recipients
+            else:
+                recipients = []
+
+        if not recipients:
+            return json.dumps({
+                "error": "No recipients configured. Add recipients first or include them in the request."
+            }), 400
+
+        if mode == "full":
+            result = proxmox_disk_check.send_full_test_email(
+                recipients, db=mongo_client, redis_client=proxmox_helper.get_redis_client()
+            )
+            return json.dumps({
+                "status": "sent",
+                "mode": "full",
+                "recipients": recipients,
+                **result,
+            }), 200
+
+        proxmox_disk_check.send_simple_test_email(recipients)
+        return json.dumps({
+            "status": "sent",
+            "mode": "simple",
+            "recipients": recipients,
+        }), 200
+    except ValueError as e:
+        return json.dumps({"error": str(e)}), 400
     except Exception as e:
         return json.dumps({"error": str(e)}), 500
 
