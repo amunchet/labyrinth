@@ -58,6 +58,16 @@ ERROR_CLUSTER_NOT_FOUND = "Cluster not found"
 ERROR_AWS_ACCOUNT_NOT_FOUND = "AWS account not found"
 
 
+def _sanitize_string_value(value):
+    """
+    Sanitize a string value for use in MongoDB queries to prevent NoSQL injection.
+    Ensures the value is a string and not a dict with MongoDB operators.
+    """
+    if not isinstance(value, str):
+        raise ValueError(f"Expected string value, got {type(value).__name__}")
+    return value
+
+
 def _requires_header(f, permission):  # pragma: no cover
     @functools.wraps(f)
     def decorated(*args, **kwargs):
@@ -2472,7 +2482,7 @@ def create_proxmox_cluster():
             return json.dumps({"error": f"Missing required fields: {', '.join(required_fields)}"}), 400
 
         # Check if cluster with this name already exists
-        if mongo_client["labyrinth"]["proxmox_clusters"].find_one({"name": data["name"]}):
+        if mongo_client["labyrinth"]["proxmox_clusters"].find_one({"name": _sanitize_string_value(data["name"])}):
             return json.dumps({"error": "Cluster with this name already exists"}), 409
 
         cluster_doc = {
@@ -2686,7 +2696,7 @@ def create_aws_account():
         if not all(data.get(field) for field in required_fields):
             return json.dumps({"error": f"Missing required fields: {', '.join(required_fields)}"}), 400
 
-        if mongo_client["labyrinth"]["aws_accounts"].find_one({"name": data["name"]}):
+        if mongo_client["labyrinth"]["aws_accounts"].find_one({"name": _sanitize_string_value(data["name"])}):
             return json.dumps({"error": "AWS account with this name already exists"}), 409
 
         account_doc = {
@@ -2754,7 +2764,7 @@ def update_aws_account(account_id):
 
         if update_doc.get("name") and update_doc["name"] != account.get("name"):
             duplicate = mongo_client["labyrinth"]["aws_accounts"].find_one(
-                {"name": update_doc["name"]}
+                {"name": _sanitize_string_value(update_doc["name"])}
             )
             if duplicate:
                 return json.dumps({"error": "AWS account with this name already exists"}), 409
