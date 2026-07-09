@@ -4,9 +4,11 @@ Proxmox API integration for disk space monitoring
 """
 
 import os
+import re
 import requests
 import json
 import ssl
+import time
 from typing import Dict, List, Optional, Tuple
 import redis
 
@@ -49,6 +51,94 @@ def _to_int(value):
         return int(value)
     except (TypeError, ValueError):
         return 0
+
+
+# `df -h` size suffixes are powers of 1024 (K/M/G/T/P/E), matching what
+# coreutils' `df -h` emits. A bare number (no suffix) is already in bytes.
+_DF_SIZE_UNITS = {
+    "": 1,
+    "K": 1024,
+    "M": 1024 ** 2,
+    "G": 1024 ** 3,
+    "T": 1024 ** 4,
+    "P": 1024 ** 5,
+    "E": 1024 ** 6,
+}
+_DF_SIZE_PATTERN = re.compile(r"^([0-9]*\.?[0-9]+)\s*([KMGTPE]?)$", re.IGNORECASE)
+
+
+def _parse_df_size(value: Optional[str]) -> Optional[int]:
+    """Convert a `df -h` human-readable size (e.g. '20G', '512M', '0') to bytes.
+
+    Returns None if the value isn't a recognizable size (e.g. '-').
+    """
+    if value is None:
+        return None
+
+    match = _DF_SIZE_PATTERN.match(value.strip())
+    if not match:
+        return None
+
+    number, unit = match.groups()
+
+    try:
+        number = float(number)
+    except ValueError:
+        return None
+
+    return int(number * _DF_SIZE_UNITS.get(unit.upper(), 1))
+
+
+def parse_df_output(output: Optional[str], mountpoint: str = "/") -> Optional[Dict]:
+    """
+    Parse the plain-text output of `df -h` and extract the used/total byte
+    counts for the given mountpoint (defaults to the root filesystem "/").
+
+    This is an "escape valve" fallback used when the QEMU guest agent's
+    structured `get-fsinfo` command is unavailable, errors out, or simply
+    doesn't report the filesystem we need - by instead running `df -h`
+    inside the guest and parsing its human-readable text output directly.
+
+    Expected input looks like::
+
+        Filesystem      Size  Used Avail Use% Mounted on
+        /dev/sda1        20G   12G  6.7G  65% /
+
+    Returns a dict shaped like a single `get-fsinfo` result entry (with
+    "mountpoint", "total-bytes", "used-bytes", "name") so it can be used as
+    a drop-in fallback entry, or None if no matching/parsable line for the
+    requested mountpoint was found.
+    """
+    if not output:
+        return None
+
+    for line in output.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+
+        parts = line.split()
+        if len(parts) < 6:
+            continue
+
+        # Filesystem  Size  Used  Avail  Use%  Mounted-on
+        if parts[-1] != mountpoint:
+            continue
+
+        total = _parse_df_size(parts[-5])
+        used = _parse_df_size(parts[-4])
+
+        if total is None or used is None:
+            continue
+
+        return {
+            "mountpoint": mountpoint,
+            "name": parts[0],
+            "total-bytes": total,
+            "used-bytes": used,
+        }
+
+    return None
 
 
 def enrich_qemu_flags(payload: Dict) -> Dict:
@@ -287,17 +377,103 @@ class ProxmoxClient:
             }
 
     def get_vm_guest_fsinfo(self, node: str, vmid: str) -> Optional[Dict]:
-        """Get filesystem information from QEMU guest agent (only works if agent is installed and running)"""
+        """Get filesystem information from QEMU guest agent (only works if agent is installed and running).
+
+        Falls back to running `df -h` inside the guest (via the agent's
+        exec API) and parsing its plain-text output as an escape valve when
+        the structured `get-fsinfo` QGA command fails outright, or succeeds
+        but doesn't include the root ("/") filesystem - e.g. older guest
+        agents or OSes that don't implement get-fsinfo.
+        """
+        result = []
         try:
             response = self.session.get(
                 f"{self.base_url}/nodes/{node}/qemu/{vmid}/agent/get-fsinfo",
                 timeout=10,
             )
             response.raise_for_status()
-            return response.json().get("data", {})
+            result = list(response.json().get("data", {}).get("result") or [])
         except Exception:
-            # If this fails, guest agent may not have filesystem info available
+            # If this fails outright, guest agent may not support get-fsinfo
+            # at all - fall through to the df -h escape valve below.
+            result = []
+
+        if not any(fs.get("mountpoint") == "/" for fs in result):
+            df_root = self.get_vm_guest_df(node, vmid)
+            if df_root:
+                result.append(df_root)
+
+        if not result:
             return None
+
+        return {"result": result}
+
+    def exec_guest_command(
+        self,
+        node: str,
+        vmid: str,
+        command: List[str],
+        timeout: int = 10,
+        poll_attempts: int = 10,
+        poll_interval: float = 0.5,
+    ) -> Optional[str]:
+        """
+        Run a command inside a VM's guest OS via the QEMU guest agent's
+        exec/exec-status API and return its stdout.
+
+        This is the building block for the `df -h` escape valve: when the
+        structured `get-fsinfo` guest agent command isn't available or
+        reliable, we can still shell out and parse plain-text output
+        instead.
+
+        Returns None if the agent isn't available, the command fails to
+        launch, or it doesn't finish within `poll_attempts * poll_interval`
+        seconds.
+        """
+        try:
+            response = self.session.post(
+                f"{self.base_url}/nodes/{node}/qemu/{vmid}/agent/exec",
+                data={"command": command},
+                timeout=timeout,
+            )
+            response.raise_for_status()
+            pid = response.json().get("data", {}).get("pid")
+        except Exception:
+            return None
+
+        if not pid:
+            return None
+
+        for _ in range(poll_attempts):
+            try:
+                status_response = self.session.get(
+                    f"{self.base_url}/nodes/{node}/qemu/{vmid}/agent/exec-status",
+                    params={"pid": pid},
+                    timeout=timeout,
+                )
+                status_response.raise_for_status()
+                status = status_response.json().get("data", {})
+            except Exception:
+                return None
+
+            if status.get("exited"):
+                return status.get("out-data")
+
+            time.sleep(poll_interval)
+
+        return None
+
+    def get_vm_guest_df(self, node: str, vmid: str) -> Optional[Dict]:
+        """
+        Escape valve fallback for filesystem info: run `df -h` inside the
+        guest via the QEMU guest agent's exec API and parse its plain-text
+        output for the root ("/") filesystem.
+
+        Used by get_vm_guest_fsinfo() when the structured `get-fsinfo` QGA
+        command fails outright or doesn't report the root filesystem.
+        """
+        output = self.exec_guest_command(node, vmid, ["df", "-h"])
+        return parse_df_output(output, mountpoint="/")
 
     def get_container_status(self, node: str, vmid: str) -> Optional[Dict]:
         """Get detailed status for a container including disk usage"""
