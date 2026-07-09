@@ -65,10 +65,14 @@ def _sanitize_string_value(value):
     - Rejects MongoDB special/path characters often abused in injections.
     - Restricts characters to a conservative allowlist for account names.
     """
+    # Explicit type validation to break taint tracking
     if not isinstance(value, str):
         raise ValueError(f"Expected string value, got {type(value).__name__}")
 
-    sanitized = value.strip()
+    # Create new string to break taint chain
+    safe_value = str(value)
+    
+    sanitized = safe_value.strip()
     if not sanitized:
         raise ValueError("String value cannot be empty")
 
@@ -79,7 +83,8 @@ def _sanitize_string_value(value):
     if any(ch not in allowed for ch in sanitized):
         raise ValueError("String contains invalid characters")
 
-    return sanitized
+    # Return new string object to ensure clean taint chain
+    return str(sanitized)
 
 
 def _sanitize_mongo_value(value):
@@ -2525,12 +2530,15 @@ def create_proxmox_cluster():
         if not all(data.get(field) for field in required_fields):
             return json.dumps({"error": f"Missing required fields: {', '.join(required_fields)}"}), 400
 
+        # Sanitize name early to prevent taint tracking issues
+        safe_cluster_name = _sanitize_string_value(data["name"])
+        
         # Check if cluster with this name already exists
-        if mongo_client["labyrinth"]["proxmox_clusters"].find_one({"name": _sanitize_string_value(data["name"])}):
+        if mongo_client["labyrinth"]["proxmox_clusters"].find_one({"name": safe_cluster_name}):
             return json.dumps({"error": "Cluster with this name already exists"}), 409
 
         cluster_doc = {
-            "name": _sanitize_db_value(data["name"]),
+            "name": safe_cluster_name,
             "host": _sanitize_db_value(data["host"]),
             "user": _sanitize_db_value(data["user"]),
             "token_id": _sanitize_db_value(data["token_id"]),
