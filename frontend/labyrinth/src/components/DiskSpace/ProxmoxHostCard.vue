@@ -22,72 +22,67 @@
 
     <!-- Expandable Content -->
     <b-collapse v-model="collapsed" class="mt-2">
-      <div v-if="host.nodes && host.nodes.length > 0" class="mb-2">
-        <div v-for="node in sortedNodes" :key="node.name" class="node-storage mb-3">
+      <div v-if="host.nodes && host.nodes.length > 0" class="nodes-grid mb-2">
+        <div v-for="node in sortedNodes" :key="node.name" class="node-card">
           <h6 class="text-secondary mb-2">{{ node.name }}</h6>
 
-          <b-row class="node-layout">
-            <b-col cols="12" lg="6" class="mb-2 mb-lg-0">
-              <div class="node-panel storage-panel">
-                <div class="panel-title">Datastores</div>
-                <div v-if="visibleStorage(node).length > 0" class="storage-grid">
-                  <div
-                    v-for="storage in visibleStorage(node)"
-                    :key="storage.name"
-                    class="storage-grid-item"
-                  >
-                    <StorageProgressBar :storage="storage" />
-                  </div>
-                </div>
-                <b-alert v-else variant="warning" class="small mb-0 py-1 px-2">
-                  No datastore information available
-                </b-alert>
-              </div>
-            </b-col>
-
-            <b-col cols="12" lg="6">
-              <div class="node-panel vm-panel">
-                <div class="panel-title">Instances</div>
-
-                <div v-if="runningVMs(node).length" class="mb-2">
-                  <div class="instance-subtitle">Virtual Machines</div>
-                  <div class="vm-grid">
-                    <div
-                      v-for="vm in runningVMs(node)"
-                      :key="`vm-${node.name}-${vm.id}`"
-                      class="vm-grid-item"
-                    >
-                      <VMContainerProgressBar :item="{ ...vm, node: node.name }" type="vm" />
-                    </div>
-                  </div>
-                </div>
-
-                <div v-if="runningContainers(node).length">
-                  <div class="instance-subtitle">LXC Containers</div>
-                  <div class="vm-grid">
-                    <div
-                      v-for="container in runningContainers(node)"
-                      :key="`container-${node.name}-${container.id}`"
-                      class="vm-grid-item"
-                    >
-                      <VMContainerProgressBar
-                        :item="{ ...container, node: node.name }"
-                        type="container"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <b-alert
-                  v-if="!runningVMs(node).length && !runningContainers(node).length"
-                  variant="warning"
-                  class="small mb-0 py-1 px-2"
+          <div class="node-panels">
+            <div class="node-panel storage-panel">
+              <div class="panel-title">Datastores</div>
+              <div v-if="visibleStorage(node).length > 0" class="storage-grid">
+                <div
+                  v-for="storage in visibleStorage(node)"
+                  :key="storage.name"
+                  class="storage-grid-item"
                 >
-                  No running VM/LXC information available
-                </b-alert>
+                  <StorageProgressBar :storage="storage" />
+                </div>
               </div>
-            </b-col>
-          </b-row>
+              <b-alert v-else variant="warning" class="small mb-0 py-1 px-2">
+                No datastore information available
+              </b-alert>
+            </div>
+
+            <div class="node-panel vm-panel">
+              <div class="panel-title">Instances</div>
+
+              <div v-if="runningVMs(node).length" class="mb-2">
+                <div class="vm-grid">
+                  <div
+                    v-for="vm in runningVMs(node)"
+                    :key="`vm-${node.name}-${vm.id}`"
+                    class="vm-grid-item"
+                  >
+                    <VMContainerProgressBar :item="{ ...vm, node: node.name }" type="vm" />
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="runningContainers(node).length">
+                <div class="instance-subtitle text-secondary">LXCs</div>
+                <div class="vm-grid">
+                  <div
+                    v-for="container in runningContainers(node)"
+                    :key="`container-${node.name}-${container.id}`"
+                    class="vm-grid-item"
+                  >
+                    <VMContainerProgressBar
+                      :item="{ ...container, node: node.name }"
+                      type="container"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <b-alert
+                v-if="!runningVMs(node).length && !runningContainers(node).length"
+                variant="warning"
+                class="small mb-0 py-1 px-2"
+              >
+                No running VM/LXC information available
+              </b-alert>
+            </div>
+          </div>
         </div>
       </div>
     </b-collapse>
@@ -196,10 +191,25 @@ export default {
     margin-bottom: 1rem;
   }
 
-  .node-storage {
+  .nodes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 0.5rem;
+    align-items: start;
+  }
+
+  .node-card {
     background-color: #f8f9fa;
     padding: 0.5rem;
     border-radius: 4px;
+    min-width: 0;
+    text-align: center;
+  }
+
+  .node-panels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
   }
 
   .node-panel {
@@ -207,9 +217,10 @@ export default {
     border: 1px solid #e8edf3;
     border-radius: 4px;
     padding: 0.4rem;
-    height: 100%;
+    flex: 1 1 150px;
+    min-width: 140px;
   }
-
+    /*
   .storage-panel {
     border-left: 3px solid #17a2b8;
   }
@@ -217,6 +228,7 @@ export default {
   .vm-panel {
     border-left: 3px solid #6f42c1;
   }
+  */
 
   .panel-title {
     font-size: 0.82rem;
