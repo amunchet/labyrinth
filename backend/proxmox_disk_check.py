@@ -12,7 +12,7 @@ import sys
 from typing import List, Dict, Optional, Tuple
 import pymongo
 import redis
-from jinja2 import Environment, FileSystemLoader, Template
+from jinja2 import Environment, FileSystemLoader, Template, select_autoescape
 from datetime import datetime
 
 # Add backend to path for imports
@@ -21,9 +21,12 @@ sys.path.insert(0, '/src')
 import proxmox_helper
 from ai import email_helper
 
-# Setup Jinja2 template environment
+# Setup Jinja2 template environment with auto-escaping enabled for HTML templates
 TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), 'templates')
-jinja_env = Environment(loader=FileSystemLoader(TEMPLATE_DIR))
+jinja_env = Environment(
+    loader=FileSystemLoader(TEMPLATE_DIR),
+    autoescape=select_autoescape(enabled_extensions=('html', 'xml'))
+)
 
 
 def get_mongo_client():
