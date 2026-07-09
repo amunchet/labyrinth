@@ -2151,7 +2151,7 @@ def get_proxmox_disk_space():
 
         return json.dumps(result, default=str), 200
     except Exception as e:
-        return json.dumps({"error": str(e)}), 500
+        return json.dumps({"error": "Failed to retrieve disk space data"}), 500
 
 
 @app.route("/disk-space/proxmox/refresh", methods=["POST"])
@@ -2175,7 +2175,7 @@ def refresh_proxmox_disk_space():
 
         return json.dumps(result, default=str), 200
     except Exception as e:
-        return json.dumps({"error": str(e)}), 500
+        return json.dumps({"error": "Failed to refresh disk space data"}), 500
 
 
 @app.route("/disk-space/manual", methods=["GET"])
@@ -2201,7 +2201,7 @@ def get_manual_disk_space():
 
         return json.dumps(result, default=str), 200
     except Exception as e:
-        return json.dumps({"error": str(e)}), 500
+        return json.dumps({"error": "Failed to retrieve manual disk space hosts"}), 500
 
 
 @app.route("/disk-space/manual", methods=["POST"])
@@ -2251,7 +2251,7 @@ def add_manual_disk_host():
 
         return json.dumps({"id": host_id, "status": "created"}), 201
     except Exception as e:
-        return json.dumps({"error": str(e)}), 500
+        return json.dumps({"error": "Failed to create manual disk space host"}), 500
 
 
 @app.route("/disk-space/manual/<host_id>", methods=["DELETE"])
@@ -2271,7 +2271,7 @@ def delete_manual_disk_host(host_id):
 
         return json.dumps({"status": "deleted"}), 200
     except Exception as e:
-        return json.dumps({"error": str(e)}), 500
+        return json.dumps({"error": "Failed to delete manual disk space host"}), 500
 
 
 @app.route("/disk-space/settings", methods=["GET"])
@@ -2321,7 +2321,7 @@ def get_disk_space_settings():
 
         return json.dumps(result, default=str), 200
     except Exception as e:
-        return json.dumps({"error": str(e)}), 500
+        return json.dumps({"error": "Failed to retrieve disk space settings"}), 500
 
 
 def _parse_recipients_setting(recipients_setting):
@@ -2405,9 +2405,9 @@ def send_disk_space_test_email():
             "mode": "simple",
         }), 200
     except ValueError as e:
-        return json.dumps({"error": str(e)}), 400
+        return json.dumps({"error": "Invalid email configuration"}), 400
     except Exception as e:
-        return json.dumps({"error": str(e)}), 500
+        return json.dumps({"error": "Failed to send test email"}), 500
 
 
 def _get_test_email_recipients(data):
@@ -2440,7 +2440,7 @@ def list_proxmox_clusters():
             cluster.pop("token_secret", None)
         return json.dumps(clusters, default=str), 200
     except Exception as e:
-        return json.dumps({"error": str(e)}), 500
+        return json.dumps({"error": "Failed to retrieve Proxmox clusters"}), 500
 
 
 @app.route("/proxmox-clusters", methods=["POST"])
@@ -2492,7 +2492,7 @@ def create_proxmox_cluster():
 
         return json.dumps({"id": str(result.inserted_id), "status": "created"}), 201
     except Exception as e:
-        return json.dumps({"error": str(e)}), 500
+        return json.dumps({"error": "Failed to create Proxmox cluster configuration"}), 500
 
 
 @app.route("/proxmox-clusters/<cluster_id>", methods=["GET"])
@@ -2511,7 +2511,7 @@ def get_proxmox_cluster(cluster_id):
         cluster.pop("token_secret", None)
         return json.dumps(cluster, default=str), 200
     except Exception as e:
-        return json.dumps({"error": str(e)}), 500
+        return json.dumps({"error": "Failed to retrieve Proxmox cluster"}), 500
 
 
 @app.route("/proxmox-clusters/<cluster_id>", methods=["PUT"])
@@ -2552,7 +2552,7 @@ def update_proxmox_cluster(cluster_id):
         updated_cluster.pop("token_secret", None)
         return json.dumps(updated_cluster, default=str), 200
     except Exception as e:
-        return json.dumps({"error": str(e)}), 500
+        return json.dumps({"error": "Failed to update Proxmox cluster configuration"}), 500
 
 
 @app.route("/proxmox-clusters/<cluster_id>", methods=["DELETE"])
@@ -2571,7 +2571,7 @@ def delete_proxmox_cluster(cluster_id):
 
         return json.dumps({"status": "deleted"}), 200
     except Exception as e:
-        return json.dumps({"error": str(e)}), 500
+        return json.dumps({"error": "Failed to delete Proxmox cluster configuration"}), 500
 
 
 @app.route("/aws/ec2-instances", methods=["GET"])
@@ -2638,9 +2638,9 @@ def get_aws_ec2_instances():
 
         return json.dumps(result, default=str), 200
     except aws_helper.AWSDependencyError as e:
-        return json.dumps({"error": str(e)}), 500
+        return json.dumps({"error": "Failed to retrieve AWS EC2 instances"}), 500
     except Exception as e:
-        return json.dumps({"error": str(e)}), 500
+        return json.dumps({"error": "Failed to retrieve AWS EC2 instances"}), 500
 
 
 @app.route("/aws/accounts", methods=["GET"])
@@ -2657,7 +2657,7 @@ def list_aws_accounts():
             account.pop("session_token", None)
         return json.dumps(accounts, default=str), 200
     except Exception as e:
-        return json.dumps({"error": str(e)}), 500
+        return json.dumps({"error": "Failed to list AWS accounts"}), 500
 
 
 @app.route("/aws/accounts", methods=["POST"])
@@ -2703,7 +2703,7 @@ def create_aws_account():
 
         return json.dumps({"id": str(result.inserted_id), "status": "created"}), 201
     except Exception as e:
-        return json.dumps({"error": str(e)}), 500
+        return json.dumps({"error": "Failed to create AWS account configuration"}), 500
 
 
 @app.route("/aws/accounts/<account_id>", methods=["GET"])
@@ -2723,7 +2723,7 @@ def get_aws_account(account_id):
         account.pop("session_token", None)
         return json.dumps(account, default=str), 200
     except Exception as e:
-        return json.dumps({"error": str(e)}), 500
+        return json.dumps({"error": "Failed to retrieve AWS account"}), 500
 
 
 @app.route("/aws/accounts/<account_id>", methods=["PUT"])
@@ -2773,7 +2773,7 @@ def update_aws_account(account_id):
         updated_account.pop("session_token", None)
         return json.dumps(updated_account, default=str), 200
     except Exception as e:
-        return json.dumps({"error": str(e)}), 500
+        return json.dumps({"error": "Failed to update AWS account"}), 500
 
 
 @app.route("/aws/accounts/<account_id>", methods=["DELETE"])
@@ -2791,7 +2791,7 @@ def delete_aws_account(account_id):
 
         return json.dumps({"status": "deleted"}), 200
     except Exception as e:
-        return json.dumps({"error": str(e)}), 500
+        return json.dumps({"error": "Failed to delete AWS account"}), 500
 
 
 @app.route("/aws/settings", methods=["GET"])
@@ -2812,7 +2812,7 @@ def get_aws_settings():
 
         return json.dumps({"accounts": sanitized_accounts}, default=str), 200
     except Exception as e:
-        return json.dumps({"error": str(e)}), 500
+        return json.dumps({"error": "Failed to retrieve AWS settings"}), 500
 
 
 if __name__ == "__main__":  # pragma: no cover
