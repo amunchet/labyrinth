@@ -52,6 +52,11 @@ executor = ThreadPoolExecutor(2)
 
 TELEGRAF_KEY = os.environ.get("TELEGRAF_KEY") or "TEST"
 
+# Error message constants
+ERROR_INVALID_JSON_BODY = "Invalid JSON body"
+ERROR_CLUSTER_NOT_FOUND = "Cluster not found"
+ERROR_AWS_ACCOUNT_NOT_FOUND = "AWS account not found"
+
 
 def _requires_header(f, permission):  # pragma: no cover
     @functools.wraps(f)
@@ -2210,7 +2215,7 @@ def add_manual_disk_host():
             }
 
         if data is None:
-            return json.dumps({"error": "Invalid JSON body"}), 400
+            return json.dumps({"error": ERROR_INVALID_JSON_BODY}), 400
 
         required_fields = ["name", "ip", "type"]
 
@@ -2227,8 +2232,8 @@ def add_manual_disk_host():
             "ip": data["ip"],
             "type": data["type"],
             "description": data.get("description", ""),
-            "created": datetime.datetime.utcnow().isoformat(),
-            "updated": datetime.datetime.utcnow().isoformat(),
+            "created": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "updated": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         }
 
         mongo_client["labyrinth"]["settings"].insert_one({
@@ -2350,7 +2355,7 @@ def send_disk_space_test_email():
             try:
                 data = json.loads(request.get_data(as_text=True)) if request.get_data(as_text=True) else {}
             except (ValueError, json.JSONDecodeError):
-                return json.dumps({"error": "Invalid JSON body"}), 400
+                return json.dumps({"error": ERROR_INVALID_JSON_BODY}), 400
 
         mode = (data.get("mode") or "simple").lower()
         if mode not in ("simple", "full"):
@@ -2438,7 +2443,7 @@ def create_proxmox_cluster():
             try:
                 data = json.loads(request.get_data(as_text=True))
             except (ValueError, json.JSONDecodeError):
-                return json.dumps({"error": "Invalid JSON body"}), 400
+                return json.dumps({"error": ERROR_INVALID_JSON_BODY}), 400
 
         required_fields = ["name", "host", "user", "token_id", "token_secret"]
         if not all(data.get(field) for field in required_fields):
@@ -2455,8 +2460,8 @@ def create_proxmox_cluster():
             "token_id": data["token_id"],
             "token_secret": data["token_secret"],
             "verify_ssl": data.get("verify_ssl", False),
-            "created": datetime.datetime.utcnow().isoformat(),
-            "updated": datetime.datetime.utcnow().isoformat(),
+            "created": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "updated": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         }
 
         result = mongo_client["labyrinth"]["proxmox_clusters"].insert_one(cluster_doc)
@@ -2502,7 +2507,7 @@ def update_proxmox_cluster(cluster_id):
             {"_id": bson.ObjectId(cluster_id)}
         )
         if not cluster:
-            return json.dumps({"error": "Cluster not found"}), 404
+            return json.dumps({"error": ERROR_CLUSTER_NOT_FOUND}), 404
 
         # Update allowed fields
         update_doc = {}
@@ -2512,7 +2517,7 @@ def update_proxmox_cluster(cluster_id):
                 update_doc[field] = data[field]
 
         if update_doc:
-            update_doc["updated"] = datetime.datetime.utcnow().isoformat()
+            update_doc["updated"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
             mongo_client["labyrinth"]["proxmox_clusters"].update_one(
                 {"_id": bson.ObjectId(cluster_id)},
                 {"$set": update_doc}
@@ -2540,7 +2545,7 @@ def delete_proxmox_cluster(cluster_id):
             {"_id": bson.ObjectId(cluster_id)}
         )
         if result.deleted_count == 0:
-            return json.dumps({"error": "Cluster not found"}), 404
+            return json.dumps({"error": ERROR_CLUSTER_NOT_FOUND}), 404
 
         return json.dumps({"status": "deleted"}), 200
     except Exception as e:
@@ -2668,8 +2673,8 @@ def create_aws_account():
             "access_key_id": data["access_key_id"],
             "secret_access_key": data["secret_access_key"],
             "session_token": data.get("session_token", ""),
-            "created": datetime.datetime.utcnow().isoformat(),
-            "updated": datetime.datetime.utcnow().isoformat(),
+            "created": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "updated": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         }
 
         result = mongo_client["labyrinth"]["aws_accounts"].insert_one(account_doc)
@@ -2708,13 +2713,13 @@ def update_aws_account(account_id):
     try:
         data = request.get_json(silent=True)
         if data is None:
-            return json.dumps({"error": "Invalid JSON body"}), 400
+            return json.dumps({"error": ERROR_INVALID_JSON_BODY}), 400
 
         account = mongo_client["labyrinth"]["aws_accounts"].find_one(
             {"_id": bson.ObjectId(account_id)}
         )
         if not account:
-            return json.dumps({"error": "AWS account not found"}), 404
+            return json.dumps({"error": ERROR_AWS_ACCOUNT_NOT_FOUND}), 404
 
         update_doc = {}
         allowed_fields = ["name", "region", "access_key_id", "secret_access_key", "session_token"]
@@ -2733,7 +2738,7 @@ def update_aws_account(account_id):
                 return json.dumps({"error": "AWS account with this name already exists"}), 409
 
         if update_doc:
-            update_doc["updated"] = datetime.datetime.utcnow().isoformat()
+            update_doc["updated"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
             mongo_client["labyrinth"]["aws_accounts"].update_one(
                 {"_id": bson.ObjectId(account_id)},
                 {"$set": update_doc}
@@ -2760,7 +2765,7 @@ def delete_aws_account(account_id):
             {"_id": bson.ObjectId(account_id)}
         )
         if result.deleted_count == 0:
-            return json.dumps({"error": "AWS account not found"}), 404
+            return json.dumps({"error": ERROR_AWS_ACCOUNT_NOT_FOUND}), 404
 
         return json.dumps({"status": "deleted"}), 200
     except Exception as e:
