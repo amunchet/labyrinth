@@ -2728,8 +2728,7 @@ def create_aws_account():
             return json.dumps({"error": f"Missing required fields: {', '.join(required_fields)}"}), 400
 
         safe_name = _sanitize_string_value(data["name"])
-        safe_query_name = _sanitize_mongo_value(safe_name)
-        if mongo_client["labyrinth"]["aws_accounts"].find_one({"name": safe_query_name}):
+        if mongo_client["labyrinth"]["aws_accounts"].find_one({"name": safe_name}):
             return json.dumps({"error": "AWS account with this name already exists"}), 409
 
         account_doc = {
