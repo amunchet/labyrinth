@@ -8,6 +8,9 @@
         <b-tab title="Settings" lazy>
           <AwsSettings />
         </b-tab>
+        <b-tab title="Documentation" lazy>
+          <AwsDocumentation />
+        </b-tab>
       </b-tabs>
     </b-card>
   </b-container>
@@ -16,12 +19,14 @@
 <script>
 import AwsInstancesView from "@/components/AWS/AwsInstancesView";
 import AwsSettings from "@/components/AWS/AwsSettings";
+import AwsDocumentation from "@/components/AWS/AwsDocumentation";
 
 export default {
   name: "AWS",
   components: {
     AwsInstancesView,
     AwsSettings,
+    AwsDocumentation,
   },
 };
 </script>
