@@ -216,6 +216,10 @@ def run(fname: str, outputs=False):
         testing = "--once"
     cmd = ["telegraf", testing, "--config", os.path.join(main_dir, f"{fname}.conf")]
     x = subprocess.run(cmd, capture_output=True)
+    # HTML-escape subprocess output to prevent XSS
+    from markupsafe import escape
+    stderr_escaped = escape(x.stderr.decode("utf-8"))
+    stdout_escaped = escape(x.stdout.decode("utf-8"))
     return "{}\n<b>{}</b>{}".format(
-        cmd, x.stderr.decode("utf-8"), x.stdout.decode("utf-8")
+        escape(str(cmd)), stderr_escaped, stdout_escaped
     )
