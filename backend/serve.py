@@ -2460,12 +2460,10 @@ def create_proxmox_cluster():
         }
 
         result = mongo_client["labyrinth"]["proxmox_clusters"].insert_one(cluster_doc)
-        cluster_doc["_id"] = str(result.inserted_id)
-        cluster_doc.pop("token_secret", None)
 
         proxmox_helper.delete_cached_proxmox_disk_data(str(result.inserted_id))
 
-        return json.dumps({"id": str(result.inserted_id), "cluster": cluster_doc}), 201
+        return json.dumps({"id": str(result.inserted_id), "status": "created"}), 201
     except Exception as e:
         return json.dumps({"error": str(e)}), 500
 
@@ -2675,12 +2673,8 @@ def create_aws_account():
         }
 
         result = mongo_client["labyrinth"]["aws_accounts"].insert_one(account_doc)
-        created_account = dict(account_doc)
-        created_account["_id"] = str(result.inserted_id)
-        created_account.pop("secret_access_key", None)
-        created_account.pop("session_token", None)
 
-        return json.dumps({"id": str(result.inserted_id), "account": created_account}), 201
+        return json.dumps({"id": str(result.inserted_id), "status": "created"}), 201
     except Exception as e:
         return json.dumps({"error": str(e)}), 500
 
