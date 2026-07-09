@@ -394,22 +394,30 @@ def list_hosts_by_tag(tag):
     matching_hosts = []
 
     for host in mongo_client["labyrinth"]["hosts"].find({}):
-        raw_tags = host.get("tags", "") or ""
-        host_tags = [item.strip().lower() for item in raw_tags.split(",") if item.strip()]
-
-        host_services = []
-        for service in host.get("services", []) or []:
-            if isinstance(service, dict):
-                service_name = service.get("name") or service.get("display_name") or ""
-            else:
-                service_name = str(service)
-            if service_name:
-                host_services.append(service_name.strip().lower())
-
-        if normalized_tag in host_tags or normalized_tag in host_services:
+        if _host_matches_tag(host, normalized_tag):
             matching_hosts.append(host)
 
     return json.dumps(matching_hosts, default=str), 200
+
+
+def _host_matches_tag(host, normalized_tag):
+    """Check if a host matches the given tag or service name."""
+    raw_tags = host.get("tags", "") or ""
+    host_tags = [item.strip().lower() for item in raw_tags.split(",") if item.strip()]
+    
+    if normalized_tag in host_tags:
+        return True
+    
+    host_services = []
+    for service in host.get("services", []) or []:
+        if isinstance(service, dict):
+            service_name = service.get("name") or service.get("display_name") or ""
+        else:
+            service_name = str(service)
+        if service_name:
+            host_services.append(service_name.strip().lower())
+    
+    return normalized_tag in host_services
 
 
 @app.route("/host/<host>", methods=["DELETE"])
@@ -2283,22 +2291,12 @@ def get_disk_space_settings():
             {"name": "disk_space_alert_recipients"}
         )
 
-        raw_recipients = recipients_setting.get("value") if recipients_setting else ""
-        if isinstance(raw_recipients, str):
-            recipients_list = [r.strip() for r in raw_recipients.split(",") if r.strip()]
-        elif isinstance(raw_recipients, list):
-            recipients_list = raw_recipients
-        else:
-            recipients_list = []
-
-        threshold_value = threshold_setting.get("value") if threshold_setting else None
-        try:
-            threshold_percent = int(threshold_value) if threshold_value not in (None, "") else 80
-        except (TypeError, ValueError):
-            threshold_percent = 80
+        recipients_list = _parse_recipients_setting(recipients_setting)
+        threshold_percent = _parse_threshold_setting(threshold_setting)
+        proxmox_tag = tag_setting.get("value") if tag_setting else "Proxmox"
 
         result = {
-            "proxmox_tag": tag_setting.get("value") if tag_setting else "Proxmox",
+            "proxmox_tag": proxmox_tag,
             "disk_space_alert_threshold": threshold_percent,
             "disk_space_alert_recipients": recipients_list,
             "clusters": [],
@@ -2313,21 +2311,45 @@ def get_disk_space_settings():
             result["clusters"].append(cluster)
 
         # Get list of Proxmox-tagged hosts without cluster assignment
-        proxmox_tag = result["proxmox_tag"]
         for host in mongo_client["labyrinth"]["hosts"].find({}):
-            raw_tags = host.get("tags", "")
-            if raw_tags:
-                host_tags = [t.strip() for t in raw_tags.split(",")]
-                if proxmox_tag in host_tags and not (host.get("proxmox_cluster") or "").strip():
-                    result["unconfigured_proxmox_hosts"].append({
-                        "mac": host.get("mac"),
-                        "ip": host.get("ip"),
-                        "name": host.get("host") or host.get("name"),
-                    })
+            if _is_unconfigured_proxmox_host(host, proxmox_tag):
+                result["unconfigured_proxmox_hosts"].append({
+                    "mac": host.get("mac"),
+                    "ip": host.get("ip"),
+                    "name": host.get("host") or host.get("name"),
+                })
 
         return json.dumps(result, default=str), 200
     except Exception as e:
         return json.dumps({"error": str(e)}), 500
+
+
+def _parse_recipients_setting(recipients_setting):
+    """Parse recipients setting into a list."""
+    raw_recipients = recipients_setting.get("value") if recipients_setting else ""
+    if isinstance(raw_recipients, str):
+        return [r.strip() for r in raw_recipients.split(",") if r.strip()]
+    elif isinstance(raw_recipients, list):
+        return raw_recipients
+    return []
+
+
+def _parse_threshold_setting(threshold_setting):
+    """Parse threshold setting into a percentage."""
+    threshold_value = threshold_setting.get("value") if threshold_setting else None
+    try:
+        return int(threshold_value) if threshold_value not in (None, "") else 80
+    except (TypeError, ValueError):
+        return 80
+
+
+def _is_unconfigured_proxmox_host(host, proxmox_tag):
+    """Check if a host has the Proxmox tag but no cluster assignment."""
+    raw_tags = host.get("tags", "")
+    if not raw_tags:
+        return False
+    host_tags = [t.strip() for t in raw_tags.split(",")]
+    return proxmox_tag in host_tags and not (host.get("proxmox_cluster") or "").strip()
 
 
 @app.route("/disk-space/test-email", methods=["POST"])
@@ -2361,23 +2383,7 @@ def send_disk_space_test_email():
         if mode not in ("simple", "full"):
             return json.dumps({"error": "mode must be 'simple' or 'full'"}), 400
 
-        recipients = data.get("recipients")
-        if isinstance(recipients, str):
-            recipients = [r.strip() for r in recipients.split(",") if r.strip()]
-
-        if not recipients:
-            # Fall back to saved recipients (same settings the alert cron uses)
-            recipients_setting = mongo_client["labyrinth"]["settings"].find_one(
-                {"name": "disk_space_alert_recipients"}
-            )
-            raw_recipients = recipients_setting.get("value") if recipients_setting else ""
-            if isinstance(raw_recipients, str):
-                recipients = [r.strip() for r in raw_recipients.split(",") if r.strip()]
-            elif isinstance(raw_recipients, list):
-                recipients = raw_recipients
-            else:
-                recipients = []
-
+        recipients = _get_test_email_recipients(data)
         if not recipients:
             return json.dumps({
                 "error": "No recipients configured. Add recipients first or include them in the request."
@@ -2402,6 +2408,22 @@ def send_disk_space_test_email():
         return json.dumps({"error": str(e)}), 400
     except Exception as e:
         return json.dumps({"error": str(e)}), 500
+
+
+def _get_test_email_recipients(data):
+    """Get recipients from request data or fall back to saved settings."""
+    recipients = data.get("recipients")
+    if isinstance(recipients, str):
+        recipients = [r.strip() for r in recipients.split(",") if r.strip()]
+    
+    if recipients:
+        return recipients
+    
+    # Fall back to saved recipients (same settings the alert cron uses)
+    recipients_setting = mongo_client["labyrinth"]["settings"].find_one(
+        {"name": "disk_space_alert_recipients"}
+    )
+    return _parse_recipients_setting(recipients_setting)
 
 
 @app.route("/proxmox-clusters")

@@ -476,6 +476,7 @@ def test_get_proxmox_disk_data_marks_missing_qemu_guest_agent(monkeypatch):
 
     class FakeClient:
         def __init__(self, host, user, token_id, token_secret, verify_ssl=False):
+            # Intentionally empty - this is a test stub that doesn't need initialization
             pass
 
         def get_nodes(self):
@@ -524,6 +525,7 @@ def test_get_proxmox_disk_data_infers_missing_qemu_from_zero_disk(monkeypatch):
 
     class FakeClient:
         def __init__(self, host, user, token_id, token_secret, verify_ssl=False):
+            # Intentionally empty - this is a test stub that doesn't need initialization
             pass
 
         def get_nodes(self):
@@ -571,6 +573,7 @@ def test_get_proxmox_disk_data_uses_guest_fsinfo_when_available(monkeypatch):
 
     class FakeClient:
         def __init__(self, host, user, token_id, token_secret, verify_ssl=False):
+            # Intentionally empty - this is a test stub that doesn't need initialization
             pass
 
         def get_nodes(self):

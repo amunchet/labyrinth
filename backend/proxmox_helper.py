@@ -528,12 +528,6 @@ def get_proxmox_disk_data(host_ip: str, cluster_config: Dict) -> Dict:
             verify_ssl=verify_ssl
         )
 
-        def _to_int(value):
-            try:
-                return int(value)
-            except (TypeError, ValueError):
-                return 0
-
         result = {
             "host": host_ip,
             "nodes": [],
@@ -546,98 +540,131 @@ def get_proxmox_disk_data(host_ip: str, cluster_config: Dict) -> Dict:
             return result
 
         for node in nodes:
-            node_name = node.get("node")
-            node_info = {
-                "name": node_name,
-                "status": node.get("status"),
-                "storage": [],
-                "vms": [],
-                "containers": []
-            }
-
-            # Get storage info
-            storage_list = client.get_storage(node_name)
-            for storage in storage_list:
-                storage_name = storage.get("storage")
-                storage_info = {
-                    "name": storage_name,
-                    "type": storage.get("type"),
-                    "enabled": storage.get("enabled", 1),
-                    "total": storage.get("total"),
-                    "used": storage.get("used"),
-                    "available": storage.get("available")
-                }
-                node_info["storage"].append(storage_info)
-
-            # Get VMs and containers
-            vms, containers = client.get_vms_and_containers(node_name)
-
-            for vm in vms:
-                vmid = vm.get("vmid")
-                vm_status = client.get_vm_status(node_name, str(vmid))
-                agent_status = client.get_vm_agent_status(node_name, str(vmid))
-                maxdisk = vm.get("maxdisk")
-                disk = vm_status.get("disk") if vm_status else None
-                is_running = str(vm.get("status") or "").lower() == "running"
-                
-                # Determine if QEMU guest agent is truly installed
-                # If agent/info call succeeds, it's installed
-                qemu_truly_installed = agent_status.get("installed", False)
-                
-                # If agent is installed and running VM has zero disk reported, try to get real disk info from guest
-                guest_disk_info = None
-                if qemu_truly_installed and is_running and _to_int(disk) == 0:
-                    guest_disk_info = client.get_vm_guest_fsinfo(node_name, str(vmid))
-                    # Extract root filesystem info if available
-                    if guest_disk_info:
-                        fsinfo = guest_disk_info.get("result", [])
-                        for fs in fsinfo:
-                            if fs.get("mountpoint") == "/":
-                                disk = fs.get("used-bytes")
-                                maxdisk = fs.get("total-bytes")
-                                break
-                
-                # Check if disk is reported as zero for a running VM (agent may exist but disk metrics unavailable)
-                qemu_warning_inferred = (
-                    is_running
-                    and _to_int(maxdisk) > 0
-                    and _to_int(disk) == 0
-                )
-                
-                vm_info = {
-                    "id": vmid,
-                    "name": vm.get("name"),
-                    "status": vm.get("status"),
-                    "maxdisk": maxdisk,
-                    "disk": disk,
-                    "maxmem": vm.get("maxmem"),
-                    "mem": vm_status.get("mem") if vm_status else None,
-                    "qemu_guest_agent_installed": qemu_truly_installed,
-                    "qemu_guest_agent_error": agent_status.get("error"),
-                    "qemu_guest_agent_warning_inferred": qemu_warning_inferred,
-                }
-                # Include raw guest info for debugging if available
-                if guest_disk_info:
-                    vm_info["_debug_guest_fsinfo"] = guest_disk_info
-                node_info["vms"].append(vm_info)
-
-            for container in containers:
-                vmid = container.get("vmid")
-                container_status = client.get_container_status(node_name, str(vmid))
-                container_info = {
-                    "id": vmid,
-                    "name": container.get("name"),
-                    "status": container.get("status"),
-                    "maxdisk": container.get("maxdisk"),
-                    "disk": container_status.get("disk") if container_status else None,
-                    "maxmem": container.get("maxmem"),
-                    "mem": container_status.get("mem") if container_status else None
-                }
-                node_info["containers"].append(container_info)
-
+            node_info = _build_node_info(node, client)
             result["nodes"].append(node_info)
 
         return result
 
     except Exception as e:
         return {"error": f"Failed to get Proxmox data: {str(e)}", "host": host_ip}
+
+
+def _to_int(value):
+    """Convert value to integer, returning 0 on failure."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _build_node_info(node, client) -> Dict:
+    """Build node information including storage, VMs, and containers."""
+    node_name = node.get("node")
+    node_info = {
+        "name": node_name,
+        "status": node.get("status"),
+        "storage": [],
+        "vms": [],
+        "containers": []
+    }
+
+    # Get storage info
+    _add_storage_info(node_info, client, node_name)
+    
+    # Get VMs and containers
+    vms, containers = client.get_vms_and_containers(node_name)
+    _add_vm_info(node_info, client, node_name, vms)
+    _add_container_info(node_info, client, node_name, containers)
+
+    return node_info
+
+
+def _add_storage_info(node_info, client, node_name):
+    """Add storage information to node info."""
+    storage_list = client.get_storage(node_name)
+    for storage in storage_list:
+        storage_name = storage.get("storage")
+        storage_info = {
+            "name": storage_name,
+            "type": storage.get("type"),
+            "enabled": storage.get("enabled", 1),
+            "total": storage.get("total"),
+            "used": storage.get("used"),
+            "available": storage.get("available")
+        }
+        node_info["storage"].append(storage_info)
+
+
+def _add_vm_info(node_info, client, node_name, vms):
+    """Add VM information to node info."""
+    for vm in vms:
+        vmid = vm.get("vmid")
+        vm_status = client.get_vm_status(node_name, str(vmid))
+        agent_status = client.get_vm_agent_status(node_name, str(vmid))
+        vm_info = _build_vm_info(vm, vm_status, agent_status, client, node_name)
+        node_info["vms"].append(vm_info)
+
+
+def _add_container_info(node_info, client, node_name, containers):
+    """Add container information to node info."""
+    for container in containers:
+        vmid = container.get("vmid")
+        container_status = client.get_container_status(node_name, str(vmid))
+        container_info = {
+            "id": vmid,
+            "name": container.get("name"),
+            "status": container.get("status"),
+            "maxdisk": container.get("maxdisk"),
+            "disk": container_status.get("disk") if container_status else None,
+            "maxmem": container.get("maxmem"),
+            "mem": container_status.get("mem") if container_status else None
+        }
+        node_info["containers"].append(container_info)
+
+
+def _build_vm_info(vm, vm_status, agent_status, client, node_name) -> Dict:
+    """Build VM information from VM data and status."""
+    vmid = vm.get("vmid")
+    maxdisk = vm.get("maxdisk")
+    disk = vm_status.get("disk") if vm_status else None
+    is_running = str(vm.get("status") or "").lower() == "running"
+    
+    # Determine if QEMU guest agent is truly installed
+    qemu_truly_installed = agent_status.get("installed", False)
+    
+    # If agent is installed and running VM has zero disk reported, try to get real disk info from guest
+    guest_disk_info = None
+    if qemu_truly_installed and is_running and _to_int(disk) == 0:
+        guest_disk_info = client.get_vm_guest_fsinfo(node_name, str(vmid))
+        # Extract root filesystem info if available
+        if guest_disk_info:
+            fsinfo = guest_disk_info.get("result", [])
+            for fs in fsinfo:
+                if fs.get("mountpoint") == "/":
+                    disk = fs.get("used-bytes")
+                    maxdisk = fs.get("total-bytes")
+                    break
+    
+    # Check if disk is reported as zero for a running VM (agent may exist but disk metrics unavailable)
+    qemu_warning_inferred = (
+        is_running
+        and _to_int(maxdisk) > 0
+        and _to_int(disk) == 0
+    )
+    
+    vm_info = {
+        "id": vmid,
+        "name": vm.get("name"),
+        "status": vm.get("status"),
+        "maxdisk": maxdisk,
+        "disk": disk,
+        "maxmem": vm.get("maxmem"),
+        "mem": vm_status.get("mem") if vm_status else None,
+        "qemu_guest_agent_installed": qemu_truly_installed,
+        "qemu_guest_agent_error": agent_status.get("error"),
+        "qemu_guest_agent_warning_inferred": qemu_warning_inferred,
+    }
+    # Include raw guest info for debugging if available
+    if guest_disk_info:
+        vm_info["_debug_guest_fsinfo"] = guest_disk_info
+    return vm_info

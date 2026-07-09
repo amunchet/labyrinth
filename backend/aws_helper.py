@@ -53,39 +53,8 @@ def list_ec2_instances(account_config: Dict) -> Dict:
             for reservation in page.get("Reservations", []):
                 owner_id = reservation.get("OwnerId")
                 for instance in reservation.get("Instances", []):
-                    tags = _tags_to_dict(instance.get("Tags", []))
-                    launch_time = instance.get("LaunchTime")
-                    if hasattr(launch_time, "isoformat"):
-                        launch_time = launch_time.isoformat()
-
-                    placement = instance.get("Placement") or {}
-                    state = instance.get("State") or {}
-                    monitoring = instance.get("Monitoring") or {}
-
-                    instances.append(
-                        {
-                            "instance_id": instance.get("InstanceId"),
-                            "name": tags.get("Name") or instance.get("PrivateDnsName") or instance.get("PublicDnsName") or instance.get("InstanceId"),
-                            "state": state.get("Name"),
-                            "instance_type": instance.get("InstanceType"),
-                            "private_ip": instance.get("PrivateIpAddress"),
-                            "public_ip": instance.get("PublicIpAddress"),
-                            "private_dns_name": instance.get("PrivateDnsName"),
-                            "public_dns_name": instance.get("PublicDnsName"),
-                            "availability_zone": placement.get("AvailabilityZone"),
-                            "subnet_id": instance.get("SubnetId"),
-                            "vpc_id": instance.get("VpcId"),
-                            "platform": instance.get("Platform") or "linux",
-                            "architecture": instance.get("Architecture"),
-                            "monitoring_state": monitoring.get("State"),
-                            "launch_time": launch_time,
-                            "tags": tags,
-                            "security_groups": [group.get("GroupName") for group in instance.get("SecurityGroups", []) if group.get("GroupName")],
-                            "account_id": owner_id,
-                            "region": account_config.get("region"),
-                            "account_name": account_config.get("name"),
-                        }
-                    )
+                    instance_data = _build_instance_dict(instance, owner_id, account_config)
+                    instances.append(instance_data)
 
         return {
             "account_name": account_config.get("name"),
@@ -101,3 +70,38 @@ def list_ec2_instances(account_config: Dict) -> Dict:
             "error": str(exc),
             "instances": [],
         }
+
+
+def _build_instance_dict(instance: Dict, owner_id: str, account_config: Dict) -> Dict:
+    """Build an instance dictionary from AWS EC2 instance data."""
+    tags = _tags_to_dict(instance.get("Tags", []))
+    launch_time = instance.get("LaunchTime")
+    if hasattr(launch_time, "isoformat"):
+        launch_time = launch_time.isoformat()
+
+    placement = instance.get("Placement") or {}
+    state = instance.get("State") or {}
+    monitoring = instance.get("Monitoring") or {}
+
+    return {
+        "instance_id": instance.get("InstanceId"),
+        "name": tags.get("Name") or instance.get("PrivateDnsName") or instance.get("PublicDnsName") or instance.get("InstanceId"),
+        "state": state.get("Name"),
+        "instance_type": instance.get("InstanceType"),
+        "private_ip": instance.get("PrivateIpAddress"),
+        "public_ip": instance.get("PublicIpAddress"),
+        "private_dns_name": instance.get("PrivateDnsName"),
+        "public_dns_name": instance.get("PublicDnsName"),
+        "availability_zone": placement.get("AvailabilityZone"),
+        "subnet_id": instance.get("SubnetId"),
+        "vpc_id": instance.get("VpcId"),
+        "platform": instance.get("Platform") or "linux",
+        "architecture": instance.get("Architecture"),
+        "monitoring_state": monitoring.get("State"),
+        "launch_time": launch_time,
+        "tags": tags,
+        "security_groups": [group.get("GroupName") for group in instance.get("SecurityGroups", []) if group.get("GroupName")],
+        "account_id": owner_id,
+        "region": account_config.get("region"),
+        "account_name": account_config.get("name"),
+    }

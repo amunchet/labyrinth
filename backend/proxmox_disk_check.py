@@ -99,95 +99,110 @@ def collect_disk_issues(
     # Check storage (datastores)
     for node in cluster_data.get("nodes", []):
         node_name = node.get("name", "unknown")
-        
-        # Check node-level storage
-        for storage in node.get("storage", []):
-            if not storage.get("enabled", True):
-                continue
-            
-            total = storage.get("total")
-            used = storage.get("used")
-            
-            if total and used:
-                percent = calculate_percentage(used, total)
-                if percent >= threshold_percent:
-                    issues.append({
-                        "type": "datastore",
-                        "cluster": cluster_name,
-                        "host": host,
-                        "node": node_name,
-                        "name": storage.get("name"),
-                        "storage_type": storage.get("type"),
-                        "used": used,
-                        "total": total,
-                        "percentage": round(percent, 2),
-                    })
-        
-        # Check VMs
-        for vm in node.get("vms", []):
-            maxdisk = vm.get("maxdisk")
-            disk = vm.get("disk")
+        issues.extend(_collect_storage_issues(node, cluster_name, host, node_name, threshold_percent))
+        issues.extend(_collect_vm_issues(node, cluster_name, host, node_name, threshold_percent))
+        issues.extend(_collect_container_issues(node, cluster_name, host, node_name, threshold_percent))
+    
+    return issues
 
-            # A running VM with maxdisk but a zero/blank disk reading means
-            # the QEMU guest agent is missing, not running, or couldn't
-            # report filesystem info - so disk usage cannot be verified at
-            # all. Always surface this, regardless of threshold, since
-            # silently skipping these VMs (previous behavior) could make an
-            # entire cluster look "clean" when its VMs simply couldn't be
-            # measured.
-            if vm.get("qemu_guest_agent_warning_inferred"):
+
+def _collect_storage_issues(node, cluster_name, host, node_name, threshold_percent):
+    """Collect storage/datastore disk issues from a node."""
+    issues = []
+    for storage in node.get("storage", []):
+        if not storage.get("enabled", True):
+            continue
+        
+        total = storage.get("total")
+        used = storage.get("used")
+        
+        if total and used:
+            percent = calculate_percentage(used, total)
+            if percent >= threshold_percent:
                 issues.append({
-                    "type": "vm_qemu_missing",
+                    "type": "datastore",
+                    "cluster": cluster_name,
+                    "host": host,
+                    "node": node_name,
+                    "name": storage.get("name"),
+                    "storage_type": storage.get("type"),
+                    "used": used,
+                    "total": total,
+                    "percentage": round(percent, 2),
+                })
+    return issues
+
+
+def _collect_vm_issues(node, cluster_name, host, node_name, threshold_percent):
+    """Collect VM disk issues from a node."""
+    issues = []
+    for vm in node.get("vms", []):
+        maxdisk = vm.get("maxdisk")
+        disk = vm.get("disk")
+
+        # A running VM with maxdisk but a zero/blank disk reading means
+        # the QEMU guest agent is missing, not running, or couldn't
+        # report filesystem info - so disk usage cannot be verified at
+        # all. Always surface this, regardless of threshold, since
+        # silently skipping these VMs (previous behavior) could make an
+        # entire cluster look "clean" when its VMs simply couldn't be
+        # measured.
+        if vm.get("qemu_guest_agent_warning_inferred"):
+            issues.append({
+                "type": "vm_qemu_missing",
+                "cluster": cluster_name,
+                "host": host,
+                "node": node_name,
+                "name": vm.get("name"),
+                "vm_id": vm.get("id"),
+                "status": vm.get("status"),
+                "maxdisk": maxdisk,
+                "qemu_agent_installed": vm.get("qemu_guest_agent_installed"),
+                "qemu_agent_error": vm.get("qemu_guest_agent_error"),
+            })
+            continue
+        
+        if maxdisk and disk:
+            percent = calculate_percentage(disk, maxdisk)
+            if percent >= threshold_percent:
+                issues.append({
+                    "type": "vm",
                     "cluster": cluster_name,
                     "host": host,
                     "node": node_name,
                     "name": vm.get("name"),
                     "vm_id": vm.get("id"),
                     "status": vm.get("status"),
-                    "maxdisk": maxdisk,
+                    "used": disk,
+                    "total": maxdisk,
+                    "percentage": round(percent, 2),
                     "qemu_agent_installed": vm.get("qemu_guest_agent_installed"),
-                    "qemu_agent_error": vm.get("qemu_guest_agent_error"),
                 })
-                continue
-            
-            if maxdisk and disk:
-                percent = calculate_percentage(disk, maxdisk)
-                if percent >= threshold_percent:
-                    issues.append({
-                        "type": "vm",
-                        "cluster": cluster_name,
-                        "host": host,
-                        "node": node_name,
-                        "name": vm.get("name"),
-                        "vm_id": vm.get("id"),
-                        "status": vm.get("status"),
-                        "used": disk,
-                        "total": maxdisk,
-                        "percentage": round(percent, 2),
-                        "qemu_agent_installed": vm.get("qemu_guest_agent_installed"),
-                    })
+    return issues
+
+
+def _collect_container_issues(node, cluster_name, host, node_name, threshold_percent):
+    """Collect container disk issues from a node."""
+    issues = []
+    for container in node.get("containers", []):
+        maxdisk = container.get("maxdisk")
+        disk = container.get("disk")
         
-        # Check containers (LXCs)
-        for container in node.get("containers", []):
-            maxdisk = container.get("maxdisk")
-            disk = container.get("disk")
-            
-            if maxdisk and disk:
-                percent = calculate_percentage(disk, maxdisk)
-                if percent >= threshold_percent:
-                    issues.append({
-                        "type": "container",
-                        "cluster": cluster_name,
-                        "host": host,
-                        "node": node_name,
-                        "name": container.get("name"),
-                        "container_id": container.get("id"),
-                        "status": container.get("status"),
-                        "used": disk,
-                        "total": maxdisk,
-                        "percentage": round(percent, 2),
-                    })
-    
+        if maxdisk and disk:
+            percent = calculate_percentage(disk, maxdisk)
+            if percent >= threshold_percent:
+                issues.append({
+                    "type": "container",
+                    "cluster": cluster_name,
+                    "host": host,
+                    "node": node_name,
+                    "name": container.get("name"),
+                    "container_id": container.get("id"),
+                    "status": container.get("status"),
+                    "used": disk,
+                    "total": maxdisk,
+                    "percentage": round(percent, 2),
+                })
     return issues
 
 
