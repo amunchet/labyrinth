@@ -2534,13 +2534,15 @@ def create_proxmox_cluster():
 
         # Sanitize name early to prevent taint tracking issues
         safe_cluster_name = _sanitize_string_value(data["name"])
+        safe_cluster_name_key = safe_cluster_name.casefold()
         
         # Check if cluster with this name already exists
-        if mongo_client["labyrinth"]["proxmox_clusters"].find_one({"name": safe_cluster_name}):
+        if mongo_client["labyrinth"]["proxmox_clusters"].find_one({"name_key": safe_cluster_name_key}):
             return json.dumps({"error": "Cluster with this name already exists"}), 409
 
         cluster_doc = {
             "name": safe_cluster_name,
+            "name_key": safe_cluster_name_key,
             "host": _sanitize_db_value(data["host"]),
             "user": _sanitize_db_value(data["user"]),
             "token_id": _sanitize_db_value(data["token_id"]),
