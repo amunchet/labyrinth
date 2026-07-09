@@ -28,7 +28,9 @@
 
           <div class="node-panels">
             <div class="node-panel storage-panel">
-              <div class="panel-title">Datastores</div>
+              <div class="panel-title" title="Datastores" aria-label="Datastores">
+                <font-awesome-icon icon="database" />
+              </div>
               <div v-if="visibleStorage(node).length > 0" class="storage-grid">
                 <div
                   v-for="storage in visibleStorage(node)"
@@ -44,7 +46,9 @@
             </div>
 
             <div class="node-panel vm-panel">
-              <div class="panel-title">Instances</div>
+              <div class="panel-title" title="Instances" aria-label="Instances">
+                <font-awesome-icon icon="server" />
+              </div>
 
               <div v-if="runningVMs(node).length" class="mb-2">
                 <div class="vm-grid">
@@ -59,7 +63,9 @@
               </div>
 
               <div v-if="runningContainers(node).length">
-                <div class="instance-subtitle text-secondary">LXCs</div>
+                <div class="instance-subtitle text-secondary" title="LXCs" aria-label="LXCs">
+                  <font-awesome-icon icon="cube" />
+                </div>
                 <div class="vm-grid">
                   <div
                     v-for="container in runningContainers(node)"
