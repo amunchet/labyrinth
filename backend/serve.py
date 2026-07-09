@@ -2455,7 +2455,6 @@ def send_disk_space_test_email():
             return json.dumps({
                 "status": "sent",
                 "mode": "full",
-                "recipients": recipients,
                 **result,
             }), 200
 
@@ -2463,7 +2462,6 @@ def send_disk_space_test_email():
         return json.dumps({
             "status": "sent",
             "mode": "simple",
-            "recipients": recipients,
         }), 200
     except ValueError as e:
         return json.dumps({"error": "Invalid email configuration"}), 400
@@ -2556,12 +2554,9 @@ def create_proxmox_cluster():
 
         proxmox_helper.delete_cached_proxmox_disk_data(str(result.inserted_id))
 
-        cluster_response = cluster_doc.copy()
-        cluster_response.pop("token_secret", None)
         return json.dumps({
             "id": str(result.inserted_id),
-            "status": "created",
-            "cluster": cluster_response
+            "status": "created"
         }), 201
     except Exception as e:
         return json.dumps({"error": "Failed to create Proxmox cluster configuration"}), 500
@@ -2774,13 +2769,9 @@ def create_aws_account():
 
         result = mongo_client["labyrinth"]["aws_accounts"].insert_one(account_doc)
 
-        account_response = account_doc.copy()
-        account_response.pop("secret_access_key", None)
-        account_response.pop("session_token", None)
         return json.dumps({
             "id": str(result.inserted_id),
-            "status": "created",
-            "account": account_response
+            "status": "created"
         }), 201
     except Exception as e:
         return json.dumps({"error": "Failed to create AWS account configuration"}), 500

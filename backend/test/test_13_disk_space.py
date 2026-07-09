@@ -340,8 +340,7 @@ def test_proxmox_cluster_crud(setup):
     assert create_resp[1] == 201
     created = json.loads(create_resp[0])
     cluster_id = created["id"]
-    assert created["cluster"]["name"] == "test-cluster"
-    assert "token_secret" not in created["cluster"]
+    assert created["status"] == "created"
 
     # List clusters
     list_resp = unwrap(serve.list_proxmox_clusters)()

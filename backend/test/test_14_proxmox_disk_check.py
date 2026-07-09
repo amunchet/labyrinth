@@ -463,7 +463,6 @@ def test_send_disk_space_test_email_endpoint_full_mode(setup, monkeypatch):
     data = json.loads(resp[0])
     assert data["status"] == "sent"
     assert data["mode"] == "full"
-    assert data["recipients"] == ["ops@example.com"]
     assert data["issues_found"] == 2
     assert data["issues_by_type"] == {"datastore": 1, "vm_qemu_missing": 1}
     assert captured["recipients"] == ["ops@example.com"]
@@ -521,7 +520,8 @@ def test_send_disk_space_test_email_endpoint_falls_back_to_saved_recipients(setu
 
     assert resp[1] == 200
     data = json.loads(resp[0])
-    assert data["recipients"] == ["saved@example.com", "other@example.com"]
+    assert data["status"] == "sent"
+    assert data["mode"] == "simple"
     assert simple_calls == [["saved@example.com", "other@example.com"]]
 
 

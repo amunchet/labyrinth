@@ -42,8 +42,7 @@ def test_aws_account_crud(setup):
     assert create_resp[1] == 201
     created = json.loads(create_resp[0])
     account_id = created["id"]
-    assert created["account"]["name"] == "prod-account"
-    assert "secret_access_key" not in created["account"]
+    assert created["status"] == "created"
 
     list_resp = unwrap(serve.list_aws_accounts)()
     assert list_resp[1] == 200
