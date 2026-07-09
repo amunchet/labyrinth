@@ -25,7 +25,7 @@ describe("StorageProgressBar.vue", () => {
     const storage = {
       name: "local-storage",
       type: "dir",
-      disk: 1000000000,
+      total: 1000000000,
       used: 750000000,
       avail: 250000000,
     };
@@ -35,14 +35,14 @@ describe("StorageProgressBar.vue", () => {
       mocks: { $auth: config.mocks["$auth"] },
     });
 
-    expect(wrapper.find(".progress").exists()).toBe(true);
+    expect(wrapper.find(".storage-tile").exists()).toBe(true);
   });
 
   test("displays storage name", () => {
     const storage = {
       name: "backup-storage",
       type: "nfs",
-      disk: 5000000000,
+      total: 5000000000,
       used: 3000000000,
     };
 
@@ -57,7 +57,7 @@ describe("StorageProgressBar.vue", () => {
   test("calculates and displays usage percentage correctly", () => {
     const storage = {
       name: "storage",
-      disk: 1000,
+      total: 1000,
       used: 500,
     };
 
@@ -73,7 +73,7 @@ describe("StorageProgressBar.vue", () => {
   test("displays variant based on threshold", () => {
     const storage = {
       name: "storage",
-      disk: 1000,
+      total: 1000,
       used: 900,
     };
 
@@ -82,14 +82,14 @@ describe("StorageProgressBar.vue", () => {
       mocks: { $auth: config.mocks["$auth"] },
     });
 
-    const variant = wrapper.vm.variant;
-    expect(["success", "warning", "danger"]).toContain(variant);
+    const usageClass = wrapper.vm.usageClass;
+    expect(["usage-success", "usage-warning", "usage-danger"]).toContain(usageClass);
   });
 
   test("handles zero disk size gracefully", () => {
     const storage = {
       name: "empty-storage",
-      disk: 0,
+      total: 0,
       used: 0,
     };
 
@@ -104,7 +104,7 @@ describe("StorageProgressBar.vue", () => {
   test("formats storage size for display", () => {
     const storage = {
       name: "storage",
-      disk: 1099511627776,
+      total: 1099511627776,
       used: 549755813888,
     };
 
@@ -120,7 +120,7 @@ describe("StorageProgressBar.vue", () => {
     const storage = {
       name: "nfs-storage",
       type: "nfs",
-      disk: 1000000000,
+      total: 1000000000,
       used: 600000000,
     };
 
@@ -135,7 +135,7 @@ describe("StorageProgressBar.vue", () => {
   test("handles large storage values", () => {
     const storage = {
       name: "large-storage",
-      disk: 10995116277760,
+      total: 10995116277760,
       used: 5497558138880,
     };
 
@@ -144,13 +144,13 @@ describe("StorageProgressBar.vue", () => {
       mocks: { $auth: config.mocks["$auth"] },
     });
 
-    expect(wrapper.find(".progress").exists()).toBe(true);
+    expect(wrapper.find(".storage-tile").exists()).toBe(true);
   });
 
   test("updates when storage prop changes", async () => {
     const storage = {
       name: "storage",
-      disk: 1000,
+      total: 1000,
       used: 300,
     };
 
@@ -164,7 +164,7 @@ describe("StorageProgressBar.vue", () => {
     await wrapper.setProps({
       storage: {
         name: "storage",
-        disk: 1000,
+        total: 1000,
         used: 700,
       },
     });

@@ -2,7 +2,6 @@ import { config, mount } from "@vue/test-utils";
 import Vue from "vue";
 import BootstrapVue from "bootstrap-vue";
 import DiskSpace from "@/views/DiskSpace.vue";
-import Helper from "@/helper";
 
 Vue.use(BootstrapVue);
 
@@ -13,25 +12,6 @@ config.mocks["$auth"] = {
   },
   getAccessToken: jest.fn(() => Promise.resolve("access-token")),
 };
-
-jest.mock("@/helper", () => ({
-  apiCall: jest.fn(),
-}));
-
-jest.mock("@/components/DiskSpace/DiskSpaceView", () => ({
-  name: "DiskSpaceView",
-  template: "<div class='disk-space-view'>Disk Space View</div>",
-}));
-
-jest.mock("@/components/DiskSpace/DiskSpaceSettings", () => ({
-  name: "DiskSpaceSettings",
-  template: "<div class='disk-space-settings'>Settings</div>",
-}));
-
-jest.mock("@/components/DiskSpace/ProxmoxDocumentation", () => ({
-  name: "ProxmoxDocumentation",
-  template: "<div class='proxmox-docs'>Docs</div>",
-}));
 
 describe("DiskSpace.vue", () => {
   let wrapper;
@@ -49,63 +29,45 @@ describe("DiskSpace.vue", () => {
   test("renders component correctly", () => {
     wrapper = mount(DiskSpace, {
       mocks: { $auth: config.mocks["$auth"] },
-      stubs: {
-        DiskSpaceView: true,
-        DiskSpaceSettings: true,
-        ProxmoxDocumentation: true,
-      },
+      stubs: ["DiskSpaceView", "DiskSpaceSettings"],
     });
 
-    expect(wrapper.find(".container, .p-3, [class*='view']").exists()).toBe(true);
+    expect(wrapper.findComponent({ name: "BTabs" }).exists()).toBe(true);
   });
 
   test("displays disk space view tab/section", () => {
     wrapper = mount(DiskSpace, {
       mocks: { $auth: config.mocks["$auth"] },
-      stubs: {
-        DiskSpaceView: { template: "<div>View</div>" },
-        DiskSpaceSettings: { template: "<div>Settings</div>" },
-        ProxmoxDocumentation: { template: "<div>Docs</div>" },
-      },
+      stubs: ["DiskSpaceView", "DiskSpaceSettings"],
     });
 
-    expect(wrapper.text()).toMatch(/View|Settings|Documentation/i);
+    const tabs = wrapper.findAllComponents({ name: "BTab" });
+    expect(tabs.at(0).props("title")).toBe("Disk Space Check");
   });
 
   test("displays disk space settings tab/section", () => {
     wrapper = mount(DiskSpace, {
       mocks: { $auth: config.mocks["$auth"] },
-      stubs: {
-        DiskSpaceView: { template: "<div>View</div>" },
-        DiskSpaceSettings: { template: "<div>Settings</div>" },
-        ProxmoxDocumentation: { template: "<div>Docs</div>" },
-      },
+      stubs: ["DiskSpaceView", "DiskSpaceSettings"],
     });
 
-    expect(wrapper.text()).toMatch(/Settings|View|Documentation/i);
+    const tabs = wrapper.findAllComponents({ name: "BTab" });
+    expect(tabs.at(1).props("title")).toBe("Settings");
   });
 
   test("displays documentation tab/section", () => {
     wrapper = mount(DiskSpace, {
       mocks: { $auth: config.mocks["$auth"] },
-      stubs: {
-        DiskSpaceView: { template: "<div>View</div>" },
-        DiskSpaceSettings: { template: "<div>Settings</div>" },
-        ProxmoxDocumentation: { template: "<div>Docs</div>" },
-      },
+      stubs: ["DiskSpaceView", "DiskSpaceSettings"],
     });
 
-    expect(wrapper.text()).toMatch(/Documentation|View|Settings/i);
+    expect(wrapper.findAllComponents({ name: "BTab" }).length).toBe(2);
   });
 
   test("component has proper structure", () => {
     wrapper = mount(DiskSpace, {
       mocks: { $auth: config.mocks["$auth"] },
-      stubs: {
-        DiskSpaceView: true,
-        DiskSpaceSettings: true,
-        ProxmoxDocumentation: true,
-      },
+      stubs: ["DiskSpaceView", "DiskSpaceSettings"],
     });
 
     expect(wrapper.vm).toBeTruthy();
@@ -115,11 +77,7 @@ describe("DiskSpace.vue", () => {
     expect(() => {
       wrapper = mount(DiskSpace, {
         mocks: { $auth: config.mocks["$auth"] },
-        stubs: {
-          DiskSpaceView: true,
-          DiskSpaceSettings: true,
-          ProxmoxDocumentation: true,
-        },
+        stubs: ["DiskSpaceView", "DiskSpaceSettings"],
       });
     }).not.toThrow();
   });
@@ -127,11 +85,7 @@ describe("DiskSpace.vue", () => {
   test("has navigation structure for tabs", () => {
     wrapper = mount(DiskSpace, {
       mocks: { $auth: config.mocks["$auth"] },
-      stubs: {
-        DiskSpaceView: { template: "<div>View</div>" },
-        DiskSpaceSettings: { template: "<div>Settings</div>" },
-        ProxmoxDocumentation: { template: "<div>Docs</div>" },
-      },
+      stubs: ["DiskSpaceView", "DiskSpaceSettings"],
     });
 
     const html = wrapper.html();

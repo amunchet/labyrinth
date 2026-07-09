@@ -26,7 +26,7 @@ describe("AwsDocumentation.vue", () => {
       mocks: { $auth: config.mocks["$auth"] },
     });
 
-    expect(wrapper.find(".p-3").exists()).toBe(true);
+    expect(wrapper.find(".aws-documentation").exists()).toBe(true);
   });
 
   test("displays documentation content", () => {

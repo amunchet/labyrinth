@@ -15,6 +15,12 @@ config.mocks["$auth"] = {
 describe("VMContainerProgressBar.vue", () => {
   let wrapper;
 
+  const createWrapper = (item) =>
+    mount(VMContainerProgressBar, {
+      propsData: { item, type: "vm" },
+      mocks: { $auth: config.mocks["$auth"] },
+    });
+
   afterEach(() => {
     if (wrapper) {
       wrapper.destroy();
@@ -22,177 +28,147 @@ describe("VMContainerProgressBar.vue", () => {
   });
 
   test("renders progress bar with VM data", () => {
-    const vm = {
+    const item = {
       name: "web-server",
-      vmid: "100",
+      id: "100",
       disk: 50000000000,
       maxdisk: 100000000000,
     };
 
-    wrapper = mount(VMContainerProgressBar, {
-      propsData: { vm },
-      mocks: { $auth: config.mocks["$auth"] },
-    });
+    wrapper = createWrapper(item);
 
-    expect(wrapper.find(".progress").exists()).toBe(true);
+    expect(wrapper.find(".vm-tile").exists()).toBe(true);
   });
 
   test("displays VM name", () => {
-    const vm = {
+    const item = {
       name: "database-server",
-      vmid: "101",
+      id: "101",
       disk: 75000000000,
       maxdisk: 200000000000,
     };
 
-    wrapper = mount(VMContainerProgressBar, {
-      propsData: { vm },
-      mocks: { $auth: config.mocks["$auth"] },
-    });
+    wrapper = createWrapper(item);
 
     expect(wrapper.text()).toContain("database-server");
   });
 
   test("calculates usage percentage correctly", () => {
-    const vm = {
+    const item = {
       name: "test-vm",
-      vmid: "102",
+      id: "102",
       disk: 50000000000,
       maxdisk: 100000000000,
     };
 
-    wrapper = mount(VMContainerProgressBar, {
-      propsData: { vm },
-      mocks: { $auth: config.mocks["$auth"] },
-    });
+    wrapper = createWrapper(item);
 
-    const percentage = wrapper.vm.usagePercentage;
+    const percentage = wrapper.vm.diskUsagePercentage;
     expect(percentage).toBe(50);
   });
 
   test("handles zero maxdisk gracefully", () => {
-    const vm = {
+    const item = {
       name: "vm-no-disk",
-      vmid: "103",
+      id: "103",
       disk: 0,
       maxdisk: 0,
     };
 
-    wrapper = mount(VMContainerProgressBar, {
-      propsData: { vm },
-      mocks: { $auth: config.mocks["$auth"] },
-    });
+    wrapper = createWrapper(item);
 
     expect(wrapper.vm).toBeTruthy();
   });
 
   test("handles missing disk data", () => {
-    const vm = {
+    const item = {
       name: "vm-guest-agent-missing",
-      vmid: "104",
-      disk: 0,
+      id: "104",
+      disk: null,
       maxdisk: 100000000000,
     };
 
-    wrapper = mount(VMContainerProgressBar, {
-      propsData: { vm },
-      mocks: { $auth: config.mocks["$auth"] },
-    });
+    wrapper = createWrapper(item);
 
-    expect(wrapper.find(".progress").exists()).toBe(true);
+    expect(wrapper.vm.hasDiskInfo).toBe(false);
   });
 
   test("displays variant based on usage threshold", () => {
-    const vm = {
+    const item = {
       name: "vm-full",
-      vmid: "105",
+      id: "105",
       disk: 90000000000,
       maxdisk: 100000000000,
     };
 
-    wrapper = mount(VMContainerProgressBar, {
-      propsData: { vm },
-      mocks: { $auth: config.mocks["$auth"] },
-    });
+    wrapper = createWrapper(item);
 
-    const variant = wrapper.vm.variant;
-    expect(["success", "warning", "danger"]).toContain(variant);
+    const usageClass = wrapper.vm.diskUsageClass;
+    expect(["usage-success", "usage-warning", "usage-danger"]).toContain(usageClass);
   });
 
   test("displays VM ID", () => {
-    const vm = {
+    const item = {
       name: "prod-vm",
-      vmid: "200",
+      id: "200",
       disk: 30000000000,
       maxdisk: 100000000000,
     };
 
-    wrapper = mount(VMContainerProgressBar, {
-      propsData: { vm },
-      mocks: { $auth: config.mocks["$auth"] },
-    });
+    wrapper = createWrapper(item);
 
     expect(wrapper.text()).toContain("prod-vm");
   });
 
   test("formats disk sizes correctly", () => {
-    const vm = {
+    const item = {
       name: "storage-vm",
-      vmid: "300",
+      id: "300",
       disk: 1099511627776,
       maxdisk: 2199023255552,
     };
 
-    wrapper = mount(VMContainerProgressBar, {
-      propsData: { vm },
-      mocks: { $auth: config.mocks["$auth"] },
-    });
+    wrapper = createWrapper(item);
 
-    expect(wrapper.vm).toBeTruthy();
+    expect(wrapper.vm.formatBytes(1099511627776)).toBe("1 TB");
   });
 
   test("updates when VM prop changes", async () => {
-    const vm = {
+    const item = {
       name: "vm",
-      vmid: "400",
+      id: "400",
       disk: 20000000000,
       maxdisk: 100000000000,
     };
 
-    wrapper = mount(VMContainerProgressBar, {
-      propsData: { vm },
-      mocks: { $auth: config.mocks["$auth"] },
-    });
+    wrapper = createWrapper(item);
 
-    const initialPercentage = wrapper.vm.usagePercentage;
+    const initialPercentage = wrapper.vm.diskUsagePercentage;
 
     await wrapper.setProps({
-      vm: {
+      item: {
         name: "vm",
-        vmid: "400",
+        id: "400",
         disk: 80000000000,
         maxdisk: 100000000000,
       },
     });
 
-    const newPercentage = wrapper.vm.usagePercentage;
+    const newPercentage = wrapper.vm.diskUsagePercentage;
     expect(newPercentage).not.toBe(initialPercentage);
   });
 
   test("handles extremely high usage", () => {
-    const vm = {
+    const item = {
       name: "over-quota-vm",
-      vmid: "500",
+      id: "500",
       disk: 150000000000,
       maxdisk: 100000000000,
     };
 
-    wrapper = mount(VMContainerProgressBar, {
-      propsData: { vm },
-      mocks: { $auth: config.mocks["$auth"] },
-    });
+    wrapper = createWrapper(item);
 
-    const percentage = wrapper.vm.usagePercentage;
+    const percentage = wrapper.vm.diskUsagePercentage;
     expect(percentage).toBeGreaterThan(100);
   });
 });
