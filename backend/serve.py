@@ -82,6 +82,23 @@ def _sanitize_string_value(value):
     return sanitized
 
 
+def _sanitize_mongo_value(value):
+    """
+    Recursively sanitize values used in MongoDB queries/documents.
+    Removes dangerous key patterns used for operator/path injection.
+    """
+    if isinstance(value, dict):
+        safe_obj = {}
+        for k, v in value.items():
+            if isinstance(k, str) and (k.startswith("$") or "." in k):
+                continue
+            safe_obj[k] = _sanitize_mongo_value(v)
+        return safe_obj
+    if isinstance(value, list):
+        return [_sanitize_mongo_value(v) for v in value]
+    return value
+
+
 def _requires_header(f, permission):  # pragma: no cover
     @functools.wraps(f)
     def decorated(*args, **kwargs):
@@ -2711,7 +2728,8 @@ def create_aws_account():
             return json.dumps({"error": f"Missing required fields: {', '.join(required_fields)}"}), 400
 
         safe_name = _sanitize_string_value(data["name"])
-        if mongo_client["labyrinth"]["aws_accounts"].find_one({"name": safe_name}):
+        safe_query_name = _sanitize_mongo_value(safe_name)
+        if mongo_client["labyrinth"]["aws_accounts"].find_one({"name": safe_query_name}):
             return json.dumps({"error": "AWS account with this name already exists"}), 409
 
         account_doc = {
