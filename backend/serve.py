@@ -68,6 +68,19 @@ def _sanitize_string_value(value):
     return value
 
 
+def _sanitize_db_value(value):
+    """
+    Sanitize any value for use in MongoDB to prevent NoSQL injection.
+    Rejects dictionaries that could contain MongoDB operators.
+    Allows strings, booleans, numbers, and None.
+    """
+    if isinstance(value, dict):
+        raise ValueError("Dictionary values are not allowed in database operations")
+    if isinstance(value, (str, bool, int, float, type(None))):
+        return value
+    raise ValueError(f"Unsupported type in database operation: {type(value).__name__}")
+
+
 def _requires_header(f, permission):  # pragma: no cover
     @functools.wraps(f)
     def decorated(*args, **kwargs):
@@ -2546,7 +2559,7 @@ def update_proxmox_cluster(cluster_id):
         allowed_fields = ["host", "user", "token_id", "token_secret", "verify_ssl"]
         for field in allowed_fields:
             if field in data:
-                update_doc[field] = data[field]
+                update_doc[field] = _sanitize_db_value(data[field])
 
         if update_doc:
             update_doc["updated"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -2760,7 +2773,7 @@ def update_aws_account(account_id):
                 continue
             if field in ["secret_access_key", "session_token"] and not data.get(field):
                 continue
-            update_doc[field] = data[field]
+            update_doc[field] = _sanitize_db_value(data[field])
 
         if update_doc.get("name") and update_doc["name"] != account.get("name"):
             duplicate = mongo_client["labyrinth"]["aws_accounts"].find_one(
