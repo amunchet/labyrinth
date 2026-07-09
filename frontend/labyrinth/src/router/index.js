@@ -87,6 +87,11 @@ const routes = [
     component: () =>
       import(/* webpackChunkName: "disk-space" */ "../views/DiskSpace.vue"),
   },
+  {
+    path: "/aws",
+    name: "AWS",
+    component: () => import(/* webpackChunkName: "aws" */ "../views/AWS.vue"),
+  },
 ];
 
 const router = new VueRouter({
