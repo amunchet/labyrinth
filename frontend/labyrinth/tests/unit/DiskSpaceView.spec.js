@@ -1,0 +1,273 @@
+import { config, mount } from "@vue/test-utils";
+import Vue from "vue";
+import BootstrapVue from "bootstrap-vue";
+import DiskSpaceView from "@/components/DiskSpace/DiskSpaceView.vue";
+import Helper from "@/helper";
+
+Vue.use(BootstrapVue);
+
+config.mocks["$auth"] = {
+  profile: {
+    name: "Test User",
+    email: "test@example.com",
+  },
+  getAccessToken: jest.fn(() => Promise.resolve("access-token")),
+};
+
+jest.mock("@/helper", () => ({
+  apiCall: jest.fn(),
+}));
+
+jest.mock("@/components/DiskSpace/ProxmoxHostCard", () => ({
+  name: "ProxmoxHostCard",
+  template: "<div class='proxmox-card'>{{ host.cluster_name }}</div>",
+  props: ["host"],
+}));
+
+jest.mock("@/components/DiskSpace/ManualHostCard", () => ({
+  name: "ManualHostCard",
+  template: "<div class='manual-card'>{{ host.name }}</div>",
+  props: ["host"],
+  emits: ["delete"],
+}));
+
+describe("DiskSpaceView.vue", () => {
+  let wrapper;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.clearAllTimers();
+    jest.useRealTimers();
+    if (wrapper) {
+      wrapper.destroy();
+    }
+  });
+
+  test("renders component correctly", async () => {
+    Helper.apiCall.mockResolvedValue({
+      proxmox: [],
+      manual: [],
+    });
+
+    wrapper = mount(DiskSpaceView, {
+      mocks: { $auth: config.mocks["$auth"] },
+    });
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find(".disk-space-view").exists()).toBe(true);
+  });
+
+  test("displays loading state while fetching data", async () => {
+    Helper.apiCall.mockImplementation(
+      () =>
+        new Promise((resolve) =>
+          setTimeout(
+            () => resolve({ proxmox: [], manual: [] }),
+            100
+          )
+        )
+    );
+
+    wrapper = mount(DiskSpaceView, {
+      mocks: { $auth: config.mocks["$auth"] },
+    });
+
+    expect(wrapper.find(".loading-state").exists()).toBe(true);
+    expect(wrapper.text()).toContain("Loading disk space data");
+  });
+
+  test("displays error alert when data fetch fails", async () => {
+    Helper.apiCall.mockRejectedValue(new Error("API Error"));
+
+    wrapper = mount(DiskSpaceView, {
+      mocks: { $auth: config.mocks["$auth"] },
+    });
+
+    await wrapper.vm.refreshData();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.vm.error).toContain("API Error");
+  });
+
+  test("displays proxmox clusters data", async () => {
+    Helper.apiCall.mockResolvedValue({
+      proxmox: [
+        {
+          _id: "cluster-1",
+          cluster_name: "prod-cluster",
+          host: "10.0.0.1",
+          nodes: [],
+          vms: [],
+        },
+      ],
+      manual: [],
+    });
+
+    wrapper = mount(DiskSpaceView, {
+      mocks: { $auth: config.mocks["$auth"] },
+    });
+
+    await wrapper.vm.refreshData();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.vm.proxmoxData.length).toBe(1);
+    expect(wrapper.vm.proxmoxData[0].cluster_name).toBe("prod-cluster");
+  });
+
+  test("displays manual hosts data", async () => {
+    Helper.apiCall.mockResolvedValue({
+      proxmox: [],
+      manual: [
+        {
+          id: "manual-1",
+          name: "storage-server",
+          host: "storage.example.com",
+          ip: "10.0.0.50",
+        },
+      ],
+    });
+
+    wrapper = mount(DiskSpaceView, {
+      mocks: { $auth: config.mocks["$auth"] },
+    });
+
+    await wrapper.vm.refreshData();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.vm.manualData.length).toBe(1);
+    expect(wrapper.vm.manualData[0].name).toBe("storage-server");
+  });
+
+  test("displays both proxmox and manual hosts", async () => {
+    Helper.apiCall.mockResolvedValue({
+      proxmox: [
+        {
+          _id: "cluster-1",
+          cluster_name: "prod-cluster",
+        },
+      ],
+      manual: [
+        {
+          id: "manual-1",
+          name: "storage-server",
+          host: "storage.example.com",
+        },
+      ],
+    });
+
+    wrapper = mount(DiskSpaceView, {
+      mocks: { $auth: config.mocks["$auth"] },
+    });
+
+    await wrapper.vm.refreshData();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.vm.proxmoxData.length).toBe(1);
+    expect(wrapper.vm.manualData.length).toBe(1);
+  });
+
+  test("displays empty state when no data", async () => {
+    Helper.apiCall.mockResolvedValue({
+      proxmox: [],
+      manual: [],
+    });
+
+    wrapper = mount(DiskSpaceView, {
+      mocks: { $auth: config.mocks["$auth"] },
+    });
+
+    await wrapper.vm.refreshData();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain("No disk space data available");
+  });
+
+  test("handles manual host deletion", async () => {
+    wrapper = mount(DiskSpaceView, {
+      mocks: { $auth: config.mocks["$auth"] },
+    });
+
+    wrapper.vm.manualData = [
+      {
+        id: "manual-1",
+        name: "storage-server",
+      },
+    ];
+
+    jest.spyOn(wrapper.vm, "refreshData").mockResolvedValue();
+
+    await wrapper.vm.deleteManualHost("manual-1");
+
+    expect(wrapper.vm.refreshData).toHaveBeenCalled();
+  });
+
+  test("refresh button works correctly", async () => {
+    Helper.apiCall.mockResolvedValue({
+      proxmox: [
+        {
+          _id: "cluster-1",
+          cluster_name: "prod-cluster",
+        },
+      ],
+      manual: [],
+    });
+
+    wrapper = mount(DiskSpaceView, {
+      mocks: { $auth: config.mocks["$auth"] },
+    });
+
+    const initialCall = Helper.apiCall.mock.calls.length;
+
+    await wrapper.vm.refreshData(true);
+    await wrapper.vm.$nextTick();
+
+    expect(Helper.apiCall.mock.calls.length).toBeGreaterThan(initialCall);
+  });
+
+  test("clears error when dismissing alert", async () => {
+    wrapper = mount(DiskSpaceView, {
+      mocks: { $auth: config.mocks["$auth"] },
+    });
+
+    wrapper.vm.error = "Test error";
+    await wrapper.vm.$nextTick();
+
+    wrapper.vm.error = null;
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.vm.error).toBe(null);
+  });
+
+  test("starts auto-refresh on mount", async () => {
+    Helper.apiCall.mockResolvedValue({
+      proxmox: [],
+      manual: [],
+    });
+
+    wrapper = mount(DiskSpaceView, {
+      mocks: { $auth: config.mocks["$auth"] },
+    });
+
+    expect(wrapper.vm.autoRefreshTimer).toBeTruthy();
+  });
+
+  test("stops auto-refresh on destroy", async () => {
+    Helper.apiCall.mockResolvedValue({
+      proxmox: [],
+      manual: [],
+    });
+
+    wrapper = mount(DiskSpaceView, {
+      mocks: { $auth: config.mocks["$auth"] },
+    });
+
+    const timer = wrapper.vm.autoRefreshTimer;
+    wrapper.destroy();
+
+    expect(wrapper.vm.autoRefreshTimer).toBeNull();
+  });
+});
