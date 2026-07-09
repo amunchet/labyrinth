@@ -2530,12 +2530,12 @@ def create_proxmox_cluster():
             return json.dumps({"error": "Cluster with this name already exists"}), 409
 
         cluster_doc = {
-            "name": data["name"],
-            "host": data["host"],
-            "user": data["user"],
-            "token_id": data["token_id"],
-            "token_secret": data["token_secret"],
-            "verify_ssl": data.get("verify_ssl", False),
+            "name": _sanitize_db_value(data["name"]),
+            "host": _sanitize_db_value(data["host"]),
+            "user": _sanitize_db_value(data["user"]),
+            "token_id": _sanitize_db_value(data["token_id"]),
+            "token_secret": _sanitize_db_value(data["token_secret"]),
+            "verify_ssl": _sanitize_db_value(data.get("verify_ssl", False)),
             "created": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "updated": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         }
@@ -2746,10 +2746,10 @@ def create_aws_account():
 
         account_doc = {
             "name": safe_name,
-            "region": data["region"],
-            "access_key_id": data["access_key_id"],
-            "secret_access_key": data["secret_access_key"],
-            "session_token": data.get("session_token", ""),
+            "region": _sanitize_db_value(data["region"]),
+            "access_key_id": _sanitize_db_value(data["access_key_id"]),
+            "secret_access_key": _sanitize_db_value(data["secret_access_key"]),
+            "session_token": _sanitize_db_value(data.get("session_token", "")),
             "created": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "updated": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         }
