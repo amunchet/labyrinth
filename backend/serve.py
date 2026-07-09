@@ -117,6 +117,48 @@ def _sanitize_db_value(value):
     raise ValueError(f"Unsupported type in database operation: {type(value).__name__}")
 
 
+def _sanitize_error_message(error_msg):
+    """
+    Sanitize error messages to prevent XSS attacks.
+    Escapes HTML special characters in error messages from external APIs.
+    """
+    if error_msg is None:
+        return None
+    # Convert to string to ensure we handle all types
+    msg_str = str(error_msg).strip()
+    # Escape HTML special characters to prevent XSS
+    return escape(msg_str)
+
+
+def _sanitize_dict_recursive(obj):
+    """
+    Recursively sanitize all string values in a dictionary to prevent XSS.
+    Used for sanitizing API responses that may contain untrusted data.
+    """
+    if isinstance(obj, dict):
+        return {k: _sanitize_dict_recursive(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_sanitize_dict_recursive(v) for v in obj]
+    elif isinstance(obj, str):
+        # Escape HTML special characters in strings
+        return escape(obj)
+    else:
+        return obj
+
+
+def _validate_object_id(id_string):
+    """
+    Validate and convert a string to a valid MongoDB ObjectId.
+    Raises ValueError with a safe message if the ID is invalid.
+    Does not reflect the invalid ID in the error message.
+    """
+    try:
+        return bson.ObjectId(id_string)
+    except (bson.errors.InvalidId, TypeError, ValueError):
+        # Don't reflect the invalid ID in the error - just return a generic message
+        raise ValueError("Invalid resource ID format")
+
+
 def _requires_header(f, permission):  # pragma: no cover
     @functools.wraps(f)
     def decorated(*args, **kwargs):
@@ -1979,9 +2021,12 @@ def delete_metric(metric_id):
     """
     Deletes a metric id
     """
-    object_id = bson.ObjectId(metric_id)
-    mongo_client["labyrinth"]["metrics-latest"].delete_one({"_id": object_id})
-    return "Success", 200
+    try:
+        object_id = _validate_object_id(metric_id)
+        mongo_client["labyrinth"]["metrics-latest"].delete_one({"_id": object_id})
+        return "Success", 200
+    except ValueError:
+        return json.dumps({"error": "Invalid metric ID"}), 400
 
 
 @app.route("/metrics/", methods=["POST"])
@@ -2569,14 +2614,17 @@ def get_proxmox_cluster(cluster_id):
     Get a specific Proxmox cluster configuration
     """
     try:
+        object_id = _validate_object_id(cluster_id)
         cluster = mongo_client["labyrinth"]["proxmox_clusters"].find_one(
-            {"_id": bson.ObjectId(cluster_id)}
+            {"_id": object_id}
         )
         if not cluster:
             return json.dumps({"error": "Cluster not found"}), 404
 
         cluster.pop("token_secret", None)
         return json.dumps(cluster, default=str), 200
+    except ValueError:
+        return json.dumps({"error": "Invalid cluster ID"}), 400
     except Exception as e:
         return json.dumps({"error": "Failed to retrieve Proxmox cluster"}), 500
 
@@ -2592,8 +2640,9 @@ def update_proxmox_cluster(cluster_id):
         if data is None:
             return json.dumps({"error": "Invalid JSON body"}), 400
 
+        object_id = _validate_object_id(cluster_id)
         cluster = mongo_client["labyrinth"]["proxmox_clusters"].find_one(
-            {"_id": bson.ObjectId(cluster_id)}
+            {"_id": object_id}
         )
         if not cluster:
             return json.dumps({"error": ERROR_CLUSTER_NOT_FOUND}), 404
@@ -2608,16 +2657,18 @@ def update_proxmox_cluster(cluster_id):
         if update_doc:
             update_doc["updated"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
             mongo_client["labyrinth"]["proxmox_clusters"].update_one(
-                {"_id": bson.ObjectId(cluster_id)},
+                {"_id": object_id},
                 {"$set": update_doc}
             )
             proxmox_helper.delete_cached_proxmox_disk_data(cluster_id)
 
         updated_cluster = mongo_client["labyrinth"]["proxmox_clusters"].find_one(
-            {"_id": bson.ObjectId(cluster_id)}
+            {"_id": object_id}
         )
         updated_cluster.pop("token_secret", None)
         return json.dumps(updated_cluster, default=str), 200
+    except ValueError:
+        return json.dumps({"error": "Invalid cluster ID"}), 400
     except Exception as e:
         return json.dumps({"error": "Failed to update Proxmox cluster configuration"}), 500
 
@@ -2630,13 +2681,16 @@ def delete_proxmox_cluster(cluster_id):
     """
     try:
         proxmox_helper.delete_cached_proxmox_disk_data(cluster_id)
+        object_id = _validate_object_id(cluster_id)
         result = mongo_client["labyrinth"]["proxmox_clusters"].delete_one(
-            {"_id": bson.ObjectId(cluster_id)}
+            {"_id": object_id}
         )
         if result.deleted_count == 0:
             return json.dumps({"error": ERROR_CLUSTER_NOT_FOUND}), 404
 
         return json.dumps({"status": "deleted"}), 200
+    except ValueError:
+        return json.dumps({"error": "Invalid cluster ID"}), 400
     except Exception as e:
         return json.dumps({"error": "Failed to delete Proxmox cluster configuration"}), 500
 
@@ -2784,8 +2838,9 @@ def get_aws_account(account_id):
     Get a specific AWS account configuration.
     """
     try:
+        object_id = _validate_object_id(account_id)
         account = mongo_client["labyrinth"]["aws_accounts"].find_one(
-            {"_id": bson.ObjectId(account_id)}
+            {"_id": object_id}
         )
         if not account:
             return json.dumps({"error": "AWS account not found"}), 404
@@ -2793,6 +2848,8 @@ def get_aws_account(account_id):
         account.pop("secret_access_key", None)
         account.pop("session_token", None)
         return json.dumps(account, default=str), 200
+    except ValueError:
+        return json.dumps({"error": "Invalid account ID"}), 400
     except Exception as e:
         return json.dumps({"error": "Failed to retrieve AWS account"}), 500
 
@@ -2808,8 +2865,9 @@ def update_aws_account(account_id):
         if data is None:
             return json.dumps({"error": ERROR_INVALID_JSON_BODY}), 400
 
+        object_id = _validate_object_id(account_id)
         account = mongo_client["labyrinth"]["aws_accounts"].find_one(
-            {"_id": bson.ObjectId(account_id)}
+            {"_id": object_id}
         )
         if not account:
             return json.dumps({"error": ERROR_AWS_ACCOUNT_NOT_FOUND}), 404
@@ -2833,16 +2891,18 @@ def update_aws_account(account_id):
         if update_doc:
             update_doc["updated"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
             mongo_client["labyrinth"]["aws_accounts"].update_one(
-                {"_id": bson.ObjectId(account_id)},
+                {"_id": object_id},
                 {"$set": update_doc}
             )
 
         updated_account = mongo_client["labyrinth"]["aws_accounts"].find_one(
-            {"_id": bson.ObjectId(account_id)}
+            {"_id": object_id}
         )
         updated_account.pop("secret_access_key", None)
         updated_account.pop("session_token", None)
         return json.dumps(updated_account, default=str), 200
+    except ValueError:
+        return json.dumps({"error": "Invalid account ID"}), 400
     except Exception as e:
         return json.dumps({"error": "Failed to update AWS account"}), 500
 
@@ -2854,13 +2914,16 @@ def delete_aws_account(account_id):
     Delete an AWS account configuration.
     """
     try:
+        object_id = _validate_object_id(account_id)
         result = mongo_client["labyrinth"]["aws_accounts"].delete_one(
-            {"_id": bson.ObjectId(account_id)}
+            {"_id": object_id}
         )
         if result.deleted_count == 0:
             return json.dumps({"error": ERROR_AWS_ACCOUNT_NOT_FOUND}), 404
 
         return json.dumps({"status": "deleted"}), 200
+    except ValueError:
+        return json.dumps({"error": "Invalid account ID"}), 400
     except Exception as e:
         return json.dumps({"error": "Failed to delete AWS account"}), 500
 

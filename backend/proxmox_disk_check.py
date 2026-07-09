@@ -14,6 +14,7 @@ import pymongo
 import redis
 from jinja2 import Environment, FileSystemLoader, Template, select_autoescape
 from datetime import datetime
+from markupsafe import escape
 
 # Add backend to path for imports
 sys.path.insert(0, '/src')
@@ -233,9 +234,11 @@ def gather_all_disk_issues(
         )
 
         if cluster_data.get("error"):
+            # Sanitize the error message to prevent XSS by escaping HTML characters
+            sanitized_error = escape(str(cluster_data.get("error", "Unknown error")))
             cluster_errors.append({
                 "cluster": cluster.get("name"),
-                "error": cluster_data.get("error"),
+                "error": str(sanitized_error),  # Ensure it's a string for JSON serialization
             })
             continue
 
