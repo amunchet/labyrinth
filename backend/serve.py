@@ -25,6 +25,7 @@ import watcher
 import shutil
 import services as svcs
 import proxmox_helper
+import aws_helper
 
 from common import auth
 from common.test import unwrap
@@ -1397,6 +1398,7 @@ def index_helper():  # pragma: no cover
     mongo_client["labyrinth"]["hosts"].create_index("subnet")
     mongo_client["labyrinth"]["settings"].create_index("name")
     mongo_client["labyrinth"]["proxmox_clusters"].create_index("name")
+    mongo_client["labyrinth"]["aws_accounts"].create_index("name")
     # mongo_client["labyrinth"]["metrics"].create_index([("timestamp", -1)])
 
     # Make Metrics Latest expire after a certain time period
@@ -1985,6 +1987,107 @@ def bulk_insert():
 
 
 # Disk Space Monitoring
+def _normalize_match_string(value):
+    if value is None:
+        return ""
+    return str(value).strip().lower()
+
+
+def _candidate_host_names(host):
+    candidates = set()
+    for key in ["host", "name"]:
+        value = _normalize_match_string(host.get(key))
+        if not value:
+            continue
+        candidates.add(value)
+        if "." in value:
+            candidates.add(value.split(".")[0])
+    return candidates
+
+
+def _candidate_instance_names(instance):
+    candidates = set()
+    tag_name = ((instance.get("tags") or {}).get("Name"))
+    for value in [
+        instance.get("instance_id"),
+        instance.get("name"),
+        instance.get("private_dns_name"),
+        instance.get("public_dns_name"),
+        tag_name,
+    ]:
+        normalized = _normalize_match_string(value)
+        if not normalized:
+            continue
+        candidates.add(normalized)
+        if "." in normalized:
+            candidates.add(normalized.split(".")[0])
+    return candidates
+
+
+def _truthy_monitor_value(value):
+    return _normalize_match_string(value) in ["true", "1", "yes", "on"]
+
+
+def _build_labyrinth_host_match(instance, host):
+    reasons = []
+    host_ip = _normalize_match_string(host.get("ip"))
+    instance_ips = {
+        _normalize_match_string(instance.get("private_ip")),
+        _normalize_match_string(instance.get("public_ip")),
+    }
+    instance_ips.discard("")
+
+    if host_ip and host_ip in instance_ips:
+        reasons.append("ip")
+
+    host_names = _candidate_host_names(host)
+    instance_names = _candidate_instance_names(instance)
+    if host_names and instance_names and host_names.intersection(instance_names):
+        reasons.append("hostname")
+
+    if not reasons:
+        return None
+
+    services = host.get("services") or []
+    return {
+        "ip": host.get("ip"),
+        "mac": host.get("mac"),
+        "host": host.get("host") or host.get("name"),
+        "group": host.get("group"),
+        "tags": host.get("tags", ""),
+        "monitor": host.get("monitor"),
+        "service_count": len(services),
+        "services": services,
+        "match_reasons": reasons,
+    }
+
+
+def _enrich_aws_instances_with_matches(instances):
+    hosts = list(mongo_client["labyrinth"]["hosts"].find({}))
+    enriched_instances = []
+
+    for instance in instances:
+        matches = []
+        for host in hosts:
+            match = _build_labyrinth_host_match(instance, host)
+            if match:
+                matches.append(match)
+
+        monitoring_enabled = any(
+            _truthy_monitor_value(match.get("monitor")) or match.get("service_count", 0) > 0
+            for match in matches
+        )
+
+        enriched = dict(instance)
+        enriched["labyrinth_matches"] = matches
+        enriched["match_count"] = len(matches)
+        enriched["matched"] = len(matches) > 0
+        enriched["monitoring_enabled"] = monitoring_enabled
+        enriched_instances.append(enriched)
+
+    return enriched_instances
+
+
 @app.route("/disk-space/proxmox")
 @requires_auth_read
 def get_proxmox_disk_space():
@@ -2324,6 +2427,251 @@ def delete_proxmox_cluster(cluster_id):
             return json.dumps({"error": "Cluster not found"}), 404
 
         return json.dumps({"status": "deleted"}), 200
+    except Exception as e:
+        return json.dumps({"error": str(e)}), 500
+
+
+@app.route("/aws/ec2-instances")
+@app.route("/aws/ec2-instances/", methods=["GET"])
+@requires_auth_read
+def get_aws_ec2_instances():
+    """
+    List EC2 instances across all configured AWS accounts.
+    """
+    try:
+        accounts = list(mongo_client["labyrinth"]["aws_accounts"].find({}))
+        result = {
+            "accounts": [],
+            "instances": [],
+            "errors": [],
+            "summary": {
+                "account_count": len(accounts),
+                "instance_count": 0,
+                "matched_instance_count": 0,
+                "unmatched_instance_count": 0,
+            },
+        }
+
+        for account in accounts:
+            account_name = account.get("name")
+            account_region = account.get("region")
+            inventory = aws_helper.list_ec2_instances(account)
+            result["accounts"].append(
+                {
+                    "_id": str(account.get("_id")),
+                    "name": account_name,
+                    "region": account_region,
+                }
+            )
+
+            if inventory.get("error"):
+                result["errors"].append(
+                    {
+                        "account_name": account_name,
+                        "region": account_region,
+                        "error": inventory.get("error"),
+                    }
+                )
+                continue
+
+            enriched_instances = _enrich_aws_instances_with_matches(inventory.get("instances", []))
+            result["instances"].extend(enriched_instances)
+
+        result["instances"] = sorted(
+            result["instances"],
+            key=lambda item: (
+                _normalize_match_string(item.get("account_name")),
+                _normalize_match_string(item.get("region")),
+                _normalize_match_string(item.get("name")),
+            ),
+        )
+        result["summary"]["instance_count"] = len(result["instances"])
+        result["summary"]["matched_instance_count"] = len(
+            [item for item in result["instances"] if item.get("matched")]
+        )
+        result["summary"]["unmatched_instance_count"] = len(
+            [item for item in result["instances"] if not item.get("matched")]
+        )
+
+        return json.dumps(result, default=str), 200
+    except aws_helper.AWSDependencyError as e:
+        return json.dumps({"error": str(e)}), 500
+    except Exception as e:
+        return json.dumps({"error": str(e)}), 500
+
+
+@app.route("/aws/accounts")
+@app.route("/aws/accounts/", methods=["GET"])
+@requires_auth_read
+def list_aws_accounts():
+    """
+    List all configured AWS accounts.
+    """
+    try:
+        accounts = list(mongo_client["labyrinth"]["aws_accounts"].find({}))
+        for account in accounts:
+            account.pop("secret_access_key", None)
+            account.pop("session_token", None)
+        return json.dumps(accounts, default=str), 200
+    except Exception as e:
+        return json.dumps({"error": str(e)}), 500
+
+
+@app.route("/aws/accounts", methods=["POST"])
+@app.route("/aws/accounts/", methods=["POST"])
+@requires_auth_admin
+def create_aws_account():
+    """
+    Create a new AWS account configuration.
+    Expected JSON: {
+        "name": "prod-account",
+        "region": "us-east-1",
+        "access_key_id": "AKIA...",
+        "secret_access_key": "...",
+        "session_token": "optional"
+    }
+    """
+    try:
+        data = request.get_json(silent=True)
+        if data is None:
+            try:
+                data = json.loads(request.get_data(as_text=True))
+            except (ValueError, json.JSONDecodeError):
+                return json.dumps({"error": "Invalid JSON body"}), 400
+
+        required_fields = ["name", "region", "access_key_id", "secret_access_key"]
+        if not all(data.get(field) for field in required_fields):
+            return json.dumps({"error": f"Missing required fields: {', '.join(required_fields)}"}), 400
+
+        if mongo_client["labyrinth"]["aws_accounts"].find_one({"name": data["name"]}):
+            return json.dumps({"error": "AWS account with this name already exists"}), 409
+
+        account_doc = {
+            "name": data["name"],
+            "region": data["region"],
+            "access_key_id": data["access_key_id"],
+            "secret_access_key": data["secret_access_key"],
+            "session_token": data.get("session_token", ""),
+            "created": datetime.datetime.utcnow().isoformat(),
+            "updated": datetime.datetime.utcnow().isoformat(),
+        }
+
+        result = mongo_client["labyrinth"]["aws_accounts"].insert_one(account_doc)
+        created_account = dict(account_doc)
+        created_account["_id"] = str(result.inserted_id)
+        created_account.pop("secret_access_key", None)
+        created_account.pop("session_token", None)
+
+        return json.dumps({"id": str(result.inserted_id), "account": created_account}), 201
+    except Exception as e:
+        return json.dumps({"error": str(e)}), 500
+
+
+@app.route("/aws/accounts/<account_id>", methods=["GET"])
+@requires_auth_read
+def get_aws_account(account_id):
+    """
+    Get a specific AWS account configuration.
+    """
+    try:
+        account = mongo_client["labyrinth"]["aws_accounts"].find_one(
+            {"_id": bson.ObjectId(account_id)}
+        )
+        if not account:
+            return json.dumps({"error": "AWS account not found"}), 404
+
+        account.pop("secret_access_key", None)
+        account.pop("session_token", None)
+        return json.dumps(account, default=str), 200
+    except Exception as e:
+        return json.dumps({"error": str(e)}), 500
+
+
+@app.route("/aws/accounts/<account_id>", methods=["PUT"])
+@requires_auth_admin
+def update_aws_account(account_id):
+    """
+    Update an AWS account configuration.
+    """
+    try:
+        data = request.get_json(silent=True)
+        if data is None:
+            return json.dumps({"error": "Invalid JSON body"}), 400
+
+        account = mongo_client["labyrinth"]["aws_accounts"].find_one(
+            {"_id": bson.ObjectId(account_id)}
+        )
+        if not account:
+            return json.dumps({"error": "AWS account not found"}), 404
+
+        update_doc = {}
+        allowed_fields = ["name", "region", "access_key_id", "secret_access_key", "session_token"]
+        for field in allowed_fields:
+            if field not in data:
+                continue
+            if field in ["secret_access_key", "session_token"] and not data.get(field):
+                continue
+            update_doc[field] = data[field]
+
+        if update_doc.get("name") and update_doc["name"] != account.get("name"):
+            duplicate = mongo_client["labyrinth"]["aws_accounts"].find_one(
+                {"name": update_doc["name"]}
+            )
+            if duplicate:
+                return json.dumps({"error": "AWS account with this name already exists"}), 409
+
+        if update_doc:
+            update_doc["updated"] = datetime.datetime.utcnow().isoformat()
+            mongo_client["labyrinth"]["aws_accounts"].update_one(
+                {"_id": bson.ObjectId(account_id)},
+                {"$set": update_doc}
+            )
+
+        updated_account = mongo_client["labyrinth"]["aws_accounts"].find_one(
+            {"_id": bson.ObjectId(account_id)}
+        )
+        updated_account.pop("secret_access_key", None)
+        updated_account.pop("session_token", None)
+        return json.dumps(updated_account, default=str), 200
+    except Exception as e:
+        return json.dumps({"error": str(e)}), 500
+
+
+@app.route("/aws/accounts/<account_id>", methods=["DELETE"])
+@requires_auth_admin
+def delete_aws_account(account_id):
+    """
+    Delete an AWS account configuration.
+    """
+    try:
+        result = mongo_client["labyrinth"]["aws_accounts"].delete_one(
+            {"_id": bson.ObjectId(account_id)}
+        )
+        if result.deleted_count == 0:
+            return json.dumps({"error": "AWS account not found"}), 404
+
+        return json.dumps({"status": "deleted"}), 200
+    except Exception as e:
+        return json.dumps({"error": str(e)}), 500
+
+
+@app.route("/aws/settings")
+@app.route("/aws/settings/", methods=["GET"])
+@requires_auth_read
+def get_aws_settings():
+    """
+    Get AWS inventory settings.
+    """
+    try:
+        accounts = list(mongo_client["labyrinth"]["aws_accounts"].find({}))
+        sanitized_accounts = []
+        for account in accounts:
+            account.pop("secret_access_key", None)
+            account.pop("session_token", None)
+            account["_id"] = str(account["_id"])
+            sanitized_accounts.append(account)
+
+        return json.dumps({"accounts": sanitized_accounts}, default=str), 200
     except Exception as e:
         return json.dumps({"error": str(e)}), 500
 

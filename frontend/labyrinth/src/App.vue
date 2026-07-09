@@ -28,6 +28,9 @@
             <b-nav-item href="/disk-space">
               <router-link to="/disk-space">Proxmox</router-link>
             </b-nav-item>
+            <b-nav-item href="/aws">
+              <router-link to="/aws">AWS</router-link>
+            </b-nav-item>
           </b-navbar-nav>
 
           <!-- Right aligned nav items -->
