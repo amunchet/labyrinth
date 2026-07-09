@@ -60,12 +60,26 @@ ERROR_AWS_ACCOUNT_NOT_FOUND = "AWS account not found"
 
 def _sanitize_string_value(value):
     """
-    Sanitize a string value for use in MongoDB queries to prevent NoSQL injection.
-    Ensures the value is a string and not a dict with MongoDB operators.
+    Validate and sanitize a string value for use in MongoDB queries.
+    - Must be a non-empty string.
+    - Rejects MongoDB special/path characters often abused in injections.
+    - Restricts characters to a conservative allowlist for account names.
     """
     if not isinstance(value, str):
         raise ValueError(f"Expected string value, got {type(value).__name__}")
-    return value
+
+    sanitized = value.strip()
+    if not sanitized:
+        raise ValueError("String value cannot be empty")
+
+    if "$" in sanitized or "." in sanitized:
+        raise ValueError("String contains disallowed MongoDB special characters")
+
+    allowed = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_ "
+    if any(ch not in allowed for ch in sanitized):
+        raise ValueError("String contains invalid characters")
+
+    return sanitized
 
 
 def _requires_header(f, permission):  # pragma: no cover
@@ -2696,11 +2710,12 @@ def create_aws_account():
         if not all(data.get(field) for field in required_fields):
             return json.dumps({"error": f"Missing required fields: {', '.join(required_fields)}"}), 400
 
-        if mongo_client["labyrinth"]["aws_accounts"].find_one({"name": _sanitize_string_value(data["name"])}):
+        safe_name = _sanitize_string_value(data["name"])
+        if mongo_client["labyrinth"]["aws_accounts"].find_one({"name": safe_name}):
             return json.dumps({"error": "AWS account with this name already exists"}), 409
 
         account_doc = {
-            "name": data["name"],
+            "name": safe_name,
             "region": data["region"],
             "access_key_id": data["access_key_id"],
             "secret_access_key": data["secret_access_key"],
