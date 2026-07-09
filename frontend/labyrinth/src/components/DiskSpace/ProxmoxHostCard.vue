@@ -36,9 +36,7 @@
                     :key="storage.name"
                     class="storage-grid-item"
                   >
-                    <div class="storage-card">
-                      <StorageProgressBar :storage="storage" />
-                    </div>
+                    <StorageProgressBar :storage="storage" />
                   </div>
                 </div>
                 <b-alert v-else variant="warning" class="small mb-0 py-1 px-2">
@@ -59,9 +57,7 @@
                       :key="`vm-${node.name}-${vm.id}`"
                       class="vm-grid-item"
                     >
-                      <div class="vm-card">
-                        <VMContainerProgressBar :item="{ ...vm, node: node.name }" type="vm" />
-                      </div>
+                      <VMContainerProgressBar :item="{ ...vm, node: node.name }" type="vm" />
                     </div>
                   </div>
                 </div>
@@ -74,12 +70,10 @@
                       :key="`container-${node.name}-${container.id}`"
                       class="vm-grid-item"
                     >
-                      <div class="vm-card">
-                        <VMContainerProgressBar
-                          :item="{ ...container, node: node.name }"
-                          type="container"
-                        />
-                      </div>
+                      <VMContainerProgressBar
+                        :item="{ ...container, node: node.name }"
+                        type="container"
+                      />
                     </div>
                   </div>
                 </div>
@@ -240,36 +234,22 @@ export default {
 
   .storage-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
-    gap: 0.35rem;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 0.25rem;
   }
 
   .storage-grid-item {
     min-width: 0;
   }
 
-  .storage-card {
-    background: #fff;
-    border: 1px solid #eceff3;
-    border-radius: 4px;
-    padding: 0.25rem 0.35rem;
-  }
-
   .vm-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 0.35rem;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 0.25rem;
   }
 
   .vm-grid-item {
     min-width: 0;
-  }
-
-  .vm-card {
-    background: #fff;
-    border: 1px solid #eceff3;
-    border-radius: 4px;
-    padding: 0.25rem 0.35rem;
   }
 }
 </style>

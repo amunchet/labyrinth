@@ -1,36 +1,23 @@
 <template>
-  <div class="vm-container-progress-bar">
-    <div class="vm-title text-truncate" :title="item.name">
-      <font-awesome-icon
-        v-if="showQemuWarning"
-        icon="exclamation-triangle"
-        class="qemu-warning-icon mb-1 mr-1 me-1"
-        v-b-tooltip.hover
-        title="QEMU Guest Agent not installed or unavailable."
-      />
-
-      <strong>{{ item.name || `ID ${item.id}` }}</strong>
-      <span class="text-muted id-inline">({{ item.id }})</span>
-    </div>
-
-    <div v-if="hasDiskInfo" class="metric-line mb-1">
-      <small class="text-muted d-block">Disk {{ diskUsagePercentage.toFixed(0) }}%</small>
-      <b-progress
-        :value="diskUsagePercentage"
-        :variant="diskProgressVariant"
-        height="8px"
-        class="mb-1"
-      ></b-progress>
-    </div>
-
-    <div v-if="showMemory && hasMemInfo" class="metric-line">
-      <small class="text-muted d-block">Mem {{ memUsagePercentage.toFixed(0) }}%</small>
-      <b-progress
-        :value="memUsagePercentage"
-        :variant="memProgressVariant"
-        height="8px"
-      ></b-progress>
-    </div>
+  <div class="vm-tile" :class="diskUsageClass" :title="tooltipText">
+    <font-awesome-icon
+      v-if="showQemuWarning"
+      icon="exclamation-triangle"
+      class="qemu-warning-icon mr-1"
+      v-b-tooltip.hover
+      title="QEMU Guest Agent not installed or unavailable."
+    />
+    <span class="vm-name text-truncate">{{ item.name || `ID ${item.id}` }}</span>
+    <span class="vm-metrics">
+      <span v-if="hasDiskInfo">{{ diskUsagePercentage.toFixed(0) }}%</span>
+      <span
+        v-if="showMemory && hasMemInfo"
+        class="mem-metric"
+        :class="memUsageClass"
+      >
+        · {{ memUsagePercentage.toFixed(0) }}% mem
+      </span>
+    </span>
   </div>
 </template>
 
@@ -71,15 +58,16 @@ export default {
       }
       return (this.item.mem / this.item.maxmem) * 100;
     },
-    diskProgressVariant() {
-      if (this.diskUsagePercentage >= 90) return "danger";
-      if (this.diskUsagePercentage >= 75) return "warning";
-      return "success";
+    diskUsageClass() {
+      if (!this.hasDiskInfo) return "usage-unknown";
+      if (this.diskUsagePercentage >= 90) return "usage-danger";
+      if (this.diskUsagePercentage >= 75) return "usage-warning";
+      return "usage-success";
     },
-    memProgressVariant() {
-      if (this.memUsagePercentage >= 90) return "danger";
-      if (this.memUsagePercentage >= 75) return "warning";
-      return "success";
+    memUsageClass() {
+      if (this.memUsagePercentage >= 90) return "usage-danger-text";
+      if (this.memUsagePercentage >= 75) return "usage-warning-text";
+      return "";
     },
     showQemuWarning() {
       return (
@@ -89,6 +77,21 @@ export default {
           this.item.qemu_guest_agent_warning_inferred === true
         )
       );
+    },
+    tooltipText() {
+      const label = this.item.name || `ID ${this.item.id}`;
+      const parts = [`${label} (${this.item.id})`];
+      if (this.hasDiskInfo) {
+        parts.push(
+          `Disk: ${this.formatBytes(this.item.disk)} / ${this.formatBytes(this.item.maxdisk)} (${this.diskUsagePercentage.toFixed(1)}%)`
+        );
+      }
+      if (this.showMemory && this.hasMemInfo) {
+        parts.push(
+          `Mem: ${this.formatBytes(this.item.mem)} / ${this.formatBytes(this.item.maxmem)} (${this.memUsagePercentage.toFixed(1)}%)`
+        );
+      }
+      return parts.join(" | ");
     },
   },
   methods: {
@@ -104,29 +107,73 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-.vm-container-progress-bar {
-  padding: 0.1rem 0;
+.vm-tile {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.74rem;
+  line-height: 1.3;
+  cursor: default;
 
-  .vm-title {
-    font-size: 0.8rem;
-    line-height: 1.1;
-    margin-bottom: 0.1rem;
-
-    .id-inline {
-      font-weight: 400;
-      margin-left: 0.2rem;
-    }
+  .vm-name {
+    min-width: 0;
+    font-weight: 600;
+    flex-shrink: 1;
   }
 
-  .metric-line {
-    line-height: 1.05;
+  .vm-metrics {
+    flex-shrink: 0;
+    margin-left: auto;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .mem-metric {
+    font-weight: 500;
+    opacity: 0.9;
   }
 
   .qemu-warning-icon {
-    color: #dc3545;
-    font-size: 0.72rem;
-    margin-left: 0.25rem;
-    vertical-align: middle;
+    color: #fff3cd;
+    flex-shrink: 0;
+  }
+
+  &.usage-success {
+    background-color: #28a745;
+    color: #fff;
+  }
+
+  &.usage-warning {
+    background-color: #ffc107;
+    color: #212529;
+
+    .qemu-warning-icon {
+      color: #dc3545;
+    }
+  }
+
+  &.usage-danger {
+    background-color: #dc3545;
+    color: #fff;
+  }
+
+  &.usage-unknown {
+    background-color: #e9ecef;
+    color: #495057;
+
+    .qemu-warning-icon {
+      color: #dc3545;
+    }
+  }
+
+  .usage-warning-text {
+    color: #fff3cd;
+  }
+
+  .usage-danger-text {
+    color: #f8d7da;
   }
 }
 </style>

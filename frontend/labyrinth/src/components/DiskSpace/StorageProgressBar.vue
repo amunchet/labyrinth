@@ -1,19 +1,7 @@
 <template>
-  <div class="storage-progress-bar">
-    <div class="storage-name text-truncate" :title="storage.name">
-      <strong>{{ storage.name }}</strong>
-      <small class="text-muted d-block">{{ storage.type }}</small>
-    </div>
-    <b-progress
-      :value="usagePercentage"
-      :variant="progressVariant"
-      height="10px"
-      class="mb-1"
-    ></b-progress>
-    <small class="text-muted storage-meta d-block">
-      {{ formatBytes(storage.used) }} / {{ formatBytes(storage.total) }}
-    </small>
-    <small class="text-muted d-block">{{ usagePercentage.toFixed(1) }}%</small>
+  <div class="storage-tile" :class="usageClass" :title="tooltipText">
+    <span class="storage-name text-truncate">{{ storage.name }}</span>
+    <span class="storage-percent">{{ usagePercentage.toFixed(0) }}%</span>
   </div>
 </template>
 
@@ -37,10 +25,14 @@ export default {
       }
       return (this.storage.used / this.storage.total) * 100;
     },
-    progressVariant() {
-      if (this.usagePercentage >= 90) return "danger";
-      if (this.usagePercentage >= 75) return "warning";
-      return "success";
+    usageClass() {
+      if (this.usagePercentage >= 90) return "usage-danger";
+      if (this.usagePercentage >= 75) return "usage-warning";
+      return "usage-success";
+    },
+    tooltipText() {
+      const type = this.storage.type ? ` (${this.storage.type})` : "";
+      return `${this.storage.name}${type}: ${this.formatBytes(this.storage.used)} / ${this.formatBytes(this.storage.total)} (${this.usagePercentage.toFixed(1)}%)`;
     },
   },
   methods: {
@@ -56,18 +48,40 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-.storage-progress-bar {
-  padding: 0.1rem 0;
+.storage-tile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.74rem;
+  line-height: 1.3;
+  cursor: default;
 
   .storage-name {
-    line-height: 1.1;
-    margin-bottom: 0.25rem;
-    font-size: 0.78rem;
+    min-width: 0;
+    font-weight: 600;
   }
 
-  .storage-meta {
-    line-height: 1.05;
-    font-size: 0.72rem;
+  .storage-percent {
+    flex-shrink: 0;
+    font-weight: 700;
+  }
+
+  &.usage-success {
+    background-color: #28a745;
+    color: #fff;
+  }
+
+  &.usage-warning {
+    background-color: #ffc107;
+    color: #212529;
+  }
+
+  &.usage-danger {
+    background-color: #dc3545;
+    color: #fff;
   }
 }
 </style>
