@@ -51,6 +51,7 @@ export default {
       required: true,
     },
   },
+  emits: ["delete"],
   methods: {
     confirmDelete() {
       if (confirm(`Are you sure you want to delete ${this.host.name}?`)) {

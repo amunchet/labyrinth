@@ -226,15 +226,6 @@ export default {
     flex: 1 1 150px;
     min-width: 140px;
   }
-    /*
-  .storage-panel {
-    border-left: 3px solid #17a2b8;
-  }
-
-  .vm-panel {
-    border-left: 3px solid #6f42c1;
-  }
-  */
 
   .panel-title {
     font-size: 0.82rem;

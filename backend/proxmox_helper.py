@@ -64,7 +64,7 @@ _DF_SIZE_UNITS = {
     "P": 1024 ** 5,
     "E": 1024 ** 6,
 }
-_DF_SIZE_PATTERN = re.compile(r"^([0-9]*\.?[0-9]+)\s*([KMGTPE]?)$", re.IGNORECASE)
+_DF_SIZE_PATTERN = re.compile(r"^(\d+\.?\d*|\d*\.\d+)\s*([KMGTPE]?)$", re.IGNORECASE)
 
 
 def _parse_df_size(value: Optional[str]) -> Optional[int]:

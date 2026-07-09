@@ -117,7 +117,7 @@
           <!-- Add / Edit Cluster -->
           <b-card class="mb-4 text-left text-start">
             <b-card-title>
-              {{ editingClusterId ? `Edit Cluster: ${newCluster.name}` : "Add Proxmox Cluster" }}
+              {{ editingClusterId ? ("Edit Cluster: " + newCluster.name) : "Add Proxmox Cluster" }}
             </b-card-title>
             <b-card-sub-title>
               Define Proxmox cluster nodes and their API credentials
@@ -791,7 +791,7 @@ export default {
         formData.append("type", "disk-check");
         formData.append(
           "description",
-          `Selected from existing host${selectedHost.tags ? ` | Tags: ${selectedHost.tags}` : ""}`
+          "Selected from existing host" + (selectedHost.tags ? (" | Tags: " + selectedHost.tags) : "")
         );
         await Helper.apiPost("disk-space/manual", "", "", auth, formData);
 

@@ -374,7 +374,7 @@ def create_edit_host(inp=""):
     return "Success", 200
 
 
-@app.route("/hosts/")
+@app.route("/hosts/", methods=["GET"])
 @requires_auth_read
 def list_hosts():
     """Lists all hosts"""
@@ -386,7 +386,7 @@ def list_hosts():
     )
 
 
-@app.route("/hosts/<tag>")
+@app.route("/hosts/<tag>", methods=["GET"])
 @requires_auth_read
 def list_hosts_by_tag(tag):
     """Lists hosts that match a given tag or service name."""
@@ -2128,7 +2128,7 @@ def _enrich_aws_instances_with_matches(instances):
     return enriched_instances
 
 
-@app.route("/disk-space/proxmox")
+@app.route("/disk-space/proxmox", methods=["GET"])
 @requires_auth_read
 def get_proxmox_disk_space():
     """
@@ -2178,7 +2178,7 @@ def refresh_proxmox_disk_space():
         return json.dumps({"error": str(e)}), 500
 
 
-@app.route("/disk-space/manual")
+@app.route("/disk-space/manual", methods=["GET"])
 @requires_auth_read
 def get_manual_disk_space():
     """
@@ -2426,7 +2426,7 @@ def _get_test_email_recipients(data):
     return _parse_recipients_setting(recipients_setting)
 
 
-@app.route("/proxmox-clusters")
+@app.route("/proxmox-clusters", methods=["GET"])
 @app.route("/proxmox-clusters/", methods=["GET"])
 @requires_auth_read
 def list_proxmox_clusters():
@@ -2574,7 +2574,7 @@ def delete_proxmox_cluster(cluster_id):
         return json.dumps({"error": str(e)}), 500
 
 
-@app.route("/aws/ec2-instances")
+@app.route("/aws/ec2-instances", methods=["GET"])
 @app.route("/aws/ec2-instances/", methods=["GET"])
 @requires_auth_read
 def get_aws_ec2_instances():
@@ -2643,7 +2643,7 @@ def get_aws_ec2_instances():
         return json.dumps({"error": str(e)}), 500
 
 
-@app.route("/aws/accounts")
+@app.route("/aws/accounts", methods=["GET"])
 @app.route("/aws/accounts/", methods=["GET"])
 @requires_auth_read
 def list_aws_accounts():
@@ -2794,7 +2794,7 @@ def delete_aws_account(account_id):
         return json.dumps({"error": str(e)}), 500
 
 
-@app.route("/aws/settings")
+@app.route("/aws/settings", methods=["GET"])
 @app.route("/aws/settings/", methods=["GET"])
 @requires_auth_read
 def get_aws_settings():

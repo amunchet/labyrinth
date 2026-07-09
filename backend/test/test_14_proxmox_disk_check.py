@@ -155,7 +155,7 @@ def test_collect_disk_issues_normal_vm_over_threshold_unaffected():
 
     assert len(issues) == 1
     assert issues[0]["type"] == "vm"
-    assert issues[0]["percentage"] == 90.0
+    assert abs(issues[0]["percentage"] - 90.0) < 0.01
 
 
 def test_collect_disk_issues_stopped_vm_with_zero_disk_not_flagged():

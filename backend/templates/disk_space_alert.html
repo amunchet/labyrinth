@@ -1,16 +1,19 @@
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <title>Proxmox Disk Space Alert</title>
     <style>
-        body { font-family: Arial, sans-serif; color: #333; }
+        body { font-family: Arial, sans-serif; color: #000; background-color: #fff; }
         .header { background-color: #d9534f; color: white; padding: 20px; border-radius: 5px; }
         .summary { margin: 20px 0; }
         .issue-group { margin: 20px 0; }
-        .issue-group h3 { color: #d9534f; border-bottom: 2px solid #d9534f; padding-bottom: 10px; }
+        .issue-group h3 { color: #c82333; border-bottom: 2px solid #d9534f; padding-bottom: 10px; }
         table { width: 100%; border-collapse: collapse; margin: 10px 0; }
         th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
-        th { background-color: #f5f5f5; font-weight: bold; }
-        .percentage-high { color: #d9534f; font-weight: bold; }
-        .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 12px; }
+        th { background-color: #f5f5f5; font-weight: bold; color: #000; }
+        .percentage-high { color: #c82333; font-weight: bold; }
+        .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; color: #333; font-size: 12px; }
     </style>
 </head>
 <body>
