@@ -2141,6 +2141,30 @@ def get_proxmox_disk_space():
         return json.dumps({"error": str(e)}), 500
 
 
+@app.route("/disk-space/proxmox/refresh", methods=["POST"])
+@app.route("/disk-space/proxmox/refresh/", methods=["POST"])
+@requires_auth_write
+def refresh_proxmox_disk_space():
+    """
+    Force a live query of all configured Proxmox clusters, bypassing the
+    Redis cache, and re-cache the freshly fetched payloads.
+    """
+    try:
+        clusters = list(mongo_client["labyrinth"]["proxmox_clusters"].find({}))
+        redis_client = proxmox_helper.get_redis_client()
+
+        result = {
+            "proxmox_hosts": proxmox_helper.refresh_proxmox_cluster_cache(
+                clusters,
+                redis_client=redis_client,
+            )
+        }
+
+        return json.dumps(result, default=str), 200
+    except Exception as e:
+        return json.dumps({"error": str(e)}), 500
+
+
 @app.route("/disk-space/manual")
 @requires_auth_read
 def get_manual_disk_space():

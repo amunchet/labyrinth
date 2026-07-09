@@ -25,7 +25,7 @@
             <b-button
               variant="outline-secondary"
               size="sm"
-              @click="refreshData"
+              @click="refreshData(true)"
               :disabled="loading"
             >
               <font-awesome-icon icon="sync" class="mr-1" />
@@ -62,7 +62,7 @@
         <b-row class="align-items-center">
           <b-col>No disk space data available. Please configure Proxmox clusters in the Settings tab.</b-col>
           <b-col cols="auto">
-            <b-button variant="outline-secondary" size="sm" @click="refreshData">
+            <b-button variant="outline-secondary" size="sm" @click="refreshData(true)">
               <font-awesome-icon icon="sync" class="mr-1" />
               Refresh
             </b-button>
@@ -172,7 +172,7 @@ export default {
       }
     },
 
-    async refreshData() {
+    async refreshData(forceRefresh = false) {
       this.stopAutoRefresh();
 
       if (this.loading) {
@@ -185,8 +185,12 @@ export default {
 
       try {
         const auth = this.$auth;
-        // Fetch Proxmox data
-        const proxmoxResponse = await Helper.apiCall("disk-space", "proxmox", auth);
+        // Fetch Proxmox data. Manual refreshes (button click) bypass the
+        // Redis cache and force a live query against each Proxmox cluster,
+        // re-caching the fresh result; auto-refresh just reads the cache.
+        const proxmoxResponse = forceRefresh
+          ? await Helper.apiPost("disk-space/proxmox/refresh", "", "", auth)
+          : await Helper.apiCall("disk-space", "proxmox", auth);
         const proxmoxJson = this.parseMaybeJSON(proxmoxResponse);
         this.proxmoxData = this.sortProxmoxHosts(proxmoxJson.proxmox_hosts || []);
 

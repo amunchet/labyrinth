@@ -216,6 +216,60 @@ def test_get_proxmox_disk_space_backfills_qemu_warning_fields(setup, monkeypatch
     assert "QEMU guest agent" in vm["qemu_guest_agent_error"]
 
 
+def test_refresh_proxmox_disk_space_bypasses_cache_and_recaches(setup, monkeypatch):
+    """The refresh endpoint always performs a live query, ignoring any cached value, and updates Redis."""
+    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one({
+        "name": "cluster-refresh",
+        "host": "10.1.1.20",
+        "user": "root@pam",
+        "token_id": "token-refresh",
+        "token_secret": "secret-refresh",
+        "verify_ssl": False,
+    })
+
+    cluster = serve.mongo_client["labyrinth"]["proxmox_clusters"].find_one(
+        {"name": "cluster-refresh"}
+    )
+    stale_payload = json.dumps({
+        "nodes": [{"name": "node-stale", "storage": [], "vms": [], "containers": []}],
+    }).encode("utf-8")
+    fake_redis = FakeRedis(store={
+        proxmox_helper.get_proxmox_cache_key(cluster): stale_payload,
+    })
+    calls = []
+
+    monkeypatch.setattr(serve.proxmox_helper, "get_redis_client", lambda: fake_redis)
+
+    def fake_get_proxmox_disk_data(host_ip, cluster_config):
+        calls.append((host_ip, cluster_config["name"]))
+        return {"nodes": [{"name": "node-fresh", "storage": [], "vms": [], "containers": []}]}
+
+    monkeypatch.setattr(serve.proxmox_helper, "get_proxmox_disk_data", fake_get_proxmox_disk_data)
+
+    response = unwrap(serve.refresh_proxmox_disk_space)()
+    assert response[1] == 200
+
+    data = json.loads(response[0])
+    # Live query ran despite a value already being present in the cache.
+    assert calls == [("10.1.1.20", "cluster-refresh")]
+    assert len(data["proxmox_hosts"]) == 1
+    assert data["proxmox_hosts"][0]["nodes"][0]["name"] == "node-fresh"
+
+    # Redis was overwritten with the freshly fetched payload.
+    cache_key = proxmox_helper.get_proxmox_cache_key(cluster)
+    cached_value = fake_redis.store[cache_key]
+    if isinstance(cached_value, bytes):
+        cached_value = cached_value.decode("utf-8")
+    assert json.loads(cached_value)["nodes"][0]["name"] == "node-fresh"
+
+
+def test_refresh_proxmox_disk_space_no_clusters_returns_empty(setup):
+    """Returns an empty list when no Proxmox clusters are configured."""
+    response = unwrap(serve.refresh_proxmox_disk_space)()
+    assert response[1] == 200
+    assert json.loads(response[0])["proxmox_hosts"] == []
+
+
 def test_manual_disk_host_crud(setup):
     """Adds, lists, and deletes a manual disk-space host."""
     with serve.app.test_request_context(
