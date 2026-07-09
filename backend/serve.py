@@ -2385,7 +2385,6 @@ def send_disk_space_test_email():
             return json.dumps({
                 "status": "sent",
                 "mode": "full",
-                "recipients": recipients,
                 **result,
             }), 200
 
@@ -2393,7 +2392,6 @@ def send_disk_space_test_email():
         return json.dumps({
             "status": "sent",
             "mode": "simple",
-            "recipients": recipients,
         }), 200
     except ValueError as e:
         return json.dumps({"error": str(e)}), 400
