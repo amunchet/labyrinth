@@ -793,7 +793,7 @@ export default {
           "description",
           `Selected from existing host${selectedHost.tags ? ` | Tags: ${selectedHost.tags}` : ""}`
         );
-        await Helper.apiPost("disk-space", "manual", "", auth, formData);
+        await Helper.apiPost("disk-space/manual", "", "", auth, formData);
 
         this.successMessage = "Manual host added successfully!";
         this.selectedHostId = this.availableHostOptions.length > 0 ? this.availableHostOptions[0].value : "";

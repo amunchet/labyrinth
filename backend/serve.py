@@ -2168,6 +2168,7 @@ def get_manual_disk_space():
 
 
 @app.route("/disk-space/manual", methods=["POST"])
+@app.route("/disk-space/manual/", methods=["POST"])
 @requires_auth_admin
 def add_manual_disk_host():
     """
