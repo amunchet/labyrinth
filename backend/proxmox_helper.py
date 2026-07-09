@@ -545,8 +545,8 @@ def get_proxmox_disk_data(host_ip: str, cluster_config: Dict) -> Dict:
 
         return result
 
-    except Exception as e:
-        return {"error": f"Failed to get Proxmox data: {str(e)}", "host": host_ip}
+    except Exception:
+        return {"error": "Failed to get Proxmox data", "host": host_ip}
 
 
 def _to_int(value):
