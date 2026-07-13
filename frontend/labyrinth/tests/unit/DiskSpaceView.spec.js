@@ -79,7 +79,10 @@ describe("DiskSpaceView.vue", () => {
     jest.useFakeTimers();
     try {
       Helper.apiCall.mockImplementation(
-        () => new Promise((resolve) => setTimeout(() => resolve({ proxmox_hosts: [] }), 100))
+        () =>
+          new Promise((resolve) =>
+            setTimeout(() => resolve({ proxmox_hosts: [] }), 100)
+          )
       );
 
       wrapper = mount(DiskSpaceView, defaultMountOptions);
@@ -88,7 +91,7 @@ describe("DiskSpaceView.vue", () => {
       // Before the refreshData completes, we should see the loading state
       expect(wrapper.find(".loading-state").exists()).toBe(true);
       expect(wrapper.text()).toContain("Loading disk space data");
-      
+
       // Advance timers to let the promise resolve
       jest.advanceTimersByTime(150);
       await wrapper.vm.$nextTick();
@@ -270,7 +273,9 @@ describe("DiskSpaceView.vue", () => {
     await flushPromises();
 
     expect(Helper.apiPost).toHaveBeenCalled();
-    expect(Helper.apiCall.mock.calls.length).toBeGreaterThanOrEqual(initialCall);
+    expect(Helper.apiCall.mock.calls.length).toBeGreaterThanOrEqual(
+      initialCall
+    );
   });
 
   test("clears error when dismissing alert", async () => {
@@ -291,7 +296,7 @@ describe("DiskSpaceView.vue", () => {
       .mockResolvedValueOnce({ manual_hosts: [] });
 
     wrapper = mount(DiskSpaceView, defaultMountOptions);
-    
+
     await wrapper.vm.$nextTick();
     await flushPromises();
 
@@ -305,7 +310,6 @@ describe("DiskSpaceView.vue", () => {
 
     wrapper = mount(DiskSpaceView, defaultMountOptions);
 
-    const timer = wrapper.vm.autoRefreshTimer;
     wrapper.destroy();
 
     expect(wrapper.vm.autoRefreshTimer).toBeNull();

@@ -4,7 +4,11 @@
       <b-col cols="12" lg="5" class="mb-4 mb-lg-0">
         <b-card>
           <b-card-title>
-            {{ editingAccountId ? `Edit AWS Account: ${form.name}` : "Add AWS Account" }}
+            {{
+              editingAccountId
+                ? `Edit AWS Account: ${form.name}`
+                : "Add AWS Account"
+            }}
           </b-card-title>
           <p class="text-muted">
             Configure AWS credentials and region used to list EC2 instances.
@@ -48,7 +52,11 @@
             <b-form-group
               label="Secret Access Key"
               label-for="aws-secret-access-key"
-              :description="editingAccountId ? 'Leave blank to keep the current secret.' : ''"
+              :description="
+                editingAccountId
+                  ? 'Leave blank to keep the current secret.'
+                  : ''
+              "
             >
               <b-form-input
                 id="aws-secret-access-key"
@@ -73,11 +81,22 @@
             </b-form-group>
 
             <div class="d-flex justify-content-end">
-              <b-button v-if="editingAccountId" variant="secondary" class="mr-2" @click="resetForm">
+              <b-button
+                v-if="editingAccountId"
+                variant="secondary"
+                class="mr-2"
+                @click="resetForm"
+              >
                 Cancel
               </b-button>
               <b-button variant="primary" type="submit" :disabled="saving">
-                {{ saving ? "Saving..." : editingAccountId ? "Save Changes" : "Add Account" }}
+                {{
+                  saving
+                    ? "Saving..."
+                    : editingAccountId
+                    ? "Save Changes"
+                    : "Add Account"
+                }}
               </b-button>
             </div>
           </b-form>
@@ -88,7 +107,8 @@
         <b-card>
           <b-card-title>Configured AWS Accounts</b-card-title>
           <p class="text-muted">
-            Each account-region pair is queried when the EC2 inventory page refreshes.
+            Each account-region pair is queried when the EC2 inventory page
+            refreshes.
           </p>
 
           <b-alert v-if="!accounts.length" show variant="info">
@@ -116,12 +136,18 @@
             </template>
 
             <template #cell(updated)="row">
-              <div class="small text-left">{{ row.item.updated || row.item.created || "—" }}</div>
+              <div class="small text-left">
+                {{ row.item.updated || row.item.created || "—" }}
+              </div>
             </template>
 
             <template #cell(actions)="row">
               <div class="text-right">
-                <b-button variant="link" class="p-0 mr-3" @click="editAccount(row.item)">
+                <b-button
+                  variant="link"
+                  class="p-0 mr-3"
+                  @click="editAccount(row.item)"
+                >
                   Edit
                 </b-button>
                 <b-button
@@ -130,7 +156,11 @@
                   @click="deleteAccount(row.item._id)"
                   :disabled="deletingAccountId === row.item._id"
                 >
-                  {{ deletingAccountId === row.item._id ? "Deleting..." : "Delete" }}
+                  {{
+                    deletingAccountId === row.item._id
+                      ? "Deleting..."
+                      : "Delete"
+                  }}
                 </b-button>
               </div>
             </template>
@@ -264,7 +294,12 @@ export default {
           payload.session_token = this.form.session_token;
         }
 
-        await Helper.apiPut("aws/accounts", this.editingAccountId, auth, payload);
+        await Helper.apiPut(
+          "aws/accounts",
+          this.editingAccountId,
+          auth,
+          payload
+        );
         this.resetForm();
         await this.loadAccounts();
         this.successMessage = "AWS account updated successfully!";

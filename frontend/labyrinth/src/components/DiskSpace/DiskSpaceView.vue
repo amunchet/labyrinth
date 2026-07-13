@@ -1,13 +1,22 @@
 <template>
   <div class="disk-space-view text-left text-start">
     <!-- Error Alert -->
-    <b-alert v-if="error" variant="danger" dismissible @dismissed="error = null">
+    <b-alert
+      v-if="error"
+      variant="danger"
+      dismissible
+      @dismissed="error = null"
+    >
       {{ error }}
     </b-alert>
 
     <!-- Loading State -->
     <div v-if="loading" class="loading-state text-center py-5">
-      <b-spinner variant="primary" style="width: 3rem; height: 3rem;" class="mb-3"></b-spinner>
+      <b-spinner
+        variant="primary"
+        style="width: 3rem; height: 3rem"
+        class="mb-3"
+      ></b-spinner>
       <p class="text-muted">Loading disk space data...</p>
     </div>
 
@@ -49,20 +58,35 @@
           <b-icon icon="cloud"></b-icon>
           Manually Configured Hosts
         </h4>
-        <b-card v-for="host in manualData" :key="`manual-${host.id}`" class="mb-3">
+        <b-card
+          v-for="host in manualData"
+          :key="`manual-${host.id}`"
+          class="mb-3"
+        >
           <small class="text-muted d-block mb-2">
-            Hostname: {{ host.host || host.name || "N/A" }} | IP: {{ host.ip || "N/A" }}
+            Hostname: {{ host.host || host.name || "N/A" }} | IP:
+            {{ host.ip || "N/A" }}
           </small>
           <ManualHostCard :host="host" @delete="deleteManualHost" />
         </b-card>
       </div>
 
       <!-- Empty State -->
-      <b-alert v-if="proxmoxData.length === 0 && manualData.length === 0" variant="info">
+      <b-alert
+        v-if="proxmoxData.length === 0 && manualData.length === 0"
+        variant="info"
+      >
         <b-row class="align-items-center">
-          <b-col>No disk space data available. Please configure Proxmox clusters in the Settings tab.</b-col>
+          <b-col
+            >No disk space data available. Please configure Proxmox clusters in
+            the Settings tab.</b-col
+          >
           <b-col cols="auto">
-            <b-button variant="outline-secondary" size="sm" @click="refreshData(true)">
+            <b-button
+              variant="outline-secondary"
+              size="sm"
+              @click="refreshData(true)"
+            >
               <font-awesome-icon icon="sync" class="mr-1" />
               Refresh
             </b-button>
@@ -136,7 +160,9 @@ export default {
     },
 
     getHostName(host) {
-      return (host && (host.cluster_name || host.host || "")).toString().toLowerCase();
+      return (host && (host.cluster_name || host.host || ""))
+        .toString()
+        .toLowerCase();
     },
 
     sortProxmoxHosts(hosts) {
@@ -156,16 +182,26 @@ export default {
       try {
         const auth = this.$auth;
         // Fetch Proxmox data
-        const proxmoxResponse = await Helper.apiCall("disk-space", "proxmox", auth);
+        const proxmoxResponse = await Helper.apiCall(
+          "disk-space",
+          "proxmox",
+          auth
+        );
         const proxmoxJson = this.parseMaybeJSON(proxmoxResponse);
         // Support both proxmox_hosts (backend) and proxmox (tests)
-        this.proxmoxData = this.sortProxmoxHosts((proxmoxJson.proxmox_hosts || proxmoxJson.proxmox) || []);
+        this.proxmoxData = this.sortProxmoxHosts(
+          proxmoxJson.proxmox_hosts || proxmoxJson.proxmox || []
+        );
 
         // Fetch manual hosts data
-        const manualResponse = await Helper.apiCall("disk-space", "manual", auth);
+        const manualResponse = await Helper.apiCall(
+          "disk-space",
+          "manual",
+          auth
+        );
         const manualJson = this.parseMaybeJSON(manualResponse);
         // Support both manual_hosts (backend) and manual (tests)
-        this.manualData = (manualJson.manual_hosts || manualJson.manual) || [];
+        this.manualData = manualJson.manual_hosts || manualJson.manual || [];
       } catch (err) {
         // Silent refresh errors are logged but don't interrupt UX
         console.warn("Silent refresh error:", err.message);
@@ -190,13 +226,19 @@ export default {
           : await Helper.apiCall("disk-space", "proxmox", auth);
         const proxmoxJson = this.parseMaybeJSON(proxmoxResponse);
         // Support both proxmox_hosts (backend) and proxmox (tests)
-        this.proxmoxData = this.sortProxmoxHosts((proxmoxJson.proxmox_hosts || proxmoxJson.proxmox) || []);
+        this.proxmoxData = this.sortProxmoxHosts(
+          proxmoxJson.proxmox_hosts || proxmoxJson.proxmox || []
+        );
 
         // Fetch manual hosts data
-        const manualResponse = await Helper.apiCall("disk-space", "manual", auth);
+        const manualResponse = await Helper.apiCall(
+          "disk-space",
+          "manual",
+          auth
+        );
         const manualJson = this.parseMaybeJSON(manualResponse);
         // Support both manual_hosts (backend) and manual (tests)
-        this.manualData = (manualJson.manual_hosts || manualJson.manual) || [];
+        this.manualData = manualJson.manual_hosts || manualJson.manual || [];
       } catch (err) {
         this.error = err.message;
       } finally {

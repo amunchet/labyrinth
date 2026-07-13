@@ -26,11 +26,15 @@ describe("DiskSpaceSettings.vue", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    Helper.apiCall.mockResolvedValueOnce({
-      clusters: [],
-      disk_space_alert_recipients: [],
-      disk_space_alert_threshold: 80,
-    }).mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce({ manual_hosts: [] });
+    Helper.apiCall
+      .mockResolvedValueOnce({
+        clusters: [],
+        disk_space_alert_recipients: [],
+        disk_space_alert_threshold: 80,
+      })
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce({ manual_hosts: [] });
   });
 
   afterEach(() => {
@@ -51,16 +55,16 @@ describe("DiskSpaceSettings.vue", () => {
   test("loads disk space settings on mount", async () => {
     Helper.apiCall
       .mockResolvedValueOnce({
-      clusters: [
-        {
-          _id: "cluster-1",
-          name: "prod-cluster",
-          host: "10.0.0.1",
-        },
-      ],
-      disk_space_alert_recipients: ["admin@example.com"],
-      disk_space_alert_threshold: 85,
-    })
+        clusters: [
+          {
+            _id: "cluster-1",
+            name: "prod-cluster",
+            host: "10.0.0.1",
+          },
+        ],
+        disk_space_alert_recipients: ["admin@example.com"],
+        disk_space_alert_threshold: 85,
+      })
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce({ manual_hosts: [] });
@@ -130,16 +134,16 @@ describe("DiskSpaceSettings.vue", () => {
   test("parses cluster data correctly", async () => {
     Helper.apiCall
       .mockResolvedValueOnce({
-      clusters: [
-        {
-          _id: "c1",
-          name: "cluster-1",
-          host: "10.0.0.1",
-        },
-      ],
-      disk_space_alert_recipients: [],
-      disk_space_alert_threshold: 80,
-    })
+        clusters: [
+          {
+            _id: "c1",
+            name: "cluster-1",
+            host: "10.0.0.1",
+          },
+        ],
+        disk_space_alert_recipients: [],
+        disk_space_alert_threshold: 80,
+      })
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce({ manual_hosts: [] });

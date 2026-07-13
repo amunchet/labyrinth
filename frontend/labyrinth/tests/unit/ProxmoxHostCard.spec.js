@@ -135,12 +135,12 @@ describe("ProxmoxHostCard.vue", () => {
           name: "node-1",
           vms: [
             {
-          name: "web-server",
-          id: "101",
-          status: "running",
-          disk: 50000,
-          maxdisk: 100000,
-        },
+              name: "web-server",
+              id: "101",
+              status: "running",
+              disk: 50000,
+              maxdisk: 100000,
+            },
           ],
           containers: [],
         },
@@ -197,7 +197,15 @@ describe("ProxmoxHostCard.vue", () => {
             { name: "storage1", type: "dir", total: 5000000, used: 4000000 },
             { name: "storage2", type: "nfs", total: 10000000, used: 8000000 },
           ],
-          vms: [{ name: "vm1", id: "100", status: "running", disk: 50000, maxdisk: 100000 }],
+          vms: [
+            {
+              name: "vm1",
+              id: "100",
+              status: "running",
+              disk: 50000,
+              maxdisk: 100000,
+            },
+          ],
         },
         {
           name: "pve2",
@@ -205,8 +213,24 @@ describe("ProxmoxHostCard.vue", () => {
           storage: [
             { name: "storage1", type: "dir", total: 5000000, used: 3000000 },
           ],
-          vms: [{ name: "vm2", id: "101", status: "running", disk: 75000, maxdisk: 150000 }],
-          containers: [{ name: "ct1", id: "200", status: "running", disk: 0, maxdisk: 200000 }],
+          vms: [
+            {
+              name: "vm2",
+              id: "101",
+              status: "running",
+              disk: 75000,
+              maxdisk: 150000,
+            },
+          ],
+          containers: [
+            {
+              name: "ct1",
+              id: "200",
+              status: "running",
+              disk: 0,
+              maxdisk: 200000,
+            },
+          ],
         },
       ],
     };

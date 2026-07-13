@@ -51,4 +51,3 @@ describe("Helper", () => {
     expect(colors).toContain("red");
   });
 });
-

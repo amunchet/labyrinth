@@ -104,7 +104,9 @@ describe("VMContainerProgressBar.vue", () => {
     wrapper = createWrapper(item);
 
     const usageClass = wrapper.vm.diskUsageClass;
-    expect(["usage-success", "usage-warning", "usage-danger"]).toContain(usageClass);
+    expect(["usage-success", "usage-warning", "usage-danger"]).toContain(
+      usageClass
+    );
   });
 
   test("displays VM ID", () => {

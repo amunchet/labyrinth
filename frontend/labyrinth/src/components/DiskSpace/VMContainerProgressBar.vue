@@ -7,7 +7,9 @@
       v-b-tooltip.hover
       title="QEMU Guest Agent not installed or unavailable."
     />
-    <span class="vm-name text-truncate">{{ item.name || `ID ${item.id}` }}</span>
+    <span class="vm-name text-truncate">{{
+      item.name || `ID ${item.id}`
+    }}</span>
     <span class="vm-metrics">
       <span v-if="hasDiskInfo">{{ diskUsagePercentage.toFixed(0) }}%</span>
       <span
@@ -72,10 +74,8 @@ export default {
     showQemuWarning() {
       return (
         this.type === "vm" &&
-        (
-          this.item.qemu_guest_agent_installed === false ||
-          this.item.qemu_guest_agent_warning_inferred === true
-        )
+        (this.item.qemu_guest_agent_installed === false ||
+          this.item.qemu_guest_agent_warning_inferred === true)
       );
     },
     tooltipText() {
@@ -83,12 +83,16 @@ export default {
       const parts = [`${label} (${this.item.id})`];
       if (this.hasDiskInfo) {
         parts.push(
-          `Disk: ${this.formatBytes(this.item.disk)} / ${this.formatBytes(this.item.maxdisk)} (${this.diskUsagePercentage.toFixed(1)}%)`
+          `Disk: ${this.formatBytes(this.item.disk)} / ${this.formatBytes(
+            this.item.maxdisk
+          )} (${this.diskUsagePercentage.toFixed(1)}%)`
         );
       }
       if (this.showMemory && this.hasMemInfo) {
         parts.push(
-          `Mem: ${this.formatBytes(this.item.mem)} / ${this.formatBytes(this.item.maxmem)} (${this.memUsagePercentage.toFixed(1)}%)`
+          `Mem: ${this.formatBytes(this.item.mem)} / ${this.formatBytes(
+            this.item.maxmem
+          )} (${this.memUsagePercentage.toFixed(1)}%)`
         );
       }
       return parts.join(" | ");
@@ -100,7 +104,9 @@ export default {
       const k = 1024;
       const sizes = ["B", "KB", "MB", "GB", "TB"];
       const i = Math.floor(Math.log(bytes) / Math.log(k));
-      return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+      return (
+        Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
+      );
     },
   },
 };
@@ -146,7 +152,7 @@ export default {
   }
 
   &.usage-warning {
-    background-color: #FFA500;
+    background-color: #ffa500;
     color: #000;
 
     .qemu-warning-icon {

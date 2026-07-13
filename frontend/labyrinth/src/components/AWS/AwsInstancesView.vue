@@ -4,7 +4,8 @@
       <b-col class="text-left">
         <h4 class="mb-1">EC2 Inventory</h4>
         <p class="text-muted mb-0">
-          Review EC2 instances and whether each one already maps to a monitored Labyrinth host.
+          Review EC2 instances and whether each one already maps to a monitored
+          Labyrinth host.
         </p>
       </b-col>
       <b-col cols="12" md="auto" class="mt-2 mt-md-0 text-md-right">
@@ -20,9 +21,14 @@
     </b-alert>
 
     <b-alert v-if="accountErrors.length" show variant="warning">
-      <div class="font-weight-bold mb-1">Some AWS accounts could not be queried:</div>
+      <div class="font-weight-bold mb-1">
+        Some AWS accounts could not be queried:
+      </div>
       <ul class="mb-0 text-left pl-3">
-        <li v-for="err in accountErrors" :key="`${err.account_name}-${err.region}`">
+        <li
+          v-for="err in accountErrors"
+          :key="`${err.account_name}-${err.region}`"
+        >
           {{ err.account_name }} ({{ err.region }}): {{ err.error }}
         </li>
       </ul>
@@ -44,13 +50,17 @@
       <b-col cols="12" md="3" class="mb-2 mb-md-0">
         <b-card class="summary-card border-success">
           <div class="text-muted small">Matched</div>
-          <div class="summary-value text-success">{{ summary.matched_instance_count }}</div>
+          <div class="summary-value text-success">
+            {{ summary.matched_instance_count }}
+          </div>
         </b-card>
       </b-col>
       <b-col cols="12" md="3">
         <b-card class="summary-card border-warning">
           <div class="text-muted small">Needs Mapping</div>
-          <div class="summary-value text-warning">{{ summary.unmatched_instance_count }}</div>
+          <div class="summary-value text-warning">
+            {{ summary.unmatched_instance_count }}
+          </div>
         </b-card>
       </b-col>
     </b-row>
@@ -76,7 +86,9 @@
 
       <template #cell(name)="row">
         <div class="text-left">
-          <div class="font-weight-bold">{{ row.item.name || row.item.instance_id }}</div>
+          <div class="font-weight-bold">
+            {{ row.item.name || row.item.instance_id }}
+          </div>
           <div class="small text-muted">{{ row.item.instance_id }}</div>
         </div>
       </template>
@@ -122,10 +134,15 @@
 
       <template #cell(monitoring)="row">
         <div>
-          <b-badge :variant="row.item.monitoring_enabled ? 'success' : 'secondary'">
+          <b-badge
+            :variant="row.item.monitoring_enabled ? 'success' : 'secondary'"
+          >
             {{ row.item.monitoring_enabled ? "Monitored" : "Not monitored" }}
           </b-badge>
-          <div v-if="row.item.labyrinth_matches.length" class="small text-muted mt-1">
+          <div
+            v-if="row.item.labyrinth_matches.length"
+            class="small text-muted mt-1"
+          >
             {{ monitoringDetails(row.item) }}
           </div>
         </div>
@@ -140,7 +157,9 @@
           >
             {{ tag.key }}={{ tag.value }}
           </span>
-          <span v-if="!formatTags(row.item.tags).length" class="text-muted">—</span>
+          <span v-if="!formatTags(row.item.tags).length" class="text-muted"
+            >—</span
+          >
         </div>
       </template>
     </b-table>
@@ -195,7 +214,9 @@ export default {
       return "warning";
     },
     monitoringDetails(instance) {
-      const status = instance.monitoring_enabled ? "Monitored" : "Not monitored";
+      const status = instance.monitoring_enabled
+        ? "Monitored"
+        : "Not monitored";
       const serviceCount = instance.labyrinth_matches.reduce(
         (total, match) => total + (match.service_count || 0),
         0

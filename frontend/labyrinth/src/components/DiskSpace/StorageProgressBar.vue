@@ -32,7 +32,11 @@ export default {
     },
     tooltipText() {
       const type = this.storage.type ? ` (${this.storage.type})` : "";
-      return `${this.storage.name}${type}: ${this.formatBytes(this.storage.used)} / ${this.formatBytes(this.storage.total)} (${this.usagePercentage.toFixed(1)}%)`;
+      return `${this.storage.name}${type}: ${this.formatBytes(
+        this.storage.used
+      )} / ${this.formatBytes(
+        this.storage.total
+      )} (${this.usagePercentage.toFixed(1)}%)`;
     },
   },
   methods: {
@@ -41,7 +45,9 @@ export default {
       const k = 1024;
       const sizes = ["B", "KB", "MB", "GB", "TB"];
       const i = Math.floor(Math.log(bytes) / Math.log(k));
-      return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+      return (
+        Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
+      );
     },
   },
 };
@@ -75,7 +81,7 @@ export default {
   }
 
   &.usage-warning {
-    background-color: #FFA500;
+    background-color: #ffa500;
     color: #000;
   }
 

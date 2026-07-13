@@ -34,7 +34,9 @@ describe("ProxmoxDocumentation.vue", () => {
       mocks: { $auth: config.mocks["$auth"] },
     });
 
-    expect(wrapper.text()).toMatch(/Proxmox|Documentation|Setup|Configuration/i);
+    expect(wrapper.text()).toMatch(
+      /Proxmox|Documentation|Setup|Configuration/i
+    );
   });
 
   test("contains informational sections", () => {

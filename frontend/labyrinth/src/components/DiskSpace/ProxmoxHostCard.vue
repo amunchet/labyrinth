@@ -8,7 +8,10 @@
           @click="collapsed = !collapsed"
           class="text-decoration-none p-0 font-weight-bold"
         >
-          <b-icon :icon="collapsed ? 'chevron-down' : 'chevron-right'" class="pt-1 mr-1"></b-icon>
+          <b-icon
+            :icon="collapsed ? 'chevron-down' : 'chevron-right'"
+            class="pt-1 mr-1"
+          ></b-icon>
           {{ host.cluster_name || host.host }}
         </b-button>
       </b-col>
@@ -28,7 +31,11 @@
 
           <div class="node-panels">
             <div class="node-panel storage-panel">
-              <div class="panel-title" title="Datastores" aria-label="Datastores">
+              <div
+                class="panel-title"
+                title="Datastores"
+                aria-label="Datastores"
+              >
                 <font-awesome-icon icon="database" />
               </div>
               <div v-if="visibleStorage(node).length > 0" class="storage-grid">
@@ -57,13 +64,20 @@
                     :key="`vm-${node.name}-${vm.id}`"
                     class="vm-grid-item"
                   >
-                    <VMContainerProgressBar :item="{ ...vm, node: node.name }" type="vm" />
+                    <VMContainerProgressBar
+                      :item="{ ...vm, node: node.name }"
+                      type="vm"
+                    />
                   </div>
                 </div>
               </div>
 
               <div v-if="runningContainers(node).length">
-                <div class="instance-subtitle text-secondary" title="LXCs" aria-label="LXCs">
+                <div
+                  class="instance-subtitle text-secondary"
+                  title="LXCs"
+                  aria-label="LXCs"
+                >
                   <font-awesome-icon icon="cube" />
                 </div>
                 <div class="vm-grid">
@@ -81,7 +95,9 @@
               </div>
 
               <b-alert
-                v-if="!runningVMs(node).length && !runningContainers(node).length"
+                v-if="
+                  !runningVMs(node).length && !runningContainers(node).length
+                "
                 variant="warning"
                 class="small mb-0 py-1 px-2"
               >
@@ -138,14 +154,18 @@ export default {
     },
     runningContainers(node) {
       const containers = (node && node.containers) || [];
-      return containers.filter((container) => this.normalizeStatus(container) === "running");
+      return containers.filter(
+        (container) => this.normalizeStatus(container) === "running"
+      );
     },
   },
   computed: {
     sortedNodes() {
       const nodes = (this.host && this.host.nodes) || [];
       return [...nodes].sort((a, b) =>
-        ((a && a.name) || "").toString().localeCompare(((b && b.name) || "").toString())
+        ((a && a.name) || "")
+          .toString()
+          .localeCompare(((b && b.name) || "").toString())
       );
     },
     hasVMs() {
@@ -157,7 +177,9 @@ export default {
     hasContainers() {
       return (
         this.host.nodes &&
-        this.host.nodes.some((node) => node.containers && node.containers.length > 0)
+        this.host.nodes.some(
+          (node) => node.containers && node.containers.length > 0
+        )
       );
     },
     getAllVMs() {

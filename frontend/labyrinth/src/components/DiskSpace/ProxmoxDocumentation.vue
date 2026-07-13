@@ -5,8 +5,8 @@
       <b-card-body class="text-left text-start">
         <h5>1. Creating Proxmox API Token</h5>
         <p>
-          To use Disk Space Check with Proxmox, you need to create an API token that
-          allows querying host and storage information.
+          To use Disk Space Check with Proxmox, you need to create an API token
+          that allows querying host and storage information.
         </p>
 
         <h6>Steps:</h6>
@@ -15,16 +15,26 @@
             Log in to your Proxmox VE cluster at
             <code>https://your-proxmox-host:8006</code>
           </li>
-          <li>Navigate to <strong>Datacenter</strong> → <strong>API Tokens</strong></li>
           <li>
-            Click <strong>"Add"</strong> to create a new token
+            Navigate to <strong>Datacenter</strong> →
+            <strong>API Tokens</strong>
           </li>
+          <li>Click <strong>"Add"</strong> to create a new token</li>
           <li>
             Fill in the form:
             <ul>
-              <li><strong>User:</strong> Select or create a user (e.g., <code>labyrinth@pve</code>)</li>
-              <li><strong>Token ID:</strong> Give it a descriptive name (e.g., <code>disk-space-check</code>)</li>
-              <li><strong>Privilege Separation:</strong> Uncheck to inherit user permissions</li>
+              <li>
+                <strong>User:</strong> Select or create a user (e.g.,
+                <code>labyrinth@pve</code>)
+              </li>
+              <li>
+                <strong>Token ID:</strong> Give it a descriptive name (e.g.,
+                <code>disk-space-check</code>)
+              </li>
+              <li>
+                <strong>Privilege Separation:</strong> Uncheck to inherit user
+                permissions
+              </li>
             </ul>
           </li>
           <li>Click <strong>"Add"</strong> to generate the token</li>
@@ -42,7 +52,8 @@
         </ul>
 
         <p>
-          For security, consider creating a dedicated user with minimal permissions:
+          For security, consider creating a dedicated user with minimal
+          permissions:
         </p>
         <b-card bg-variant="light" class="mt-3 mb-3">
           <code>
@@ -57,7 +68,8 @@
         </p>
         <b-card bg-variant="light" class="mt-3 mb-3">
           <code>
-            curl -k -H "Authorization: PVEAPIToken=user@pve!token_id=token_secret" \<br />
+            curl -k -H "Authorization:
+            PVEAPIToken=user@pve!token_id=token_secret" \<br />
             &nbsp;&nbsp;https://localhost:8006/api2/json/nodes
           </code>
         </b-card>
@@ -72,8 +84,8 @@
       <b-card-title>Tagging Proxmox Hosts</b-card-title>
       <b-card-body>
         <p>
-          To enable disk space monitoring for a Proxmox host, you must tag it in the
-          Labyrinth system:
+          To enable disk space monitoring for a Proxmox host, you must tag it in
+          the Labyrinth system:
         </p>
 
         <h6>Steps:</h6>
@@ -86,8 +98,9 @@
         </ol>
 
         <p>
-          The system will automatically detect all hosts tagged with "Proxmox" and
-          attempt to retrieve disk space information using the configured API keys.
+          The system will automatically detect all hosts tagged with "Proxmox"
+          and attempt to retrieve disk space information using the configured
+          API keys.
         </p>
       </b-card-body>
     </b-card>
@@ -99,11 +112,13 @@
 
         <ul>
           <li>
-            <strong>Global Key:</strong> Applied to all Proxmox hosts unless overridden
+            <strong>Global Key:</strong> Applied to all Proxmox hosts unless
+            overridden
           </li>
           <li>
-            <strong>Host-Specific Key:</strong> Overrides the global key for a particular
-            host (useful for multi-cluster setups with different credentials)
+            <strong>Host-Specific Key:</strong> Overrides the global key for a
+            particular host (useful for multi-cluster setups with different
+            credentials)
           </li>
         </ul>
 
@@ -161,7 +176,9 @@
         <ol>
           <li>
             Download the installer from
-            <a href="https://pve.proxmox.com/" target="_blank">Proxmox website</a>
+            <a href="https://pve.proxmox.com/" target="_blank"
+              >Proxmox website</a
+            >
           </li>
           <li>Run the installer and follow the prompts</li>
           <li>Restart the VM</li>
@@ -192,9 +209,9 @@
       <b-card-title>Manual Hosts Setup</b-card-title>
       <b-card-body>
         <p>
-          You can manually add AWS EC2, OPNsense, or other custom hosts for disk space
-          monitoring. Currently, Labyrinth displays the host configuration but disk
-          space retrieval requires additional agent software.
+          You can manually add AWS EC2, OPNsense, or other custom hosts for disk
+          space monitoring. Currently, Labyrinth displays the host configuration
+          but disk space retrieval requires additional agent software.
         </p>
 
         <h6 class="mt-4">AWS EC2 Instance:</h6>
@@ -203,24 +220,21 @@
             Install the CloudWatch agent:
             <b-card bg-variant="light" class="mt-2 mb-2">
               <code>
-                wget https://s3.amazonaws.com/amazoncloudwatch-agent/amazon_linux/amd64/latest/amazon-cloudwatch-agent.rpm<br />
+                wget
+                https://s3.amazonaws.com/amazoncloudwatch-agent/amazon_linux/amd64/latest/amazon-cloudwatch-agent.rpm<br />
                 rpm -U ./amazon-cloudwatch-agent.rpm
               </code>
             </b-card>
           </li>
           <li>Configure the agent to collect disk metrics</li>
-          <li>
-            Add the EC2 instance in Disk Space Check Settings
-          </li>
+          <li>Add the EC2 instance in Disk Space Check Settings</li>
         </ol>
 
         <h6 class="mt-4">OPNsense Router:</h6>
         <ol>
           <li>Enable SSH on OPNsense for monitoring access</li>
           <li>Configure SNMP for remote metric collection (optional)</li>
-          <li>
-            Add the OPNsense host in Disk Space Check Settings
-          </li>
+          <li>Add the OPNsense host in Disk Space Check Settings</li>
         </ol>
 
         <h6 class="mt-4">Generic Linux/Unix:</h6>
@@ -228,7 +242,9 @@
           For any Linux/Unix-like system, you can set up metrics collection via:
         </p>
         <ul>
-          <li>Telegraf (recommended) - Configure to send disk metrics to Labyrinth</li>
+          <li>
+            Telegraf (recommended) - Configure to send disk metrics to Labyrinth
+          </li>
           <li>SNMP - Enable SNMP daemon for metric collection</li>
           <li>Custom scripts - Write scripts to report disk usage</li>
         </ul>
@@ -252,15 +268,17 @@
           <li>
             Ensure the token was generated from the correct Proxmox cluster
           </li>
-          <li>Test the token manually using curl (see API Key Management section)</li>
+          <li>
+            Test the token manually using curl (see API Key Management section)
+          </li>
         </ul>
 
         <h6>No data showing for VMs/Containers:</h6>
         <ul>
-          <li>Ensure API token has sufficient permissions (Sys.Audit, VM.Audit)</li>
           <li>
-            Install QEMU Guest Agent in VMs for better data accuracy
+            Ensure API token has sufficient permissions (Sys.Audit, VM.Audit)
           </li>
+          <li>Install QEMU Guest Agent in VMs for better data accuracy</li>
           <li>Try refreshing the page</li>
         </ul>
 

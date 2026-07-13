@@ -9,11 +9,7 @@
         </small>
       </b-col>
       <b-col lg="4" class="text-right">
-        <b-button
-          variant="danger"
-          size="sm"
-          @click="confirmDelete"
-        >
+        <b-button variant="danger" size="sm" @click="confirmDelete">
           <b-icon icon="trash"></b-icon>
           Delete
         </b-button>
@@ -22,8 +18,9 @@
 
     <!-- Info Message -->
     <b-alert variant="info" class="small">
-      <strong>Note:</strong> Disk space data retrieval for this host type requires
-      agent software or custom configuration. See documentation for setup instructions.
+      <strong>Note:</strong> Disk space data retrieval for this host type
+      requires agent software or custom configuration. See documentation for
+      setup instructions.
     </b-alert>
 
     <!-- Additional Fields -->
@@ -35,7 +32,8 @@
       </b-col>
       <b-col lg="6">
         <small class="text-muted">
-          <strong>Last Updated:</strong> {{ formatDate(host.updated || host.created) }}
+          <strong>Last Updated:</strong>
+          {{ formatDate(host.updated || host.created) }}
         </small>
       </b-col>
     </b-row>

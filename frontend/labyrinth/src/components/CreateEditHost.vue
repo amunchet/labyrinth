@@ -52,7 +52,6 @@
         </b-col>
       </b-row>
 
-
       <b-row
         ><b-col>MAC </b-col><b-col><b-input v-model="host.mac" /></b-col
       ></b-row>
@@ -85,7 +84,8 @@
             placeholder="Cluster name or ID"
           />
           <span class="text-small">
-            If this host is a Proxmox cluster, specify which cluster it belongs to.
+            If this host is a Proxmox cluster, specify which cluster it belongs
+            to.
           </span>
         </b-col>
       </b-row>

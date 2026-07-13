@@ -35,8 +35,8 @@
           <b-card class="mb-4 text-left text-start">
             <b-card-title>Disk Space Alerts</b-card-title>
             <b-card-sub-title>
-              Email notifications when a datastore, VM, or container disk
-              usage reaches the threshold below
+              Email notifications when a datastore, VM, or container disk usage
+              reaches the threshold below
             </b-card-sub-title>
 
             <b-form @submit.prevent="saveAlertSettings">
@@ -84,8 +84,8 @@
             <hr />
 
             <p class="text-muted small mb-2">
-              Send a test email to the recipient(s) above without waiting
-              for the next scheduled check.
+              Send a test email to the recipient(s) above without waiting for
+              the next scheduled check.
             </p>
             <b-button
               variant="outline-secondary"
@@ -105,11 +105,7 @@
               :disabled="sendingSimpleTest || sendingFullTest"
               @click="sendTestEmail('full')"
             >
-              <b-spinner
-                small
-                v-if="sendingFullTest"
-                class="mr-2"
-              ></b-spinner>
+              <b-spinner small v-if="sendingFullTest" class="mr-2"></b-spinner>
               Send Full Test Email (Live Data)
             </b-button>
           </b-card>
@@ -117,7 +113,11 @@
           <!-- Add / Edit Cluster -->
           <b-card class="mb-4 text-left text-start">
             <b-card-title>
-              {{ editingClusterId ? ("Edit Cluster: " + newCluster.name) : "Add Proxmox Cluster" }}
+              {{
+                editingClusterId
+                  ? "Edit Cluster: " + newCluster.name
+                  : "Add Proxmox Cluster"
+              }}
             </b-card-title>
             <b-card-sub-title>
               Define Proxmox cluster nodes and their API credentials
@@ -180,13 +180,19 @@
               <b-form-group
                 label="Token Secret:"
                 label-for="cluster-token-secret"
-                :description="editingClusterId ? 'Leave blank to keep the existing secret' : 'API token secret (keep secure)'"
+                :description="
+                  editingClusterId
+                    ? 'Leave blank to keep the existing secret'
+                    : 'API token secret (keep secure)'
+                "
               >
                 <b-form-input
                   id="cluster-token-secret"
                   v-model="newCluster.token_secret"
                   type="password"
-                  :placeholder="editingClusterId ? '(unchanged)' : 'e.g., abcd1234...'"
+                  :placeholder="
+                    editingClusterId ? '(unchanged)' : 'e.g., abcd1234...'
+                  "
                   :required="!editingClusterId"
                 ></b-form-input>
               </b-form-group>
@@ -304,8 +310,13 @@
                 ></b-form-select>
               </b-form-group>
 
-              <b-alert v-if="availableHostOptions.length === 0" variant="info" class="mb-3">
-                No disk-check hosts were found. Showing all hosts is not currently enabled for this environment.
+              <b-alert
+                v-if="availableHostOptions.length === 0"
+                variant="info"
+                class="mb-3"
+              >
+                No disk-check hosts were found. Showing all hosts is not
+                currently enabled for this environment.
               </b-alert>
 
               <b-form-group
@@ -314,16 +325,26 @@
                 label-for="host-preview"
               >
                 <div id="host-preview" class="text-muted small">
-                  <div><strong>{{ selectedHostDisplayName }}</strong></div>
+                  <div>
+                    <strong>{{ selectedHostDisplayName }}</strong>
+                  </div>
                   <div>{{ selectedHost.ip || "N/A" }}</div>
-                  <div v-if="selectedHost.tags">Tags: {{ selectedHost.tags }}</div>
-                  <div v-if="selectedHost.services && selectedHost.services.length">
+                  <div v-if="selectedHost.tags">
+                    Tags: {{ selectedHost.tags }}
+                  </div>
+                  <div
+                    v-if="selectedHost.services && selectedHost.services.length"
+                  >
                     Services: {{ selectedHost.services.join(", ") }}
                   </div>
                 </div>
               </b-form-group>
 
-              <b-button variant="primary" type="submit" :disabled="addingHost || !selectedHostId">
+              <b-button
+                variant="primary"
+                type="submit"
+                :disabled="addingHost || !selectedHostId"
+              >
                 <b-spinner small v-if="addingHost" class="mr-2"></b-spinner>
                 Add Host
               </b-button>
@@ -429,9 +450,9 @@ export default {
       savingAlertSettings: false,
       sendingSimpleTest: false,
       sendingFullTest: false,
-        availableHosts: [],
-        hostSearch: "",
-        selectedHostId: "",
+      availableHosts: [],
+      hostSearch: "",
+      selectedHostId: "",
       manualHosts: [],
       addingHost: false,
       successMessage: "",
@@ -472,7 +493,9 @@ export default {
       }));
     },
     selectedHost() {
-      return this.availableHosts.find((host) => host._id === this.selectedHostId);
+      return this.availableHosts.find(
+        (host) => host._id === this.selectedHostId
+      );
     },
     selectedHostDisplayName() {
       return this.selectedHost ? this.hostDisplayName(this.selectedHost) : "";
@@ -522,7 +545,10 @@ export default {
           this.availableHosts = Array.isArray(hostsData) ? hostsData : [];
         }
 
-        this.selectedHostId = this.availableHostOptions.length > 0 ? this.availableHostOptions[0].value : "";
+        this.selectedHostId =
+          this.availableHostOptions.length > 0
+            ? this.availableHostOptions[0].value
+            : "";
 
         // Load manual hosts
         const manualResponse = await Helper.apiCall(
@@ -653,7 +679,13 @@ export default {
     },
 
     hostDisplayName(host) {
-      const label = host.host || host.name || host.ip || host.mac || host._id || "Unknown host";
+      const label =
+        host.host ||
+        host.name ||
+        host.ip ||
+        host.mac ||
+        host._id ||
+        "Unknown host";
       const ip = host.ip ? ` (${host.ip})` : "";
       return `${label}${ip}`;
     },
@@ -786,17 +818,24 @@ export default {
       try {
         const auth = this.$auth;
         const formData = new FormData();
-        formData.append("name", selectedHost.host || selectedHost.name || selectedHost.ip);
+        formData.append(
+          "name",
+          selectedHost.host || selectedHost.name || selectedHost.ip
+        );
         formData.append("ip", selectedHost.ip || "");
         formData.append("type", "disk-check");
         formData.append(
           "description",
-          "Selected from existing host" + (selectedHost.tags ? (" | Tags: " + selectedHost.tags) : "")
+          "Selected from existing host" +
+            (selectedHost.tags ? " | Tags: " + selectedHost.tags : "")
         );
         await Helper.apiPost("disk-space/manual", "", "", auth, formData);
 
         this.successMessage = "Manual host added successfully!";
-        this.selectedHostId = this.availableHostOptions.length > 0 ? this.availableHostOptions[0].value : "";
+        this.selectedHostId =
+          this.availableHostOptions.length > 0
+            ? this.availableHostOptions[0].value
+            : "";
         await this.loadSettings();
       } catch (err) {
         this.errorMessage = err.message;

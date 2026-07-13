@@ -83,7 +83,9 @@ describe("StorageProgressBar.vue", () => {
     });
 
     const usageClass = wrapper.vm.usageClass;
-    expect(["usage-success", "usage-warning", "usage-danger"]).toContain(usageClass);
+    expect(["usage-success", "usage-warning", "usage-danger"]).toContain(
+      usageClass
+    );
   });
 
   test("handles zero disk size gracefully", () => {
