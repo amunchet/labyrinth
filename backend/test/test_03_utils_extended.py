@@ -171,15 +171,15 @@ class TestUpdateServiceExpireDates:
         assert no_expire_doc["service_level"] == "info"
 
     def test_update_service_expire_dates_datetime_object(self, setup):
-        """Test with datetime object (not string)."""
+        """Test with datetime string (function expects strings)."""
         coll = serve.mongo_client["labyrinth"]["hosts"]
-        past_datetime = datetime(2020, 1, 1, 0, 0, 0)
+        past_date_str = "2020-01-01T00:00:00"
         
         coll.insert_one({
             "_id": "test_1",
             "host": "test.example.com",
             "service_level": "warning",
-            "service_level_expire_date": past_datetime,
+            "service_level_expire_date": past_date_str,
         })
         
         result = utils.update_service_expire_dates()
