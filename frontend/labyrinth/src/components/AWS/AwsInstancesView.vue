@@ -187,14 +187,15 @@ export default {
       if (normalized === "running") return "success";
       if (normalized === "stopped") return "secondary";
       if (normalized === "terminated") return "danger";
-      return "info";
+      return "warning";
     },
     monitoringDetails(instance) {
+      const status = instance.monitoring_enabled ? "Monitored" : "Not monitored";
       const serviceCount = instance.labyrinth_matches.reduce(
         (total, match) => total + (match.service_count || 0),
         0
       );
-      return `${instance.labyrinth_matches.length} host match(es), ${serviceCount} service mapping(s)`;
+      return `${status}: ${instance.labyrinth_matches.length} host match(es), ${serviceCount} service mapping(s)`;
     },
     async loadInstances() {
       this.loading = true;
