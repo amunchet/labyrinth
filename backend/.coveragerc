@@ -1,7 +1,6 @@
 [run]
 source = .
 branch = True
-parallel = True
 omit =
     */test/*
     */tests/*
@@ -11,6 +10,7 @@ omit =
     */site-packages/*
     htmlcov/*
     conftest.py
+data_file = .coverage
 
 [report]
 exclude_lines =
@@ -26,6 +26,7 @@ exclude_lines =
     class.*:
         pass
 ignore_errors = True
+precision = 2
 
 [html]
 directory = htmlcov
