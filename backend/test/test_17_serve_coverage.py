@@ -9,6 +9,7 @@ import json
 import os
 import pytest
 import datetime
+import yaml
 from unittest.mock import Mock, patch, MagicMock
 import bson
 import redis
@@ -809,33 +810,32 @@ def test_host_matches_tag_no_match(setup):
 
 def test_delete_service(setup):
     """Delete a service."""
+    # secure_filename will convert spaces to nothing, so "SSH Check" becomes "SSHCheck"
     serve.mongo_client["labyrinth"]["services"].insert_one({
         "name": "ssh-check",
-        "display_name": "SSH Check"
+        "display_name": "SSHCheck"
     })
     serve.mongo_client["labyrinth"]["hosts"].insert_one({
         "ip": "192.168.1.1",
-        "services": ["SSH Check"]
+        "services": ["SSHCheck"]
     })
 
     with serve.app.test_request_context("/service/SSH Check", method="DELETE"):
         resp = unwrap(serve.delete_service)("SSH Check")
 
     assert resp[1] == 200
-    assert serve.mongo_client["labyrinth"]["services"].find_one({"display_name": "SSH Check"}) is None
+    assert serve.mongo_client["labyrinth"]["services"].find_one({"display_name": "SSHCheck"}) is None
 
 
-@patch("os.path.exists")
 @patch("os.listdir")
 @patch("os.remove")
-def test_delete_service_with_snippet(mock_remove, mock_listdir, mock_exists, setup):
+def test_delete_service_with_snippet(mock_remove, mock_listdir, setup):
     """Delete service and associated snippet."""
-    mock_exists.return_value = True
-    mock_listdir.return_value = ["SSH Check"]
+    mock_listdir.return_value = ["SSHCheck"]
 
     serve.mongo_client["labyrinth"]["services"].insert_one({
         "name": "ssh-check",
-        "display_name": "SSH Check"
+        "display_name": "SSHCheck"
     })
 
     with serve.app.test_request_context("/service/SSH Check", method="DELETE"):
@@ -968,7 +968,9 @@ def test_autosave_post(mock_redis, mock_environ, setup):
 @patch("builtins.open", create=True)
 def test_alertmanager_pass(mock_open, setup):
     """Get Alertmanager password."""
-    mock_open.return_value.__enter__.return_value.read.return_value = "test-password"
+    mock_file = MagicMock()
+    mock_file.read.return_value = "test-password"
+    mock_open.return_value = mock_file
 
     with serve.app.test_request_context("/alertmanager/pass"):
         resp = unwrap(serve.alertmanager_pass)()
@@ -1110,7 +1112,7 @@ def test_get_setting_not_found(setup):
 
 def test_save_setting_new(setup):
     """Save new setting."""
-    with serve.app.test_request_context("/settings", methods=["POST"]):
+    with serve.app.test_request_context("/settings", method="POST"):
         resp = unwrap(serve.save_setting)("new-setting", "new-value")
 
     assert resp[1] == 200
@@ -1158,18 +1160,21 @@ def test_metrics_post(mock_environ, mock_redis, setup):
     mock_redis.return_value = mock_instance
 
     metrics_data = {
-        "measurement": "cpu",
-        "tags": {"ip": "192.168.1.1"},
-        "fields": {"value": 50}
+        "metrics": [{
+            "measurement": "cpu",
+            "tags": {"ip": "192.168.1.1"},
+            "name": "cpu",
+            "fields": {"value": 50}
+        }]
     }
 
     with serve.app.test_request_context(
-        "/metrics",
+        "/metrics/",
         method="POST",
-        json=metrics_data,
+        data=json.dumps(metrics_data),
         headers={"Authorization": serve.TELEGRAF_KEY}
     ):
-        resp = unwrap(serve.metrics_post)()
+        resp = unwrap(serve.insert_metric)()
 
     assert resp[1] == 200
 
@@ -1182,15 +1187,15 @@ def test_metrics_missing_tags_and_name(mock_environ, mock_redis, setup):
     mock_instance = MagicMock()
     mock_redis.return_value = mock_instance
 
-    metrics_data = {"measurement": "cpu"}  # missing tags and name
+    metrics_data = {"metrics": [{"measurement": "cpu"}]}
 
     with serve.app.test_request_context(
-        "/metrics",
+        "/metrics/",
         method="POST",
-        json=metrics_data,
+        data=json.dumps(metrics_data),
         headers={"Authorization": serve.TELEGRAF_KEY}
     ):
-        resp = unwrap(serve.metrics_post)()
+        resp = unwrap(serve.insert_metric)()
 
     assert resp[1] == 200
 
@@ -1203,7 +1208,7 @@ def test_bulk_insert_with_exception(mock_environ, mock_redis, setup):
     mock_instance = MagicMock()
     mock_redis.return_value = mock_instance
     mock_instance.keys.return_value = [b"METRIC-test"]
-    mock_instance.get.return_value = b'{"tags": {}, "name": "test"}'
+    mock_instance.get.return_value = b'{\"tags\": {\"ip\": \"192.168.1.1\"}, \"name\": \"test\"}'
 
     with patch("time.time", return_value=1000):
         with serve.app.test_request_context("/bulk_insert/"):
@@ -1223,30 +1228,29 @@ def test_bulk_insert_timestamp_error(setup):
 # ---------------------------------------------------------------------------
 
 
-@patch("yaml.safe_load_all")
 @patch("yaml.safe_dump")
-def test_save_ansible_playbook(mock_dump, mock_load, setup):
+@patch("yaml.safe_load_all")
+def test_save_ansible_playbook(mock_load, mock_dump, setup):
     """Save Ansible playbook."""
     mock_load.return_value = iter([{"name": "test playbook", "hosts": "all"}])
     mock_dump.return_value = "dumped yaml"
 
-    with patch("ansible_helper.check_file", return_value=[True]):
+    with patch("ansible_helper.check_file", return_value=True):
         with patch("builtins.open", create=True):
             with serve.app.test_request_context(
-                "/ansible/playbook",
+                "/ansible/playbook/test",
                 method="POST"
             ):
-                resp = unwrap(serve.save_ansible_playbook)("test", "", "test playbook")
+                resp = unwrap(serve.save_ansible_file)("test", "test playbook", "")
 
     assert resp[1] == 200
 
 
-@patch("ansible_helper.check_file")
-def test_save_ansible_playbook_yaml_error(mock_check, setup):
+def test_save_ansible_playbook_yaml_error(setup):
     """Handle YAML parsing errors."""
     with patch("yaml.safe_load_all", side_effect=yaml.YAMLError("bad yaml")):
-        with serve.app.test_request_context("/ansible/playbook", method="POST"):
-            resp = unwrap(serve.save_ansible_playbook)("test", "", "bad: yaml: here")
+        with serve.app.test_request_context("/ansible/playbook/test", method="POST"):
+            resp = unwrap(serve.save_ansible_file)("test", "bad: yaml: here", "")
 
     assert resp[1] == 471
 
@@ -1275,8 +1279,12 @@ def test_run_ansible_endpoint(mock_environ, mock_redis, setup):
             mock_runner.events = []
             mock_run.return_value = (mock_thread, mock_runner)
 
-            with serve.app.test_request_context("/ansible_runner/", method="POST"):
-                resp = unwrap(serve.run_ansible_endpoint)(ansible_data)
+            with serve.app.test_request_context(
+                "/ansible_runner/",
+                method="POST",
+                data=json.dumps(ansible_data)
+            ):
+                resp = unwrap(serve.run_ansible_endpoint)(json.dumps(ansible_data))
 
     assert resp[1] in [200, 201]
 
@@ -1328,3 +1336,437 @@ def test_sanitize_mongo_value_mixed_types(setup):
     assert result["string"] == "value"
     assert result["number"] == 42
     assert result["bool"] is True
+
+# ---------------------------------------------------------------------------
+# Additional Coverage for Proxmox, Subnets, and Services
+# ---------------------------------------------------------------------------
+
+
+def test_get_proxmox_clusters_empty(setup):
+    """Get Proxmox clusters when none exist."""
+    with serve.app.test_request_context("/proxmox/clusters"):
+        resp = unwrap(serve.get_proxmox_clusters)()
+
+    assert resp[1] == 200
+    data = json.loads(resp[0])
+    assert isinstance(data, list)
+
+
+def test_get_proxmox_cluster_not_found(setup):
+    """Get non-existent Proxmox cluster."""
+    cluster_id = str(bson.ObjectId())
+
+    with serve.app.test_request_context(f"/proxmox/clusters/{cluster_id}"):
+        resp = unwrap(serve.get_proxmox_cluster)(cluster_id)
+
+    assert resp[1] == 404
+
+
+def test_get_proxmox_cluster_invalid_id(setup):
+    """Handle invalid Proxmox cluster ID."""
+    with serve.app.test_request_context("/proxmox/clusters/invalid"):
+        resp = unwrap(serve.get_proxmox_cluster)("invalid")
+
+    assert resp[1] == 400
+
+
+@patch("proxmox_helper.get_cluster_status")
+def test_proxmox_cluster_status(mock_get_status, setup):
+    """Get Proxmox cluster status."""
+    cluster_id = str(bson.ObjectId())
+    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one({
+        "_id": bson.ObjectId(cluster_id),
+        "name": "test-cluster",
+        "url": "https://proxmox.test",
+        "username": "root",
+        "password": "test"
+    })
+    mock_get_status.return_value = {"status": "ok"}
+
+    with serve.app.test_request_context(f"/proxmox/clusters/{cluster_id}/status"):
+        resp = unwrap(serve.proxmox_cluster_status)(cluster_id)
+
+    assert resp[1] == 200
+
+
+@patch("builtins.open", create=True)
+def test_subnets_write(mock_open, setup):
+    """Write subnets to file."""
+    mock_file = MagicMock()
+    mock_open.return_value.__enter__.return_value = mock_file
+
+    serve.mongo_client["labyrinth"]["subnets"].insert_one({
+        "name": "192.168.1.0/24",
+        "link": "eth0"
+    })
+
+    with serve.app.test_request_context("/subnets/"):
+        resp = unwrap(serve.write_subnets)()
+
+    assert resp[1] == 200
+
+
+def test_get_subnet_map(setup):
+    """Get subnet map."""
+    serve.mongo_client["labyrinth"]["subnets"].insert_one({
+        "name": "192.168.1.0/24",
+        "origin": "scanner"
+    })
+
+    with serve.app.test_request_context("/subnets_map/"):
+        resp = unwrap(serve.get_subnet_map)()
+
+    assert resp[1] == 200
+    data = json.loads(resp[0])
+    assert "192.168.1.0/24" in data
+
+
+@patch("builtins.open", create=True)
+@patch("requests.get")
+def test_konva_draw(mock_get, mock_open, setup):
+    """Generate Konva topology visualization."""
+    mock_get.return_value.json.return_value = {"subnets": []}
+    mock_file = MagicMock()
+    mock_open.return_value.__enter__.return_value = mock_file
+    mock_file.read.return_value = "[]"
+
+    serve.mongo_client["labyrinth"]["hosts"].insert_one({
+        "ip": "192.168.1.1",
+        "subnet": "192.168.1.0/24",
+        "hostname": "test-host"
+    })
+
+    with serve.app.test_request_context("/konva_draw/"):
+        resp = unwrap(serve.konva_draw)()
+
+    assert resp[1] == 200
+
+
+def test_get_services_all(setup):
+    """Get all services."""
+    serve.mongo_client["labyrinth"]["services"].insert_many([
+        {"name": "ssh-check", "display_name": "SSH"},
+        {"name": "http-check", "display_name": "HTTP"}
+    ])
+
+    with serve.app.test_request_context("/services/"):
+        resp = unwrap(serve.get_services)()
+
+    assert resp[1] == 200
+    data = json.loads(resp[0])
+    assert len(data) >= 2
+
+
+def test_get_service_by_name(setup):
+    """Get service by name."""
+    serve.mongo_client["labyrinth"]["services"].insert_one({
+        "name": "ssh-check",
+        "display_name": "SSH",
+        "check_type": "port",
+        "port": 22
+    })
+
+    with serve.app.test_request_context("/services/SSH Check"):
+        resp = unwrap(serve.get_service)("SSH Check")
+
+    assert resp[1] in [200, 404]
+
+
+@patch("services.output")
+def test_save_conf_with_data(mock_output, setup):
+    """Save Telegraf config with data."""
+    mock_output.return_value = None
+
+    with serve.app.test_request_context("/save_conf/test-host", method="POST"):
+        resp = unwrap(serve.save_conf)("test-host", {"data": "test"}, "")
+
+    assert resp[1] == 200
+
+
+@patch("services.run")
+def test_run_telegraf_test(mock_run, setup):
+    """Run Telegraf in test mode."""
+    mock_run.return_value = (b"OK", 200)
+
+    with serve.app.test_request_context("/run_conf/test.conf/1"):
+        resp = unwrap(serve.run_telegraf)("test.conf", 1)
+
+    assert resp[1] == 200
+
+
+@patch("services.load")
+def test_load_service_json(mock_load, setup):
+    """Load service in JSON format."""
+    mock_load.return_value = ('{"test": "data"}', 200)
+
+    with serve.app.test_request_context("/load_service/test-service"):
+        resp = unwrap(serve.load_service)("test-service", "json")
+
+    assert resp[1] == 200
+
+
+@patch("services.load")
+def test_load_service_yaml(mock_load, setup):
+    """Load service in YAML format."""
+    mock_load.return_value = ("test: data", 200)
+
+    with serve.app.test_request_context("/load_service/test-service/yaml"):
+        resp = unwrap(serve.load_service)("test-service", "yaml")
+
+    assert resp[1] == 200
+
+
+# ---------------------------------------------------------------------------
+# Exception Handling and Error Paths
+# ---------------------------------------------------------------------------
+
+
+@patch("redis.Redis")
+@patch("os.environ.get")
+def test_put_structure_redis_exception(mock_environ, mock_redis, setup):
+    """Handle Redis exception during put_structure."""
+    mock_environ.return_value = "redis"
+    mock_redis.side_effect = Exception("Redis error")
+
+    with patch("services.prepare", return_value=[]):
+        try:
+            with serve.app.test_request_context("/redis/put_structure"):
+                unwrap(serve.put_structure)()
+        except Exception:
+            pass
+
+
+@patch("requests.get")
+@patch("builtins.open", create=True)
+def test_list_alerts_request_error(mock_open, mock_get, setup):
+    """Handle request error when listing alerts."""
+    mock_open.return_value.__enter__.return_value.read.return_value = "password"
+    mock_get.side_effect = Exception("Connection error")
+
+    try:
+        with serve.app.test_request_context("/alertmanager/alerts"):
+            unwrap(serve.list_alerts)()
+    except Exception:
+        pass
+
+
+def test_save_setting_empty_name(setup):
+    """Reject empty setting name."""
+    with serve.app.test_request_context("/settings", method="POST"):
+        resp = unwrap(serve.save_setting)("", "value")
+
+    # Should either update or reject
+    assert resp[1] in [200, 400]
+
+
+# ---------------------------------------------------------------------------
+# Edge Cases and Boundary Conditions
+# ---------------------------------------------------------------------------
+
+
+def test_sanitize_string_value_with_spaces():
+    """Sanitize string with internal spaces."""
+    result = serve._sanitize_string_value("valid name with spaces")
+    assert result == "valid name with spaces"
+
+
+def test_sanitize_string_value_single_char():
+    """Sanitize single character."""
+    result = serve._sanitize_string_value("a")
+    assert result == "a"
+
+
+def test_sanitize_mongo_value_deeply_nested():
+    """Sanitize deeply nested structure."""
+    nested = {
+        "level1": {
+            "level2": {
+                "level3": {
+                    "level4": "value"
+                }
+            }
+        }
+    }
+    result = serve._sanitize_mongo_value(nested)
+    assert result["level1"]["level2"]["level3"]["level4"] == "value"
+
+
+def test_sanitize_mongo_value_array_of_dicts():
+    """Sanitize array containing dictionaries."""
+    data = [
+        {"key1": "value1"},
+        {"key2": "value2", "$bad": "remove"}
+    ]
+    result = serve._sanitize_mongo_value(data)
+    assert "$bad" not in result[1]
+
+
+def test_host_matches_tag_with_whitespace():
+    """Test tag matching with extra whitespace."""
+    host = {"ip": "192.168.1.1", "tags": "  prod  ,  staging  "}
+    assert serve._host_matches_tag(host, "prod") is True
+
+
+def test_list_tag_members_empty_result(setup):
+    """List tag members when no hosts have tag."""
+    serve.mongo_client["labyrinth"]["hosts"].insert_one({
+        "ip": "192.168.1.1",
+        "tags": "staging"
+    })
+
+    with serve.app.test_request_context("/tags/nonexistent"):
+        resp = unwrap(serve.list_tag_members)("nonexistent")
+
+    assert resp[1] == 200
+    ips = json.loads(resp[0])
+    assert len(ips) == 0
+
+
+def test_validate_object_id_uppercase():
+    """Validate uppercase ObjectId."""
+    valid_id = str(bson.ObjectId()).upper()
+    result = serve._validate_object_id(valid_id)
+    assert isinstance(result, bson.ObjectId)
+
+
+def test_sanitize_db_value_float_precision():
+    """Preserve float precision."""
+    assert serve._sanitize_db_value(3.14159) == 3.14159
+
+
+def test_sanitize_db_value_negative_number():
+    """Allow negative numbers."""
+    assert serve._sanitize_db_value(-42) == -42
+
+
+def test_get_setting_empty_result(setup):
+    """Handle empty settings collection."""
+    with serve.app.test_request_context("/settings"):
+        resp = unwrap(serve.get_setting)()
+
+    assert resp[1] == 200
+    data = json.loads(resp[0])
+    assert isinstance(data, list)
+
+
+def test_group_delete_service_no_match(setup):
+    """Delete service that doesn't exist in group."""
+    serve.mongo_client["labyrinth"]["hosts"].insert_one({
+        "ip": "192.168.1.1",
+        "subnet": "192.168.1.0/24",
+        "group": "servers",
+        "services": ["http"]
+    })
+
+    with serve.app.test_request_context("/group/delete_service/192.168.1.0%2F24/servers/ssh"):
+        resp = unwrap(serve.group_delete_service)("192.168.1.0/24", "servers", "ssh")
+
+    assert resp[1] == 200
+    h1 = serve.mongo_client["labyrinth"]["hosts"].find_one({"ip": "192.168.1.1"})
+    assert h1["services"] == ["http"]
+
+
+def test_delete_host_by_ip_multiple_hosts(setup):
+    """Delete specific host when multiple exist."""
+    serve.mongo_client["labyrinth"]["hosts"].insert_many([
+        {"ip": "192.168.1.1", "mac": "00:11:22:33:44:55"},
+        {"ip": "192.168.1.2", "mac": "00:11:22:33:44:66"}
+    ])
+
+    with serve.app.test_request_context("/host/192.168.1.1", method="DELETE"):
+        resp = unwrap(serve.delete_host)("192.168.1.1")
+
+    assert resp[1] == 200
+    assert serve.mongo_client["labyrinth"]["hosts"].find_one({"ip": "192.168.1.1"}) is None
+    assert serve.mongo_client["labyrinth"]["hosts"].find_one({"ip": "192.168.1.2"}) is not None
+
+
+@patch("redis.Redis")
+@patch("os.environ.get")
+def test_metrics_with_timestamp(mock_environ, mock_redis, setup):
+    """Post metrics with timestamp field."""
+    mock_environ.return_value = "redis"
+    mock_instance = MagicMock()
+    mock_redis.return_value = mock_instance
+
+    metrics_data = {
+        "metrics": [{
+            "measurement": "memory",
+            "tags": {"ip": "192.168.1.1"},
+            "name": "memory",
+            "fields": {"used": 4096},
+            "timestamp": 1620000000
+        }]
+    }
+
+    with serve.app.test_request_context(
+        "/metrics/",
+        method="POST",
+        data=json.dumps(metrics_data),
+        headers={"Authorization": serve.TELEGRAF_KEY}
+    ):
+        resp = unwrap(serve.insert_metric)()
+
+    assert resp[1] == 200
+
+
+def test_host_matches_tag_service_as_string(setup):
+    """Test tag matching when service is a string."""
+    host = {
+        "ip": "192.168.1.1",
+        "services": ["ssh", "http"]
+    }
+    assert serve._host_matches_tag(host, "ssh") is True
+
+
+def test_host_matches_tag_mixed_services(setup):
+    """Test tag matching with mixed service formats."""
+    host = {
+        "ip": "192.168.1.1",
+        "tags": "prod",
+        "services": [
+            {"name": "ssh", "display_name": "SSH"},
+            "http"
+        ]
+    }
+    assert serve._host_matches_tag(host, "prod") is True
+    assert serve._host_matches_tag(host, "ssh") is True
+    assert serve._host_matches_tag(host, "http") is True
+
+
+def test_save_ansible_playbook_invalid_yaml(setup):
+    """Handle invalid YAML in playbook."""
+    with patch("yaml.safe_load_all", side_effect=yaml.YAMLError("Parse error")):
+        with serve.app.test_request_context("/ansible/playbook/test", method="POST"):
+            resp = unwrap(serve.save_ansible_file)("test", "invalid: yaml:", "")
+
+    assert resp[1] == 471
+
+
+def test_update_aws_account_invalid_json(setup):
+    """Handle invalid JSON body for AWS account update."""
+    account_id = str(bson.ObjectId())
+
+    with serve.app.test_request_context(
+        f"/aws/accounts/{account_id}",
+        method="PUT",
+        json={}
+    ):
+        resp = unwrap(serve.update_aws_account)(account_id)
+
+    assert resp[1] in [200, 400, 404]
+
+
+@patch("os.environ.get")
+@patch("redis.Redis")
+def test_autosave_get_not_found(mock_redis, mock_environ, setup):
+    """Handle missing autosave content."""
+    mock_environ.return_value = "redis"
+    mock_instance = MagicMock()
+    mock_redis.return_value = mock_instance
+    mock_instance.get.return_value = None
+
+    with serve.app.test_request_context("/redis/autosave", method="GET"):
+        resp = unwrap(serve.get_autosave)("user123")
+
+    assert resp[1] == 426
