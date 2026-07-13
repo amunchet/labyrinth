@@ -141,7 +141,7 @@ def find_comments(lines):
 
     for line in [x.strip() for x in lines if x.strip() != ""]:
         # Is this a comment?
-        if re.match("^(\s?#+)+", line):
+        if re.match(r"^(\s?#+)+", line):
             current_comments.append(line)
         else:
             # Section or array of sections
