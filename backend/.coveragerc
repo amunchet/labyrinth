@@ -1,10 +1,16 @@
 [run]
+source = .
+branch = True
+parallel = True
 omit =
-    */tests/*
     */test/*
+    */tests/*
     */__pycache__/*
+    */venv/*
+    */env/*
     */site-packages/*
     htmlcov/*
+    conftest.py
 
 [report]
 exclude_lines =
@@ -13,9 +19,19 @@ exclude_lines =
     raise AssertionError
     raise NotImplementedError
     if __name__ == .__main__.:
-    if TYPE_CHECKING:
-    @abstractmethod
-    @abc.abstractmethod
+    if (typing\.)?TYPE_CHECKING:
+    @(abc\.)?abstractmethod
+    except ImportError
+    except ModuleNotFoundError
+    class.*:
+        pass
+ignore_errors = True
 
 [html]
 directory = htmlcov
+show_contexts = True
+
+[paths]
+source =
+    .
+    */site-packages
