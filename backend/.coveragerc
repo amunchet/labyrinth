@@ -14,6 +14,9 @@ omit =
     uploads/*
     samples/*
     snippets/*
+    *.html
+    *.yml
+    *.yaml
 data_file = .coverage
 
 [report]
