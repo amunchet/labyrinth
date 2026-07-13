@@ -10,12 +10,12 @@ echo "Running Pytest..."
 docker
 if [ $? -eq 127 ]; then
     echo "No docker found.  Assuming we're inside of backend docker or running locally."
-    cd "$(dirname "$0")" && rm -rf htmlcov .coverage* && PYTHONPATH=. pytest --cov=. --cov-config=.coveragerc --cov-report term-missing -vvvv --cov-fail-under=95 --cov-report=html $ARGS test/
+    cd "$(dirname "$0")" && PYTHONPATH=. pytest --cov=. --cov-config=.coveragerc --cov-report term-missing -vvvv --cov-fail-under=95 --cov-report=html $ARGS test/
 
 else
     docker ps
     docker logs $DOCKER_PROD_NAME
     echo "Running tests in local"
     docker start $DOCKER_PROD_NAME
-    docker exec $DOCKER_PROD_NAME sh -c "cd /src && rm -rf htmlcov .coverage* && PYTHONPATH=/src pytest --cov=. --cov-config=.coveragerc --cov-report term-missing -vvvv --cov-fail-under=95 --cov-report=html $ARGS test/ "
+    docker exec $DOCKER_PROD_NAME sh -c "cd /src && PYTHONPATH=/src pytest --cov=. --cov-config=.coveragerc --cov-report term-missing -vvvv --cov-fail-under=95 --cov-report=html $ARGS test/ "
 fi

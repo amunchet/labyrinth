@@ -38,6 +38,20 @@ describe("DiskSpaceView.vue", () => {
 
   const flushPromises = () => new Promise((resolve) => setImmediate(resolve));
 
+  const defaultMountOptions = {
+    mocks: { $auth: config.mocks["$auth"] },
+    stubs: {
+      "b-alert": { template: "<div><slot /></div>" },
+      "b-card": { template: "<div><slot /><slot name='default' /></div>" },
+      "b-row": { template: "<div><slot /></div>" },
+      "b-col": { template: "<div><slot /></div>" },
+      "b-button": { template: "<button><slot /></button>" },
+      "b-icon": { template: "<i></i>" },
+      "b-spinner": { template: "<div></div>" },
+      "font-awesome-icon": true,
+    },
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
   });
@@ -54,9 +68,7 @@ describe("DiskSpaceView.vue", () => {
       .mockResolvedValueOnce({ proxmox_hosts: [] })
       .mockResolvedValueOnce({ manual_hosts: [] });
 
-    wrapper = mount(DiskSpaceView, {
-      mocks: { $auth: config.mocks["$auth"] },
-    });
+    wrapper = mount(DiskSpaceView, defaultMountOptions);
     await wrapper.vm.refreshData();
     await wrapper.vm.$nextTick();
 
@@ -70,9 +82,7 @@ describe("DiskSpaceView.vue", () => {
         () => new Promise((resolve) => setTimeout(() => resolve({ proxmox_hosts: [] }), 100))
       );
 
-      wrapper = mount(DiskSpaceView, {
-        mocks: { $auth: config.mocks["$auth"] },
-      });
+      wrapper = mount(DiskSpaceView, defaultMountOptions);
 
       // Component starts with loading=true, which triggers a refreshData call
       // Before the refreshData completes, we should see the loading state
@@ -90,9 +100,7 @@ describe("DiskSpaceView.vue", () => {
   test("displays error alert when data fetch fails", async () => {
     Helper.apiCall.mockRejectedValue(new Error("API Error"));
 
-    wrapper = mount(DiskSpaceView, {
-      mocks: { $auth: config.mocks["$auth"] },
-    });
+    wrapper = mount(DiskSpaceView, defaultMountOptions);
 
     await wrapper.vm.refreshData();
     await wrapper.vm.$nextTick();
@@ -114,9 +122,7 @@ describe("DiskSpaceView.vue", () => {
       })
       .mockResolvedValueOnce({ manual_hosts: [] });
 
-    wrapper = mount(DiskSpaceView, {
-      mocks: { $auth: config.mocks["$auth"] },
-    });
+    wrapper = mount(DiskSpaceView, defaultMountOptions);
 
     // Wait for the initial refreshData call to complete (triggered by mounted)
     await wrapper.vm.$nextTick();
@@ -141,9 +147,7 @@ describe("DiskSpaceView.vue", () => {
         ],
       });
 
-    wrapper = mount(DiskSpaceView, {
-      mocks: { $auth: config.mocks["$auth"] },
-    });
+    wrapper = mount(DiskSpaceView, defaultMountOptions);
 
     // Wait for the initial refreshData call to complete
     await wrapper.vm.$nextTick();
@@ -174,9 +178,7 @@ describe("DiskSpaceView.vue", () => {
         ],
       });
 
-    wrapper = mount(DiskSpaceView, {
-      mocks: { $auth: config.mocks["$auth"] },
-    });
+    wrapper = mount(DiskSpaceView, defaultMountOptions);
 
     // Wait for the initial refreshData call to complete
     await wrapper.vm.$nextTick();
@@ -192,9 +194,7 @@ describe("DiskSpaceView.vue", () => {
       .mockResolvedValueOnce({ proxmox_hosts: [] })
       .mockResolvedValueOnce({ manual_hosts: [] });
 
-    wrapper = mount(DiskSpaceView, {
-      mocks: { $auth: config.mocks["$auth"] },
-    });
+    wrapper = mount(DiskSpaceView, defaultMountOptions);
 
     // Wait for mounted hook to trigger refreshData
     await wrapper.vm.$nextTick();
@@ -216,9 +216,7 @@ describe("DiskSpaceView.vue", () => {
       .mockResolvedValueOnce({ manual_hosts: [] });
     Helper.apiDelete.mockResolvedValue({});
 
-    wrapper = mount(DiskSpaceView, {
-      mocks: { $auth: config.mocks["$auth"] },
-    });
+    wrapper = mount(DiskSpaceView, defaultMountOptions);
 
     wrapper.vm.manualData = [
       {
@@ -263,9 +261,7 @@ describe("DiskSpaceView.vue", () => {
       ],
     });
 
-    wrapper = mount(DiskSpaceView, {
-      mocks: { $auth: config.mocks["$auth"] },
-    });
+    wrapper = mount(DiskSpaceView, defaultMountOptions);
 
     const initialCall = Helper.apiCall.mock.calls.length;
 
@@ -278,9 +274,7 @@ describe("DiskSpaceView.vue", () => {
   });
 
   test("clears error when dismissing alert", async () => {
-    wrapper = mount(DiskSpaceView, {
-      mocks: { $auth: config.mocks["$auth"] },
-    });
+    wrapper = mount(DiskSpaceView, defaultMountOptions);
 
     wrapper.vm.error = "Test error";
     await wrapper.vm.$nextTick();
@@ -296,9 +290,7 @@ describe("DiskSpaceView.vue", () => {
       .mockResolvedValueOnce({ proxmox_hosts: [] })
       .mockResolvedValueOnce({ manual_hosts: [] });
 
-    wrapper = mount(DiskSpaceView, {
-      mocks: { $auth: config.mocks["$auth"] },
-    });
+    wrapper = mount(DiskSpaceView, defaultMountOptions);
     
     await wrapper.vm.$nextTick();
     await flushPromises();
@@ -311,9 +303,7 @@ describe("DiskSpaceView.vue", () => {
       .mockResolvedValueOnce({ proxmox_hosts: [] })
       .mockResolvedValueOnce({ manual_hosts: [] });
 
-    wrapper = mount(DiskSpaceView, {
-      mocks: { $auth: config.mocks["$auth"] },
-    });
+    wrapper = mount(DiskSpaceView, defaultMountOptions);
 
     const timer = wrapper.vm.autoRefreshTimer;
     wrapper.destroy();
