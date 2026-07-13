@@ -1201,15 +1201,24 @@ def test_metrics_missing_tags_and_name(mock_environ, mock_redis, setup):
     assert resp[1] == 200
 
 
+@patch("datetime.datetime")
 @patch("redis.Redis")
 @patch("os.environ.get")
-def test_bulk_insert_with_exception(mock_environ, mock_redis, setup):
+def test_bulk_insert_with_exception(mock_environ, mock_redis, mock_datetime, setup):
     """Handle exceptions during bulk insert."""
     mock_environ.return_value = "redis"
     mock_instance = MagicMock()
     mock_redis.return_value = mock_instance
     mock_instance.keys.return_value = [b"METRIC-test"]
-    mock_instance.get.return_value = b'{"tags": {"ip": "192.168.1.1"}, "name": "test", "timestamp": 1620000000}'
+    mock_instance.get.side_effect = [
+        b'{"tags": {"ip": "192.168.1.1"}, "name": "test", "timestamp": 1620000000}',
+        None  # last_time returns None
+    ]
+    
+    # Mock datetime.now() to return a datetime object
+    mock_now = MagicMock()
+    mock_datetime.now.return_value = mock_now
+    mock_datetime.side_effect = lambda *args, **kw: datetime.datetime(*args, **kw)
 
     with patch("time.time", return_value=1000):
         with serve.app.test_request_context("/bulk_insert/"):
@@ -1354,14 +1363,16 @@ def test_get_proxmox_clusters_empty(setup):
 
 
 def test_get_proxmox_cluster_by_name(setup):
-    """Get Proxmox cluster by name."""
+    """Get Proxmox cluster by ID."""
+    cluster_id = str(bson.ObjectId())
     serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one({
+        "_id": bson.ObjectId(cluster_id),
         "name": "test-cluster",
         "host": "10.0.0.1"
     })
 
-    with serve.app.test_request_context("/proxmox-clusters/test-cluster"):
-        resp = unwrap(serve.get_proxmox_cluster)("test-cluster")
+    with serve.app.test_request_context(f"/proxmox-clusters/{cluster_id}"):
+        resp = unwrap(serve.get_proxmox_cluster)(cluster_id)
 
     assert resp[1] == 200
 
@@ -1413,6 +1424,9 @@ def test_list_services_display_names(setup):
 
 def test_read_service_by_name(setup):
     """Get service by display name."""
+    # Clean up first to avoid data pollution
+    serve.mongo_client["labyrinth"]["services"].delete_many({})
+    
     serve.mongo_client["labyrinth"]["services"].insert_one({
         "name": "ssh-check",
         "display_name": "SSH",
