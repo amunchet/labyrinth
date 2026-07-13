@@ -81,51 +81,72 @@ class TestPingFunction:
 class TestCheckPort:
     """Tests for the check_port function."""
 
+    @patch("alive.closing")
     @patch("alive.socket.socket")
-    def test_check_port_open(self, mock_socket_class):
+    def test_check_port_open(self, mock_socket_class, mock_closing):
         """Test checking an open port."""
         mock_socket = MagicMock()
         mock_socket.connect_ex.return_value = 0
         
-        # Mock the context manager
-        mock_socket_class.return_value.__enter__.return_value = mock_socket
-        mock_socket_class.return_value.__exit__.return_value = None
+        # Set up socket.socket to return our mock
+        mock_socket_class.return_value = mock_socket
+        
+        # Set up closing() to return a context manager that yields the socket
+        mock_closing_cm = MagicMock()
+        mock_closing_cm.__enter__.return_value = mock_socket
+        mock_closing_cm.__exit__.return_value = None
+        mock_closing.return_value = mock_closing_cm
 
         result = alive.check_port("192.168.1.1", 22)
         assert result is True
 
+    @patch("alive.closing")
     @patch("alive.socket.socket")
-    def test_check_port_closed(self, mock_socket_class):
+    def test_check_port_closed(self, mock_socket_class, mock_closing):
         """Test checking a closed port."""
         mock_socket = MagicMock()
         mock_socket.connect_ex.return_value = 1
         
-        mock_socket_class.return_value.__enter__.return_value = mock_socket
-        mock_socket_class.return_value.__exit__.return_value = None
+        mock_socket_class.return_value = mock_socket
+        
+        mock_closing_cm = MagicMock()
+        mock_closing_cm.__enter__.return_value = mock_socket
+        mock_closing_cm.__exit__.return_value = None
+        mock_closing.return_value = mock_closing_cm
 
         result = alive.check_port("192.168.1.1", 22)
         assert result is False
 
+    @patch("alive.closing")
     @patch("alive.socket.socket")
-    def test_check_port_timeout(self, mock_socket_class):
+    def test_check_port_timeout(self, mock_socket_class, mock_closing):
         """Test checking a port that times out."""
         mock_socket = MagicMock()
         mock_socket.connect_ex.return_value = 110  # Connection timed out
         
-        mock_socket_class.return_value.__enter__.return_value = mock_socket
-        mock_socket_class.return_value.__exit__.return_value = None
+        mock_socket_class.return_value = mock_socket
+        
+        mock_closing_cm = MagicMock()
+        mock_closing_cm.__enter__.return_value = mock_socket
+        mock_closing_cm.__exit__.return_value = None
+        mock_closing.return_value = mock_closing_cm
 
         result = alive.check_port("192.168.1.1", 443)
         assert result is False
 
+    @patch("alive.closing")
     @patch("alive.socket.socket")
-    def test_check_port_different_ports(self, mock_socket_class):
+    def test_check_port_different_ports(self, mock_socket_class, mock_closing):
         """Test checking various common ports."""
         mock_socket = MagicMock()
         mock_socket.connect_ex.return_value = 0
         
-        mock_socket_class.return_value.__enter__.return_value = mock_socket
-        mock_socket_class.return_value.__exit__.return_value = None
+        mock_socket_class.return_value = mock_socket
+        
+        mock_closing_cm = MagicMock()
+        mock_closing_cm.__enter__.return_value = mock_socket
+        mock_closing_cm.__exit__.return_value = None
+        mock_closing.return_value = mock_closing_cm
 
         ports_to_test = [80, 443, 3306, 5432, 27017, 6379]
         for port in ports_to_test:
@@ -148,14 +169,19 @@ class TestCheckPort:
         result = alive.check_port("192.168.1.1", 22)
         assert result is False
 
+    @patch("alive.closing")
     @patch("alive.socket.socket")
-    def test_check_port_with_hostname(self, mock_socket_class):
+    def test_check_port_with_hostname(self, mock_socket_class, mock_closing):
         """Test checking port on a hostname."""
         mock_socket = MagicMock()
         mock_socket.connect_ex.return_value = 0
         
-        mock_socket_class.return_value.__enter__.return_value = mock_socket
-        mock_socket_class.return_value.__exit__.return_value = None
+        mock_socket_class.return_value = mock_socket
+        
+        mock_closing_cm = MagicMock()
+        mock_closing_cm.__enter__.return_value = mock_socket
+        mock_closing_cm.__exit__.return_value = None
+        mock_closing.return_value = mock_closing_cm
 
         result = alive.check_port("mail.example.com", 25)
         assert result is True
@@ -168,26 +194,36 @@ class TestCheckPort:
         result = alive.check_port("192.168.1.1", 1)
         assert result is False
 
+    @patch("alive.closing")
     @patch("alive.socket.socket")
-    def test_check_port_port_number_integer(self, mock_socket_class):
+    def test_check_port_port_number_integer(self, mock_socket_class, mock_closing):
         """Test that port number is passed as integer."""
         mock_socket = MagicMock()
         mock_socket.connect_ex.return_value = 0
         
-        mock_socket_class.return_value.__enter__.return_value = mock_socket
-        mock_socket_class.return_value.__exit__.return_value = None
+        mock_socket_class.return_value = mock_socket
+        
+        mock_closing_cm = MagicMock()
+        mock_closing_cm.__enter__.return_value = mock_socket
+        mock_closing_cm.__exit__.return_value = None
+        mock_closing.return_value = mock_closing_cm
 
         alive.check_port("192.168.1.1", 8080)
         mock_socket.connect_ex.assert_called_once_with(("192.168.1.1", 8080))
 
+    @patch("alive.closing")
     @patch("alive.socket.socket")
-    def test_check_port_ipv6_address(self, mock_socket_class):
+    def test_check_port_ipv6_address(self, mock_socket_class, mock_closing):
         """Test checking port on IPv6 address."""
         mock_socket = MagicMock()
         mock_socket.connect_ex.return_value = 0
         
-        mock_socket_class.return_value.__enter__.return_value = mock_socket
-        mock_socket_class.return_value.__exit__.return_value = None
+        mock_socket_class.return_value = mock_socket
+        
+        mock_closing_cm = MagicMock()
+        mock_closing_cm.__enter__.return_value = mock_socket
+        mock_closing_cm.__exit__.return_value = None
+        mock_closing.return_value = mock_closing_cm
 
         result = alive.check_port("2001:db8::1", 80)
         assert result is True
