@@ -551,3 +551,678 @@ def test_send_disk_space_test_email_endpoint_rejects_invalid_mode(setup):
 
     assert resp[1] == 400
     assert "mode must be" in json.loads(resp[0])["error"]
+
+# ---------------------------------------------------------------------------
+# calculate_percentage - edge cases and error handling
+# ---------------------------------------------------------------------------
+
+
+def test_calculate_percentage_zero_total():
+    """Return 0 when total is 0."""
+    result = proxmox_disk_check.calculate_percentage(100, 0)
+    assert result == 0
+
+
+def test_calculate_percentage_none_total():
+    """Return 0 when total is None."""
+    result = proxmox_disk_check.calculate_percentage(100, None)
+    assert result == 0
+
+
+def test_calculate_percentage_invalid_values():
+    """Handle invalid string values."""
+    result = proxmox_disk_check.calculate_percentage("abc", "def")
+    assert result == 0
+
+
+def test_calculate_percentage_float_values():
+    """Calculate percentage with float values."""
+    result = proxmox_disk_check.calculate_percentage(50.5, 100.0)
+    assert abs(result - 50.5) < 0.01
+
+
+def test_calculate_percentage_exact_calculation():
+    """Verify exact percentage calculation."""
+    result = proxmox_disk_check.calculate_percentage(75, 100)
+    assert result == 75.0
+
+
+# ---------------------------------------------------------------------------
+# format_size - bytes conversion
+# ---------------------------------------------------------------------------
+
+
+def test_format_size_zero_bytes():
+    """Format 0 bytes."""
+    result = proxmox_disk_check.format_size(0)
+    assert result == "0 B"
+
+
+def test_format_size_none():
+    """Handle None input."""
+    result = proxmox_disk_check.format_size(None)
+    assert result == "0 B"
+
+
+def test_format_size_invalid_type():
+    """Handle invalid types."""
+    result = proxmox_disk_check.format_size("invalid")
+    assert result == "0 B"
+
+
+def test_format_size_bytes():
+    """Format bytes."""
+    result = proxmox_disk_check.format_size(512)
+    assert "512" in result and "B" in result
+
+
+def test_format_size_kilobytes():
+    """Format kilobytes."""
+    result = proxmox_disk_check.format_size(2048)
+    assert "KB" in result or "B" in result
+
+
+def test_format_size_megabytes():
+    """Format megabytes."""
+    result = proxmox_disk_check.format_size(1048576)
+    assert "MB" in result or "KB" in result
+
+
+def test_format_size_gigabytes():
+    """Format gigabytes."""
+    result = proxmox_disk_check.format_size(1073741824)
+    assert "GB" in result or "MB" in result
+
+
+def test_format_size_terabytes():
+    """Format terabytes."""
+    result = proxmox_disk_check.format_size(1099511627776)
+    assert "TB" in result or "GB" in result
+
+
+def test_format_size_petabytes():
+    """Format petabytes."""
+    result = proxmox_disk_check.format_size(1125899906842624)
+    assert "PB" in result or "TB" in result
+
+
+# ---------------------------------------------------------------------------
+# get_disk_alert_settings - settings retrieval
+# ---------------------------------------------------------------------------
+
+
+def test_get_disk_alert_settings_defaults(setup):
+    """Return defaults when no settings exist."""
+    settings = proxmox_disk_check.get_disk_alert_settings(serve.mongo_client)
+    
+    assert settings["threshold_percent"] == 80
+    assert settings["recipients"] == []
+
+
+def test_get_disk_alert_settings_custom_threshold(setup):
+    """Retrieve custom threshold."""
+    serve.mongo_client["labyrinth"]["settings"].insert_one({
+        "name": "disk_space_alert_threshold",
+        "value": "90"
+    })
+    
+    settings = proxmox_disk_check.get_disk_alert_settings(serve.mongo_client)
+    
+    assert settings["threshold_percent"] == 90
+
+
+def test_get_disk_alert_settings_invalid_threshold(setup):
+    """Fall back to default for invalid threshold."""
+    serve.mongo_client["labyrinth"]["settings"].insert_one({
+        "name": "disk_space_alert_threshold",
+        "value": "not-a-number"
+    })
+    
+    settings = proxmox_disk_check.get_disk_alert_settings(serve.mongo_client)
+    
+    assert settings["threshold_percent"] == 80
+
+
+def test_get_disk_alert_settings_empty_threshold(setup):
+    """Fall back to default for empty threshold."""
+    serve.mongo_client["labyrinth"]["settings"].insert_one({
+        "name": "disk_space_alert_threshold",
+        "value": ""
+    })
+    
+    settings = proxmox_disk_check.get_disk_alert_settings(serve.mongo_client)
+    
+    assert settings["threshold_percent"] == 80
+
+
+def test_get_disk_alert_settings_recipients_as_list(setup):
+    """Handle recipients as list."""
+    serve.mongo_client["labyrinth"]["settings"].insert_one({
+        "name": "disk_space_alert_recipients",
+        "value": ["user1@example.com", "user2@example.com"]
+    })
+    
+    settings = proxmox_disk_check.get_disk_alert_settings(serve.mongo_client)
+    
+    assert len(settings["recipients"]) == 2
+
+
+def test_get_disk_alert_settings_recipients_as_comma_string(setup):
+    """Parse recipients from comma-separated string."""
+    serve.mongo_client["labyrinth"]["settings"].insert_one({
+        "name": "disk_space_alert_recipients",
+        "value": "user1@example.com, user2@example.com"
+    })
+    
+    settings = proxmox_disk_check.get_disk_alert_settings(serve.mongo_client)
+    
+    assert len(settings["recipients"]) == 2
+    assert "user1@example.com" in settings["recipients"]
+    assert "user2@example.com" in settings["recipients"]
+
+
+def test_get_disk_alert_settings_recipients_with_whitespace(setup):
+    """Strip whitespace from recipients."""
+    serve.mongo_client["labyrinth"]["settings"].insert_one({
+        "name": "disk_space_alert_recipients",
+        "value": "  user1@example.com  ,  user2@example.com  "
+    })
+    
+    settings = proxmox_disk_check.get_disk_alert_settings(serve.mongo_client)
+    
+    assert settings["recipients"] == ["user1@example.com", "user2@example.com"]
+
+
+# ---------------------------------------------------------------------------
+# _collect_storage_issues - storage-specific issue collection
+# ---------------------------------------------------------------------------
+
+
+def test_collect_storage_issues_over_threshold():
+    """Flag datastores over threshold."""
+    node = {
+        "storage": [
+            {
+                "name": "local",
+                "type": "dir",
+                "enabled": True,
+                "total": 1000,
+                "used": 850,
+            }
+        ]
+    }
+    
+    issues = proxmox_disk_check._collect_storage_issues(
+        node, "cluster-1", "10.0.0.1", "node-1", 80
+    )
+    
+    assert len(issues) == 1
+    assert issues[0]["type"] == "datastore"
+    assert issues[0]["percentage"] == 85.0
+
+
+def test_collect_storage_issues_under_threshold():
+    """Don't flag datastores under threshold."""
+    node = {
+        "storage": [
+            {
+                "name": "local",
+                "type": "dir",
+                "enabled": True,
+                "total": 1000,
+                "used": 500,
+            }
+        ]
+    }
+    
+    issues = proxmox_disk_check._collect_storage_issues(
+        node, "cluster-1", "10.0.0.1", "node-1", 80
+    )
+    
+    assert len(issues) == 0
+
+
+def test_collect_storage_issues_disabled_storage():
+    """Skip disabled datastores."""
+    node = {
+        "storage": [
+            {
+                "name": "local",
+                "type": "dir",
+                "enabled": False,
+                "total": 1000,
+                "used": 950,
+            }
+        ]
+    }
+    
+    issues = proxmox_disk_check._collect_storage_issues(
+        node, "cluster-1", "10.0.0.1", "node-1", 80
+    )
+    
+    assert len(issues) == 0
+
+
+def test_collect_storage_issues_missing_total():
+    """Skip storage with missing total."""
+    node = {
+        "storage": [
+            {
+                "name": "local",
+                "type": "dir",
+                "enabled": True,
+                "total": None,
+                "used": 950,
+            }
+        ]
+    }
+    
+    issues = proxmox_disk_check._collect_storage_issues(
+        node, "cluster-1", "10.0.0.1", "node-1", 80
+    )
+    
+    assert len(issues) == 0
+
+
+def test_collect_storage_issues_multiple_datastores():
+    """Handle multiple datastores."""
+    node = {
+        "storage": [
+            {
+                "name": "local",
+                "type": "dir",
+                "enabled": True,
+                "total": 1000,
+                "used": 850,
+            },
+            {
+                "name": "backup",
+                "type": "dir",
+                "enabled": True,
+                "total": 2000,
+                "used": 1800,
+            },
+        ]
+    }
+    
+    issues = proxmox_disk_check._collect_storage_issues(
+        node, "cluster-1", "10.0.0.1", "node-1", 80
+    )
+    
+    assert len(issues) == 2
+
+
+# ---------------------------------------------------------------------------
+# _collect_vm_issues - VM-specific issue collection
+# ---------------------------------------------------------------------------
+
+
+def test_collect_vm_issues_over_threshold():
+    """Flag VMs over threshold."""
+    node = {
+        "vms": [
+            {
+                "id": 100,
+                "name": "vm-1",
+                "status": "running",
+                "maxdisk": 1000,
+                "disk": 850,
+                "qemu_guest_agent_installed": True,
+                "qemu_guest_agent_warning_inferred": False,
+            }
+        ]
+    }
+    
+    issues = proxmox_disk_check._collect_vm_issues(
+        node, "cluster-1", "10.0.0.1", "node-1", 80
+    )
+    
+    assert len(issues) == 1
+    assert issues[0]["type"] == "vm"
+    assert issues[0]["percentage"] == 85.0
+
+
+def test_collect_vm_issues_under_threshold():
+    """Don't flag VMs under threshold."""
+    node = {
+        "vms": [
+            {
+                "id": 100,
+                "name": "vm-1",
+                "status": "running",
+                "maxdisk": 1000,
+                "disk": 500,
+                "qemu_guest_agent_installed": True,
+                "qemu_guest_agent_warning_inferred": False,
+            }
+        ]
+    }
+    
+    issues = proxmox_disk_check._collect_vm_issues(
+        node, "cluster-1", "10.0.0.1", "node-1", 80
+    )
+    
+    assert len(issues) == 0
+
+
+def test_collect_vm_issues_missing_qemu_agent():
+    """Flag VMs with missing QEMU agent."""
+    node = {
+        "vms": [
+            {
+                "id": 100,
+                "name": "vm-1",
+                "status": "running",
+                "maxdisk": 10737418240,
+                "disk": 0,
+                "qemu_guest_agent_installed": False,
+                "qemu_guest_agent_warning_inferred": True,
+                "qemu_guest_agent_error": "Agent not installed",
+            }
+        ]
+    }
+    
+    issues = proxmox_disk_check._collect_vm_issues(
+        node, "cluster-1", "10.0.0.1", "node-1", 80
+    )
+    
+    assert len(issues) == 1
+    assert issues[0]["type"] == "vm_qemu_missing"
+    # Should not appear again as a normal VM issue
+
+
+def test_collect_vm_issues_no_maxdisk():
+    """Skip VMs without maxdisk."""
+    node = {
+        "vms": [
+            {
+                "id": 100,
+                "name": "vm-1",
+                "status": "running",
+                "maxdisk": None,
+                "disk": 500,
+                "qemu_guest_agent_installed": True,
+                "qemu_guest_agent_warning_inferred": False,
+            }
+        ]
+    }
+    
+    issues = proxmox_disk_check._collect_vm_issues(
+        node, "cluster-1", "10.0.0.1", "node-1", 80
+    )
+    
+    assert len(issues) == 0
+
+
+# ---------------------------------------------------------------------------
+# _collect_container_issues - container-specific issue collection
+# ---------------------------------------------------------------------------
+
+
+def test_collect_container_issues_over_threshold():
+    """Flag containers over threshold."""
+    node = {
+        "containers": [
+            {
+                "id": 200,
+                "name": "lxc-1",
+                "status": "running",
+                "maxdisk": 1000,
+                "disk": 850,
+            }
+        ]
+    }
+    
+    issues = proxmox_disk_check._collect_container_issues(
+        node, "cluster-1", "10.0.0.1", "node-1", 80
+    )
+    
+    assert len(issues) == 1
+    assert issues[0]["type"] == "container"
+    assert issues[0]["percentage"] == 85.0
+
+
+def test_collect_container_issues_under_threshold():
+    """Don't flag containers under threshold."""
+    node = {
+        "containers": [
+            {
+                "id": 200,
+                "name": "lxc-1",
+                "status": "running",
+                "maxdisk": 1000,
+                "disk": 500,
+            }
+        ]
+    }
+    
+    issues = proxmox_disk_check._collect_container_issues(
+        node, "cluster-1", "10.0.0.1", "node-1", 80
+    )
+    
+    assert len(issues) == 0
+
+
+def test_collect_container_issues_no_maxdisk():
+    """Skip containers without maxdisk."""
+    node = {
+        "containers": [
+            {
+                "id": 200,
+                "name": "lxc-1",
+                "status": "running",
+                "maxdisk": None,
+                "disk": 500,
+            }
+        ]
+    }
+    
+    issues = proxmox_disk_check._collect_container_issues(
+        node, "cluster-1", "10.0.0.1", "node-1", 80
+    )
+    
+    assert len(issues) == 0
+
+
+# ---------------------------------------------------------------------------
+# send_simple_test_email - minimal test emails
+# ---------------------------------------------------------------------------
+
+
+def test_send_simple_test_email_requires_recipients():
+    """Guard clause: empty recipients should raise."""
+    with pytest.raises(ValueError):
+        proxmox_disk_check.send_simple_test_email([])
+
+
+def test_send_simple_test_email_success(monkeypatch):
+    """Successfully send simple test email."""
+    sent = {}
+    
+    def fake_email_helper(to, subject, html, **kwargs):
+        sent["to"] = to
+        sent["subject"] = subject
+        sent["html"] = html
+    
+    monkeypatch.setattr(proxmox_disk_check.email_helper, "email_helper", fake_email_helper)
+    
+    proxmox_disk_check.send_simple_test_email(["ops@example.com"])
+    
+    assert sent["to"] == ["ops@example.com"]
+    assert "Test Email" in sent["subject"]
+    assert "test" in sent["html"].lower()
+
+
+# ---------------------------------------------------------------------------
+# send_alert_email - email rendering and sending
+# ---------------------------------------------------------------------------
+
+
+def test_send_alert_email_basic(monkeypatch):
+    """Send alert email with formatted issues."""
+    sent = {}
+    
+    def fake_email_helper(to, subject, html, **kwargs):
+        sent["to"] = to
+        sent["subject"] = subject
+        sent["html"] = html
+    
+    monkeypatch.setattr(proxmox_disk_check.email_helper, "email_helper", fake_email_helper)
+    
+    issues = [
+        {
+            "type": "datastore",
+            "cluster": "cluster-1",
+            "host": "10.0.0.1",
+            "node": "node-1",
+            "name": "local",
+            "storage_type": "dir",
+            "used": 850,
+            "total": 1000,
+            "percentage": 85.0,
+        }
+    ]
+    
+    proxmox_disk_check.send_alert_email(["ops@example.com"], issues, 80)
+    
+    assert sent["to"] == ["ops@example.com"]
+    assert "1 Issues Found" in sent["subject"]
+
+
+def test_send_alert_email_custom_subject(monkeypatch):
+    """Use custom subject."""
+    sent = {}
+    
+    def fake_email_helper(to, subject, html, **kwargs):
+        sent["subject"] = subject
+    
+    monkeypatch.setattr(proxmox_disk_check.email_helper, "email_helper", fake_email_helper)
+    
+    issues = []
+    custom_subject = "Custom Subject"
+    
+    proxmox_disk_check.send_alert_email(["ops@example.com"], issues, 80, subject=custom_subject)
+    
+    assert sent["subject"] == custom_subject
+
+
+# ---------------------------------------------------------------------------
+# check_and_alert_disk_space - main function
+# ---------------------------------------------------------------------------
+
+
+def test_check_and_alert_disk_space_no_recipients(setup, monkeypatch, capsys):
+    """Skip check when no recipients configured."""
+    monkeypatch.setattr("sys.exit", lambda *args: None)
+    
+    proxmox_disk_check.check_and_alert_disk_space()
+    
+    captured = capsys.readouterr()
+    assert "No email recipients" in captured.out
+
+
+def test_check_and_alert_disk_space_no_clusters(setup, monkeypatch, capsys):
+    """Skip check when no clusters configured."""
+    serve.mongo_client["labyrinth"]["settings"].insert_one({
+        "name": "disk_space_alert_recipients",
+        "value": "ops@example.com"
+    })
+    
+    proxmox_disk_check.check_and_alert_disk_space()
+    
+    captured = capsys.readouterr()
+    assert "No Proxmox clusters" in captured.out
+
+
+def test_check_and_alert_disk_space_no_issues(setup, monkeypatch, capsys):
+    """Handle case with no issues found."""
+    serve.mongo_client["labyrinth"]["settings"].insert_one({
+        "name": "disk_space_alert_recipients",
+        "value": "ops@example.com"
+    })
+    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one({
+        "name": "cluster-1",
+        "host": "10.0.0.1",
+    })
+    
+    def fake_gather(threshold, db=None):
+        return [], []
+    
+    monkeypatch.setattr(proxmox_disk_check, "gather_all_disk_issues", fake_gather)
+    
+    proxmox_disk_check.check_and_alert_disk_space()
+    
+    captured = capsys.readouterr()
+    assert "No disk space issues found" in captured.out
+
+
+def test_check_and_alert_disk_space_sends_alert_on_issues(setup, monkeypatch, capsys):
+    """Send alert when issues are found."""
+    serve.mongo_client["labyrinth"]["settings"].insert_one({
+        "name": "disk_space_alert_recipients",
+        "value": "ops@example.com"
+    })
+    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one({
+        "name": "cluster-1",
+        "host": "10.0.0.1",
+    })
+    
+    issues = [{"type": "datastore", "percentage": 85.0}]
+    
+    def fake_gather(threshold, db=None):
+        return issues, []
+    
+    def fake_send_alert(*args, **kwargs):
+        pass
+    
+    monkeypatch.setattr(proxmox_disk_check, "gather_all_disk_issues", fake_gather)
+    monkeypatch.setattr(proxmox_disk_check, "send_alert_email", fake_send_alert)
+    
+    proxmox_disk_check.check_and_alert_disk_space()
+    
+    captured = capsys.readouterr()
+    assert "Found 1 disk space issues" in captured.out
+    assert "Alert email sent" in captured.out
+
+
+def test_check_and_alert_disk_space_handles_email_error(setup, monkeypatch, capsys):
+    """Handle email sending errors."""
+    serve.mongo_client["labyrinth"]["settings"].insert_one({
+        "name": "disk_space_alert_recipients",
+        "value": "ops@example.com"
+    })
+    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one({
+        "name": "cluster-1",
+        "host": "10.0.0.1",
+    })
+    
+    issues = [{"type": "datastore", "percentage": 85.0}]
+    
+    def fake_gather(threshold, db=None):
+        return issues, []
+    
+    def fake_send_alert(*args, **kwargs):
+        raise Exception("SMTP error")
+    
+    monkeypatch.setattr(proxmox_disk_check, "gather_all_disk_issues", fake_gather)
+    monkeypatch.setattr(proxmox_disk_check, "send_alert_email", fake_send_alert)
+    monkeypatch.setattr("sys.exit", lambda *args: None)
+    
+    proxmox_disk_check.check_and_alert_disk_space()
+    
+    captured = capsys.readouterr()
+    assert "Failed to send email" in captured.out
+
+
+def test_check_and_alert_disk_space_general_error(setup, monkeypatch, capsys):
+    """Handle general errors gracefully."""
+    def fake_get_settings(db):
+        raise Exception("Database error")
+    
+    monkeypatch.setattr(proxmox_disk_check, "get_disk_alert_settings", fake_get_settings)
+    monkeypatch.setattr("sys.exit", lambda *args: None)
+    
+    proxmox_disk_check.check_and_alert_disk_space()
+    
+    captured = capsys.readouterr()
+    assert "Error in disk check" in captured.out or "Database error" in captured.out

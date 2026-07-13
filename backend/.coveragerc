@@ -2,8 +2,6 @@
 source = .
 branch = True
 omit =
-    */test/*
-    */tests/*
     */__pycache__/*
     */venv/*
     */env/*
