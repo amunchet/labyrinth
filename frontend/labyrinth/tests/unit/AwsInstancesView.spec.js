@@ -254,8 +254,9 @@ describe("AwsInstancesView.vue", () => {
       mocks: { $auth: config.mocks["$auth"] },
     });
 
-    await wrapper.vm.loadInstances();
+    // Wait for the initial loadInstances call from mounted to complete
     await wrapper.vm.$nextTick();
+    await new Promise((resolve) => setTimeout(resolve, 10));
 
     expect(wrapper.text()).toContain("No EC2 instances found");
   });

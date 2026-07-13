@@ -55,7 +55,12 @@
       </b-col>
     </b-row>
 
+    <div v-if="!loading && instances.length === 0" class="alert alert-info">
+      No EC2 instances found. Add an AWS account in Settings to begin.
+    </div>
+
     <b-table
+      v-else
       :items="instances"
       :fields="fields"
       striped

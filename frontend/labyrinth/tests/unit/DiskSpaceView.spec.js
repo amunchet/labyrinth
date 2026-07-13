@@ -72,8 +72,14 @@ describe("DiskSpaceView.vue", () => {
       mocks: { $auth: config.mocks["$auth"] },
     });
 
+    // Component starts with loading=true, which triggers a refreshData call
+    // Before the refreshData completes, we should see the loading state
     expect(wrapper.find(".loading-state").exists()).toBe(true);
     expect(wrapper.text()).toContain("Loading disk space data");
+    
+    // Wait for the refresh to complete
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    await wrapper.vm.$nextTick();
   });
 
   test("displays error alert when data fetch fails", async () => {
@@ -101,25 +107,15 @@ describe("DiskSpaceView.vue", () => {
           },
         ],
       })
-      .mockResolvedValueOnce({ manual_hosts: [] })
-      .mockResolvedValueOnce({
-        proxmox_hosts: [
-        {
-          _id: "cluster-1",
-          cluster_name: "prod-cluster",
-          host: "10.0.0.1",
-          nodes: [],
-        },
-      ],
-    })
       .mockResolvedValueOnce({ manual_hosts: [] });
 
     wrapper = mount(DiskSpaceView, {
       mocks: { $auth: config.mocks["$auth"] },
     });
 
-    await wrapper.vm.refreshData();
+    // Wait for the initial refreshData call to complete (triggered by mounted)
     await wrapper.vm.$nextTick();
+    await new Promise((resolve) => setTimeout(resolve, 10));
 
     expect(wrapper.vm.proxmoxData.length).toBe(1);
     expect(wrapper.vm.proxmoxData[0].cluster_name).toBe("prod-cluster");
@@ -137,25 +133,15 @@ describe("DiskSpaceView.vue", () => {
             ip: "10.0.0.50",
           },
         ],
-      })
-      .mockResolvedValueOnce({ proxmox_hosts: [] })
-      .mockResolvedValueOnce({
-        manual_hosts: [
-        {
-          id: "manual-1",
-          name: "storage-server",
-          host: "storage.example.com",
-          ip: "10.0.0.50",
-        },
-      ],
-    });
+      });
 
     wrapper = mount(DiskSpaceView, {
       mocks: { $auth: config.mocks["$auth"] },
     });
 
-    await wrapper.vm.refreshData();
+    // Wait for the initial refreshData call to complete
     await wrapper.vm.$nextTick();
+    await new Promise((resolve) => setTimeout(resolve, 10));
 
     expect(wrapper.vm.manualData.length).toBe(1);
     expect(wrapper.vm.manualData[0].name).toBe("storage-server");
@@ -179,31 +165,15 @@ describe("DiskSpaceView.vue", () => {
             host: "storage.example.com",
           },
         ],
-      })
-      .mockResolvedValueOnce({
-        proxmox_hosts: [
-        {
-          _id: "cluster-1",
-          cluster_name: "prod-cluster",
-        },
-      ],
-    })
-      .mockResolvedValueOnce({
-        manual_hosts: [
-        {
-          id: "manual-1",
-          name: "storage-server",
-          host: "storage.example.com",
-        },
-      ],
-    });
+      });
 
     wrapper = mount(DiskSpaceView, {
       mocks: { $auth: config.mocks["$auth"] },
     });
 
-    await wrapper.vm.refreshData();
+    // Wait for the initial refreshData call to complete
     await wrapper.vm.$nextTick();
+    await new Promise((resolve) => setTimeout(resolve, 10));
 
     expect(wrapper.vm.proxmoxData.length).toBe(1);
     expect(wrapper.vm.manualData.length).toBe(1);
@@ -212,16 +182,15 @@ describe("DiskSpaceView.vue", () => {
   test("displays empty state when no data", async () => {
     Helper.apiCall
       .mockResolvedValueOnce({ proxmox_hosts: [] })
-      .mockResolvedValueOnce({ manual_hosts: [] })
-      .mockResolvedValueOnce({ proxmox_hosts: [] })
       .mockResolvedValueOnce({ manual_hosts: [] });
 
     wrapper = mount(DiskSpaceView, {
       mocks: { $auth: config.mocks["$auth"] },
     });
 
-    await wrapper.vm.refreshData();
+    // Wait for the initial refreshData call to complete
     await wrapper.vm.$nextTick();
+    await new Promise((resolve) => setTimeout(resolve, 10));
 
     expect(wrapper.text()).toContain("No disk space data available");
   });

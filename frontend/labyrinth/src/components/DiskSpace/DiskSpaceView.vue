@@ -86,7 +86,7 @@ export default {
   },
   data() {
     return {
-      loading: false,
+      loading: true,
       error: null,
       proxmoxData: [],
       manualData: [],
