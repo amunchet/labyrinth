@@ -586,7 +586,7 @@ def test_scan_subnets_trigger(setup, monkeypatch):
     monkeypatch.setattr("serve.Process", mock_process)
 
     with serve.app.test_request_context("/scan/", method="GET"):
-        resp = unwrap(serve.scan_subnets)()
+        resp = unwrap(serve.scan)()
 
     assert resp[1] == 200
 
