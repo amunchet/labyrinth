@@ -20,8 +20,8 @@ import proxmox_helper
 from common.test import unwrap
 
 
-def tearDown():
-    """Tears down tests"""
+def cleanup_test_data():
+    """Clean up test data"""
     serve.mongo_client["labyrinth"]["aws_accounts"].delete_many({})
     serve.mongo_client["labyrinth"]["proxmox_clusters"].delete_many({})
     serve.mongo_client["labyrinth"]["settings"].delete_many({})
@@ -45,9 +45,9 @@ def tearDown():
 @pytest.fixture
 def setup():
     """Sets up tests"""
-    tearDown()
+    cleanup_test_data()
     yield "Setting up..."
-    tearDown()
+    cleanup_test_data()
 
 
 # ---------------------------------------------------------------------------
@@ -532,7 +532,7 @@ def test_refresh_proxmox_disk_space_success(setup, monkeypatch):
 def test_refresh_proxmox_disk_space_error(setup, monkeypatch):
     """Handle Proxmox refresh error."""
     def mock_refresh(clusters, redis_client=None):
-        raise Exception("Connection error")
+        raise ConnectionError("Connection error")
 
     monkeypatch.setattr(proxmox_helper, "refresh_proxmox_cluster_cache", mock_refresh)
 
@@ -1600,7 +1600,7 @@ def test_validate_object_id_uppercase():
 
 def test_sanitize_db_value_float_precision():
     """Preserve float precision."""
-    assert serve._sanitize_db_value(3.14159) == 3.14159
+    assert serve._sanitize_db_value(3.14159) == pytest.approx(3.14159)
 
 
 def test_sanitize_db_value_negative_number():

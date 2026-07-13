@@ -146,7 +146,7 @@ export default {
   }
 
   &.usage-warning {
-    background-color: #ffc107;
+    background-color: #FFA500;
     color: #000;
 
     .qemu-warning-icon {

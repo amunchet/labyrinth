@@ -43,7 +43,7 @@ class FakeResponse:
         if self._raise_exc:
             raise self._raise_exc
         if self.status_code >= 400:
-            raise Exception(f"HTTP {self.status_code}")
+            raise ConnectionError(f"HTTP {self.status_code}")
 
     def json(self):
         return self._json_data
@@ -60,8 +60,8 @@ def _make_proxmox_client():
     )
 
 
-def tearDown():
-    """Tears down disk-space test data."""
+def cleanup_test_data():
+    """Clean up disk-space test data."""
     serve.mongo_client["labyrinth"]["hosts"].delete_many({})
     serve.mongo_client["labyrinth"]["settings"].delete_many({})
     serve.mongo_client["labyrinth"]["proxmox_clusters"].delete_many({})
@@ -70,9 +70,9 @@ def tearDown():
 @pytest.fixture
 def setup():
     """Sets up tests."""
-    tearDown()
+    cleanup_test_data()
     yield "Setting up..."
-    tearDown()
+    cleanup_test_data()
     return "Done"
 
 
@@ -819,7 +819,7 @@ def test_exec_guest_command_returns_none_when_exec_post_fails():
 
     class FakeSession:
         def post(self, url, data=None, timeout=None):
-            raise Exception("connection refused")
+            raise ConnectionError("connection refused")
 
     client.session = FakeSession()
 
@@ -848,7 +848,7 @@ def test_exec_guest_command_returns_none_on_status_poll_failure():
             return FakeResponse({"data": {"pid": 99}})
 
         def get(self, url, params=None, timeout=None):
-            raise Exception("timed out")
+            raise TimeoutError("timed out")
 
     client.session = FakeSession()
 
@@ -959,7 +959,7 @@ def test_get_vm_guest_fsinfo_falls_back_to_df_when_get_fsinfo_raises(monkeypatch
 
     class FakeSession:
         def get(self, url, timeout=None):
-            raise Exception("agent not running")
+            raise RuntimeError("agent not running")
 
     client.session = FakeSession()
 
@@ -1016,7 +1016,7 @@ def test_get_vm_guest_fsinfo_returns_none_when_everything_fails(monkeypatch):
 
     class FakeSession:
         def get(self, url, timeout=None):
-            raise Exception("agent not running")
+            raise RuntimeError("agent not running")
 
     client.session = FakeSession()
 

@@ -9,8 +9,8 @@ import serve
 from common.test import unwrap
 
 
-def tearDown():
-    """Tears down AWS test data."""
+def cleanup_test_data():
+    """Clean up AWS test data."""
     serve.mongo_client["labyrinth"]["hosts"].delete_many({})
     serve.mongo_client["labyrinth"]["aws_accounts"].delete_many({})
 
@@ -18,10 +18,9 @@ def tearDown():
 @pytest.fixture
 def setup():
     """Sets up tests."""
-    tearDown()
+    cleanup_test_data()
     yield "Setting up..."
-    tearDown()
-    return "Done"
+    cleanup_test_data()
 
 
 def test_aws_account_crud(setup):
