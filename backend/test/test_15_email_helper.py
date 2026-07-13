@@ -44,13 +44,17 @@ class TestEmailHelperBasic:
     """Basic email_helper functionality tests."""
 
     @patch("smtplib.SMTP")
-    @patch.dict(os.environ, {
-        "SMTP_HOST": "mail.example.com",
-        "SMTP_PORT": "587",
-        "SMTP_USER": "testuser",
-        "SMTP_PASS": "testpass",
-        "SMTP_FROM": "from@example.com",
-    }, clear=False)
+    @patch.dict(
+        os.environ,
+        {
+            "SMTP_HOST": "mail.example.com",
+            "SMTP_PORT": "587",
+            "SMTP_USER": "testuser",
+            "SMTP_PASS": "testpass",
+            "SMTP_FROM": "from@example.com",
+        },
+        clear=False,
+    )
     def test_send_simple_email(self, mock_smtp_class):
         """Test sending a simple HTML email."""
         mock_smtp = MagicMock()
@@ -69,13 +73,17 @@ class TestEmailHelperBasic:
         assert mock_smtp.send_message.called
 
     @patch("smtplib.SMTP")
-    @patch.dict(os.environ, {
-        "SMTP_HOST": "mail.example.com",
-        "SMTP_PORT": "587",
-        "SMTP_USER": "testuser",
-        "SMTP_PASS": "testpass",
-        "SMTP_FROM": "from@example.com",
-    }, clear=False)
+    @patch.dict(
+        os.environ,
+        {
+            "SMTP_HOST": "mail.example.com",
+            "SMTP_PORT": "587",
+            "SMTP_USER": "testuser",
+            "SMTP_PASS": "testpass",
+            "SMTP_FROM": "from@example.com",
+        },
+        clear=False,
+    )
     def test_send_email_with_plain_text(self, mock_smtp_class):
         """Test sending email with explicit plain text."""
         mock_smtp = MagicMock()
@@ -92,13 +100,17 @@ class TestEmailHelperBasic:
         assert mock_smtp.send_message.called
 
     @patch("smtplib.SMTP")
-    @patch.dict(os.environ, {
-        "SMTP_HOST": "mail.example.com",
-        "SMTP_PORT": "587",
-        "SMTP_USER": "testuser",
-        "SMTP_PASS": "testpass",
-        "SMTP_FROM": "from@example.com",
-    }, clear=False)
+    @patch.dict(
+        os.environ,
+        {
+            "SMTP_HOST": "mail.example.com",
+            "SMTP_PORT": "587",
+            "SMTP_USER": "testuser",
+            "SMTP_PASS": "testpass",
+            "SMTP_FROM": "from@example.com",
+        },
+        clear=False,
+    )
     def test_send_email_with_cc_and_bcc(self, mock_smtp_class):
         """Test sending email with CC and BCC recipients."""
         mock_smtp = MagicMock()
@@ -123,13 +135,17 @@ class TestEmailHelperBasic:
         assert "bcc@example.com" in to_addrs
 
     @patch("smtplib.SMTP")
-    @patch.dict(os.environ, {
-        "SMTP_HOST": "mail.example.com",
-        "SMTP_PORT": "587",
-        "SMTP_USER": "testuser",
-        "SMTP_PASS": "testpass",
-        "SMTP_FROM": "from@example.com",
-    }, clear=False)
+    @patch.dict(
+        os.environ,
+        {
+            "SMTP_HOST": "mail.example.com",
+            "SMTP_PORT": "587",
+            "SMTP_USER": "testuser",
+            "SMTP_PASS": "testpass",
+            "SMTP_FROM": "from@example.com",
+        },
+        clear=False,
+    )
     def test_send_email_with_reply_to(self, mock_smtp_class):
         """Test sending email with Reply-To header."""
         mock_smtp = MagicMock()
@@ -146,13 +162,17 @@ class TestEmailHelperBasic:
         assert mock_smtp.send_message.called
 
     @patch("smtplib.SMTP")
-    @patch.dict(os.environ, {
-        "SMTP_HOST": "mail.example.com",
-        "SMTP_PORT": "587",
-        "SMTP_USER": "testuser",
-        "SMTP_PASS": "testpass",
-        "SMTP_FROM": "from@example.com",
-    }, clear=False)
+    @patch.dict(
+        os.environ,
+        {
+            "SMTP_HOST": "mail.example.com",
+            "SMTP_PORT": "587",
+            "SMTP_USER": "testuser",
+            "SMTP_PASS": "testpass",
+            "SMTP_FROM": "from@example.com",
+        },
+        clear=False,
+    )
     def test_send_email_with_from_name(self, mock_smtp_class):
         """Test sending email with a friendly sender name."""
         mock_smtp = MagicMock()
@@ -173,13 +193,17 @@ class TestEmailHelperAttachments:
     """Attachment-related tests."""
 
     @patch("smtplib.SMTP")
-    @patch.dict(os.environ, {
-        "SMTP_HOST": "mail.example.com",
-        "SMTP_PORT": "587",
-        "SMTP_USER": "testuser",
-        "SMTP_PASS": "testpass",
-        "SMTP_FROM": "from@example.com",
-    }, clear=False)
+    @patch.dict(
+        os.environ,
+        {
+            "SMTP_HOST": "mail.example.com",
+            "SMTP_PORT": "587",
+            "SMTP_USER": "testuser",
+            "SMTP_PASS": "testpass",
+            "SMTP_FROM": "from@example.com",
+        },
+        clear=False,
+    )
     def test_send_email_with_attachment(self, mock_smtp_class, temp_attachment):
         """Test sending email with file attachment."""
         mock_smtp = MagicMock()
@@ -196,13 +220,17 @@ class TestEmailHelperAttachments:
         assert mock_smtp.send_message.called
 
     @patch("smtplib.SMTP")
-    @patch.dict(os.environ, {
-        "SMTP_HOST": "mail.example.com",
-        "SMTP_PORT": "587",
-        "SMTP_USER": "testuser",
-        "SMTP_PASS": "testpass",
-        "SMTP_FROM": "from@example.com",
-    }, clear=False)
+    @patch.dict(
+        os.environ,
+        {
+            "SMTP_HOST": "mail.example.com",
+            "SMTP_PORT": "587",
+            "SMTP_USER": "testuser",
+            "SMTP_PASS": "testpass",
+            "SMTP_FROM": "from@example.com",
+        },
+        clear=False,
+    )
     def test_send_email_with_multiple_attachments(self, mock_smtp_class):
         """Test sending email with multiple attachments."""
         with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as f1:
@@ -229,13 +257,17 @@ class TestEmailHelperAttachments:
             os.unlink(path1)
             os.unlink(path2)
 
-    @patch.dict(os.environ, {
-        "SMTP_HOST": "mail.example.com",
-        "SMTP_PORT": "587",
-        "SMTP_USER": "testuser",
-        "SMTP_PASS": "testpass",
-        "SMTP_FROM": "from@example.com",
-    }, clear=False)
+    @patch.dict(
+        os.environ,
+        {
+            "SMTP_HOST": "mail.example.com",
+            "SMTP_PORT": "587",
+            "SMTP_USER": "testuser",
+            "SMTP_PASS": "testpass",
+            "SMTP_FROM": "from@example.com",
+        },
+        clear=False,
+    )
     def test_attachment_not_found_raises_error(self):
         """Test that nonexistent attachment raises RuntimeError."""
         with pytest.raises(RuntimeError, match="Attachment not found"):
@@ -251,14 +283,18 @@ class TestEmailHelperSSL:
     """SSL/TLS configuration tests."""
 
     @patch("smtplib.SMTP_SSL")
-    @patch.dict(os.environ, {
-        "SMTP_HOST": "mail.example.com",
-        "SMTP_PORT": "465",
-        "SMTP_USER": "testuser",
-        "SMTP_PASS": "testpass",
-        "SMTP_FROM": "from@example.com",
-        "SMTP_SSL": "true",
-    }, clear=False)
+    @patch.dict(
+        os.environ,
+        {
+            "SMTP_HOST": "mail.example.com",
+            "SMTP_PORT": "465",
+            "SMTP_USER": "testuser",
+            "SMTP_PASS": "testpass",
+            "SMTP_FROM": "from@example.com",
+            "SMTP_SSL": "true",
+        },
+        clear=False,
+    )
     def test_send_email_with_ssl(self, mock_smtp_ssl_class):
         """Test sending email using SMTP_SSL."""
         mock_smtp = MagicMock()
@@ -278,14 +314,18 @@ class TestEmailHelperSSL:
         assert mock_smtp.send_message.called
 
     @patch("smtplib.SMTP")
-    @patch.dict(os.environ, {
-        "SMTP_HOST": "mail.example.com",
-        "SMTP_PORT": "587",
-        "SMTP_USER": "testuser",
-        "SMTP_PASS": "testpass",
-        "SMTP_FROM": "from@example.com",
-        "SMTP_STARTTLS": "false",
-    }, clear=False)
+    @patch.dict(
+        os.environ,
+        {
+            "SMTP_HOST": "mail.example.com",
+            "SMTP_PORT": "587",
+            "SMTP_USER": "testuser",
+            "SMTP_PASS": "testpass",
+            "SMTP_FROM": "from@example.com",
+            "SMTP_STARTTLS": "false",
+        },
+        clear=False,
+    )
     def test_send_email_without_starttls(self, mock_smtp_class):
         """Test sending email without STARTTLS."""
         mock_smtp = MagicMock()
@@ -303,11 +343,15 @@ class TestEmailHelperSSL:
         assert not mock_smtp.starttls.called
 
     @patch("smtplib.SMTP")
-    @patch.dict(os.environ, {
-        "SMTP_HOST": "mail.example.com",
-        "SMTP_PORT": "25",
-        "SMTP_FROM": "from@example.com",
-    }, clear=False)
+    @patch.dict(
+        os.environ,
+        {
+            "SMTP_HOST": "mail.example.com",
+            "SMTP_PORT": "25",
+            "SMTP_FROM": "from@example.com",
+        },
+        clear=False,
+    )
     def test_send_email_without_authentication(self, mock_smtp_class):
         """Test sending email without user credentials."""
         mock_smtp = MagicMock()
@@ -337,9 +381,13 @@ class TestEmailHelperErrors:
                 html="<p>Content</p>",
             )
 
-    @patch.dict(os.environ, {
-        "SMTP_HOST": "mail.example.com",
-    }, clear=False)
+    @patch.dict(
+        os.environ,
+        {
+            "SMTP_HOST": "mail.example.com",
+        },
+        clear=False,
+    )
     def test_missing_smtp_from(self):
         """Test error when SMTP_FROM is missing."""
         with pytest.raises(RuntimeError, match="Missing SMTP_HOST or SMTP_FROM"):
@@ -349,10 +397,14 @@ class TestEmailHelperErrors:
                 html="<p>Content</p>",
             )
 
-    @patch.dict(os.environ, {
-        "SMTP_HOST": "mail.example.com",
-        "SMTP_FROM": "from@example.com",
-    }, clear=False)
+    @patch.dict(
+        os.environ,
+        {
+            "SMTP_HOST": "mail.example.com",
+            "SMTP_FROM": "from@example.com",
+        },
+        clear=False,
+    )
     def test_missing_recipients(self):
         """Test error when no 'to' recipients are provided."""
         with pytest.raises(RuntimeError, match="At least one 'to' recipient"):
@@ -362,10 +414,14 @@ class TestEmailHelperErrors:
                 html="<p>Content</p>",
             )
 
-    @patch.dict(os.environ, {
-        "SMTP_HOST": "mail.example.com",
-        "SMTP_FROM": "from@example.com",
-    }, clear=False)
+    @patch.dict(
+        os.environ,
+        {
+            "SMTP_HOST": "mail.example.com",
+            "SMTP_FROM": "from@example.com",
+        },
+        clear=False,
+    )
     def test_missing_recipients_none(self):
         """Test error when 'to' is None."""
         with pytest.raises(RuntimeError, match="At least one 'to' recipient"):
@@ -376,13 +432,17 @@ class TestEmailHelperErrors:
             )
 
     @patch("smtplib.SMTP")
-    @patch.dict(os.environ, {
-        "SMTP_HOST": "mail.example.com",
-        "SMTP_PORT": "587",
-        "SMTP_USER": "testuser",
-        "SMTP_PASS": "testpass",
-        "SMTP_FROM": "from@example.com",
-    }, clear=False)
+    @patch.dict(
+        os.environ,
+        {
+            "SMTP_HOST": "mail.example.com",
+            "SMTP_PORT": "587",
+            "SMTP_USER": "testuser",
+            "SMTP_PASS": "testpass",
+            "SMTP_FROM": "from@example.com",
+        },
+        clear=False,
+    )
     def test_smtp_connection_error(self, mock_smtp_class):
         """Test error handling for SMTP connection failures."""
         mock_smtp_class.side_effect = Exception("Connection failed")
@@ -395,13 +455,17 @@ class TestEmailHelperErrors:
             )
 
     @patch("smtplib.SMTP")
-    @patch.dict(os.environ, {
-        "SMTP_HOST": "mail.example.com",
-        "SMTP_PORT": "587",
-        "SMTP_USER": "testuser",
-        "SMTP_PASS": "testpass",
-        "SMTP_FROM": "from@example.com",
-    }, clear=False)
+    @patch.dict(
+        os.environ,
+        {
+            "SMTP_HOST": "mail.example.com",
+            "SMTP_PORT": "587",
+            "SMTP_USER": "testuser",
+            "SMTP_PASS": "testpass",
+            "SMTP_FROM": "from@example.com",
+        },
+        clear=False,
+    )
     def test_smtp_send_error(self, mock_smtp_class):
         """Test error handling for SMTP send failures."""
         mock_smtp = MagicMock()
@@ -420,13 +484,17 @@ class TestEmailHelperHtmlToText:
     """HTML to plain text conversion tests."""
 
     @patch("smtplib.SMTP")
-    @patch.dict(os.environ, {
-        "SMTP_HOST": "mail.example.com",
-        "SMTP_PORT": "587",
-        "SMTP_USER": "testuser",
-        "SMTP_PASS": "testpass",
-        "SMTP_FROM": "from@example.com",
-    }, clear=False)
+    @patch.dict(
+        os.environ,
+        {
+            "SMTP_HOST": "mail.example.com",
+            "SMTP_PORT": "587",
+            "SMTP_USER": "testuser",
+            "SMTP_PASS": "testpass",
+            "SMTP_FROM": "from@example.com",
+        },
+        clear=False,
+    )
     def test_html_to_text_conversion_br_tags(self, mock_smtp_class):
         """Test HTML to plain text conversion with <br> tags."""
         mock_smtp = MagicMock()
@@ -442,13 +510,17 @@ class TestEmailHelperHtmlToText:
         assert mock_smtp.send_message.called
 
     @patch("smtplib.SMTP")
-    @patch.dict(os.environ, {
-        "SMTP_HOST": "mail.example.com",
-        "SMTP_PORT": "587",
-        "SMTP_USER": "testuser",
-        "SMTP_PASS": "testpass",
-        "SMTP_FROM": "from@example.com",
-    }, clear=False)
+    @patch.dict(
+        os.environ,
+        {
+            "SMTP_HOST": "mail.example.com",
+            "SMTP_PORT": "587",
+            "SMTP_USER": "testuser",
+            "SMTP_PASS": "testpass",
+            "SMTP_FROM": "from@example.com",
+        },
+        clear=False,
+    )
     def test_html_to_text_conversion_paragraphs(self, mock_smtp_class):
         """Test HTML to plain text conversion with <p> tags."""
         mock_smtp = MagicMock()
@@ -464,13 +536,17 @@ class TestEmailHelperHtmlToText:
         assert mock_smtp.send_message.called
 
     @patch("smtplib.SMTP")
-    @patch.dict(os.environ, {
-        "SMTP_HOST": "mail.example.com",
-        "SMTP_PORT": "587",
-        "SMTP_USER": "testuser",
-        "SMTP_PASS": "testpass",
-        "SMTP_FROM": "from@example.com",
-    }, clear=False)
+    @patch.dict(
+        os.environ,
+        {
+            "SMTP_HOST": "mail.example.com",
+            "SMTP_PORT": "587",
+            "SMTP_USER": "testuser",
+            "SMTP_PASS": "testpass",
+            "SMTP_FROM": "from@example.com",
+        },
+        clear=False,
+    )
     def test_html_to_text_conversion_list_items(self, mock_smtp_class):
         """Test HTML to plain text conversion with <li> tags."""
         mock_smtp = MagicMock()
@@ -486,13 +562,17 @@ class TestEmailHelperHtmlToText:
         assert mock_smtp.send_message.called
 
     @patch("smtplib.SMTP")
-    @patch.dict(os.environ, {
-        "SMTP_HOST": "mail.example.com",
-        "SMTP_PORT": "587",
-        "SMTP_USER": "testuser",
-        "SMTP_PASS": "testpass",
-        "SMTP_FROM": "from@example.com",
-    }, clear=False)
+    @patch.dict(
+        os.environ,
+        {
+            "SMTP_HOST": "mail.example.com",
+            "SMTP_PORT": "587",
+            "SMTP_USER": "testuser",
+            "SMTP_PASS": "testpass",
+            "SMTP_FROM": "from@example.com",
+        },
+        clear=False,
+    )
     def test_html_to_text_conversion_generic_tags(self, mock_smtp_class):
         """Test HTML to plain text conversion with generic tags."""
         mock_smtp = MagicMock()
@@ -512,13 +592,17 @@ class TestEmailHelperRecipientFormats:
     """Test various recipient format inputs."""
 
     @patch("smtplib.SMTP")
-    @patch.dict(os.environ, {
-        "SMTP_HOST": "mail.example.com",
-        "SMTP_PORT": "587",
-        "SMTP_USER": "testuser",
-        "SMTP_PASS": "testpass",
-        "SMTP_FROM": "from@example.com",
-    }, clear=False)
+    @patch.dict(
+        os.environ,
+        {
+            "SMTP_HOST": "mail.example.com",
+            "SMTP_PORT": "587",
+            "SMTP_USER": "testuser",
+            "SMTP_PASS": "testpass",
+            "SMTP_FROM": "from@example.com",
+        },
+        clear=False,
+    )
     def test_recipients_as_list(self, mock_smtp_class):
         """Test sending to multiple recipients as a list."""
         mock_smtp = MagicMock()
@@ -536,13 +620,17 @@ class TestEmailHelperRecipientFormats:
         assert mock_smtp.send_message.called
 
     @patch("smtplib.SMTP")
-    @patch.dict(os.environ, {
-        "SMTP_HOST": "mail.example.com",
-        "SMTP_PORT": "587",
-        "SMTP_USER": "testuser",
-        "SMTP_PASS": "testpass",
-        "SMTP_FROM": "from@example.com",
-    }, clear=False)
+    @patch.dict(
+        os.environ,
+        {
+            "SMTP_HOST": "mail.example.com",
+            "SMTP_PORT": "587",
+            "SMTP_USER": "testuser",
+            "SMTP_PASS": "testpass",
+            "SMTP_FROM": "from@example.com",
+        },
+        clear=False,
+    )
     def test_recipients_with_whitespace(self, mock_smtp_class):
         """Test recipient handling with leading/trailing whitespace."""
         mock_smtp = MagicMock()
@@ -558,13 +646,17 @@ class TestEmailHelperRecipientFormats:
         assert mock_smtp.send_message.called
 
     @patch("smtplib.SMTP")
-    @patch.dict(os.environ, {
-        "SMTP_HOST": "mail.example.com",
-        "SMTP_PORT": "587",
-        "SMTP_USER": "testuser",
-        "SMTP_PASS": "testpass",
-        "SMTP_FROM": "from@example.com",
-    }, clear=False)
+    @patch.dict(
+        os.environ,
+        {
+            "SMTP_HOST": "mail.example.com",
+            "SMTP_PORT": "587",
+            "SMTP_USER": "testuser",
+            "SMTP_PASS": "testpass",
+            "SMTP_FROM": "from@example.com",
+        },
+        clear=False,
+    )
     def test_recipients_as_tuple(self, mock_smtp_class):
         """Test sending to recipients as a tuple."""
         mock_smtp = MagicMock()

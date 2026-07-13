@@ -17,19 +17,21 @@ class TestPrepareFunction:
         """Test prepare creates default config when file doesn't exist."""
         with tempfile.TemporaryDirectory() as tmpdir:
             test_file = os.path.join(tmpdir, "test.conf")
-            
+
             # Mock the file copy
             with patch("shutil.copy"):
-                with patch("builtins.open", mock_open(read_data="# Test config\nkey = value\n")):
+                with patch(
+                    "builtins.open", mock_open(read_data="# Test config\nkey = value\n")
+                ):
                     result = services.prepare(test_file)
                     assert isinstance(result, list)
 
     def test_prepare_with_existing_file(self):
         """Test prepare with an existing config file."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.conf', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".conf", delete=False) as f:
             f.write("# Comment\nkey = value\n")
             temp_path = f.name
-        
+
         try:
             result = services.prepare(temp_path)
             assert isinstance(result, list)
@@ -38,10 +40,10 @@ class TestPrepareFunction:
 
     def test_prepare_removes_comments(self):
         """Test that prepare removes comments from lines."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.conf', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".conf", delete=False) as f:
             f.write("# This is a comment\nkey = value\n# Another comment\n")
             temp_path = f.name
-        
+
         try:
             result = services.prepare(temp_path)
             assert isinstance(result, list)
@@ -59,10 +61,10 @@ key1 = value1
 [section2]
 key2 = value2
 """
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.conf', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".conf", delete=False) as f:
             f.write(config_content)
             temp_path = f.name
-        
+
         try:
             result = services.prepare(temp_path)
             assert isinstance(result, list)
@@ -76,10 +78,10 @@ key2 = value2
 key = value1
 key = value2
 """
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.conf', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".conf", delete=False) as f:
             f.write(config_content)
             temp_path = f.name
-        
+
         try:
             result = services.prepare(temp_path)
             assert isinstance(result, list)
@@ -96,10 +98,10 @@ arrays = [
     "value3"
 ]
 """
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.conf', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".conf", delete=False) as f:
             f.write(config_content)
             temp_path = f.name
-        
+
         try:
             result = services.prepare(temp_path)
             assert isinstance(result, list)
@@ -112,10 +114,10 @@ arrays = [
 [section]
 values = [1, 2, 3, 4, 5]
 """
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.conf', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".conf", delete=False) as f:
             f.write(config_content)
             temp_path = f.name
-        
+
         try:
             result = services.prepare(temp_path)
             assert isinstance(result, list)
@@ -134,10 +136,10 @@ interval = 10s
 host = localhost
 port = 5432
 """
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.conf', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".conf", delete=False) as f:
             f.write(config_content)
             temp_path = f.name
-        
+
         try:
             result = services.prepare(temp_path)
             assert isinstance(result, list)
@@ -155,10 +157,10 @@ invalid toml without equals ]][[
 [another_section]
 key2 = value2
 """
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.conf', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".conf", delete=False) as f:
             f.write(config_content)
             temp_path = f.name
-        
+
         try:
             result = services.prepare(temp_path)
             assert isinstance(result, list)
@@ -168,10 +170,10 @@ key2 = value2
     def test_prepare_returns_list_of_strings(self):
         """Test that prepare always returns a list of strings."""
         config_content = "key = value\n"
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.conf', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".conf", delete=False) as f:
             f.write(config_content)
             temp_path = f.name
-        
+
         try:
             result = services.prepare(temp_path)
             assert isinstance(result, list)
@@ -182,10 +184,10 @@ key2 = value2
 
     def test_prepare_empty_file(self):
         """Test that prepare handles empty files."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.conf', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".conf", delete=False) as f:
             f.write("")
             temp_path = f.name
-        
+
         try:
             result = services.prepare(temp_path)
             assert isinstance(result, list)
@@ -199,10 +201,10 @@ key2 = value2
 # Another comment
 ## More comments
 """
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.conf', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".conf", delete=False) as f:
             f.write(config_content)
             temp_path = f.name
-        
+
         try:
             result = services.prepare(temp_path)
             assert isinstance(result, list)
@@ -217,10 +219,10 @@ key2 = value2
    
    another_key = another_value
 """
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.conf', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".conf", delete=False) as f:
             f.write(config_content)
             temp_path = f.name
-        
+
         try:
             result = services.prepare(temp_path)
             assert isinstance(result, list)
@@ -235,10 +237,10 @@ url = "http://example.com:8080/path?query=value"
 path = "/var/log/app/*.log"
 regex = "^[a-zA-Z0-9]+$"
 """
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.conf', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".conf", delete=False) as f:
             f.write(config_content)
             temp_path = f.name
-        
+
         try:
             result = services.prepare(temp_path)
             assert isinstance(result, list)
@@ -254,10 +256,10 @@ key1 = value1
 [section]
 key2 = value2
 """
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.conf', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".conf", delete=False) as f:
             f.write(config_content)
             temp_path = f.name
-        
+
         try:
             result = services.prepare(temp_path)
             assert isinstance(result, list)
@@ -272,10 +274,10 @@ key = value
 
 [[[invalid_triple_bracket]]]
 """
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.conf', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".conf", delete=False) as f:
             f.write(config_content)
             temp_path = f.name
-        
+
         try:
             result = services.prepare(temp_path)
             assert isinstance(result, list)
@@ -291,10 +293,10 @@ items = [
     "item2",  # Second item
 ]
 """
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.conf', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".conf", delete=False) as f:
             f.write(config_content)
             temp_path = f.name
-        
+
         try:
             result = services.prepare(temp_path)
             assert isinstance(result, list)

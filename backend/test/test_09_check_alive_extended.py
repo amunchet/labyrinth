@@ -87,10 +87,10 @@ class TestCheckPort:
         """Test checking an open port."""
         mock_socket = MagicMock()
         mock_socket.connect_ex.return_value = 0
-        
+
         # Set up socket.socket to return our mock
         mock_socket_class.return_value = mock_socket
-        
+
         # Set up closing() to return a context manager that yields the socket
         mock_closing_cm = MagicMock()
         mock_closing_cm.__enter__.return_value = mock_socket
@@ -106,9 +106,9 @@ class TestCheckPort:
         """Test checking a closed port."""
         mock_socket = MagicMock()
         mock_socket.connect_ex.return_value = 1
-        
+
         mock_socket_class.return_value = mock_socket
-        
+
         mock_closing_cm = MagicMock()
         mock_closing_cm.__enter__.return_value = mock_socket
         mock_closing_cm.__exit__.return_value = None
@@ -123,9 +123,9 @@ class TestCheckPort:
         """Test checking a port that times out."""
         mock_socket = MagicMock()
         mock_socket.connect_ex.return_value = 110  # Connection timed out
-        
+
         mock_socket_class.return_value = mock_socket
-        
+
         mock_closing_cm = MagicMock()
         mock_closing_cm.__enter__.return_value = mock_socket
         mock_closing_cm.__exit__.return_value = None
@@ -140,9 +140,9 @@ class TestCheckPort:
         """Test checking various common ports."""
         mock_socket = MagicMock()
         mock_socket.connect_ex.return_value = 0
-        
+
         mock_socket_class.return_value = mock_socket
-        
+
         mock_closing_cm = MagicMock()
         mock_closing_cm.__enter__.return_value = mock_socket
         mock_closing_cm.__exit__.return_value = None
@@ -175,9 +175,9 @@ class TestCheckPort:
         """Test checking port on a hostname."""
         mock_socket = MagicMock()
         mock_socket.connect_ex.return_value = 0
-        
+
         mock_socket_class.return_value = mock_socket
-        
+
         mock_closing_cm = MagicMock()
         mock_closing_cm.__enter__.return_value = mock_socket
         mock_closing_cm.__exit__.return_value = None
@@ -200,9 +200,9 @@ class TestCheckPort:
         """Test that port number is passed as integer."""
         mock_socket = MagicMock()
         mock_socket.connect_ex.return_value = 0
-        
+
         mock_socket_class.return_value = mock_socket
-        
+
         mock_closing_cm = MagicMock()
         mock_closing_cm.__enter__.return_value = mock_socket
         mock_closing_cm.__exit__.return_value = None
@@ -217,9 +217,9 @@ class TestCheckPort:
         """Test checking port on IPv6 address."""
         mock_socket = MagicMock()
         mock_socket.connect_ex.return_value = 0
-        
+
         mock_socket_class.return_value = mock_socket
-        
+
         mock_closing_cm = MagicMock()
         mock_closing_cm.__enter__.return_value = mock_socket
         mock_closing_cm.__exit__.return_value = None

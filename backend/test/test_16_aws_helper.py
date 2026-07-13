@@ -33,8 +33,7 @@ class TestLoadBoto3Modules:
         """Test handling of ImportError when boto3 is not available."""
         with patch("builtins.__import__", side_effect=ImportError("boto3 not found")):
             with pytest.raises(
-                AWSDependencyError,
-                match="boto3 is required for AWS EC2 inventory"
+                AWSDependencyError, match="boto3 is required for AWS EC2 inventory"
             ):
                 _load_boto3_modules()
 
@@ -401,7 +400,12 @@ class TestListEC2Instances:
         mock_boto3.Session.return_value = mock_session
 
         with patch("aws_helper._load_boto3_modules") as mock_load:
-            mock_load.return_value = (mock_boto3, Exception, Exception, mock_no_creds_error)
+            mock_load.return_value = (
+                mock_boto3,
+                Exception,
+                Exception,
+                mock_no_creds_error,
+            )
 
             account_config = {
                 "name": "test",
@@ -428,7 +432,12 @@ class TestListEC2Instances:
         mock_boto3.Session.return_value = mock_session
 
         with patch("aws_helper._load_boto3_modules") as mock_load:
-            mock_load.return_value = (mock_boto3, Exception, mock_client_error, Exception)
+            mock_load.return_value = (
+                mock_boto3,
+                Exception,
+                mock_client_error,
+                Exception,
+            )
 
             account_config = {
                 "name": "test",

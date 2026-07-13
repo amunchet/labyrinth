@@ -15,6 +15,7 @@ import redis
 # Suppress SSL warnings for self-signed certificates
 try:
     import urllib3
+
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 except ImportError:
     pass
@@ -41,7 +42,9 @@ def get_proxmox_cache_key(cluster_or_identifier) -> str:
         )
 
     if identifier is None:
-        raise ValueError("Proxmox cluster identifier is required for cache key generation")
+        raise ValueError(
+            "Proxmox cluster identifier is required for cache key generation"
+        )
 
     return f"{PROXMOX_CACHE_PREFIX}:{identifier}"
 
@@ -58,11 +61,11 @@ def _to_int(value):
 _DF_SIZE_UNITS = {
     "": 1,
     "K": 1024,
-    "M": 1024 ** 2,
-    "G": 1024 ** 3,
-    "T": 1024 ** 4,
-    "P": 1024 ** 5,
-    "E": 1024 ** 6,
+    "M": 1024**2,
+    "G": 1024**3,
+    "T": 1024**4,
+    "P": 1024**5,
+    "E": 1024**6,
 }
 _DF_SIZE_PATTERN = re.compile(
     r"^((?:\d+(?:\.\d+)?)|(?:\.\d+))\s*([KMGTPE]?)$",
@@ -207,7 +210,9 @@ def get_cached_proxmox_disk_data(cluster: Dict, redis_client=None) -> Optional[D
     return format_proxmox_cluster_payload(cluster, payload)
 
 
-def set_cached_proxmox_disk_data(cluster: Dict, payload: Dict, redis_client=None) -> Dict:
+def set_cached_proxmox_disk_data(
+    cluster: Dict, payload: Dict, redis_client=None
+) -> Dict:
     """Store Proxmox payload for a cluster in Redis with TTL."""
     redis_client = redis_client or get_redis_client()
     normalized_payload = format_proxmox_cluster_payload(cluster, payload)
@@ -249,13 +254,17 @@ def get_proxmox_disk_data_cached(cluster: Dict, redis_client=None) -> Dict:
     return fetch_and_cache_proxmox_disk_data(cluster, redis_client=redis_client)
 
 
-def refresh_proxmox_cluster_cache(clusters: List[Dict], redis_client=None) -> List[Dict]:
+def refresh_proxmox_cluster_cache(
+    clusters: List[Dict], redis_client=None
+) -> List[Dict]:
     """Refresh Redis cache entries for all configured Proxmox clusters."""
     redis_client = redis_client or get_redis_client()
     results = []
 
     for cluster in clusters or []:
-        results.append(fetch_and_cache_proxmox_disk_data(cluster, redis_client=redis_client))
+        results.append(
+            fetch_and_cache_proxmox_disk_data(cluster, redis_client=redis_client)
+        )
 
     return results
 
@@ -263,10 +272,17 @@ def refresh_proxmox_cluster_cache(clusters: List[Dict], redis_client=None) -> Li
 class ProxmoxClient:
     """Client for interacting with Proxmox API"""
 
-    def __init__(self, host: str, user: str, token_id: str, token_secret: str, verify_ssl: bool = False):
+    def __init__(
+        self,
+        host: str,
+        user: str,
+        token_id: str,
+        token_secret: str,
+        verify_ssl: bool = False,
+    ):
         """
         Initialize Proxmox client
-        
+
         :param host: Proxmox host IP or hostname
         :param user: Proxmox user (e.g., root@pam)
         :param token_id: API token ID
@@ -281,9 +297,9 @@ class ProxmoxClient:
         self.base_url = f"https://{host}:8006/api2/json"
         self.session = requests.Session()
         self.session.verify = verify_ssl
-        self.session.headers.update({
-            "Authorization": f"PVEAPIToken={user}!{token_id}={token_secret}"
-        })
+        self.session.headers.update(
+            {"Authorization": f"PVEAPIToken={user}!{token_id}={token_secret}"}
+        )
 
     def get_nodes(self) -> List[Dict]:
         """Get list of all nodes in cluster"""
@@ -299,8 +315,7 @@ class ProxmoxClient:
         """Get storage information for a node"""
         try:
             response = self.session.get(
-                f"{self.base_url}/nodes/{node}/storage",
-                timeout=10
+                f"{self.base_url}/nodes/{node}/storage", timeout=10
             )
             response.raise_for_status()
             return response.json().get("data", [])
@@ -314,8 +329,7 @@ class ProxmoxClient:
         containers = []
         try:
             response = self.session.get(
-                f"{self.base_url}/nodes/{node}/qemu",
-                timeout=10
+                f"{self.base_url}/nodes/{node}/qemu", timeout=10
             )
             response.raise_for_status()
             vms = response.json().get("data", [])
@@ -323,10 +337,7 @@ class ProxmoxClient:
             print(f"Error getting VMs for {node}: {e}")
 
         try:
-            response = self.session.get(
-                f"{self.base_url}/nodes/{node}/lxc",
-                timeout=10
-            )
+            response = self.session.get(f"{self.base_url}/nodes/{node}/lxc", timeout=10)
             response.raise_for_status()
             containers = response.json().get("data", [])
         except Exception as e:
@@ -338,8 +349,7 @@ class ProxmoxClient:
         """Get detailed status for a VM including disk usage"""
         try:
             response = self.session.get(
-                f"{self.base_url}/nodes/{node}/qemu/{vmid}/status/current",
-                timeout=10
+                f"{self.base_url}/nodes/{node}/qemu/{vmid}/status/current", timeout=10
             )
             response.raise_for_status()
             return response.json().get("data", {})
@@ -363,7 +373,11 @@ class ProxmoxClient:
             if response is not None:
                 try:
                     payload = response.json()
-                    message = payload.get("errors") or payload.get("message") or payload.get("data")
+                    message = (
+                        payload.get("errors")
+                        or payload.get("message")
+                        or payload.get("data")
+                    )
                     if isinstance(message, dict):
                         message = json.dumps(message)
                 except Exception:
@@ -482,8 +496,7 @@ class ProxmoxClient:
         """Get detailed status for a container including disk usage"""
         try:
             response = self.session.get(
-                f"{self.base_url}/nodes/{node}/lxc/{vmid}/status/current",
-                timeout=10
+                f"{self.base_url}/nodes/{node}/lxc/{vmid}/status/current", timeout=10
             )
             response.raise_for_status()
             return response.json().get("data", {})
@@ -495,8 +508,7 @@ class ProxmoxClient:
         """Get detailed disk information for a storage"""
         try:
             response = self.session.get(
-                f"{self.base_url}/nodes/{node}/storage/{storage}/content",
-                timeout=10
+                f"{self.base_url}/nodes/{node}/storage/{storage}/content", timeout=10
             )
             response.raise_for_status()
             return response.json().get("data", {})
@@ -508,7 +520,7 @@ class ProxmoxClient:
 def get_proxmox_disk_data(host_ip: str, cluster_config: Dict) -> Dict:
     """
     Retrieve disk space data from a Proxmox host
-    
+
     :param host_ip: Proxmox cluster host IP
     :param cluster_config: Cluster configuration dict with keys: host, user, token_id, token_secret, verify_ssl (optional)
     :return: Dictionary with disk space information
@@ -521,21 +533,19 @@ def get_proxmox_disk_data(host_ip: str, cluster_config: Dict) -> Dict:
         verify_ssl = cluster_config.get("verify_ssl", False)
 
         if not all([user, token_id, token_secret]):
-            return {"error": "Invalid cluster configuration. Missing user, token_id, or token_secret"}
+            return {
+                "error": "Invalid cluster configuration. Missing user, token_id, or token_secret"
+            }
 
         client = ProxmoxClient(
             host=host_ip,
             user=user,
             token_id=token_id,
             token_secret=token_secret,
-            verify_ssl=verify_ssl
+            verify_ssl=verify_ssl,
         )
 
-        result = {
-            "host": host_ip,
-            "nodes": [],
-            "error": None
-        }
+        result = {"host": host_ip, "nodes": [], "error": None}
 
         nodes = client.get_nodes()
         if not nodes:
@@ -568,12 +578,12 @@ def _build_node_info(node, client) -> Dict:
         "status": node.get("status"),
         "storage": [],
         "vms": [],
-        "containers": []
+        "containers": [],
     }
 
     # Get storage info
     _add_storage_info(node_info, client, node_name)
-    
+
     # Get VMs and containers
     vms, containers = client.get_vms_and_containers(node_name)
     _add_vm_info(node_info, client, node_name, vms)
@@ -593,7 +603,7 @@ def _add_storage_info(node_info, client, node_name):
             "enabled": storage.get("enabled", 1),
             "total": storage.get("total"),
             "used": storage.get("used"),
-            "available": storage.get("available")
+            "available": storage.get("available"),
         }
         node_info["storage"].append(storage_info)
 
@@ -620,20 +630,22 @@ def _add_container_info(node_info, client, node_name, containers):
             "maxdisk": container.get("maxdisk"),
             "disk": container_status.get("disk") if container_status else None,
             "maxmem": container.get("maxmem"),
-            "mem": container_status.get("mem") if container_status else None
+            "mem": container_status.get("mem") if container_status else None,
         }
         node_info["containers"].append(container_info)
 
 
-def _get_guest_disk_info(client, node_name, vmid, disk, maxdisk, is_running, qemu_truly_installed):
+def _get_guest_disk_info(
+    client, node_name, vmid, disk, maxdisk, is_running, qemu_truly_installed
+):
     """Extract guest filesystem info if available. Returns updated disk and maxdisk."""
     if not (qemu_truly_installed and is_running and _to_int(disk) == 0):
         return disk, maxdisk, None
-    
+
     guest_disk_info = client.get_vm_guest_fsinfo(node_name, str(vmid))
     if not guest_disk_info:
         return disk, maxdisk, guest_disk_info
-    
+
     fsinfo = guest_disk_info.get("result", [])
     for fs in fsinfo:
         if fs.get("mountpoint") == "/":
@@ -647,22 +659,18 @@ def _build_vm_info(vm, vm_status, agent_status, client, node_name) -> Dict:
     maxdisk = vm.get("maxdisk")
     disk = vm_status.get("disk") if vm_status else None
     is_running = str(vm.get("status") or "").lower() == "running"
-    
+
     # Determine if QEMU guest agent is truly installed
     qemu_truly_installed = agent_status.get("installed", False)
-    
+
     # Try to get real disk info from guest if agent is installed and disk shows zero
     disk, maxdisk, guest_disk_info = _get_guest_disk_info(
         client, node_name, vmid, disk, maxdisk, is_running, qemu_truly_installed
     )
-    
+
     # Check if disk is reported as zero for a running VM (agent may exist but disk metrics unavailable)
-    qemu_warning_inferred = (
-        is_running
-        and _to_int(maxdisk) > 0
-        and _to_int(disk) == 0
-    )
-    
+    qemu_warning_inferred = is_running and _to_int(maxdisk) > 0 and _to_int(disk) == 0
+
     vm_info = {
         "id": vmid,
         "name": vm.get("name"),

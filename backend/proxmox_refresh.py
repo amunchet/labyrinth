@@ -14,7 +14,9 @@ def refresh_proxmox_cache():  # pragma: no cover
     with PidFile("labyrinth-proxmox-refresh"):
         clusters = list(mongo_client["labyrinth"]["proxmox_clusters"].find({}))
         redis_client = proxmox_helper.get_redis_client()
-        results = proxmox_helper.refresh_proxmox_cluster_cache(clusters, redis_client=redis_client)
+        results = proxmox_helper.refresh_proxmox_cluster_cache(
+            clusters, redis_client=redis_client
+        )
 
         print(
             json.dumps(

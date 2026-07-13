@@ -73,7 +73,7 @@ def _sanitize_string_value(value):
 
     # Create new string to break taint chain
     safe_value = str(value)
-    
+
     sanitized = safe_value.strip()
     if not sanitized:
         raise ValueError("String value cannot be empty")
@@ -507,10 +507,10 @@ def _host_matches_tag(host, normalized_tag):
     """Check if a host matches the given tag or service name."""
     raw_tags = host.get("tags", "") or ""
     host_tags = [item.strip().lower() for item in raw_tags.split(",") if item.strip()]
-    
+
     if normalized_tag in host_tags:
         return True
-    
+
     host_services = []
     for service in host.get("services", []) or []:
         if isinstance(service, dict):
@@ -519,7 +519,7 @@ def _host_matches_tag(host, normalized_tag):
             service_name = str(service)
         if service_name:
             host_services.append(service_name.strip().lower())
-    
+
     return normalized_tag in host_services
 
 
@@ -2153,7 +2153,7 @@ def _candidate_host_names(host):
 
 def _candidate_instance_names(instance):
     candidates = set()
-    tag_name = ((instance.get("tags") or {}).get("Name"))
+    tag_name = (instance.get("tags") or {}).get("Name")
     for value in [
         instance.get("instance_id"),
         instance.get("name"),
@@ -2220,7 +2220,8 @@ def _enrich_aws_instances_with_matches(instances):
                 matches.append(match)
 
         monitoring_enabled = any(
-            _truthy_monitor_value(match.get("monitor")) or match.get("service_count", 0) > 0
+            _truthy_monitor_value(match.get("monitor"))
+            or match.get("service_count", 0) > 0
             for match in matches
         )
 
@@ -2244,9 +2245,7 @@ def get_proxmox_disk_space():
         clusters = list(mongo_client["labyrinth"]["proxmox_clusters"].find({}))
         redis_client = proxmox_helper.get_redis_client()
 
-        result = {
-            "proxmox_hosts": []
-        }
+        result = {"proxmox_hosts": []}
 
         for cluster in clusters:
             data = proxmox_helper.get_proxmox_disk_data_cached(
@@ -2298,12 +2297,12 @@ def get_manual_disk_space():
             host_config = setting.get("value")
             if isinstance(host_config, str):
                 host_config = json.loads(host_config)
-            host_config.setdefault("id", setting["name"].replace("manual_disk_host_", ""))
+            host_config.setdefault(
+                "id", setting["name"].replace("manual_disk_host_", "")
+            )
             manual_hosts.append(host_config)
 
-        result = {
-            "manual_hosts": manual_hosts
-        }
+        result = {"manual_hosts": manual_hosts}
 
         return json.dumps(result, default=str), 200
     except Exception as e:
@@ -2350,10 +2349,9 @@ def add_manual_disk_host():
             "updated": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         }
 
-        mongo_client["labyrinth"]["settings"].insert_one({
-            "name": setting_name,
-            "value": json.dumps(stored_data)
-        })
+        mongo_client["labyrinth"]["settings"].insert_one(
+            {"name": setting_name, "value": json.dumps(stored_data)}
+        )
 
         return json.dumps({"id": host_id, "status": "created"}), 201
     except Exception as e:
@@ -2371,7 +2369,7 @@ def delete_manual_disk_host(host_id):
         result = mongo_client["labyrinth"]["settings"].delete_one(
             {"name": setting_name}
         )
-        
+
         if result.deleted_count == 0:
             return json.dumps({"error": "Host not found"}), 404
 
@@ -2406,7 +2404,7 @@ def get_disk_space_settings():
             "disk_space_alert_threshold": threshold_percent,
             "disk_space_alert_recipients": recipients_list,
             "clusters": [],
-            "unconfigured_proxmox_hosts": []
+            "unconfigured_proxmox_hosts": [],
         }
 
         # Get all clusters
@@ -2419,11 +2417,13 @@ def get_disk_space_settings():
         # Get list of Proxmox-tagged hosts without cluster assignment
         for host in mongo_client["labyrinth"]["hosts"].find({}):
             if _is_unconfigured_proxmox_host(host, proxmox_tag):
-                result["unconfigured_proxmox_hosts"].append({
-                    "mac": host.get("mac"),
-                    "ip": host.get("ip"),
-                    "name": host.get("host") or host.get("name"),
-                })
+                result["unconfigured_proxmox_hosts"].append(
+                    {
+                        "mac": host.get("mac"),
+                        "ip": host.get("ip"),
+                        "name": host.get("host") or host.get("name"),
+                    }
+                )
 
         return json.dumps(result, default=str), 200
     except Exception as e:
@@ -2481,7 +2481,11 @@ def send_disk_space_test_email():
         data = request.get_json(silent=True)
         if data is None:
             try:
-                data = json.loads(request.get_data(as_text=True)) if request.get_data(as_text=True) else {}
+                data = (
+                    json.loads(request.get_data(as_text=True))
+                    if request.get_data(as_text=True)
+                    else {}
+                )
             except (ValueError, json.JSONDecodeError):
                 return json.dumps({"error": ERROR_INVALID_JSON_BODY}), 400
 
@@ -2491,25 +2495,42 @@ def send_disk_space_test_email():
 
         recipients = _get_test_email_recipients(data)
         if not recipients:
-            return json.dumps({
-                "error": "No recipients configured. Add recipients first or include them in the request."
-            }), 400
+            return (
+                json.dumps(
+                    {
+                        "error": "No recipients configured. Add recipients first or include them in the request."
+                    }
+                ),
+                400,
+            )
 
         if mode == "full":
             result = proxmox_disk_check.send_full_test_email(
-                recipients, db=mongo_client, redis_client=proxmox_helper.get_redis_client()
+                recipients,
+                db=mongo_client,
+                redis_client=proxmox_helper.get_redis_client(),
             )
-            return json.dumps({
-                "status": "sent",
-                "mode": "full",
-                **result,
-            }), 200
+            return (
+                json.dumps(
+                    {
+                        "status": "sent",
+                        "mode": "full",
+                        **result,
+                    }
+                ),
+                200,
+            )
 
         proxmox_disk_check.send_simple_test_email(recipients)
-        return json.dumps({
-            "status": "sent",
-            "mode": "simple",
-        }), 200
+        return (
+            json.dumps(
+                {
+                    "status": "sent",
+                    "mode": "simple",
+                }
+            ),
+            200,
+        )
     except ValueError as e:
         return json.dumps({"error": "Invalid email configuration"}), 400
     except Exception as e:
@@ -2521,10 +2542,10 @@ def _get_test_email_recipients(data):
     recipients = data.get("recipients")
     if isinstance(recipients, str):
         recipients = [r.strip() for r in recipients.split(",") if r.strip()]
-    
+
     if recipients:
         return recipients
-    
+
     # Fall back to saved recipients (same settings the alert cron uses)
     recipients_setting = mongo_client["labyrinth"]["settings"].find_one(
         {"name": "disk_space_alert_recipients"}
@@ -2575,14 +2596,21 @@ def create_proxmox_cluster():
 
         required_fields = ["name", "host", "user", "token_id", "token_secret"]
         if not all(data.get(field) for field in required_fields):
-            return json.dumps({"error": f"Missing required fields: {', '.join(required_fields)}"}), 400
+            return (
+                json.dumps(
+                    {"error": f"Missing required fields: {', '.join(required_fields)}"}
+                ),
+                400,
+            )
 
         # Sanitize name early to prevent taint tracking issues
         safe_cluster_name = _sanitize_string_value(data["name"])
         safe_cluster_name_key = safe_cluster_name.casefold()
-        
+
         # Check if cluster with this name already exists
-        if mongo_client["labyrinth"]["proxmox_clusters"].find_one({"name_key": safe_cluster_name_key}):
+        if mongo_client["labyrinth"]["proxmox_clusters"].find_one(
+            {"name_key": safe_cluster_name_key}
+        ):
             return json.dumps({"error": "Cluster with this name already exists"}), 409
 
         cluster_doc = {
@@ -2601,12 +2629,12 @@ def create_proxmox_cluster():
 
         proxmox_helper.delete_cached_proxmox_disk_data(str(result.inserted_id))
 
-        return json.dumps({
-            "id": str(result.inserted_id),
-            "status": "created"
-        }), 201
+        return json.dumps({"id": str(result.inserted_id), "status": "created"}), 201
     except Exception as e:
-        return json.dumps({"error": "Failed to create Proxmox cluster configuration"}), 500
+        return (
+            json.dumps({"error": "Failed to create Proxmox cluster configuration"}),
+            500,
+        )
 
 
 @app.route("/proxmox-clusters/<cluster_id>", methods=["GET"])
@@ -2657,10 +2685,11 @@ def update_proxmox_cluster(cluster_id):
                 update_doc[field] = _sanitize_db_value(data[field])
 
         if update_doc:
-            update_doc["updated"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            update_doc["updated"] = datetime.datetime.now(
+                datetime.timezone.utc
+            ).isoformat()
             mongo_client["labyrinth"]["proxmox_clusters"].update_one(
-                {"_id": object_id},
-                {"$set": update_doc}
+                {"_id": object_id}, {"$set": update_doc}
             )
             proxmox_helper.delete_cached_proxmox_disk_data(cluster_id)
 
@@ -2672,7 +2701,10 @@ def update_proxmox_cluster(cluster_id):
     except ValueError:
         return json.dumps({"error": ERROR_INVALID_CLUSTER_ID}), 400
     except Exception as e:
-        return json.dumps({"error": "Failed to update Proxmox cluster configuration"}), 500
+        return (
+            json.dumps({"error": "Failed to update Proxmox cluster configuration"}),
+            500,
+        )
 
 
 @app.route("/proxmox-clusters/<cluster_id>", methods=["DELETE"])
@@ -2694,7 +2726,10 @@ def delete_proxmox_cluster(cluster_id):
     except ValueError:
         return json.dumps({"error": ERROR_INVALID_CLUSTER_ID}), 400
     except Exception as e:
-        return json.dumps({"error": "Failed to delete Proxmox cluster configuration"}), 500
+        return (
+            json.dumps({"error": "Failed to delete Proxmox cluster configuration"}),
+            500,
+        )
 
 
 @app.route("/aws/ec2-instances", methods=["GET"])
@@ -2740,7 +2775,9 @@ def get_aws_ec2_instances():
                 )
                 continue
 
-            enriched_instances = _enrich_aws_instances_with_matches(inventory.get("instances", []))
+            enriched_instances = _enrich_aws_instances_with_matches(
+                inventory.get("instances", [])
+            )
             result["instances"].extend(enriched_instances)
 
         result["instances"] = sorted(
@@ -2807,11 +2844,19 @@ def create_aws_account():
 
         required_fields = ["name", "region", "access_key_id", "secret_access_key"]
         if not all(data.get(field) for field in required_fields):
-            return json.dumps({"error": f"Missing required fields: {', '.join(required_fields)}"}), 400
+            return (
+                json.dumps(
+                    {"error": f"Missing required fields: {', '.join(required_fields)}"}
+                ),
+                400,
+            )
 
         safe_name = _sanitize_string_value(data["name"])
         if mongo_client["labyrinth"]["aws_accounts"].find_one({"name": safe_name}):
-            return json.dumps({"error": "AWS account with this name already exists"}), 409
+            return (
+                json.dumps({"error": "AWS account with this name already exists"}),
+                409,
+            )
 
         account_doc = {
             "name": safe_name,
@@ -2825,10 +2870,7 @@ def create_aws_account():
 
         result = mongo_client["labyrinth"]["aws_accounts"].insert_one(account_doc)
 
-        return json.dumps({
-            "id": str(result.inserted_id),
-            "status": "created"
-        }), 201
+        return json.dumps({"id": str(result.inserted_id), "status": "created"}), 201
     except Exception as e:
         return json.dumps({"error": "Failed to create AWS account configuration"}), 500
 
@@ -2841,9 +2883,7 @@ def get_aws_account(account_id):
     """
     try:
         object_id = _validate_object_id(account_id)
-        account = mongo_client["labyrinth"]["aws_accounts"].find_one(
-            {"_id": object_id}
-        )
+        account = mongo_client["labyrinth"]["aws_accounts"].find_one({"_id": object_id})
         if not account:
             return json.dumps({"error": "AWS account not found"}), 404
 
@@ -2868,14 +2908,18 @@ def update_aws_account(account_id):
             return json.dumps({"error": ERROR_INVALID_JSON_BODY}), 400
 
         object_id = _validate_object_id(account_id)
-        account = mongo_client["labyrinth"]["aws_accounts"].find_one(
-            {"_id": object_id}
-        )
+        account = mongo_client["labyrinth"]["aws_accounts"].find_one({"_id": object_id})
         if not account:
             return json.dumps({"error": ERROR_AWS_ACCOUNT_NOT_FOUND}), 404
 
         update_doc = {}
-        allowed_fields = ["name", "region", "access_key_id", "secret_access_key", "session_token"]
+        allowed_fields = [
+            "name",
+            "region",
+            "access_key_id",
+            "secret_access_key",
+            "session_token",
+        ]
         for field in allowed_fields:
             if field not in data:
                 continue
@@ -2888,13 +2932,17 @@ def update_aws_account(account_id):
                 {"name": _sanitize_string_value(update_doc["name"])}
             )
             if duplicate:
-                return json.dumps({"error": "AWS account with this name already exists"}), 409
+                return (
+                    json.dumps({"error": "AWS account with this name already exists"}),
+                    409,
+                )
 
         if update_doc:
-            update_doc["updated"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            update_doc["updated"] = datetime.datetime.now(
+                datetime.timezone.utc
+            ).isoformat()
             mongo_client["labyrinth"]["aws_accounts"].update_one(
-                {"_id": object_id},
-                {"$set": update_doc}
+                {"_id": object_id}, {"$set": update_doc}
             )
 
         updated_account = mongo_client["labyrinth"]["aws_accounts"].find_one(

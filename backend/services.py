@@ -218,8 +218,7 @@ def run(fname: str, outputs=False):
     x = subprocess.run(cmd, capture_output=True)
     # HTML-escape subprocess output to prevent XSS
     from markupsafe import escape
+
     stderr_escaped = escape(x.stderr.decode("utf-8"))
     stdout_escaped = escape(x.stdout.decode("utf-8"))
-    return "{}\n<b>{}</b>{}".format(
-        escape(str(cmd)), stderr_escaped, stdout_escaped
-    )
+    return "{}\n<b>{}</b>{}".format(escape(str(cmd)), stderr_escaped, stdout_escaped)

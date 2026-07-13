@@ -128,9 +128,9 @@ def test_parse_df_output_standard_linux_output():
     output = """Filesystem      Size  Used Avail Use% Mounted on
 /dev/sda1        20G   12G  6.7G  65% /
 tmpfs           1.0G     0  1.0G   0% /dev/shm"""
-    
+
     result = proxmox_helper.parse_df_output(output, "/")
-    
+
     assert result is not None
     assert result["mountpoint"] == "/"
     assert result["name"] == "/dev/sda1"
@@ -142,7 +142,7 @@ def test_parse_df_output_missing_mountpoint():
     """Return None when mountpoint not found."""
     output = """Filesystem      Size  Used Avail Use% Mounted on
 /dev/sda1        20G   12G  6.7G  65% /"""
-    
+
     result = proxmox_helper.parse_df_output(output, "/home")
     assert result is None
 
@@ -168,7 +168,7 @@ def test_parse_df_output_unparseable_line():
     output = """Filesystem      Size  Used Avail Use% Mounted on
 invalid line with too few columns
 /dev/sda1        20G   12G  6.7G  65% /"""
-    
+
     result = proxmox_helper.parse_df_output(output, "/")
     assert result is not None
     assert result["total-bytes"] == 21474836480
@@ -179,10 +179,10 @@ def test_parse_df_output_unparseable_size_values():
     output = """Filesystem      Size  Used Avail Use% Mounted on
 /dev/sda1        -     -    -     -  /
 /dev/sda2        20G   12G  6.7G  65% /home"""
-    
+
     result = proxmox_helper.parse_df_output(output, "/")
     assert result is None
-    
+
     result = proxmox_helper.parse_df_output(output, "/home")
     assert result is not None
 
@@ -206,7 +206,9 @@ def test_get_proxmox_cache_key_from_dict_with_id():
 
 def test_get_proxmox_cache_key_from_dict_with_name():
     """Generate cache key from dict with name."""
-    key = proxmox_helper.get_proxmox_cache_key({"name": "cluster-1", "host": "10.0.0.1"})
+    key = proxmox_helper.get_proxmox_cache_key(
+        {"name": "cluster-1", "host": "10.0.0.1"}
+    )
     assert key == "proxmox-disk:cluster-1"
 
 
@@ -234,11 +236,11 @@ def test_get_cached_proxmox_disk_data_found(mock_redis):
         "host": "10.0.0.1",
         "nodes": [],
     }
-    
+
     mock_redis.get.return_value = json.dumps(cached_data).encode("utf-8")
-    
+
     result = proxmox_helper.get_cached_proxmox_disk_data(cluster, mock_redis)
-    
+
     assert result is not None
     assert result["host"] == "10.0.0.1"
     assert result["cluster_name"] == "cluster-1"
@@ -249,7 +251,7 @@ def test_get_cached_proxmox_disk_data_not_found(mock_redis):
     """Return None when cache miss."""
     cluster = {"_id": "123", "name": "cluster-1"}
     mock_redis.get.return_value = None
-    
+
     result = proxmox_helper.get_cached_proxmox_disk_data(cluster, mock_redis)
     assert result is None
 
@@ -258,7 +260,7 @@ def test_get_cached_proxmox_disk_data_redis_error(mock_redis):
     """Return None on Redis error."""
     cluster = {"_id": "123", "name": "cluster-1"}
     mock_redis.get.side_effect = Exception("Redis error")
-    
+
     result = proxmox_helper.get_cached_proxmox_disk_data(cluster, mock_redis)
     assert result is None
 
@@ -267,7 +269,7 @@ def test_get_cached_proxmox_disk_data_invalid_json(mock_redis):
     """Return None on invalid JSON."""
     cluster = {"_id": "123", "name": "cluster-1"}
     mock_redis.get.return_value = b"invalid json"
-    
+
     result = proxmox_helper.get_cached_proxmox_disk_data(cluster, mock_redis)
     assert result is None
 
@@ -279,9 +281,9 @@ def test_set_cached_proxmox_disk_data(mock_redis):
         "host": "10.0.0.1",
         "nodes": [],
     }
-    
+
     result = proxmox_helper.set_cached_proxmox_disk_data(cluster, payload, mock_redis)
-    
+
     assert result["cluster_name"] == "cluster-1"
     mock_redis.setex.assert_called_once()
 
@@ -291,7 +293,7 @@ def test_set_cached_proxmox_disk_data_redis_error(mock_redis):
     cluster = {"_id": "123", "name": "cluster-1", "host": "10.0.0.1"}
     payload = {"host": "10.0.0.1", "nodes": []}
     mock_redis.setex.side_effect = Exception("Redis error")
-    
+
     result = proxmox_helper.set_cached_proxmox_disk_data(cluster, payload, mock_redis)
     assert result["cluster_name"] == "cluster-1"
 
@@ -329,10 +331,10 @@ def test_enrich_qemu_flags_running_vm_with_zero_disk():
             }
         ]
     }
-    
+
     result = proxmox_helper.enrich_qemu_flags(payload)
     vm = result["nodes"][0]["vms"][0]
-    
+
     assert vm["qemu_guest_agent_warning_inferred"] is True
     assert vm["qemu_guest_agent_installed"] is False
     assert "zero" in vm["qemu_guest_agent_error"]
@@ -353,10 +355,10 @@ def test_enrich_qemu_flags_running_vm_with_disk():
             }
         ]
     }
-    
+
     result = proxmox_helper.enrich_qemu_flags(payload)
     vm = result["nodes"][0]["vms"][0]
-    
+
     assert vm["qemu_guest_agent_warning_inferred"] is False
     assert vm["qemu_guest_agent_installed"] is True
 
@@ -376,10 +378,10 @@ def test_enrich_qemu_flags_stopped_vm_with_zero_disk():
             }
         ]
     }
-    
+
     result = proxmox_helper.enrich_qemu_flags(payload)
     vm = result["nodes"][0]["vms"][0]
-    
+
     assert vm["qemu_guest_agent_warning_inferred"] is False
 
 
@@ -401,10 +403,10 @@ def test_enrich_qemu_flags_preserves_existing_flags():
             }
         ]
     }
-    
+
     result = proxmox_helper.enrich_qemu_flags(payload)
     vm = result["nodes"][0]["vms"][0]
-    
+
     assert vm["qemu_guest_agent_warning_inferred"] is False
     assert vm["qemu_guest_agent_installed"] is True
     assert vm["qemu_guest_agent_error"] == "custom error"
@@ -426,9 +428,9 @@ def test_format_proxmox_cluster_payload_basic():
     """Format and attach cluster metadata."""
     cluster = {"_id": "123", "name": "cluster-1", "host": "10.0.0.1"}
     data = {"nodes": []}
-    
+
     result = proxmox_helper.format_proxmox_cluster_payload(cluster, data)
-    
+
     assert result["cluster_name"] == "cluster-1"
     assert result["host"] == "10.0.0.1"
     assert result["_id"] == "123"
@@ -438,9 +440,9 @@ def test_format_proxmox_cluster_payload_basic():
 def test_format_proxmox_cluster_payload_none_data():
     """Handle None data."""
     cluster = {"name": "cluster-1", "host": "10.0.0.1"}
-    
+
     result = proxmox_helper.format_proxmox_cluster_payload(cluster, None)
-    
+
     assert result["cluster_name"] == "cluster-1"
     assert result["host"] == "10.0.0.1"
 
@@ -448,7 +450,7 @@ def test_format_proxmox_cluster_payload_none_data():
 def test_format_proxmox_cluster_payload_converts_id_to_string():
     """Convert _id to string."""
     cluster = {"_id": 123, "name": "cluster-1"}
-    
+
     result = proxmox_helper.format_proxmox_cluster_payload(cluster, {})
     assert result["_id"] == "123"
 
@@ -465,9 +467,9 @@ def test_proxmox_client_initialization():
         user="root@pam",
         token_id="token-1",
         token_secret="secret-1",
-        verify_ssl=False
+        verify_ssl=False,
     )
-    
+
     assert client.host == "10.0.0.1"
     assert client.user == "root@pam"
     assert client.verify_ssl is False
@@ -477,24 +479,21 @@ def test_proxmox_client_initialization():
 def test_proxmox_client_get_nodes_success(mock_session):
     """Successfully retrieve nodes."""
     client = proxmox_helper.ProxmoxClient(
-        host="10.0.0.1",
-        user="root@pam",
-        token_id="token-1",
-        token_secret="secret-1"
+        host="10.0.0.1", user="root@pam", token_id="token-1", token_secret="secret-1"
     )
     client.session = mock_session
-    
+
     mock_response = Mock()
     mock_response.json.return_value = {
         "data": [
             {"node": "node-1", "status": "online"},
-            {"node": "node-2", "status": "online"}
+            {"node": "node-2", "status": "online"},
         ]
     }
     mock_session.get.return_value = mock_response
-    
+
     result = client.get_nodes()
-    
+
     assert len(result) == 2
     assert result[0]["node"] == "node-1"
 
@@ -502,15 +501,12 @@ def test_proxmox_client_get_nodes_success(mock_session):
 def test_proxmox_client_get_nodes_error(mock_session):
     """Handle error retrieving nodes."""
     client = proxmox_helper.ProxmoxClient(
-        host="10.0.0.1",
-        user="root@pam",
-        token_id="token-1",
-        token_secret="secret-1"
+        host="10.0.0.1", user="root@pam", token_id="token-1", token_secret="secret-1"
     )
     client.session = mock_session
-    
+
     mock_session.get.side_effect = Exception("Connection error")
-    
+
     result = client.get_nodes()
     assert result == []
 
@@ -518,23 +514,18 @@ def test_proxmox_client_get_nodes_error(mock_session):
 def test_proxmox_client_get_storage_success(mock_session):
     """Successfully retrieve storage."""
     client = proxmox_helper.ProxmoxClient(
-        host="10.0.0.1",
-        user="root@pam",
-        token_id="token-1",
-        token_secret="secret-1"
+        host="10.0.0.1", user="root@pam", token_id="token-1", token_secret="secret-1"
     )
     client.session = mock_session
-    
+
     mock_response = Mock()
     mock_response.json.return_value = {
-        "data": [
-            {"storage": "local", "type": "dir", "total": 1000, "used": 500}
-        ]
+        "data": [{"storage": "local", "type": "dir", "total": 1000, "used": 500}]
     }
     mock_session.get.return_value = mock_response
-    
+
     result = client.get_storage("node-1")
-    
+
     assert len(result) == 1
     assert result[0]["storage"] == "local"
 
@@ -542,15 +533,12 @@ def test_proxmox_client_get_storage_success(mock_session):
 def test_proxmox_client_get_storage_error(mock_session):
     """Handle error retrieving storage."""
     client = proxmox_helper.ProxmoxClient(
-        host="10.0.0.1",
-        user="root@pam",
-        token_id="token-1",
-        token_secret="secret-1"
+        host="10.0.0.1", user="root@pam", token_id="token-1", token_secret="secret-1"
     )
     client.session = mock_session
-    
+
     mock_session.get.side_effect = Exception("Connection error")
-    
+
     result = client.get_storage("node-1")
     assert result == []
 
@@ -558,23 +546,20 @@ def test_proxmox_client_get_storage_error(mock_session):
 def test_proxmox_client_get_vms_and_containers_success(mock_session):
     """Successfully retrieve VMs and containers."""
     client = proxmox_helper.ProxmoxClient(
-        host="10.0.0.1",
-        user="root@pam",
-        token_id="token-1",
-        token_secret="secret-1"
+        host="10.0.0.1", user="root@pam", token_id="token-1", token_secret="secret-1"
     )
     client.session = mock_session
-    
+
     vm_response = Mock()
     vm_response.json.return_value = {"data": [{"vmid": 100, "name": "vm-1"}]}
-    
+
     container_response = Mock()
     container_response.json.return_value = {"data": [{"vmid": 200, "name": "lxc-1"}]}
-    
+
     mock_session.get.side_effect = [vm_response, container_response]
-    
+
     vms, containers = client.get_vms_and_containers("node-1")
-    
+
     assert len(vms) == 1
     assert vms[0]["vmid"] == 100
     assert len(containers) == 1
@@ -584,23 +569,17 @@ def test_proxmox_client_get_vms_and_containers_success(mock_session):
 def test_proxmox_client_get_vms_and_containers_partial_failure(mock_session):
     """Handle partial failure (VMs OK, containers fail)."""
     client = proxmox_helper.ProxmoxClient(
-        host="10.0.0.1",
-        user="root@pam",
-        token_id="token-1",
-        token_secret="secret-1"
+        host="10.0.0.1", user="root@pam", token_id="token-1", token_secret="secret-1"
     )
     client.session = mock_session
-    
+
     vm_response = Mock()
     vm_response.json.return_value = {"data": [{"vmid": 100}]}
-    
-    mock_session.get.side_effect = [
-        vm_response,
-        Exception("Connection error")
-    ]
-    
+
+    mock_session.get.side_effect = [vm_response, Exception("Connection error")]
+
     vms, containers = client.get_vms_and_containers("node-1")
-    
+
     assert len(vms) == 1
     assert containers == []
 
@@ -608,19 +587,16 @@ def test_proxmox_client_get_vms_and_containers_partial_failure(mock_session):
 def test_proxmox_client_get_vm_status_success(mock_session):
     """Successfully retrieve VM status."""
     client = proxmox_helper.ProxmoxClient(
-        host="10.0.0.1",
-        user="root@pam",
-        token_id="token-1",
-        token_secret="secret-1"
+        host="10.0.0.1", user="root@pam", token_id="token-1", token_secret="secret-1"
     )
     client.session = mock_session
-    
+
     mock_response = Mock()
     mock_response.json.return_value = {"data": {"disk": 5368709120, "mem": 1073741824}}
     mock_session.get.return_value = mock_response
-    
+
     result = client.get_vm_status("node-1", "100")
-    
+
     assert result["disk"] == 5368709120
     assert result["mem"] == 1073741824
 
@@ -628,15 +604,12 @@ def test_proxmox_client_get_vm_status_success(mock_session):
 def test_proxmox_client_get_vm_status_error(mock_session):
     """Handle error retrieving VM status."""
     client = proxmox_helper.ProxmoxClient(
-        host="10.0.0.1",
-        user="root@pam",
-        token_id="token-1",
-        token_secret="secret-1"
+        host="10.0.0.1", user="root@pam", token_id="token-1", token_secret="secret-1"
     )
     client.session = mock_session
-    
+
     mock_session.get.side_effect = Exception("Connection error")
-    
+
     result = client.get_vm_status("node-1", "100")
     assert result is None
 
@@ -644,19 +617,16 @@ def test_proxmox_client_get_vm_status_error(mock_session):
 def test_proxmox_client_get_vm_agent_status_success(mock_session):
     """Successfully check QEMU guest agent."""
     client = proxmox_helper.ProxmoxClient(
-        host="10.0.0.1",
-        user="root@pam",
-        token_id="token-1",
-        token_secret="secret-1"
+        host="10.0.0.1", user="root@pam", token_id="token-1", token_secret="secret-1"
     )
     client.session = mock_session
-    
+
     mock_response = Mock()
     mock_response.json.return_value = {"data": {"supported_commands": []}}
     mock_session.get.return_value = mock_response
-    
+
     result = client.get_vm_agent_status("node-1", "100")
-    
+
     assert result["installed"] is True
     assert result["error"] is None
 
@@ -664,21 +634,18 @@ def test_proxmox_client_get_vm_agent_status_success(mock_session):
 def test_proxmox_client_get_vm_agent_status_not_installed(mock_session):
     """Detect missing QEMU guest agent."""
     client = proxmox_helper.ProxmoxClient(
-        host="10.0.0.1",
-        user="root@pam",
-        token_id="token-1",
-        token_secret="secret-1"
+        host="10.0.0.1", user="root@pam", token_id="token-1", token_secret="secret-1"
     )
     client.session = mock_session
-    
+
     http_error = requests.HTTPError()
     http_response = Mock()
     http_response.json.return_value = {"errors": "Agent not installed"}
     http_error.response = http_response
     mock_session.get.side_effect = http_error
-    
+
     result = client.get_vm_agent_status("node-1", "100")
-    
+
     assert result["installed"] is False
     assert "not installed" in result["error"] or "Agent" in result["error"]
 
@@ -686,21 +653,18 @@ def test_proxmox_client_get_vm_agent_status_not_installed(mock_session):
 def test_proxmox_client_get_vm_agent_status_http_error_with_json(mock_session):
     """Handle HTTP error with JSON response."""
     client = proxmox_helper.ProxmoxClient(
-        host="10.0.0.1",
-        user="root@pam",
-        token_id="token-1",
-        token_secret="secret-1"
+        host="10.0.0.1", user="root@pam", token_id="token-1", token_secret="secret-1"
     )
     client.session = mock_session
-    
+
     http_error = requests.HTTPError()
     http_response = Mock()
     http_response.json.return_value = {"message": "Custom error"}
     http_error.response = http_response
     mock_session.get.side_effect = http_error
-    
+
     result = client.get_vm_agent_status("node-1", "100")
-    
+
     assert result["installed"] is False
     assert result["error"] == "Custom error"
 
@@ -708,22 +672,19 @@ def test_proxmox_client_get_vm_agent_status_http_error_with_json(mock_session):
 def test_proxmox_client_get_vm_agent_status_http_error_no_json(mock_session):
     """Handle HTTP error without JSON response."""
     client = proxmox_helper.ProxmoxClient(
-        host="10.0.0.1",
-        user="root@pam",
-        token_id="token-1",
-        token_secret="secret-1"
+        host="10.0.0.1", user="root@pam", token_id="token-1", token_secret="secret-1"
     )
     client.session = mock_session
-    
+
     http_error = requests.HTTPError()
     http_response = Mock()
     http_response.json.side_effect = Exception("Invalid JSON")
     http_response.text = "Custom error text"
     http_error.response = http_response
     mock_session.get.side_effect = http_error
-    
+
     result = client.get_vm_agent_status("node-1", "100")
-    
+
     assert result["installed"] is False
     assert result["error"] == "Custom error text"
 
@@ -731,17 +692,14 @@ def test_proxmox_client_get_vm_agent_status_http_error_no_json(mock_session):
 def test_proxmox_client_get_vm_agent_status_general_exception(mock_session):
     """Handle general exception."""
     client = proxmox_helper.ProxmoxClient(
-        host="10.0.0.1",
-        user="root@pam",
-        token_id="token-1",
-        token_secret="secret-1"
+        host="10.0.0.1", user="root@pam", token_id="token-1", token_secret="secret-1"
     )
     client.session = mock_session
-    
+
     mock_session.get.side_effect = Exception("Connection timeout")
-    
+
     result = client.get_vm_agent_status("node-1", "100")
-    
+
     assert result["installed"] is False
     assert "timeout" in result["error"]
 
@@ -749,13 +707,10 @@ def test_proxmox_client_get_vm_agent_status_general_exception(mock_session):
 def test_proxmox_client_get_vm_guest_fsinfo_success(mock_session):
     """Successfully retrieve filesystem info from guest agent."""
     client = proxmox_helper.ProxmoxClient(
-        host="10.0.0.1",
-        user="root@pam",
-        token_id="token-1",
-        token_secret="secret-1"
+        host="10.0.0.1", user="root@pam", token_id="token-1", token_secret="secret-1"
     )
     client.session = mock_session
-    
+
     fsinfo_response = Mock()
     fsinfo_response.json.return_value = {
         "data": {
@@ -764,15 +719,15 @@ def test_proxmox_client_get_vm_guest_fsinfo_success(mock_session):
                     "mountpoint": "/",
                     "name": "/dev/sda1",
                     "total-bytes": 21474836480,
-                    "used-bytes": 10737418240
+                    "used-bytes": 10737418240,
                 }
             ]
         }
     }
     mock_session.get.return_value = fsinfo_response
-    
+
     result = client.get_vm_guest_fsinfo("node-1", "100")
-    
+
     assert result is not None
     assert len(result["result"]) == 1
     assert result["result"][0]["mountpoint"] == "/"
@@ -781,33 +736,40 @@ def test_proxmox_client_get_vm_guest_fsinfo_success(mock_session):
 def test_proxmox_client_get_vm_guest_fsinfo_with_df_fallback(mock_session):
     """Fall back to df when get-fsinfo doesn't include root."""
     client = proxmox_helper.ProxmoxClient(
-        host="10.0.0.1",
-        user="root@pam",
-        token_id="token-1",
-        token_secret="secret-1"
+        host="10.0.0.1", user="root@pam", token_id="token-1", token_secret="secret-1"
     )
     client.session = mock_session
-    
+
     fsinfo_response = Mock()
     fsinfo_response.json.return_value = {
         "data": {
             "result": [
-                {"mountpoint": "/boot", "name": "/dev/sda2", "total-bytes": 536870912, "used-bytes": 268435456}
+                {
+                    "mountpoint": "/boot",
+                    "name": "/dev/sda2",
+                    "total-bytes": 536870912,
+                    "used-bytes": 268435456,
+                }
             ]
         }
     }
-    
+
     df_response = Mock()
     df_response.json.return_value = {"data": {"pid": 123}}
-    
+
     exec_response = Mock()
-    exec_response.json.return_value = {"data": {"exited": True, "out-data": "Filesystem      Size  Used Avail Use% Mounted on\n/dev/sda1        20G   12G  6.7G  65% /"}}
-    
+    exec_response.json.return_value = {
+        "data": {
+            "exited": True,
+            "out-data": "Filesystem      Size  Used Avail Use% Mounted on\n/dev/sda1        20G   12G  6.7G  65% /",
+        }
+    }
+
     mock_session.get.side_effect = [fsinfo_response, df_response, exec_response]
     mock_session.post.return_value = df_response
-    
+
     result = client.get_vm_guest_fsinfo("node-1", "100")
-    
+
     assert result is not None
     mountpoints = [fs["mountpoint"] for fs in result["result"]]
     assert "/" in mountpoints
@@ -816,139 +778,118 @@ def test_proxmox_client_get_vm_guest_fsinfo_with_df_fallback(mock_session):
 def test_proxmox_client_exec_guest_command_success(mock_session):
     """Successfully execute guest command."""
     client = proxmox_helper.ProxmoxClient(
-        host="10.0.0.1",
-        user="root@pam",
-        token_id="token-1",
-        token_secret="secret-1"
+        host="10.0.0.1", user="root@pam", token_id="token-1", token_secret="secret-1"
     )
     client.session = mock_session
-    
+
     exec_response = Mock()
     exec_response.json.return_value = {"data": {"pid": 123}}
-    
+
     status_response = Mock()
     status_response.json.return_value = {"data": {"exited": True, "out-data": "output"}}
-    
+
     mock_session.post.return_value = exec_response
     mock_session.get.return_value = status_response
-    
+
     result = client.exec_guest_command("node-1", "100", ["df", "-h"])
-    
+
     assert result == "output"
 
 
 def test_proxmox_client_exec_guest_command_no_pid(mock_session):
     """Handle command that returns no PID."""
     client = proxmox_helper.ProxmoxClient(
-        host="10.0.0.1",
-        user="root@pam",
-        token_id="token-1",
-        token_secret="secret-1"
+        host="10.0.0.1", user="root@pam", token_id="token-1", token_secret="secret-1"
     )
     client.session = mock_session
-    
+
     exec_response = Mock()
     exec_response.json.return_value = {"data": {}}
     mock_session.post.return_value = exec_response
-    
+
     result = client.exec_guest_command("node-1", "100", ["df", "-h"])
-    
+
     assert result is None
 
 
 def test_proxmox_client_exec_guest_command_timeout(mock_session):
     """Handle command that times out."""
     client = proxmox_helper.ProxmoxClient(
-        host="10.0.0.1",
-        user="root@pam",
-        token_id="token-1",
-        token_secret="secret-1"
+        host="10.0.0.1", user="root@pam", token_id="token-1", token_secret="secret-1"
     )
     client.session = mock_session
-    
+
     exec_response = Mock()
     exec_response.json.return_value = {"data": {"pid": 123}}
-    
+
     status_response = Mock()
     status_response.json.return_value = {"data": {"exited": False}}
-    
+
     mock_session.post.return_value = exec_response
     mock_session.get.return_value = status_response
-    
+
     result = client.exec_guest_command("node-1", "100", ["df", "-h"], poll_attempts=2)
-    
+
     assert result is None
 
 
 def test_proxmox_client_exec_guest_command_post_error(mock_session):
     """Handle error posting command."""
     client = proxmox_helper.ProxmoxClient(
-        host="10.0.0.1",
-        user="root@pam",
-        token_id="token-1",
-        token_secret="secret-1"
+        host="10.0.0.1", user="root@pam", token_id="token-1", token_secret="secret-1"
     )
     client.session = mock_session
-    
+
     mock_session.post.side_effect = Exception("Connection error")
-    
+
     result = client.exec_guest_command("node-1", "100", ["df", "-h"])
-    
+
     assert result is None
 
 
 def test_proxmox_client_exec_guest_command_status_error(mock_session):
     """Handle error checking command status."""
     client = proxmox_helper.ProxmoxClient(
-        host="10.0.0.1",
-        user="root@pam",
-        token_id="token-1",
-        token_secret="secret-1"
+        host="10.0.0.1", user="root@pam", token_id="token-1", token_secret="secret-1"
     )
     client.session = mock_session
-    
+
     exec_response = Mock()
     exec_response.json.return_value = {"data": {"pid": 123}}
-    
+
     mock_session.post.return_value = exec_response
     mock_session.get.side_effect = Exception("Connection error")
-    
+
     result = client.exec_guest_command("node-1", "100", ["df", "-h"])
-    
+
     assert result is None
 
 
 def test_proxmox_client_get_container_status_success(mock_session):
     """Successfully retrieve container status."""
     client = proxmox_helper.ProxmoxClient(
-        host="10.0.0.1",
-        user="root@pam",
-        token_id="token-1",
-        token_secret="secret-1"
+        host="10.0.0.1", user="root@pam", token_id="token-1", token_secret="secret-1"
     )
     client.session = mock_session
-    
+
     mock_response = Mock()
     mock_response.json.return_value = {"data": {"disk": 5368709120}}
     mock_session.get.return_value = mock_response
-    
+
     result = client.get_container_status("node-1", "200")
-    
+
     assert result["disk"] == 5368709120
 
 
 def test_proxmox_client_get_container_status_error(mock_session):
     """Handle error retrieving container status."""
     client = proxmox_helper.ProxmoxClient(
-        host="10.0.0.1",
-        user="root@pam",
-        token_id="token-1",
-        token_secret="secret-1"
+        host="10.0.0.1", user="root@pam", token_id="token-1", token_secret="secret-1"
     )
     client.session = mock_session
-    
+
     mock_session.get.side_effect = Exception("Connection error")
-    
+
     result = client.get_container_status("node-1", "200")
     assert result is None
 
@@ -956,34 +897,30 @@ def test_proxmox_client_get_container_status_error(mock_session):
 def test_proxmox_client_get_disk_info_success(mock_session):
     """Successfully retrieve disk info."""
     client = proxmox_helper.ProxmoxClient(
-        host="10.0.0.1",
-        user="root@pam",
-        token_id="token-1",
-        token_secret="secret-1"
+        host="10.0.0.1", user="root@pam", token_id="token-1", token_secret="secret-1"
     )
     client.session = mock_session
-    
+
     mock_response = Mock()
-    mock_response.json.return_value = {"data": [{"volume": "local:100/vm-100-disk-0.qcow2"}]}
+    mock_response.json.return_value = {
+        "data": [{"volume": "local:100/vm-100-disk-0.qcow2"}]
+    }
     mock_session.get.return_value = mock_response
-    
+
     result = client.get_disk_info("node-1", "local")
-    
+
     assert result == [{"volume": "local:100/vm-100-disk-0.qcow2"}]
 
 
 def test_proxmox_client_get_disk_info_error(mock_session):
     """Handle error retrieving disk info."""
     client = proxmox_helper.ProxmoxClient(
-        host="10.0.0.1",
-        user="root@pam",
-        token_id="token-1",
-        token_secret="secret-1"
+        host="10.0.0.1", user="root@pam", token_id="token-1", token_secret="secret-1"
     )
     client.session = mock_session
-    
+
     mock_session.get.side_effect = Exception("Connection error")
-    
+
     result = client.get_disk_info("node-1", "local")
     assert result is None
 
@@ -1028,16 +965,12 @@ def test_fetch_and_cache_proxmox_disk_data(mock_redis):
         "token_id": "token-1",
         "token_secret": "secret-1",
     }
-    
-    with patch.object(proxmox_helper, 'get_proxmox_disk_data') as mock_get:
-        mock_get.return_value = {
-            "host": "10.0.0.1",
-            "nodes": [],
-            "error": None
-        }
-        
+
+    with patch.object(proxmox_helper, "get_proxmox_disk_data") as mock_get:
+        mock_get.return_value = {"host": "10.0.0.1", "nodes": [], "error": None}
+
         result = proxmox_helper.fetch_and_cache_proxmox_disk_data(cluster, mock_redis)
-        
+
         assert result["cluster_name"] == "cluster-1"
         mock_redis.setex.assert_called_once()
 
@@ -1060,14 +993,14 @@ def test_refresh_proxmox_cluster_cache(mock_redis):
             "user": "root@pam",
             "token_id": "token-2",
             "token_secret": "secret-2",
-        }
+        },
     ]
-    
-    with patch.object(proxmox_helper, 'get_proxmox_disk_data') as mock_get:
+
+    with patch.object(proxmox_helper, "get_proxmox_disk_data") as mock_get:
         mock_get.return_value = {"host": "test", "nodes": [], "error": None}
-        
+
         results = proxmox_helper.refresh_proxmox_cluster_cache(clusters, mock_redis)
-        
+
         assert len(results) == 2
         assert mock_get.call_count == 2
 
@@ -1086,10 +1019,9 @@ def test_refresh_proxmox_cluster_cache_empty_list(mock_redis):
 def test_get_proxmox_disk_data_missing_credentials():
     """Return error for missing credentials."""
     result = proxmox_helper.get_proxmox_disk_data(
-        "10.0.0.1",
-        {"host": "10.0.0.1"}  # Missing user, token_id, token_secret
+        "10.0.0.1", {"host": "10.0.0.1"}  # Missing user, token_id, token_secret
     )
-    
+
     assert result["error"] is not None
     assert "Invalid" in result["error"] or "Missing" in result["error"]
 
@@ -1102,10 +1034,10 @@ def test_get_proxmox_disk_data_no_nodes():
         "token_id": "token-1",
         "token_secret": "secret-1",
     }
-    
-    with patch.object(proxmox_helper.ProxmoxClient, 'get_nodes', return_value=[]):
+
+    with patch.object(proxmox_helper.ProxmoxClient, "get_nodes", return_value=[]):
         result = proxmox_helper.get_proxmox_disk_data("10.0.0.1", cluster)
-        
+
         assert result["error"] is not None
         assert result["host"] == "10.0.0.1"
 
@@ -1114,9 +1046,9 @@ def test_get_proxmox_disk_data_general_exception():
     """Return generic error on exception."""
     result = proxmox_helper.get_proxmox_disk_data(
         "invalid",
-        {"host": "invalid", "user": "root@pam", "token_id": "t", "token_secret": "s"}
+        {"host": "invalid", "user": "root@pam", "token_id": "t", "token_secret": "s"},
     )
-    
+
     # This might succeed or fail depending on whether requests validates the hostname
     # but we just want to ensure it returns a dict with error field
     assert isinstance(result, dict)

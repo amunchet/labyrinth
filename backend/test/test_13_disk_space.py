@@ -78,43 +78,59 @@ def setup():
 
 def test_get_proxmox_disk_space_prefers_redis_cache(setup, monkeypatch):
     """Uses cached Proxmox payloads from Redis before attempting live API calls."""
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_many([
-        {
-            "name": "cluster-1",
-            "host": "10.1.1.1",
-            "user": "root@pam",
-            "token_id": "token-1",
-            "token_secret": "secret-1",
-            "verify_ssl": False,
-        },
-        {
-            "name": "cluster-2",
-            "host": "10.1.1.2",
-            "user": "root@pam",
-            "token_id": "token-2",
-            "token_secret": "secret-2",
-            "verify_ssl": False,
-        },
-    ])
+    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_many(
+        [
+            {
+                "name": "cluster-1",
+                "host": "10.1.1.1",
+                "user": "root@pam",
+                "token_id": "token-1",
+                "token_secret": "secret-1",
+                "verify_ssl": False,
+            },
+            {
+                "name": "cluster-2",
+                "host": "10.1.1.2",
+                "user": "root@pam",
+                "token_id": "token-2",
+                "token_secret": "secret-2",
+                "verify_ssl": False,
+            },
+        ]
+    )
 
-    clusters = list(serve.mongo_client["labyrinth"]["proxmox_clusters"].find({}).sort("name", 1))
+    clusters = list(
+        serve.mongo_client["labyrinth"]["proxmox_clusters"].find({}).sort("name", 1)
+    )
     fake_redis = FakeRedis(
         store={
-            proxmox_helper.get_proxmox_cache_key(clusters[0]): json.dumps({
-                "nodes": [{"name": "node-a", "storage": [], "vms": [], "containers": []}],
-            }).encode("utf-8"),
-            proxmox_helper.get_proxmox_cache_key(clusters[1]): json.dumps({
-                "nodes": [{"name": "node-b", "storage": [], "vms": [], "containers": []}],
-            }).encode("utf-8"),
+            proxmox_helper.get_proxmox_cache_key(clusters[0]): json.dumps(
+                {
+                    "nodes": [
+                        {"name": "node-a", "storage": [], "vms": [], "containers": []}
+                    ],
+                }
+            ).encode("utf-8"),
+            proxmox_helper.get_proxmox_cache_key(clusters[1]): json.dumps(
+                {
+                    "nodes": [
+                        {"name": "node-b", "storage": [], "vms": [], "containers": []}
+                    ],
+                }
+            ).encode("utf-8"),
         }
     )
 
     monkeypatch.setattr(serve.proxmox_helper, "get_redis_client", lambda: fake_redis)
 
     def fake_get_proxmox_disk_data(host_ip, cluster_config):
-        raise AssertionError("live Proxmox query should not run when Redis cache is present")
+        raise AssertionError(
+            "live Proxmox query should not run when Redis cache is present"
+        )
 
-    monkeypatch.setattr(serve.proxmox_helper, "get_proxmox_disk_data", fake_get_proxmox_disk_data)
+    monkeypatch.setattr(
+        serve.proxmox_helper, "get_proxmox_disk_data", fake_get_proxmox_disk_data
+    )
 
     response = unwrap(serve.get_proxmox_disk_space)()
     assert response[1] == 200
@@ -129,14 +145,16 @@ def test_get_proxmox_disk_space_prefers_redis_cache(setup, monkeypatch):
 
 def test_get_proxmox_disk_space_falls_back_to_live_query_and_caches(setup, monkeypatch):
     """Falls back to live Proxmox API calls and stores the payload in Redis."""
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one({
-        "name": "cluster-live",
-        "host": "10.1.1.10",
-        "user": "root@pam",
-        "token_id": "token-live",
-        "token_secret": "secret-live",
-        "verify_ssl": False,
-    })
+    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one(
+        {
+            "name": "cluster-live",
+            "host": "10.1.1.10",
+            "user": "root@pam",
+            "token_id": "token-live",
+            "token_secret": "secret-live",
+            "verify_ssl": False,
+        }
+    )
 
     fake_redis = FakeRedis()
     calls = []
@@ -145,9 +163,13 @@ def test_get_proxmox_disk_space_falls_back_to_live_query_and_caches(setup, monke
 
     def fake_get_proxmox_disk_data(host_ip, cluster_config):
         calls.append((host_ip, cluster_config["name"]))
-        return {"nodes": [{"name": "node-live", "storage": [], "vms": [], "containers": []}]}
+        return {
+            "nodes": [{"name": "node-live", "storage": [], "vms": [], "containers": []}]
+        }
 
-    monkeypatch.setattr(serve.proxmox_helper, "get_proxmox_disk_data", fake_get_proxmox_disk_data)
+    monkeypatch.setattr(
+        serve.proxmox_helper, "get_proxmox_disk_data", fake_get_proxmox_disk_data
+    )
 
     response = unwrap(serve.get_proxmox_disk_space)()
     assert response[1] == 200
@@ -157,7 +179,9 @@ def test_get_proxmox_disk_space_falls_back_to_live_query_and_caches(setup, monke
     assert calls == [("10.1.1.10", "cluster-live")]
     assert fake_redis.setex_calls
 
-    cluster = serve.mongo_client["labyrinth"]["proxmox_clusters"].find_one({"name": "cluster-live"})
+    cluster = serve.mongo_client["labyrinth"]["proxmox_clusters"].find_one(
+        {"name": "cluster-live"}
+    )
     cache_key = proxmox_helper.get_proxmox_cache_key(cluster)
     assert cache_key in fake_redis.store
 
@@ -172,14 +196,16 @@ def test_get_proxmox_disk_space_no_clusters_returns_empty(setup):
 
 def test_get_proxmox_disk_space_backfills_qemu_warning_fields(setup, monkeypatch):
     """Adds QEMU guest-agent flags to API output even when helper returns old VM shape."""
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one({
-        "name": "cluster-old",
-        "host": "10.5.5.5",
-        "user": "root@pam",
-        "token_id": "token-old",
-        "token_secret": "secret-old",
-        "verify_ssl": False,
-    })
+    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one(
+        {
+            "name": "cluster-old",
+            "host": "10.5.5.5",
+            "user": "root@pam",
+            "token_id": "token-old",
+            "token_secret": "secret-old",
+            "verify_ssl": False,
+        }
+    )
 
     def fake_get_proxmox_disk_data(host_ip, cluster_config):
         return {
@@ -204,7 +230,9 @@ def test_get_proxmox_disk_space_backfills_qemu_warning_fields(setup, monkeypatch
         }
 
     monkeypatch.setattr(serve.proxmox_helper, "get_redis_client", lambda: FakeRedis())
-    monkeypatch.setattr(serve.proxmox_helper, "get_proxmox_disk_data", fake_get_proxmox_disk_data)
+    monkeypatch.setattr(
+        serve.proxmox_helper, "get_proxmox_disk_data", fake_get_proxmox_disk_data
+    )
 
     response = unwrap(serve.get_proxmox_disk_space)()
     assert response[1] == 200
@@ -218,33 +246,47 @@ def test_get_proxmox_disk_space_backfills_qemu_warning_fields(setup, monkeypatch
 
 def test_refresh_proxmox_disk_space_bypasses_cache_and_recaches(setup, monkeypatch):
     """The refresh endpoint always performs a live query, ignoring any cached value, and updates Redis."""
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one({
-        "name": "cluster-refresh",
-        "host": "10.1.1.20",
-        "user": "root@pam",
-        "token_id": "token-refresh",
-        "token_secret": "secret-refresh",
-        "verify_ssl": False,
-    })
+    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one(
+        {
+            "name": "cluster-refresh",
+            "host": "10.1.1.20",
+            "user": "root@pam",
+            "token_id": "token-refresh",
+            "token_secret": "secret-refresh",
+            "verify_ssl": False,
+        }
+    )
 
     cluster = serve.mongo_client["labyrinth"]["proxmox_clusters"].find_one(
         {"name": "cluster-refresh"}
     )
-    stale_payload = json.dumps({
-        "nodes": [{"name": "node-stale", "storage": [], "vms": [], "containers": []}],
-    }).encode("utf-8")
-    fake_redis = FakeRedis(store={
-        proxmox_helper.get_proxmox_cache_key(cluster): stale_payload,
-    })
+    stale_payload = json.dumps(
+        {
+            "nodes": [
+                {"name": "node-stale", "storage": [], "vms": [], "containers": []}
+            ],
+        }
+    ).encode("utf-8")
+    fake_redis = FakeRedis(
+        store={
+            proxmox_helper.get_proxmox_cache_key(cluster): stale_payload,
+        }
+    )
     calls = []
 
     monkeypatch.setattr(serve.proxmox_helper, "get_redis_client", lambda: fake_redis)
 
     def fake_get_proxmox_disk_data(host_ip, cluster_config):
         calls.append((host_ip, cluster_config["name"]))
-        return {"nodes": [{"name": "node-fresh", "storage": [], "vms": [], "containers": []}]}
+        return {
+            "nodes": [
+                {"name": "node-fresh", "storage": [], "vms": [], "containers": []}
+            ]
+        }
 
-    monkeypatch.setattr(serve.proxmox_helper, "get_proxmox_disk_data", fake_get_proxmox_disk_data)
+    monkeypatch.setattr(
+        serve.proxmox_helper, "get_proxmox_disk_data", fake_get_proxmox_disk_data
+    )
 
     response = unwrap(serve.refresh_proxmox_disk_space)()
     assert response[1] == 200
@@ -413,12 +455,16 @@ def test_proxmox_cluster_duplicate_name_rejected(setup):
     }
 
     # Create first cluster
-    with serve.app.test_request_context("/proxmox-clusters", method="POST", json=cluster_data):
+    with serve.app.test_request_context(
+        "/proxmox-clusters", method="POST", json=cluster_data
+    ):
         resp1 = unwrap(serve.create_proxmox_cluster)()
     assert resp1[1] == 201
 
     # Try to create duplicate
-    with serve.app.test_request_context("/proxmox-clusters", method="POST", json=cluster_data):
+    with serve.app.test_request_context(
+        "/proxmox-clusters", method="POST", json=cluster_data
+    ):
         resp2 = unwrap(serve.create_proxmox_cluster)()
     assert resp2[1] == 409
     assert "already exists" in json.loads(resp2[0])["error"]
@@ -427,35 +473,45 @@ def test_proxmox_cluster_duplicate_name_rejected(setup):
 def test_disk_space_settings_includes_clusters(setup):
     """Get disk space settings returns cluster list and unconfigured hosts."""
     # Create clusters
-    cluster1_id = serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one({
-        "name": "cluster-a",
-        "host": "10.1.1.1",
-        "user": "root@pam",
-        "token_id": "token-a",
-        "token_secret": "secret-a",
-        "verify_ssl": False,
-    }).inserted_id
+    cluster1_id = (
+        serve.mongo_client["labyrinth"]["proxmox_clusters"]
+        .insert_one(
+            {
+                "name": "cluster-a",
+                "host": "10.1.1.1",
+                "user": "root@pam",
+                "token_id": "token-a",
+                "token_secret": "secret-a",
+                "verify_ssl": False,
+            }
+        )
+        .inserted_id
+    )
 
-    serve.mongo_client["labyrinth"]["settings"].insert_one({
-        "name": "proxmox_tag",
-        "value": "Proxmox",
-    })
+    serve.mongo_client["labyrinth"]["settings"].insert_one(
+        {
+            "name": "proxmox_tag",
+            "value": "Proxmox",
+        }
+    )
 
-    serve.mongo_client["labyrinth"]["hosts"].insert_many([
-        {
-            "ip": "10.1.1.1",
-            "mac": "AA-BB-CC-DD-EE",
-            "name": "pve-configured",
-            "tags": "Proxmox",
-            "proxmox_cluster": str(cluster1_id),
-        },
-        {
-            "ip": "10.1.1.2",
-            "mac": "FF-FF-FF-FF-FF",
-            "name": "pve-unconfigured",
-            "tags": "Proxmox",
-        },
-    ])
+    serve.mongo_client["labyrinth"]["hosts"].insert_many(
+        [
+            {
+                "ip": "10.1.1.1",
+                "mac": "AA-BB-CC-DD-EE",
+                "name": "pve-configured",
+                "tags": "Proxmox",
+                "proxmox_cluster": str(cluster1_id),
+            },
+            {
+                "ip": "10.1.1.2",
+                "mac": "FF-FF-FF-FF-FF",
+                "name": "pve-unconfigured",
+                "tags": "Proxmox",
+            },
+        ]
+    )
 
     settings_resp = unwrap(serve.get_disk_space_settings)()
     assert settings_resp[1] == 200
@@ -486,7 +542,15 @@ def test_get_proxmox_disk_data_marks_missing_qemu_guest_agent(monkeypatch):
 
         def get_vms_and_containers(self, node):
             return (
-                [{"vmid": 101, "name": "vm-101", "status": "running", "maxdisk": 100, "maxmem": 200}],
+                [
+                    {
+                        "vmid": 101,
+                        "name": "vm-101",
+                        "status": "running",
+                        "maxdisk": 100,
+                        "maxmem": 200,
+                    }
+                ],
                 [],
             )
 
@@ -511,7 +575,7 @@ def test_get_proxmox_disk_data_marks_missing_qemu_guest_agent(monkeypatch):
             "token_id": "token",
             "token_secret": "secret",
             "verify_ssl": False,
-        }
+        },
     )
 
     vm = result["nodes"][0]["vms"][0]
@@ -535,7 +599,15 @@ def test_get_proxmox_disk_data_infers_missing_qemu_from_zero_disk(monkeypatch):
 
         def get_vms_and_containers(self, node):
             return (
-                [{"vmid": 102, "name": "vm-102", "status": "running", "maxdisk": 10737418240, "maxmem": 200}],
+                [
+                    {
+                        "vmid": 102,
+                        "name": "vm-102",
+                        "status": "running",
+                        "maxdisk": 10737418240,
+                        "maxmem": 200,
+                    }
+                ],
                 [],
             )
 
@@ -560,12 +632,13 @@ def test_get_proxmox_disk_data_infers_missing_qemu_from_zero_disk(monkeypatch):
             "token_id": "token",
             "token_secret": "secret",
             "verify_ssl": False,
-        }
+        },
     )
 
     vm = result["nodes"][0]["vms"][0]
     assert vm["qemu_guest_agent_warning_inferred"] is True
     assert vm["qemu_guest_agent_installed"] is True
+
 
 def test_get_proxmox_disk_data_uses_guest_fsinfo_when_available(monkeypatch):
     """Uses guest filesystem info from QEMU agent when disk is reported as zero."""
@@ -583,7 +656,15 @@ def test_get_proxmox_disk_data_uses_guest_fsinfo_when_available(monkeypatch):
 
         def get_vms_and_containers(self, node):
             return (
-                [{"vmid": 103, "name": "labyrinth", "status": "running", "maxdisk": 268435456000, "maxmem": 13509853184}],
+                [
+                    {
+                        "vmid": 103,
+                        "name": "labyrinth",
+                        "status": "running",
+                        "maxdisk": 268435456000,
+                        "maxmem": 13509853184,
+                    }
+                ],
                 [],
             )
 
@@ -610,7 +691,7 @@ def test_get_proxmox_disk_data_uses_guest_fsinfo_when_available(monkeypatch):
                         "used-bytes": 131229454336,
                         "name": "dm-0",
                         "type": "ext4",
-                    }
+                    },
                 ]
             }
 
@@ -626,7 +707,7 @@ def test_get_proxmox_disk_data_uses_guest_fsinfo_when_available(monkeypatch):
             "token_id": "token",
             "token_secret": "secret",
             "verify_ssl": False,
-        }
+        },
     )
 
     vm = result["nodes"][0]["vms"][0]
@@ -651,11 +732,24 @@ def test_refresh_proxmox_cluster_cache_writes_redis_entries(monkeypatch):
 
     def fake_get_proxmox_disk_data(host_ip, cluster_config):
         calls.append((host_ip, cluster_config["name"]))
-        return {"nodes": [{"name": f"node-{cluster_config['name']}", "storage": [], "vms": [], "containers": []}]}
+        return {
+            "nodes": [
+                {
+                    "name": f"node-{cluster_config['name']}",
+                    "storage": [],
+                    "vms": [],
+                    "containers": [],
+                }
+            ]
+        }
 
-    monkeypatch.setattr(proxmox_helper, "get_proxmox_disk_data", fake_get_proxmox_disk_data)
+    monkeypatch.setattr(
+        proxmox_helper, "get_proxmox_disk_data", fake_get_proxmox_disk_data
+    )
 
-    result = proxmox_helper.refresh_proxmox_cluster_cache(clusters, redis_client=fake_redis)
+    result = proxmox_helper.refresh_proxmox_cluster_cache(
+        clusters, redis_client=fake_redis
+    )
 
     assert len(result) == 2
     assert calls == [("10.1.1.1", "cluster-a"), ("10.1.1.2", "cluster-b")]
@@ -703,8 +797,12 @@ def test_proxmox_refresh_worker_loads_clusters_and_refreshes(monkeypatch):
 
     monkeypatch.setattr(proxmox_refresh, "mongo_client", FakeMongoClient())
     monkeypatch.setattr(proxmox_refresh, "PidFile", FakePidFile)
-    monkeypatch.setattr(proxmox_refresh.proxmox_helper, "get_redis_client", lambda: fake_redis)
-    monkeypatch.setattr(proxmox_refresh.proxmox_helper, "refresh_proxmox_cluster_cache", fake_refresh)
+    monkeypatch.setattr(
+        proxmox_refresh.proxmox_helper, "get_redis_client", lambda: fake_redis
+    )
+    monkeypatch.setattr(
+        proxmox_refresh.proxmox_helper, "refresh_proxmox_cluster_cache", fake_refresh
+    )
 
     proxmox_refresh.refresh_proxmox_cache()
 
@@ -720,9 +818,9 @@ def test_proxmox_refresh_worker_loads_clusters_and_refreshes(monkeypatch):
 
 def test_parse_df_size_handles_units_and_bare_numbers():
     """Human-readable df -h suffixes (K/M/G/T) convert to bytes correctly."""
-    assert proxmox_helper._parse_df_size("20G") == 20 * 1024 ** 3
-    assert proxmox_helper._parse_df_size("6.7G") == int(6.7 * 1024 ** 3)
-    assert proxmox_helper._parse_df_size("395M") == int(395 * 1024 ** 2)
+    assert proxmox_helper._parse_df_size("20G") == 20 * 1024**3
+    assert proxmox_helper._parse_df_size("6.7G") == int(6.7 * 1024**3)
+    assert proxmox_helper._parse_df_size("395M") == int(395 * 1024**2)
     assert proxmox_helper._parse_df_size("0") == 0
     assert proxmox_helper._parse_df_size("512") == 512
 
@@ -748,8 +846,8 @@ def test_parse_df_output_finds_root_filesystem():
     assert result == {
         "mountpoint": "/",
         "name": "/dev/sda1",
-        "total-bytes": 20 * 1024 ** 3,
-        "used-bytes": 12 * 1024 ** 3,
+        "total-bytes": 20 * 1024**3,
+        "used-bytes": 12 * 1024**3,
     }
 
 
@@ -775,8 +873,8 @@ def test_parse_df_output_ignores_malformed_lines():
 
     result = proxmox_helper.parse_df_output(output)
 
-    assert result["total-bytes"] == 20 * 1024 ** 3
-    assert result["used-bytes"] == 12 * 1024 ** 3
+    assert result["total-bytes"] == 20 * 1024**3
+    assert result["used-bytes"] == 12 * 1024**3
 
 
 # ---------------------------------------------------------------------------
@@ -904,8 +1002,8 @@ def test_get_vm_guest_df_parses_root_filesystem_from_exec_output(monkeypatch):
     assert result == {
         "mountpoint": "/",
         "name": "/dev/sda1",
-        "total-bytes": 20 * 1024 ** 3,
-        "used-bytes": 12 * 1024 ** 3,
+        "total-bytes": 20 * 1024**3,
+        "used-bytes": 12 * 1024**3,
     }
 
 
@@ -929,18 +1027,27 @@ def test_get_vm_guest_fsinfo_uses_structured_data_when_root_present(monkeypatch)
 
     class FakeSession:
         def get(self, url, timeout=None):
-            return FakeResponse({
-                "data": {
-                    "result": [
-                        {"mountpoint": "/", "total-bytes": 100, "used-bytes": 50, "name": "sda1"},
-                    ]
+            return FakeResponse(
+                {
+                    "data": {
+                        "result": [
+                            {
+                                "mountpoint": "/",
+                                "total-bytes": 100,
+                                "used-bytes": 50,
+                                "name": "sda1",
+                            },
+                        ]
+                    }
                 }
-            })
+            )
 
     client.session = FakeSession()
 
     def fail_df(node, vmid):
-        raise AssertionError("df -h fallback should not run when get-fsinfo already has root")
+        raise AssertionError(
+            "df -h fallback should not run when get-fsinfo already has root"
+        )
 
     monkeypatch.setattr(client, "get_vm_guest_df", fail_df)
 
@@ -966,7 +1073,12 @@ def test_get_vm_guest_fsinfo_falls_back_to_df_when_get_fsinfo_raises(monkeypatch
     monkeypatch.setattr(
         client,
         "get_vm_guest_df",
-        lambda node, vmid: {"mountpoint": "/", "total-bytes": 999, "used-bytes": 111, "name": "vda1"},
+        lambda node, vmid: {
+            "mountpoint": "/",
+            "total-bytes": 999,
+            "used-bytes": 111,
+            "name": "vda1",
+        },
     )
 
     result = client.get_vm_guest_fsinfo("node-a", "101")
@@ -984,27 +1096,44 @@ def test_get_vm_guest_fsinfo_appends_df_fallback_when_root_missing(monkeypatch):
 
     class FakeSession:
         def get(self, url, timeout=None):
-            return FakeResponse({
-                "data": {
-                    "result": [
-                        {"mountpoint": "/boot", "total-bytes": 100, "used-bytes": 50, "name": "sda2"},
-                    ]
+            return FakeResponse(
+                {
+                    "data": {
+                        "result": [
+                            {
+                                "mountpoint": "/boot",
+                                "total-bytes": 100,
+                                "used-bytes": 50,
+                                "name": "sda2",
+                            },
+                        ]
+                    }
                 }
-            })
+            )
 
     client.session = FakeSession()
 
     monkeypatch.setattr(
         client,
         "get_vm_guest_df",
-        lambda node, vmid: {"mountpoint": "/", "total-bytes": 999, "used-bytes": 111, "name": "vda1"},
+        lambda node, vmid: {
+            "mountpoint": "/",
+            "total-bytes": 999,
+            "used-bytes": 111,
+            "name": "vda1",
+        },
     )
 
     result = client.get_vm_guest_fsinfo("node-a", "101")
 
     assert result == {
         "result": [
-            {"mountpoint": "/boot", "total-bytes": 100, "used-bytes": 50, "name": "sda2"},
+            {
+                "mountpoint": "/boot",
+                "total-bytes": 100,
+                "used-bytes": 50,
+                "name": "sda2",
+            },
             {"mountpoint": "/", "total-bytes": 999, "used-bytes": 111, "name": "vda1"},
         ]
     }

@@ -53,7 +53,9 @@ def list_ec2_instances(account_config: Dict) -> Dict:
             for reservation in page.get("Reservations", []):
                 owner_id = reservation.get("OwnerId")
                 for instance in reservation.get("Instances", []):
-                    instance_data = _build_instance_dict(instance, owner_id, account_config)
+                    instance_data = _build_instance_dict(
+                        instance, owner_id, account_config
+                    )
                     instances.append(instance_data)
 
         return {
@@ -85,7 +87,10 @@ def _build_instance_dict(instance: Dict, owner_id: str, account_config: Dict) ->
 
     return {
         "instance_id": instance.get("InstanceId"),
-        "name": tags.get("Name") or instance.get("PrivateDnsName") or instance.get("PublicDnsName") or instance.get("InstanceId"),
+        "name": tags.get("Name")
+        or instance.get("PrivateDnsName")
+        or instance.get("PublicDnsName")
+        or instance.get("InstanceId"),
         "state": state.get("Name"),
         "instance_type": instance.get("InstanceType"),
         "private_ip": instance.get("PrivateIpAddress"),
@@ -100,7 +105,11 @@ def _build_instance_dict(instance: Dict, owner_id: str, account_config: Dict) ->
         "monitoring_state": monitoring.get("State"),
         "launch_time": launch_time,
         "tags": tags,
-        "security_groups": [group.get("GroupName") for group in instance.get("SecurityGroups", []) if group.get("GroupName")],
+        "security_groups": [
+            group.get("GroupName")
+            for group in instance.get("SecurityGroups", [])
+            if group.get("GroupName")
+        ],
         "account_id": owner_id,
         "region": account_config.get("region"),
         "account_name": account_config.get("name"),

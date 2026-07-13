@@ -108,11 +108,15 @@ def test_aws_account_duplicate_name_rejected(setup):
         "secret_access_key": "secret-123",
     }
 
-    with serve.app.test_request_context("/aws/accounts", method="POST", json=account_data):
+    with serve.app.test_request_context(
+        "/aws/accounts", method="POST", json=account_data
+    ):
         resp1 = unwrap(serve.create_aws_account)()
     assert resp1[1] == 201
 
-    with serve.app.test_request_context("/aws/accounts", method="POST", json=account_data):
+    with serve.app.test_request_context(
+        "/aws/accounts", method="POST", json=account_data
+    ):
         resp2 = unwrap(serve.create_aws_account)()
     assert resp2[1] == 409
     assert "already exists" in json.loads(resp2[0])["error"]
@@ -120,39 +124,43 @@ def test_aws_account_duplicate_name_rejected(setup):
 
 def test_get_aws_ec2_instances_enriches_labyrinth_matches(setup, monkeypatch):
     """Returns EC2 inventory plus match status against Labyrinth hosts."""
-    serve.mongo_client["labyrinth"]["aws_accounts"].insert_one({
-        "name": "prod-account",
-        "region": "us-east-1",
-        "access_key_id": "AKIAXXXXX",
-        "secret_access_key": "secret-value",
-    })
+    serve.mongo_client["labyrinth"]["aws_accounts"].insert_one(
+        {
+            "name": "prod-account",
+            "region": "us-east-1",
+            "access_key_id": "AKIAXXXXX",
+            "secret_access_key": "secret-value",
+        }
+    )
 
-    serve.mongo_client["labyrinth"]["hosts"].insert_many([
-        {
-            "ip": "10.0.0.10",
-            "subnet": "10.0.0",
-            "mac": "00-11-22-33-44-55",
-            "host": "ip-10-0-0-10",
-            "group": "AWS",
-            "icon": "linux",
-            "services": ["check_hd-1"],
-            "class": "health",
-            "monitor": "true",
-            "tags": "aws,prod",
-        },
-        {
-            "ip": "192.168.0.20",
-            "subnet": "192.168.0",
-            "mac": "AA-BB-CC-DD-EE-FF",
-            "host": "other-host",
-            "group": "Linux",
-            "icon": "linux",
-            "services": [],
-            "class": "health",
-            "monitor": "false",
-            "tags": "linux",
-        },
-    ])
+    serve.mongo_client["labyrinth"]["hosts"].insert_many(
+        [
+            {
+                "ip": "10.0.0.10",
+                "subnet": "10.0.0",
+                "mac": "00-11-22-33-44-55",
+                "host": "ip-10-0-0-10",
+                "group": "AWS",
+                "icon": "linux",
+                "services": ["check_hd-1"],
+                "class": "health",
+                "monitor": "true",
+                "tags": "aws,prod",
+            },
+            {
+                "ip": "192.168.0.20",
+                "subnet": "192.168.0",
+                "mac": "AA-BB-CC-DD-EE-FF",
+                "host": "other-host",
+                "group": "Linux",
+                "icon": "linux",
+                "services": [],
+                "class": "health",
+                "monitor": "false",
+                "tags": "linux",
+            },
+        ]
+    )
 
     def fake_list_ec2_instances(account_config):
         return {
@@ -217,26 +225,32 @@ def test_get_aws_ec2_instances_enriches_labyrinth_matches(setup, monkeypatch):
     assert payload["summary"]["matched_instance_count"] == 1
     assert payload["summary"]["unmatched_instance_count"] == 1
 
-    matched = [item for item in payload["instances"] if item["instance_id"] == "i-1234567890"][0]
+    matched = [
+        item for item in payload["instances"] if item["instance_id"] == "i-1234567890"
+    ][0]
     assert matched["matched"] is True
     assert matched["monitoring_enabled"] is True
     assert matched["labyrinth_matches"][0]["host"] == "ip-10-0-0-10"
     assert "ip" in matched["labyrinth_matches"][0]["match_reasons"]
     assert "hostname" in matched["labyrinth_matches"][0]["match_reasons"]
 
-    unmatched = [item for item in payload["instances"] if item["instance_id"] == "i-unmatched"][0]
+    unmatched = [
+        item for item in payload["instances"] if item["instance_id"] == "i-unmatched"
+    ][0]
     assert unmatched["matched"] is False
     assert unmatched["labyrinth_matches"] == []
 
 
 def test_get_aws_ec2_instances_collects_account_errors(setup, monkeypatch):
     """Surfaces per-account AWS inventory errors without failing the whole response."""
-    serve.mongo_client["labyrinth"]["aws_accounts"].insert_one({
-        "name": "broken-account",
-        "region": "us-east-1",
-        "access_key_id": "AKIAFAIL",
-        "secret_access_key": "secret-value",
-    })
+    serve.mongo_client["labyrinth"]["aws_accounts"].insert_one(
+        {
+            "name": "broken-account",
+            "region": "us-east-1",
+            "access_key_id": "AKIAFAIL",
+            "secret_access_key": "secret-value",
+        }
+    )
 
     def fake_list_ec2_instances(account_config):
         return {

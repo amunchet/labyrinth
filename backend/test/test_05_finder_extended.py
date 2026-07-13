@@ -104,7 +104,7 @@ class TestNmapOutputParsing:
         <address addr="00:11:22:33:44:55" addrtype="mac" vendor="Example Inc"/>
     </host>
 </nmaprun>"""
-        
+
         parsed = xmltodict.parse(sample_xml)
         assert "nmaprun" in parsed
         assert "host" in parsed["nmaprun"]
@@ -122,7 +122,7 @@ class TestNmapOutputParsing:
         <address addr="192.168.1.2" addrtype="ipv4"/>
     </host>
 </nmaprun>"""
-        
+
         parsed = xmltodict.parse(sample_xml)
         hosts = parsed["nmaprun"]["host"]
         assert isinstance(hosts, list)
@@ -137,12 +137,12 @@ class TestNmapOutputParsing:
         <address addr="192.168.1.1" addrtype="ipv4"/>
     </host>
 </nmaprun>"""
-        
+
         parsed = xmltodict.parse(sample_xml)
         # Single host parsed as dict, would need conversion
         if isinstance(parsed["nmaprun"]["host"], dict):
             parsed["nmaprun"]["host"] = [parsed["nmaprun"]["host"]]
-        
+
         hosts = parsed["nmaprun"]["host"]
         assert isinstance(hosts, list)
 

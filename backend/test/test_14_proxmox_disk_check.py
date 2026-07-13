@@ -195,7 +195,9 @@ def test_collect_disk_issues_stopped_vm_with_zero_disk_not_flagged():
 # ---------------------------------------------------------------------------
 
 
-def test_gather_all_disk_issues_checks_every_cluster_including_qemu_missing(setup, monkeypatch):
+def test_gather_all_disk_issues_checks_every_cluster_including_qemu_missing(
+    setup, monkeypatch
+):
     """Every configured cluster must contribute issues - including a cluster
     whose only problem is a VM with a missing QEMU guest agent.
 
@@ -204,24 +206,26 @@ def test_gather_all_disk_issues_checks_every_cluster_including_qemu_missing(setu
     even though it was genuinely being queried. This is the direct regression
     test for that bug.
     """
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_many([
-        {
-            "name": "cluster-1",
-            "host": "10.1.1.1",
-            "user": "root@pam",
-            "token_id": "token-1",
-            "token_secret": "secret-1",
-            "verify_ssl": False,
-        },
-        {
-            "name": "cluster-2",
-            "host": "10.1.1.2",
-            "user": "root@pam",
-            "token_id": "token-2",
-            "token_secret": "secret-2",
-            "verify_ssl": False,
-        },
-    ])
+    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_many(
+        [
+            {
+                "name": "cluster-1",
+                "host": "10.1.1.1",
+                "user": "root@pam",
+                "token_id": "token-1",
+                "token_secret": "secret-1",
+                "verify_ssl": False,
+            },
+            {
+                "name": "cluster-2",
+                "host": "10.1.1.2",
+                "user": "root@pam",
+                "token_id": "token-2",
+                "token_secret": "secret-2",
+                "verify_ssl": False,
+            },
+        ]
+    )
 
     def fake_get_cached(cluster, redis_client=None):
         if cluster["name"] == "cluster-1":
@@ -229,7 +233,9 @@ def test_gather_all_disk_issues_checks_every_cluster_including_qemu_missing(setu
         return _cluster_data_with_missing_qemu_agent("cluster-2", cluster["host"])
 
     monkeypatch.setattr(
-        proxmox_disk_check.proxmox_helper, "get_proxmox_disk_data_cached", fake_get_cached
+        proxmox_disk_check.proxmox_helper,
+        "get_proxmox_disk_data_cached",
+        fake_get_cached,
     )
 
     issues, errors = proxmox_disk_check.gather_all_disk_issues(
@@ -246,27 +252,31 @@ def test_gather_all_disk_issues_checks_every_cluster_including_qemu_missing(setu
     assert types_seen == {"datastore", "vm_qemu_missing"}
 
 
-def test_gather_all_disk_issues_records_errors_without_skipping_other_clusters(setup, monkeypatch):
+def test_gather_all_disk_issues_records_errors_without_skipping_other_clusters(
+    setup, monkeypatch
+):
     """A cluster that errors out should be reported in cluster_errors, but
     must not prevent other clusters from being checked."""
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_many([
-        {
-            "name": "cluster-broken",
-            "host": "10.1.1.9",
-            "user": "root@pam",
-            "token_id": "token-9",
-            "token_secret": "secret-9",
-            "verify_ssl": False,
-        },
-        {
-            "name": "cluster-2",
-            "host": "10.1.1.2",
-            "user": "root@pam",
-            "token_id": "token-2",
-            "token_secret": "secret-2",
-            "verify_ssl": False,
-        },
-    ])
+    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_many(
+        [
+            {
+                "name": "cluster-broken",
+                "host": "10.1.1.9",
+                "user": "root@pam",
+                "token_id": "token-9",
+                "token_secret": "secret-9",
+                "verify_ssl": False,
+            },
+            {
+                "name": "cluster-2",
+                "host": "10.1.1.2",
+                "user": "root@pam",
+                "token_id": "token-2",
+                "token_secret": "secret-2",
+                "verify_ssl": False,
+            },
+        ]
+    )
 
     def fake_get_cached(cluster, redis_client=None):
         if cluster["name"] == "cluster-broken":
@@ -274,7 +284,9 @@ def test_gather_all_disk_issues_records_errors_without_skipping_other_clusters(s
         return _cluster_data_with_missing_qemu_agent("cluster-2", cluster["host"])
 
     monkeypatch.setattr(
-        proxmox_disk_check.proxmox_helper, "get_proxmox_disk_data_cached", fake_get_cached
+        proxmox_disk_check.proxmox_helper,
+        "get_proxmox_disk_data_cached",
+        fake_get_cached,
     )
 
     issues, errors = proxmox_disk_check.gather_all_disk_issues(
@@ -365,24 +377,26 @@ def test_render_email_template_omits_qemu_missing_section_when_absent():
 def test_send_full_test_email_reports_issues_from_all_clusters(setup, monkeypatch):
     """The 'Send Full Test Email' path must reflect issues found across every
     cluster, including missing-QEMU warnings, and report a per-type breakdown."""
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_many([
-        {
-            "name": "cluster-1",
-            "host": "10.1.1.1",
-            "user": "root@pam",
-            "token_id": "token-1",
-            "token_secret": "secret-1",
-            "verify_ssl": False,
-        },
-        {
-            "name": "cluster-2",
-            "host": "10.1.1.2",
-            "user": "root@pam",
-            "token_id": "token-2",
-            "token_secret": "secret-2",
-            "verify_ssl": False,
-        },
-    ])
+    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_many(
+        [
+            {
+                "name": "cluster-1",
+                "host": "10.1.1.1",
+                "user": "root@pam",
+                "token_id": "token-1",
+                "token_secret": "secret-1",
+                "verify_ssl": False,
+            },
+            {
+                "name": "cluster-2",
+                "host": "10.1.1.2",
+                "user": "root@pam",
+                "token_id": "token-2",
+                "token_secret": "secret-2",
+                "verify_ssl": False,
+            },
+        ]
+    )
 
     def fake_get_cached(cluster, redis_client=None):
         if cluster["name"] == "cluster-1":
@@ -390,7 +404,9 @@ def test_send_full_test_email_reports_issues_from_all_clusters(setup, monkeypatc
         return _cluster_data_with_missing_qemu_agent("cluster-2", cluster["host"])
 
     monkeypatch.setattr(
-        proxmox_disk_check.proxmox_helper, "get_proxmox_disk_data_cached", fake_get_cached
+        proxmox_disk_check.proxmox_helper,
+        "get_proxmox_disk_data_cached",
+        fake_get_cached,
     )
 
     sent = {}
@@ -401,7 +417,9 @@ def test_send_full_test_email_reports_issues_from_all_clusters(setup, monkeypatc
         sent["html"] = html
         return "<test-message-id>"
 
-    monkeypatch.setattr(proxmox_disk_check.email_helper, "email_helper", fake_email_helper)
+    monkeypatch.setattr(
+        proxmox_disk_check.email_helper, "email_helper", fake_email_helper
+    )
 
     result = proxmox_disk_check.send_full_test_email(
         ["ops@example.com"],
@@ -438,7 +456,9 @@ def test_send_disk_space_test_email_endpoint_full_mode(setup, monkeypatch):
     and returns its breakdown alongside status/mode/recipients."""
     captured = {}
 
-    def fake_send_full_test_email(recipients, db=None, redis_client=None, threshold_percent=None):
+    def fake_send_full_test_email(
+        recipients, db=None, redis_client=None, threshold_percent=None
+    ):
         captured["recipients"] = recipients
         return {
             "issues_found": 2,
@@ -468,7 +488,9 @@ def test_send_disk_space_test_email_endpoint_full_mode(setup, monkeypatch):
     assert captured["recipients"] == ["ops@example.com"]
 
 
-def test_send_disk_space_test_email_endpoint_simple_mode_skips_proxmox(setup, monkeypatch):
+def test_send_disk_space_test_email_endpoint_simple_mode_skips_proxmox(
+    setup, monkeypatch
+):
     """Simple test-email mode must never query Proxmox clusters."""
 
     def fail_if_called(*args, **kwargs):
@@ -479,7 +501,9 @@ def test_send_disk_space_test_email_endpoint_simple_mode_skips_proxmox(setup, mo
     def fake_simple(recipients):
         simple_calls.append(recipients)
 
-    monkeypatch.setattr(serve.proxmox_disk_check, "send_full_test_email", fail_if_called)
+    monkeypatch.setattr(
+        serve.proxmox_disk_check, "send_full_test_email", fail_if_called
+    )
     monkeypatch.setattr(serve.proxmox_disk_check, "send_simple_test_email", fake_simple)
 
     with serve.app.test_request_context(
@@ -496,13 +520,17 @@ def test_send_disk_space_test_email_endpoint_simple_mode_skips_proxmox(setup, mo
     assert simple_calls == [["ops@example.com"]]
 
 
-def test_send_disk_space_test_email_endpoint_falls_back_to_saved_recipients(setup, monkeypatch):
+def test_send_disk_space_test_email_endpoint_falls_back_to_saved_recipients(
+    setup, monkeypatch
+):
     """When no recipients are supplied in the request, the endpoint should
     fall back to the saved disk_space_alert_recipients setting."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one({
-        "name": "disk_space_alert_recipients",
-        "value": "saved@example.com, other@example.com",
-    })
+    serve.mongo_client["labyrinth"]["settings"].insert_one(
+        {
+            "name": "disk_space_alert_recipients",
+            "value": "saved@example.com, other@example.com",
+        }
+    )
 
     simple_calls = []
 
@@ -551,6 +579,7 @@ def test_send_disk_space_test_email_endpoint_rejects_invalid_mode(setup):
 
     assert resp[1] == 400
     assert "mode must be" in json.loads(resp[0])["error"]
+
 
 # ---------------------------------------------------------------------------
 # calculate_percentage - edge cases and error handling
@@ -656,68 +685,69 @@ def test_format_size_petabytes():
 def test_get_disk_alert_settings_defaults(setup):
     """Return defaults when no settings exist."""
     settings = proxmox_disk_check.get_disk_alert_settings(serve.mongo_client)
-    
+
     assert settings["threshold_percent"] == 80
     assert settings["recipients"] == []
 
 
 def test_get_disk_alert_settings_custom_threshold(setup):
     """Retrieve custom threshold."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one({
-        "name": "disk_space_alert_threshold",
-        "value": "90"
-    })
-    
+    serve.mongo_client["labyrinth"]["settings"].insert_one(
+        {"name": "disk_space_alert_threshold", "value": "90"}
+    )
+
     settings = proxmox_disk_check.get_disk_alert_settings(serve.mongo_client)
-    
+
     assert settings["threshold_percent"] == 90
 
 
 def test_get_disk_alert_settings_invalid_threshold(setup):
     """Fall back to default for invalid threshold."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one({
-        "name": "disk_space_alert_threshold",
-        "value": "not-a-number"
-    })
-    
+    serve.mongo_client["labyrinth"]["settings"].insert_one(
+        {"name": "disk_space_alert_threshold", "value": "not-a-number"}
+    )
+
     settings = proxmox_disk_check.get_disk_alert_settings(serve.mongo_client)
-    
+
     assert settings["threshold_percent"] == 80
 
 
 def test_get_disk_alert_settings_empty_threshold(setup):
     """Fall back to default for empty threshold."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one({
-        "name": "disk_space_alert_threshold",
-        "value": ""
-    })
-    
+    serve.mongo_client["labyrinth"]["settings"].insert_one(
+        {"name": "disk_space_alert_threshold", "value": ""}
+    )
+
     settings = proxmox_disk_check.get_disk_alert_settings(serve.mongo_client)
-    
+
     assert settings["threshold_percent"] == 80
 
 
 def test_get_disk_alert_settings_recipients_as_list(setup):
     """Handle recipients as list."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one({
-        "name": "disk_space_alert_recipients",
-        "value": ["user1@example.com", "user2@example.com"]
-    })
-    
+    serve.mongo_client["labyrinth"]["settings"].insert_one(
+        {
+            "name": "disk_space_alert_recipients",
+            "value": ["user1@example.com", "user2@example.com"],
+        }
+    )
+
     settings = proxmox_disk_check.get_disk_alert_settings(serve.mongo_client)
-    
+
     assert len(settings["recipients"]) == 2
 
 
 def test_get_disk_alert_settings_recipients_as_comma_string(setup):
     """Parse recipients from comma-separated string."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one({
-        "name": "disk_space_alert_recipients",
-        "value": "user1@example.com, user2@example.com"
-    })
-    
+    serve.mongo_client["labyrinth"]["settings"].insert_one(
+        {
+            "name": "disk_space_alert_recipients",
+            "value": "user1@example.com, user2@example.com",
+        }
+    )
+
     settings = proxmox_disk_check.get_disk_alert_settings(serve.mongo_client)
-    
+
     assert len(settings["recipients"]) == 2
     assert "user1@example.com" in settings["recipients"]
     assert "user2@example.com" in settings["recipients"]
@@ -725,13 +755,15 @@ def test_get_disk_alert_settings_recipients_as_comma_string(setup):
 
 def test_get_disk_alert_settings_recipients_with_whitespace(setup):
     """Strip whitespace from recipients."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one({
-        "name": "disk_space_alert_recipients",
-        "value": "  user1@example.com  ,  user2@example.com  "
-    })
-    
+    serve.mongo_client["labyrinth"]["settings"].insert_one(
+        {
+            "name": "disk_space_alert_recipients",
+            "value": "  user1@example.com  ,  user2@example.com  ",
+        }
+    )
+
     settings = proxmox_disk_check.get_disk_alert_settings(serve.mongo_client)
-    
+
     assert settings["recipients"] == ["user1@example.com", "user2@example.com"]
 
 
@@ -753,11 +785,11 @@ def test_collect_storage_issues_over_threshold():
             }
         ]
     }
-    
+
     issues = proxmox_disk_check._collect_storage_issues(
         node, "cluster-1", "10.0.0.1", "node-1", 80
     )
-    
+
     assert len(issues) == 1
     assert issues[0]["type"] == "datastore"
     assert issues[0]["percentage"] == pytest.approx(85.0)
@@ -776,11 +808,11 @@ def test_collect_storage_issues_under_threshold():
             }
         ]
     }
-    
+
     issues = proxmox_disk_check._collect_storage_issues(
         node, "cluster-1", "10.0.0.1", "node-1", 80
     )
-    
+
     assert len(issues) == 0
 
 
@@ -797,11 +829,11 @@ def test_collect_storage_issues_disabled_storage():
             }
         ]
     }
-    
+
     issues = proxmox_disk_check._collect_storage_issues(
         node, "cluster-1", "10.0.0.1", "node-1", 80
     )
-    
+
     assert len(issues) == 0
 
 
@@ -818,11 +850,11 @@ def test_collect_storage_issues_missing_total():
             }
         ]
     }
-    
+
     issues = proxmox_disk_check._collect_storage_issues(
         node, "cluster-1", "10.0.0.1", "node-1", 80
     )
-    
+
     assert len(issues) == 0
 
 
@@ -846,11 +878,11 @@ def test_collect_storage_issues_multiple_datastores():
             },
         ]
     }
-    
+
     issues = proxmox_disk_check._collect_storage_issues(
         node, "cluster-1", "10.0.0.1", "node-1", 80
     )
-    
+
     assert len(issues) == 2
 
 
@@ -874,11 +906,11 @@ def test_collect_vm_issues_over_threshold():
             }
         ]
     }
-    
+
     issues = proxmox_disk_check._collect_vm_issues(
         node, "cluster-1", "10.0.0.1", "node-1", 80
     )
-    
+
     assert len(issues) == 1
     assert issues[0]["type"] == "vm"
     assert issues[0]["percentage"] == pytest.approx(85.0)
@@ -899,11 +931,11 @@ def test_collect_vm_issues_under_threshold():
             }
         ]
     }
-    
+
     issues = proxmox_disk_check._collect_vm_issues(
         node, "cluster-1", "10.0.0.1", "node-1", 80
     )
-    
+
     assert len(issues) == 0
 
 
@@ -923,11 +955,11 @@ def test_collect_vm_issues_missing_qemu_agent():
             }
         ]
     }
-    
+
     issues = proxmox_disk_check._collect_vm_issues(
         node, "cluster-1", "10.0.0.1", "node-1", 80
     )
-    
+
     assert len(issues) == 1
     assert issues[0]["type"] == "vm_qemu_missing"
     # Should not appear again as a normal VM issue
@@ -948,11 +980,11 @@ def test_collect_vm_issues_no_maxdisk():
             }
         ]
     }
-    
+
     issues = proxmox_disk_check._collect_vm_issues(
         node, "cluster-1", "10.0.0.1", "node-1", 80
     )
-    
+
     assert len(issues) == 0
 
 
@@ -974,11 +1006,11 @@ def test_collect_container_issues_over_threshold():
             }
         ]
     }
-    
+
     issues = proxmox_disk_check._collect_container_issues(
         node, "cluster-1", "10.0.0.1", "node-1", 80
     )
-    
+
     assert len(issues) == 1
     assert issues[0]["type"] == "container"
     assert issues[0]["percentage"] == pytest.approx(85.0)
@@ -997,11 +1029,11 @@ def test_collect_container_issues_under_threshold():
             }
         ]
     }
-    
+
     issues = proxmox_disk_check._collect_container_issues(
         node, "cluster-1", "10.0.0.1", "node-1", 80
     )
-    
+
     assert len(issues) == 0
 
 
@@ -1018,11 +1050,11 @@ def test_collect_container_issues_no_maxdisk():
             }
         ]
     }
-    
+
     issues = proxmox_disk_check._collect_container_issues(
         node, "cluster-1", "10.0.0.1", "node-1", 80
     )
-    
+
     assert len(issues) == 0
 
 
@@ -1040,16 +1072,18 @@ def test_send_simple_test_email_requires_recipients():
 def test_send_simple_test_email_success(monkeypatch):
     """Successfully send simple test email."""
     sent = {}
-    
+
     def fake_email_helper(to, subject, html, **kwargs):
         sent["to"] = to
         sent["subject"] = subject
         sent["html"] = html
-    
-    monkeypatch.setattr(proxmox_disk_check.email_helper, "email_helper", fake_email_helper)
-    
+
+    monkeypatch.setattr(
+        proxmox_disk_check.email_helper, "email_helper", fake_email_helper
+    )
+
     proxmox_disk_check.send_simple_test_email(["ops@example.com"])
-    
+
     assert sent["to"] == ["ops@example.com"]
     assert "Test Email" in sent["subject"]
     assert "test" in sent["html"].lower()
@@ -1063,14 +1097,16 @@ def test_send_simple_test_email_success(monkeypatch):
 def test_send_alert_email_basic(monkeypatch):
     """Send alert email with formatted issues."""
     sent = {}
-    
+
     def fake_email_helper(to, subject, html, **kwargs):
         sent["to"] = to
         sent["subject"] = subject
         sent["html"] = html
-    
-    monkeypatch.setattr(proxmox_disk_check.email_helper, "email_helper", fake_email_helper)
-    
+
+    monkeypatch.setattr(
+        proxmox_disk_check.email_helper, "email_helper", fake_email_helper
+    )
+
     issues = [
         {
             "type": "datastore",
@@ -1084,9 +1120,9 @@ def test_send_alert_email_basic(monkeypatch):
             "percentage": 85.0,
         }
     ]
-    
+
     proxmox_disk_check.send_alert_email(["ops@example.com"], issues, 80)
-    
+
     assert sent["to"] == ["ops@example.com"]
     assert "1 Issues Found" in sent["subject"]
 
@@ -1094,17 +1130,21 @@ def test_send_alert_email_basic(monkeypatch):
 def test_send_alert_email_custom_subject(monkeypatch):
     """Use custom subject."""
     sent = {}
-    
+
     def fake_email_helper(to, subject, html, **kwargs):
         sent["subject"] = subject
-    
-    monkeypatch.setattr(proxmox_disk_check.email_helper, "email_helper", fake_email_helper)
-    
+
+    monkeypatch.setattr(
+        proxmox_disk_check.email_helper, "email_helper", fake_email_helper
+    )
+
     issues = []
     custom_subject = "Custom Subject"
-    
-    proxmox_disk_check.send_alert_email(["ops@example.com"], issues, 80, subject=custom_subject)
-    
+
+    proxmox_disk_check.send_alert_email(
+        ["ops@example.com"], issues, 80, subject=custom_subject
+    )
+
     assert sent["subject"] == custom_subject
 
 
@@ -1116,72 +1156,73 @@ def test_send_alert_email_custom_subject(monkeypatch):
 def test_check_and_alert_disk_space_no_recipients(setup, monkeypatch, capsys):
     """Skip check when no recipients configured."""
     monkeypatch.setattr("sys.exit", lambda *args: None)
-    
+
     proxmox_disk_check.check_and_alert_disk_space()
-    
+
     captured = capsys.readouterr()
     assert "No email recipients" in captured.out
 
 
 def test_check_and_alert_disk_space_no_clusters(setup, monkeypatch, capsys):
     """Skip check when no clusters configured."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one({
-        "name": "disk_space_alert_recipients",
-        "value": "ops@example.com"
-    })
-    
+    serve.mongo_client["labyrinth"]["settings"].insert_one(
+        {"name": "disk_space_alert_recipients", "value": "ops@example.com"}
+    )
+
     proxmox_disk_check.check_and_alert_disk_space()
-    
+
     captured = capsys.readouterr()
     assert "No Proxmox clusters" in captured.out
 
 
 def test_check_and_alert_disk_space_no_issues(setup, monkeypatch, capsys):
     """Handle case with no issues found."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one({
-        "name": "disk_space_alert_recipients",
-        "value": "ops@example.com"
-    })
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one({
-        "name": "cluster-1",
-        "host": "10.0.0.1",
-    })
-    
+    serve.mongo_client["labyrinth"]["settings"].insert_one(
+        {"name": "disk_space_alert_recipients", "value": "ops@example.com"}
+    )
+    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one(
+        {
+            "name": "cluster-1",
+            "host": "10.0.0.1",
+        }
+    )
+
     def fake_gather(threshold, db=None):
         return [], []
-    
+
     monkeypatch.setattr(proxmox_disk_check, "gather_all_disk_issues", fake_gather)
-    
+
     proxmox_disk_check.check_and_alert_disk_space()
-    
+
     captured = capsys.readouterr()
     assert "No disk space issues found" in captured.out
 
 
 def test_check_and_alert_disk_space_sends_alert_on_issues(setup, monkeypatch, capsys):
     """Send alert when issues are found."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one({
-        "name": "disk_space_alert_recipients",
-        "value": "ops@example.com"
-    })
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one({
-        "name": "cluster-1",
-        "host": "10.0.0.1",
-    })
-    
+    serve.mongo_client["labyrinth"]["settings"].insert_one(
+        {"name": "disk_space_alert_recipients", "value": "ops@example.com"}
+    )
+    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one(
+        {
+            "name": "cluster-1",
+            "host": "10.0.0.1",
+        }
+    )
+
     issues = [{"type": "datastore", "percentage": 85.0}]
-    
+
     def fake_gather(threshold, db=None):
         return issues, []
-    
+
     def fake_send_alert(*args, **kwargs):
         """Mock callback - intentionally empty to verify email sending is called."""
-    
+
     monkeypatch.setattr(proxmox_disk_check, "gather_all_disk_issues", fake_gather)
     monkeypatch.setattr(proxmox_disk_check, "send_alert_email", fake_send_alert)
-    
+
     proxmox_disk_check.check_and_alert_disk_space()
-    
+
     captured = capsys.readouterr()
     assert "Found 1 disk space issues" in captured.out
     assert "Alert email sent" in captured.out
@@ -1189,42 +1230,46 @@ def test_check_and_alert_disk_space_sends_alert_on_issues(setup, monkeypatch, ca
 
 def test_check_and_alert_disk_space_handles_email_error(setup, monkeypatch, capsys):
     """Handle email sending errors."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one({
-        "name": "disk_space_alert_recipients",
-        "value": "ops@example.com"
-    })
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one({
-        "name": "cluster-1",
-        "host": "10.0.0.1",
-    })
-    
+    serve.mongo_client["labyrinth"]["settings"].insert_one(
+        {"name": "disk_space_alert_recipients", "value": "ops@example.com"}
+    )
+    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one(
+        {
+            "name": "cluster-1",
+            "host": "10.0.0.1",
+        }
+    )
+
     issues = [{"type": "datastore", "percentage": 85.0}]
-    
+
     def fake_gather(threshold, db=None):
         return issues, []
-    
+
     def fake_send_alert(*args, **kwargs):
         raise RuntimeError("SMTP error")
-    
+
     monkeypatch.setattr(proxmox_disk_check, "gather_all_disk_issues", fake_gather)
     monkeypatch.setattr(proxmox_disk_check, "send_alert_email", fake_send_alert)
     monkeypatch.setattr("sys.exit", lambda *args: None)
-    
+
     proxmox_disk_check.check_and_alert_disk_space()
-    
+
     captured = capsys.readouterr()
     assert "Failed to send email" in captured.out
 
 
 def test_check_and_alert_disk_space_general_error(setup, monkeypatch, capsys):
     """Handle general errors gracefully."""
+
     def fake_get_settings(db):
         raise RuntimeError("Database error")
-    
-    monkeypatch.setattr(proxmox_disk_check, "get_disk_alert_settings", fake_get_settings)
+
+    monkeypatch.setattr(
+        proxmox_disk_check, "get_disk_alert_settings", fake_get_settings
+    )
     monkeypatch.setattr("sys.exit", lambda *args: None)
-    
+
     proxmox_disk_check.check_and_alert_disk_space()
-    
+
     captured = capsys.readouterr()
     assert "Error in disk check" in captured.out or "Database error" in captured.out

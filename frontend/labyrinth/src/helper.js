@@ -233,4 +233,5 @@ export default {
           throw error;
         });
     });
-  },};
+  },
+};
