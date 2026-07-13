@@ -63,11 +63,11 @@ def list_ec2_instances(account_config: Dict) -> Dict:
         }
     except AWSDependencyError:
         raise
-    except (NoCredentialsError, BotoCoreError, ClientError, Exception) as exc:
+    except (NoCredentialsError, BotoCoreError, ClientError, Exception):
         return {
             "account_name": account_config.get("name"),
             "region": account_config.get("region"),
-            "error": str(exc),
+            "error": "Failed to retrieve EC2 instances for this account",
             "instances": [],
         }
 
