@@ -1201,10 +1201,10 @@ def test_metrics_missing_tags_and_name(mock_environ, mock_redis, setup):
     assert resp[1] == 200
 
 
-@patch("datetime.datetime")
+@patch("serve.datetime")
 @patch("redis.Redis")
 @patch("os.environ.get")
-def test_bulk_insert_with_exception(mock_environ, mock_redis, mock_datetime, setup):
+def test_bulk_insert_with_exception(mock_environ, mock_redis, mock_datetime_module, setup):
     """Handle exceptions during bulk insert."""
     mock_environ.return_value = "redis"
     mock_instance = MagicMock()
@@ -1215,10 +1215,8 @@ def test_bulk_insert_with_exception(mock_environ, mock_redis, mock_datetime, set
         None  # last_time returns None
     ]
     
-    # Mock datetime.now() to return a datetime object
-    mock_now = MagicMock()
-    mock_datetime.now.return_value = mock_now
-    mock_datetime.side_effect = lambda *args, **kw: datetime.datetime(*args, **kw)
+    # Mock datetime.now() to return an actual datetime object
+    mock_datetime_module.datetime.now.return_value = datetime.datetime(2026, 7, 13, 19, 57, 51)
 
     with patch("time.time", return_value=1000):
         with serve.app.test_request_context("/bulk_insert/"):

@@ -466,7 +466,7 @@ class TestListEC2Instances:
 
         assert result["instances"] == []
         assert "error" in result
-        assert "Unexpected error" in result["error"]
+        assert "Failed to retrieve EC2 instances" in result["error"]
 
     def test_list_ec2_instances_aws_dependency_error(self):
         """Test that AWSDependencyError is re-raised."""
