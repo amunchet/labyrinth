@@ -36,6 +36,8 @@ jest.mock("@/components/DiskSpace/ManualHostCard", () => ({
 describe("DiskSpaceView.vue", () => {
   let wrapper;
 
+  const flushPromises = () => new Promise((resolve) => setImmediate(resolve));
+
   beforeEach(() => {
     jest.clearAllMocks();
   });
@@ -118,8 +120,8 @@ describe("DiskSpaceView.vue", () => {
 
     // Wait for the initial refreshData call to complete (triggered by mounted)
     await wrapper.vm.$nextTick();
-    // Give async operations time to complete
-    await new Promise((resolve) => setImmediate(resolve));
+    await flushPromises();
+    await wrapper.vm.$nextTick();
 
     expect(wrapper.vm.proxmoxData.length).toBe(1);
     expect(wrapper.vm.proxmoxData[0].cluster_name).toBe("prod-cluster");
@@ -145,7 +147,8 @@ describe("DiskSpaceView.vue", () => {
 
     // Wait for the initial refreshData call to complete
     await wrapper.vm.$nextTick();
-    await new Promise((resolve) => setImmediate(resolve));
+    await flushPromises();
+    await wrapper.vm.$nextTick();
 
     expect(wrapper.vm.manualData.length).toBe(1);
     expect(wrapper.vm.manualData[0].name).toBe("storage-server");
@@ -177,7 +180,8 @@ describe("DiskSpaceView.vue", () => {
 
     // Wait for the initial refreshData call to complete
     await wrapper.vm.$nextTick();
-    await new Promise((resolve) => setImmediate(resolve));
+    await flushPromises();
+    await wrapper.vm.$nextTick();
 
     expect(wrapper.vm.proxmoxData.length).toBe(1);
     expect(wrapper.vm.manualData.length).toBe(1);
@@ -192,10 +196,16 @@ describe("DiskSpaceView.vue", () => {
       mocks: { $auth: config.mocks["$auth"] },
     });
 
-    // Wait for the initial refreshData call to complete
+    // Wait for mounted hook to trigger refreshData
     await wrapper.vm.$nextTick();
-    await new Promise((resolve) => setImmediate(resolve));
+    // Wait for the async refreshData calls to complete
+    await flushPromises();
+    // Let Vue finish rendering
+    await wrapper.vm.$nextTick();
 
+    expect(wrapper.vm.loading).toBe(false);
+    expect(wrapper.vm.proxmoxData.length).toBe(0);
+    expect(wrapper.vm.manualData.length).toBe(0);
     expect(wrapper.text()).toContain("No disk space data available");
   });
 
@@ -261,7 +271,7 @@ describe("DiskSpaceView.vue", () => {
 
     await wrapper.vm.refreshData(true);
     await wrapper.vm.$nextTick();
-    await new Promise((resolve) => setImmediate(resolve));
+    await flushPromises();
 
     expect(Helper.apiPost).toHaveBeenCalled();
     expect(Helper.apiCall.mock.calls.length).toBeGreaterThanOrEqual(initialCall);
@@ -291,7 +301,7 @@ describe("DiskSpaceView.vue", () => {
     });
     
     await wrapper.vm.$nextTick();
-    await new Promise((resolve) => setImmediate(resolve));
+    await flushPromises();
 
     expect(wrapper.vm.autoRefreshTimer).toBeTruthy();
   });
