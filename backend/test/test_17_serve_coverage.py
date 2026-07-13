@@ -141,7 +141,7 @@ def test_sanitize_mongo_value_primitives():
     """Preserve primitive values."""
     assert serve._sanitize_mongo_value("string") == "string"
     assert serve._sanitize_mongo_value(123) == 123
-    assert serve._sanitize_mongo_value(45.67) == 45.67
+    assert serve._sanitize_mongo_value(45.67) == pytest.approx(45.67)
     assert serve._sanitize_mongo_value(True) is True
     assert serve._sanitize_mongo_value(None) is None
 
@@ -160,7 +160,7 @@ def test_sanitize_db_value_bool():
 def test_sanitize_db_value_numbers():
     """Allow numeric values."""
     assert serve._sanitize_db_value(42) == 42
-    assert serve._sanitize_db_value(3.14) == 3.14
+    assert serve._sanitize_db_value(3.14) == pytest.approx(3.14)
 
 
 def test_sanitize_db_value_none():
@@ -220,7 +220,7 @@ def test_sanitize_dict_recursive_numbers():
     """Preserve numeric values in dict."""
     result = serve._sanitize_dict_recursive({"num": 42, "float": 3.14})
     assert result["num"] == 42
-    assert result["float"] == 3.14
+    assert result["float"] == pytest.approx(3.14)
 
 
 # ---------------------------------------------------------------------------

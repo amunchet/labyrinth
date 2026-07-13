@@ -46,7 +46,7 @@ class TestPrepareFunction:
             result = services.prepare(temp_path)
             assert isinstance(result, list)
             # At least some lines should be captured
-            assert len(result) >= 0
+            assert len(result) > 0
         finally:
             os.unlink(temp_path)
 

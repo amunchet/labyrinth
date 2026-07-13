@@ -579,13 +579,13 @@ def test_calculate_percentage_float_values():
     """Calculate percentage with float values (converts to int)."""
     result = proxmox_disk_check.calculate_percentage(50.5, 100.0)
     # Function converts to int, so 50.5 becomes 50
-    assert result == 50.0
+    assert result == pytest.approx(50.0)
 
 
 def test_calculate_percentage_exact_calculation():
     """Verify exact percentage calculation."""
     result = proxmox_disk_check.calculate_percentage(75, 100)
-    assert result == 75.0
+    assert result == pytest.approx(75.0)
 
 
 # ---------------------------------------------------------------------------
@@ -759,7 +759,7 @@ def test_collect_storage_issues_over_threshold():
     
     assert len(issues) == 1
     assert issues[0]["type"] == "datastore"
-    assert issues[0]["percentage"] == 85.0
+    assert issues[0]["percentage"] == pytest.approx(85.0)
 
 
 def test_collect_storage_issues_under_threshold():
@@ -880,7 +880,7 @@ def test_collect_vm_issues_over_threshold():
     
     assert len(issues) == 1
     assert issues[0]["type"] == "vm"
-    assert issues[0]["percentage"] == 85.0
+    assert issues[0]["percentage"] == pytest.approx(85.0)
 
 
 def test_collect_vm_issues_under_threshold():
@@ -980,7 +980,7 @@ def test_collect_container_issues_over_threshold():
     
     assert len(issues) == 1
     assert issues[0]["type"] == "container"
-    assert issues[0]["percentage"] == 85.0
+    assert issues[0]["percentage"] == pytest.approx(85.0)
 
 
 def test_collect_container_issues_under_threshold():
