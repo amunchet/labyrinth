@@ -810,38 +810,39 @@ def test_host_matches_tag_no_match(setup):
 
 def test_delete_service(setup):
     """Delete a service."""
-    # secure_filename will convert spaces to nothing, so "SSH Check" becomes "SSHCheck"
+    # secure_filename converts spaces to underscores
     serve.mongo_client["labyrinth"]["services"].insert_one({
         "name": "ssh-check",
-        "display_name": "SSHCheck"
+        "display_name": "SSH_Check"
     })
     serve.mongo_client["labyrinth"]["hosts"].insert_one({
         "ip": "192.168.1.1",
-        "services": ["SSHCheck"]
+        "services": ["SSH_Check"]
     })
 
-    with serve.app.test_request_context("/service/SSH Check", method="DELETE"):
-        resp = unwrap(serve.delete_service)("SSH Check")
+    with serve.app.test_request_context("/service/SSH_Check", method="DELETE"):
+        resp = unwrap(serve.delete_service)("SSH_Check")
 
     assert resp[1] == 200
-    assert serve.mongo_client["labyrinth"]["services"].find_one({"display_name": "SSHCheck"}) is None
+    assert serve.mongo_client["labyrinth"]["services"].find_one({"display_name": "SSH_Check"}) is None
 
 
 @patch("os.listdir")
 @patch("os.remove")
 def test_delete_service_with_snippet(mock_remove, mock_listdir, setup):
     """Delete service and associated snippet."""
-    mock_listdir.return_value = ["SSHCheck"]
+    mock_listdir.return_value = ["SSH_Check"]
 
     serve.mongo_client["labyrinth"]["services"].insert_one({
         "name": "ssh-check",
-        "display_name": "SSHCheck"
+        "display_name": "SSH_Check"
     })
 
-    with serve.app.test_request_context("/service/SSH Check", method="DELETE"):
-        resp = unwrap(serve.delete_service)("SSH Check")
+    with serve.app.test_request_context("/service/SSH_Check", method="DELETE"):
+        resp = unwrap(serve.delete_service)("SSH_Check")
 
     assert resp[1] == 200
+    mock_listdir.assert_called()
     mock_remove.assert_called()
 
 
@@ -1208,7 +1209,7 @@ def test_bulk_insert_with_exception(mock_environ, mock_redis, setup):
     mock_instance = MagicMock()
     mock_redis.return_value = mock_instance
     mock_instance.keys.return_value = [b"METRIC-test"]
-    mock_instance.get.return_value = b'{\"tags\": {\"ip\": \"192.168.1.1\"}, \"name\": \"test\"}'
+    mock_instance.get.return_value = b'{"tags": {"ip": "192.168.1.1"}, "name": "test", "timestamp": 1620000000}'
 
     with patch("time.time", return_value=1000):
         with serve.app.test_request_context("/bulk_insert/"):
@@ -1344,121 +1345,74 @@ def test_sanitize_mongo_value_mixed_types(setup):
 
 def test_get_proxmox_clusters_empty(setup):
     """Get Proxmox clusters when none exist."""
-    with serve.app.test_request_context("/proxmox/clusters"):
-        resp = unwrap(serve.get_proxmox_clusters)()
+    with serve.app.test_request_context("/proxmox-clusters"):
+        resp = unwrap(serve.list_proxmox_clusters)()
 
     assert resp[1] == 200
     data = json.loads(resp[0])
     assert isinstance(data, list)
 
 
-def test_get_proxmox_cluster_not_found(setup):
-    """Get non-existent Proxmox cluster."""
-    cluster_id = str(bson.ObjectId())
-
-    with serve.app.test_request_context(f"/proxmox/clusters/{cluster_id}"):
-        resp = unwrap(serve.get_proxmox_cluster)(cluster_id)
-
-    assert resp[1] == 404
-
-
-def test_get_proxmox_cluster_invalid_id(setup):
-    """Handle invalid Proxmox cluster ID."""
-    with serve.app.test_request_context("/proxmox/clusters/invalid"):
-        resp = unwrap(serve.get_proxmox_cluster)("invalid")
-
-    assert resp[1] == 400
-
-
-@patch("proxmox_helper.get_cluster_status")
-def test_proxmox_cluster_status(mock_get_status, setup):
-    """Get Proxmox cluster status."""
-    cluster_id = str(bson.ObjectId())
+def test_get_proxmox_cluster_by_name(setup):
+    """Get Proxmox cluster by name."""
     serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one({
-        "_id": bson.ObjectId(cluster_id),
         "name": "test-cluster",
-        "url": "https://proxmox.test",
-        "username": "root",
-        "password": "test"
+        "host": "10.0.0.1"
     })
-    mock_get_status.return_value = {"status": "ok"}
 
-    with serve.app.test_request_context(f"/proxmox/clusters/{cluster_id}/status"):
-        resp = unwrap(serve.proxmox_cluster_status)(cluster_id)
+    with serve.app.test_request_context("/proxmox-clusters/test-cluster"):
+        resp = unwrap(serve.get_proxmox_cluster)("test-cluster")
 
     assert resp[1] == 200
 
 
-@patch("builtins.open", create=True)
-def test_subnets_write(mock_open, setup):
-    """Write subnets to file."""
-    mock_file = MagicMock()
-    mock_open.return_value.__enter__.return_value = mock_file
+def test_list_subnets_groups(setup):
+    """List subnet groups."""
+    serve.mongo_client["labyrinth"]["hosts"].insert_many([
+        {"ip": "192.168.1.1", "subnet": "192.168.1.0/24", "group": "servers"},
+        {"ip": "192.168.1.2", "subnet": "192.168.1.0/24", "group": "servers"}
+    ])
 
-    serve.mongo_client["labyrinth"]["subnets"].insert_one({
-        "name": "192.168.1.0/24",
-        "link": "eth0"
-    })
-
-    with serve.app.test_request_context("/subnets/"):
-        resp = unwrap(serve.write_subnets)()
+    with serve.app.test_request_context("/subnets/192.168.1.0%2F24"):
+        resp = unwrap(serve.list_subnets_groups)("192.168.1.0/24")
 
     assert resp[1] == 200
 
 
-def test_get_subnet_map(setup):
-    """Get subnet map."""
-    serve.mongo_client["labyrinth"]["subnets"].insert_one({
-        "name": "192.168.1.0/24",
-        "origin": "scanner"
-    })
+def test_list_subnets_group_members(setup):
+    """List members of a subnet group."""
+    serve.mongo_client["labyrinth"]["hosts"].insert_many([
+        {"ip": "192.168.1.1", "subnet": "192.168.1.0/24", "group": "servers"},
+        {"ip": "192.168.1.2", "subnet": "192.168.1.0/24", "group": "servers"},
+        {"ip": "192.168.1.3", "subnet": "192.168.1.0/24", "group": "workstations"}
+    ])
 
-    with serve.app.test_request_context("/subnets_map/"):
-        resp = unwrap(serve.get_subnet_map)()
+    with serve.app.test_request_context("/subnets/192.168.1.0%2F24/servers"):
+        resp = unwrap(serve.list_subnets_group_members)("192.168.1.0/24", "servers")
 
     assert resp[1] == 200
     data = json.loads(resp[0])
-    assert "192.168.1.0/24" in data
+    assert len(data) == 2
 
 
-@patch("builtins.open", create=True)
-@patch("requests.get")
-def test_konva_draw(mock_get, mock_open, setup):
-    """Generate Konva topology visualization."""
-    mock_get.return_value.json.return_value = {"subnets": []}
-    mock_file = MagicMock()
-    mock_open.return_value.__enter__.return_value = mock_file
-    mock_file.read.return_value = "[]"
-
-    serve.mongo_client["labyrinth"]["hosts"].insert_one({
-        "ip": "192.168.1.1",
-        "subnet": "192.168.1.0/24",
-        "hostname": "test-host"
-    })
-
-    with serve.app.test_request_context("/konva_draw/"):
-        resp = unwrap(serve.konva_draw)()
-
-    assert resp[1] == 200
-
-
-def test_get_services_all(setup):
-    """Get all services."""
+def test_list_services_display_names(setup):
+    """Get all service display names."""
     serve.mongo_client["labyrinth"]["services"].insert_many([
         {"name": "ssh-check", "display_name": "SSH"},
         {"name": "http-check", "display_name": "HTTP"}
     ])
 
     with serve.app.test_request_context("/services/"):
-        resp = unwrap(serve.get_services)()
+        resp = unwrap(serve.list_services)()
 
     assert resp[1] == 200
     data = json.loads(resp[0])
-    assert len(data) >= 2
+    assert "SSH" in data
+    assert "HTTP" in data
 
 
-def test_get_service_by_name(setup):
-    """Get service by name."""
+def test_read_service_by_name(setup):
+    """Get service by display name."""
     serve.mongo_client["labyrinth"]["services"].insert_one({
         "name": "ssh-check",
         "display_name": "SSH",
@@ -1466,10 +1420,12 @@ def test_get_service_by_name(setup):
         "port": 22
     })
 
-    with serve.app.test_request_context("/services/SSH Check"):
-        resp = unwrap(serve.get_service)("SSH Check")
+    with serve.app.test_request_context("/service/SSH"):
+        resp = unwrap(serve.read_service)("SSH")
 
-    assert resp[1] in [200, 404]
+    assert resp[1] == 200
+    data = json.loads(resp[0])
+    assert len(data) == 1
 
 
 @patch("services.output")
