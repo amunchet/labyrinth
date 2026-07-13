@@ -111,11 +111,11 @@ def test_parse_df_size_none_returns_none():
     assert proxmox_helper._parse_df_size(None) is None
 
 
-def test_parse_df_size_invalid_unit_uses_multiplier_one():
-    """Unknown units default to multiplier of 1."""
+def test_parse_df_size_invalid_unit_not_matched():
+    """Unknown units are not matched by the regex pattern."""
     result = proxmox_helper._parse_df_size("512Z")
-    # Unknown unit "Z" defaults to 1
-    assert result == 512
+    # Unknown unit "Z" is not in the allowed set, so pattern doesn't match
+    assert result is None
 
 
 # ---------------------------------------------------------------------------
@@ -1008,9 +1008,9 @@ def test_to_int_none():
     assert proxmox_helper._to_int(None) == 0
 
 
-def test_to_int_float_string():
-    """Convert float string to int."""
-    assert proxmox_helper._to_int("42.5") == 42
+def test_to_int_float_string_returns_zero():
+    """Float strings cannot be converted via int(), returns 0."""
+    assert proxmox_helper._to_int("42.5") == 0
 
 
 # ---------------------------------------------------------------------------

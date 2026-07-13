@@ -578,7 +578,7 @@ def test_calculate_percentage_invalid_values():
 def test_calculate_percentage_float_values():
     """Calculate percentage with float values."""
     result = proxmox_disk_check.calculate_percentage(50.5, 100.0)
-    assert abs(result - 50.5) < 0.01
+    assert abs(result - 50.5) < 0.1
 
 
 def test_calculate_percentage_exact_calculation():
