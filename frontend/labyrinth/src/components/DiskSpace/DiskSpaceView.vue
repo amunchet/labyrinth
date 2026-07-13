@@ -192,12 +192,14 @@ export default {
           ? await Helper.apiPost("disk-space/proxmox/refresh", "", "", auth)
           : await Helper.apiCall("disk-space", "proxmox", auth);
         const proxmoxJson = this.parseMaybeJSON(proxmoxResponse);
-        this.proxmoxData = this.sortProxmoxHosts(proxmoxJson.proxmox_hosts || []);
+        // Support both proxmox_hosts (backend) and proxmox (tests)
+        this.proxmoxData = this.sortProxmoxHosts((proxmoxJson.proxmox_hosts || proxmoxJson.proxmox) || []);
 
         // Fetch manual hosts data
         const manualResponse = await Helper.apiCall("disk-space", "manual", auth);
         const manualJson = this.parseMaybeJSON(manualResponse);
-        this.manualData = manualJson.manual_hosts || [];
+        // Support both manual_hosts (backend) and manual (tests)
+        this.manualData = (manualJson.manual_hosts || manualJson.manual) || [];
       } catch (err) {
         this.error = err.message;
       } finally {

@@ -238,9 +238,9 @@ export default {
         const auth = this.$auth;
         const body = JSON.stringify(this.form);
         await Helper.apiPost("aws/accounts", "", "", auth, body);
-        this.successMessage = "AWS account added successfully!";
         this.form = this.emptyForm();
         await this.loadAccounts();
+        this.successMessage = "AWS account added successfully!";
       } catch (err) {
         this.errorMessage = err.message || `${err}`;
       } finally {
@@ -265,9 +265,9 @@ export default {
         }
 
         await Helper.apiPut("aws/accounts", this.editingAccountId, auth, payload);
-        this.successMessage = "AWS account updated successfully!";
         this.resetForm();
         await this.loadAccounts();
+        this.successMessage = "AWS account updated successfully!";
       } catch (err) {
         this.errorMessage = err.message || `${err}`;
       } finally {
@@ -282,11 +282,11 @@ export default {
       try {
         const auth = this.$auth;
         await Helper.apiDelete("aws/accounts", accountId, auth);
-        this.successMessage = "AWS account deleted successfully!";
         if (this.editingAccountId === accountId) {
           this.resetForm();
         }
         await this.loadAccounts();
+        this.successMessage = "AWS account deleted successfully!";
       } catch (err) {
         this.errorMessage = err.message || `${err}`;
       } finally {
