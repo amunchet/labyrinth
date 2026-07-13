@@ -75,6 +75,21 @@
           </span>
         </b-col>
       </b-row>
+
+      <b-row>
+        <b-col>Proxmox Cluster</b-col>
+        <b-col>
+          <b-input
+            v-model="host.proxmox_cluster"
+            placeholder="Cluster name or ID"
+          />
+          <span class="text-small">
+            If this host is a Proxmox cluster, specify which cluster it belongs
+            to.
+          </span>
+        </b-col>
+      </b-row>
+
       <b-row
         ><b-col>Subnet</b-col
         ><b-col
@@ -435,8 +450,10 @@ export default {
         ip: "",
         subnet: "",
         mac: "",
+        host: "",
         group: "",
         tags: "",
+        proxmox_cluster: "",
         icon: "",
         services: [],
         class: "",

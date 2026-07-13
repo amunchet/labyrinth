@@ -203,4 +203,35 @@ export default {
         });
     });
   },
+  apiPut(url, command, auth, body) /* istanbul ignore next */ {
+    var profile = auth["profile"]["email"];
+    var full_url = "";
+    if (window.location.host.indexOf(devel_port) !== -1) {
+      full_url = local_backend + url;
+    } else {
+      full_url = "/api/" + url;
+    }
+
+    return auth.getAccessToken().then((accessToken) => {
+      return fetch(full_url + "/" + command, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Email: profile,
+          "Content-Type": "application/json",
+        },
+        body: typeof body === "string" ? body : JSON.stringify(body),
+      })
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+          }
+          return response.text();
+        })
+        .catch((error) => {
+          console.error("Error:", error);
+          throw error;
+        });
+    });
+  },
 };

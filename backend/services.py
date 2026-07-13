@@ -141,7 +141,7 @@ def find_comments(lines):
 
     for line in [x.strip() for x in lines if x.strip() != ""]:
         # Is this a comment?
-        if re.match("^(\s?#+)+", line):
+        if re.match(r"^(\s?#+)+", line):
             current_comments.append(line)
         else:
             # Section or array of sections
@@ -216,6 +216,9 @@ def run(fname: str, outputs=False):
         testing = "--once"
     cmd = ["telegraf", testing, "--config", os.path.join(main_dir, f"{fname}.conf")]
     x = subprocess.run(cmd, capture_output=True)
-    return "{}\n<b>{}</b>{}".format(
-        cmd, x.stderr.decode("utf-8"), x.stdout.decode("utf-8")
-    )
+    # HTML-escape subprocess output to prevent XSS
+    from markupsafe import escape
+
+    stderr_escaped = escape(x.stderr.decode("utf-8"))
+    stdout_escaped = escape(x.stdout.decode("utf-8"))
+    return "{}\n<b>{}</b>{}".format(escape(str(cmd)), stderr_escaped, stdout_escaped)

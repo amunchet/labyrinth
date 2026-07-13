@@ -1,0 +1,43 @@
+[run]
+source = .
+branch = True
+omit =
+    */__pycache__/*
+    */venv/*
+    */env/*
+    */site-packages/*
+    htmlcov/*
+    conftest.py
+    templates/*
+    uploads/*
+    samples/*
+    snippets/*
+    *.html
+    *.yml
+    *.yaml
+data_file = .coverage
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise AssertionError
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    if (typing\.)?TYPE_CHECKING:
+    @(abc\.)?abstractmethod
+    except ImportError
+    except ModuleNotFoundError
+    class.*:
+        pass
+ignore_errors = True
+precision = 2
+
+[html]
+directory = htmlcov
+show_contexts = True
+
+[paths]
+source =
+    .
+    */site-packages

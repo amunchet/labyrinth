@@ -43,4 +43,11 @@ describe("Helper", () => {
   test("capitalize", () => {
     expect(Helper.capitalize("addd")).toBe("Addd");
   });
+  test("listColors", () => {
+    const colors = Helper.listColors();
+    expect(Array.isArray(colors)).toBe(true);
+    expect(colors.length).toBeGreaterThan(0);
+    expect(colors).toContain("darkblue");
+    expect(colors).toContain("red");
+  });
 });

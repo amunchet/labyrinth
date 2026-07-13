@@ -78,6 +78,20 @@ const routes = [
     component: () =>
       import(/* webpackChunkName: "checks" */ "../views/Checks.vue"),
   },
+  {
+    path: "/disk-space",
+    name: "DiskSpace",
+    // route level code-splitting
+    // this generates a separate chunk (disk-space.[hash].js) for this route
+    // which is lazy-loaded when the route is visited.
+    component: () =>
+      import(/* webpackChunkName: "disk-space" */ "../views/DiskSpace.vue"),
+  },
+  {
+    path: "/aws",
+    name: "AWS",
+    component: () => import(/* webpackChunkName: "aws" */ "../views/AWS.vue"),
+  },
 ];
 
 const router = new VueRouter({
