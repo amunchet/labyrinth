@@ -26,7 +26,7 @@ describe("ProxmoxDocumentation.vue", () => {
       mocks: { $auth: config.mocks["$auth"] },
     });
 
-    expect(wrapper.find(".p-3").exists()).toBe(true);
+    expect(wrapper.find(".proxmox-documentation").exists()).toBe(true);
   });
 
   test("displays documentation content", () => {

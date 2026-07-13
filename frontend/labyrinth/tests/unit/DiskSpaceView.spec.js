@@ -16,6 +16,8 @@ config.mocks["$auth"] = {
 
 jest.mock("@/helper", () => ({
   apiCall: jest.fn(),
+  apiPost: jest.fn(),
+  apiDelete: jest.fn(),
 }));
 
 jest.mock("@/components/DiskSpace/ProxmoxHostCard", () => ({
@@ -48,14 +50,14 @@ describe("DiskSpaceView.vue", () => {
   });
 
   test("renders component correctly", async () => {
-    Helper.apiCall.mockResolvedValue({
-      proxmox: [],
-      manual: [],
-    });
+    Helper.apiCall
+      .mockResolvedValueOnce({ proxmox_hosts: [] })
+      .mockResolvedValueOnce({ manual_hosts: [] });
 
     wrapper = mount(DiskSpaceView, {
       mocks: { $auth: config.mocks["$auth"] },
     });
+    await wrapper.vm.refreshData();
     await wrapper.vm.$nextTick();
 
     expect(wrapper.find(".disk-space-view").exists()).toBe(true);
@@ -63,13 +65,7 @@ describe("DiskSpaceView.vue", () => {
 
   test("displays loading state while fetching data", async () => {
     Helper.apiCall.mockImplementation(
-      () =>
-        new Promise((resolve) =>
-          setTimeout(
-            () => resolve({ proxmox: [], manual: [] }),
-            100
-          )
-        )
+      () => new Promise((resolve) => setTimeout(() => resolve({ proxmox_hosts: [] }), 100))
     );
 
     wrapper = mount(DiskSpaceView, {
@@ -94,18 +90,29 @@ describe("DiskSpaceView.vue", () => {
   });
 
   test("displays proxmox clusters data", async () => {
-    Helper.apiCall.mockResolvedValue({
-      proxmox: [
+    Helper.apiCall
+      .mockResolvedValueOnce({
+        proxmox_hosts: [
+          {
+            _id: "cluster-1",
+            cluster_name: "prod-cluster",
+            host: "10.0.0.1",
+            nodes: [],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ manual_hosts: [] })
+      .mockResolvedValueOnce({
+        proxmox_hosts: [
         {
           _id: "cluster-1",
           cluster_name: "prod-cluster",
           host: "10.0.0.1",
           nodes: [],
-          vms: [],
         },
       ],
-      manual: [],
-    });
+    })
+      .mockResolvedValueOnce({ manual_hosts: [] });
 
     wrapper = mount(DiskSpaceView, {
       mocks: { $auth: config.mocks["$auth"] },
@@ -119,9 +126,21 @@ describe("DiskSpaceView.vue", () => {
   });
 
   test("displays manual hosts data", async () => {
-    Helper.apiCall.mockResolvedValue({
-      proxmox: [],
-      manual: [
+    Helper.apiCall
+      .mockResolvedValueOnce({ proxmox_hosts: [] })
+      .mockResolvedValueOnce({
+        manual_hosts: [
+          {
+            id: "manual-1",
+            name: "storage-server",
+            host: "storage.example.com",
+            ip: "10.0.0.50",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ proxmox_hosts: [] })
+      .mockResolvedValueOnce({
+        manual_hosts: [
         {
           id: "manual-1",
           name: "storage-server",
@@ -143,14 +162,34 @@ describe("DiskSpaceView.vue", () => {
   });
 
   test("displays both proxmox and manual hosts", async () => {
-    Helper.apiCall.mockResolvedValue({
-      proxmox: [
+    Helper.apiCall
+      .mockResolvedValueOnce({
+        proxmox_hosts: [
+          {
+            _id: "cluster-1",
+            cluster_name: "prod-cluster",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        manual_hosts: [
+          {
+            id: "manual-1",
+            name: "storage-server",
+            host: "storage.example.com",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        proxmox_hosts: [
         {
           _id: "cluster-1",
           cluster_name: "prod-cluster",
         },
       ],
-      manual: [
+    })
+      .mockResolvedValueOnce({
+        manual_hosts: [
         {
           id: "manual-1",
           name: "storage-server",
@@ -171,10 +210,11 @@ describe("DiskSpaceView.vue", () => {
   });
 
   test("displays empty state when no data", async () => {
-    Helper.apiCall.mockResolvedValue({
-      proxmox: [],
-      manual: [],
-    });
+    Helper.apiCall
+      .mockResolvedValueOnce({ proxmox_hosts: [] })
+      .mockResolvedValueOnce({ manual_hosts: [] })
+      .mockResolvedValueOnce({ proxmox_hosts: [] })
+      .mockResolvedValueOnce({ manual_hosts: [] });
 
     wrapper = mount(DiskSpaceView, {
       mocks: { $auth: config.mocks["$auth"] },
@@ -187,6 +227,14 @@ describe("DiskSpaceView.vue", () => {
   });
 
   test("handles manual host deletion", async () => {
+    window.confirm = jest.fn(() => true);
+    Helper.apiCall
+      .mockResolvedValueOnce({ proxmox_hosts: [] })
+      .mockResolvedValueOnce({ manual_hosts: [] })
+      .mockResolvedValueOnce({ proxmox_hosts: [] })
+      .mockResolvedValueOnce({ manual_hosts: [] });
+    Helper.apiDelete.mockResolvedValue({});
+
     wrapper = mount(DiskSpaceView, {
       mocks: { $auth: config.mocks["$auth"] },
     });
@@ -206,14 +254,32 @@ describe("DiskSpaceView.vue", () => {
   });
 
   test("refresh button works correctly", async () => {
-    Helper.apiCall.mockResolvedValue({
-      proxmox: [
+    Helper.apiCall
+      .mockResolvedValueOnce({
+        proxmox_hosts: [
+          {
+            _id: "cluster-1",
+            cluster_name: "prod-cluster",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ manual_hosts: [] })
+      .mockResolvedValueOnce({
+        proxmox_hosts: [
+          {
+            _id: "cluster-1",
+            cluster_name: "prod-cluster",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ manual_hosts: [] });
+    Helper.apiPost.mockResolvedValue({
+      proxmox_hosts: [
         {
           _id: "cluster-1",
           cluster_name: "prod-cluster",
         },
       ],
-      manual: [],
     });
 
     wrapper = mount(DiskSpaceView, {
@@ -225,7 +291,8 @@ describe("DiskSpaceView.vue", () => {
     await wrapper.vm.refreshData(true);
     await wrapper.vm.$nextTick();
 
-    expect(Helper.apiCall.mock.calls.length).toBeGreaterThan(initialCall);
+    expect(Helper.apiPost).toHaveBeenCalled();
+    expect(Helper.apiCall.mock.calls.length).toBeGreaterThanOrEqual(initialCall);
   });
 
   test("clears error when dismissing alert", async () => {
@@ -243,23 +310,23 @@ describe("DiskSpaceView.vue", () => {
   });
 
   test("starts auto-refresh on mount", async () => {
-    Helper.apiCall.mockResolvedValue({
-      proxmox: [],
-      manual: [],
-    });
+    Helper.apiCall
+      .mockResolvedValueOnce({ proxmox_hosts: [] })
+      .mockResolvedValueOnce({ manual_hosts: [] });
 
     wrapper = mount(DiskSpaceView, {
       mocks: { $auth: config.mocks["$auth"] },
     });
+    await wrapper.vm.refreshData();
+    await wrapper.vm.$nextTick();
 
     expect(wrapper.vm.autoRefreshTimer).toBeTruthy();
   });
 
   test("stops auto-refresh on destroy", async () => {
-    Helper.apiCall.mockResolvedValue({
-      proxmox: [],
-      manual: [],
-    });
+    Helper.apiCall
+      .mockResolvedValueOnce({ proxmox_hosts: [] })
+      .mockResolvedValueOnce({ manual_hosts: [] });
 
     wrapper = mount(DiskSpaceView, {
       mocks: { $auth: config.mocks["$auth"] },

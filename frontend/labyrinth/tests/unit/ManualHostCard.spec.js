@@ -89,16 +89,9 @@ describe("ManualHostCard.vue", () => {
       mocks: { $auth: config.mocks["$auth"] },
     });
 
-    // Find and click delete button
-    const deleteButtons = wrapper.findAll("button");
-    const deleteBtn = deleteButtons.filter((btn) =>
-      btn.text().toLowerCase().includes("delete")
-    );
-
-    if (deleteBtn.length > 0) {
-      await deleteBtn[0].trigger("click");
-      expect(wrapper.emitted("delete")).toBeTruthy();
-    }
+    window.confirm = jest.fn(() => true);
+    await wrapper.find("button").trigger("click");
+    expect(wrapper.emitted("delete")).toBeTruthy();
   });
 
   test("handles missing optional fields gracefully", () => {
@@ -139,7 +132,7 @@ describe("ManualHostCard.vue", () => {
     });
 
     expect(wrapper.text()).toContain("production-server");
-    expect(wrapper.text()).toContain("prod.example.com");
+    expect(wrapper.text()).toContain("203.0.113.42");
   });
 
   test("handles array of disk data if provided", () => {

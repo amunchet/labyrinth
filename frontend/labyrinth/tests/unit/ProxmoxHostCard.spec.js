@@ -33,19 +33,20 @@ describe("ProxmoxHostCard.vue", () => {
             {
               name: "local",
               type: "dir",
-              disk: 1000000,
+              total: 1000000,
               used: 800000,
               avail: 200000,
             },
           ],
-        },
-      ],
-      vms: [
-        {
-          name: "vm-1",
-          vmid: "100",
-          disk: 100000,
-          maxdisk: 100000,
+          vms: [
+            {
+              name: "vm-1",
+              id: "100",
+              status: "running",
+              disk: 100000,
+              maxdisk: 100000,
+            },
+          ],
         },
       ],
     };
@@ -107,14 +108,14 @@ describe("ProxmoxHostCard.vue", () => {
             {
               name: "local-storage",
               type: "dir",
-              disk: 1000000,
+              total: 1000000,
               used: 700000,
               avail: 300000,
             },
           ],
+          vms: [],
         },
       ],
-      vms: [],
     };
 
     wrapper = mount(ProxmoxHostCard, {
@@ -129,13 +130,19 @@ describe("ProxmoxHostCard.vue", () => {
     const hostData = {
       cluster_name: "cluster",
       host: "10.0.0.1",
-      nodes: [],
-      vms: [
+      nodes: [
         {
+          name: "node-1",
+          vms: [
+            {
           name: "web-server",
-          vmid: "101",
+          id: "101",
+          status: "running",
           disk: 50000,
           maxdisk: 100000,
+        },
+          ],
+          containers: [],
         },
       ],
     };
@@ -187,22 +194,20 @@ describe("ProxmoxHostCard.vue", () => {
           name: "pve1",
           status: "online",
           storage: [
-            { name: "storage1", type: "dir", disk: 5000000, used: 4000000 },
-            { name: "storage2", type: "nfs", disk: 10000000, used: 8000000 },
+            { name: "storage1", type: "dir", total: 5000000, used: 4000000 },
+            { name: "storage2", type: "nfs", total: 10000000, used: 8000000 },
           ],
+          vms: [{ name: "vm1", id: "100", status: "running", disk: 50000, maxdisk: 100000 }],
         },
         {
           name: "pve2",
           status: "online",
           storage: [
-            { name: "storage1", type: "dir", disk: 5000000, used: 3000000 },
+            { name: "storage1", type: "dir", total: 5000000, used: 3000000 },
           ],
+          vms: [{ name: "vm2", id: "101", status: "running", disk: 75000, maxdisk: 150000 }],
+          containers: [{ name: "ct1", id: "200", status: "running", disk: 0, maxdisk: 200000 }],
         },
-      ],
-      vms: [
-        { name: "vm1", vmid: "100", disk: 50000, maxdisk: 100000 },
-        { name: "vm2", vmid: "101", disk: 75000, maxdisk: 150000 },
-        { name: "vm3", vmid: "102", disk: 0, maxdisk: 200000 },
       ],
     };
 

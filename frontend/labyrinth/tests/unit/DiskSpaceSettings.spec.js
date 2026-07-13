@@ -26,11 +26,11 @@ describe("DiskSpaceSettings.vue", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    Helper.apiCall.mockResolvedValue({
+    Helper.apiCall.mockResolvedValueOnce({
       clusters: [],
-      recipients: [],
-      threshold: 80,
-    });
+      disk_space_alert_recipients: [],
+      disk_space_alert_threshold: 80,
+    }).mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce({ manual_hosts: [] });
   });
 
   afterEach(() => {
@@ -45,11 +45,12 @@ describe("DiskSpaceSettings.vue", () => {
     });
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.find(".p-3").exists()).toBe(true);
+    expect(wrapper.find(".disk-space-settings").exists()).toBe(true);
   });
 
   test("loads disk space settings on mount", async () => {
-    Helper.apiCall.mockResolvedValue({
+    Helper.apiCall
+      .mockResolvedValueOnce({
       clusters: [
         {
           _id: "cluster-1",
@@ -57,9 +58,12 @@ describe("DiskSpaceSettings.vue", () => {
           host: "10.0.0.1",
         },
       ],
-      recipients: ["admin@example.com"],
-      threshold: 85,
-    });
+      disk_space_alert_recipients: ["admin@example.com"],
+      disk_space_alert_threshold: 85,
+    })
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce({ manual_hosts: [] });
 
     wrapper = mount(DiskSpaceSettings, {
       mocks: { $auth: config.mocks["$auth"] },
@@ -72,27 +76,30 @@ describe("DiskSpaceSettings.vue", () => {
   });
 
   test("displays success message on threshold update", async () => {
-    Helper.apiPut.mockResolvedValue({ status: "updated" });
+    Helper.apiPost.mockResolvedValue({ status: "updated" });
 
     wrapper = mount(DiskSpaceSettings, {
       mocks: { $auth: config.mocks["$auth"] },
     });
 
-    wrapper.vm.threshold = 90;
-    await wrapper.vm.updateThreshold();
+    wrapper.vm.alertThreshold = 90;
+    wrapper.vm.alertRecipientsText = "admin@example.com";
+    await wrapper.vm.saveAlertSettings();
     await wrapper.vm.$nextTick();
 
-    expect(Helper.apiPut).toHaveBeenCalled();
+    expect(Helper.apiPost).toHaveBeenCalled();
   });
 
   test("displays error when update fails", async () => {
-    Helper.apiPut.mockRejectedValue(new Error("Update failed"));
+    Helper.apiPost.mockRejectedValue(new Error("Update failed"));
 
     wrapper = mount(DiskSpaceSettings, {
       mocks: { $auth: config.mocks["$auth"] },
     });
 
-    await wrapper.vm.updateThreshold();
+    wrapper.vm.alertThreshold = 90;
+    wrapper.vm.alertRecipientsText = "admin@example.com";
+    await wrapper.vm.saveAlertSettings();
 
     expect(wrapper.vm.errorMessage).toBeTruthy();
   });
@@ -102,9 +109,9 @@ describe("DiskSpaceSettings.vue", () => {
       mocks: { $auth: config.mocks["$auth"] },
     });
 
-    wrapper.vm.recipients = "admin@example.com, backup@example.com";
+    wrapper.vm.alertRecipientsText = "admin@example.com, backup@example.com";
 
-    expect(wrapper.vm.recipients).toBe(
+    expect(wrapper.vm.alertRecipientsText).toBe(
       "admin@example.com, backup@example.com"
     );
   });
@@ -121,7 +128,8 @@ describe("DiskSpaceSettings.vue", () => {
   });
 
   test("parses cluster data correctly", async () => {
-    Helper.apiCall.mockResolvedValue({
+    Helper.apiCall
+      .mockResolvedValueOnce({
       clusters: [
         {
           _id: "c1",
@@ -129,9 +137,12 @@ describe("DiskSpaceSettings.vue", () => {
           host: "10.0.0.1",
         },
       ],
-      recipients: [],
-      threshold: 80,
-    });
+      disk_space_alert_recipients: [],
+      disk_space_alert_threshold: 80,
+    })
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce({ manual_hosts: [] });
 
     wrapper = mount(DiskSpaceSettings, {
       mocks: { $auth: config.mocks["$auth"] },
