@@ -114,7 +114,6 @@ export default {
     },
 
     startAutoRefresh() {
-      this.loading = true;
       this.refreshData();
     },
 
@@ -177,11 +176,6 @@ export default {
 
     async refreshData(forceRefresh = false) {
       this.stopAutoRefresh();
-
-      if (this.loading) {
-        this.scheduleNextRefresh();
-        return;
-      }
 
       this.loading = true;
       this.error = null;

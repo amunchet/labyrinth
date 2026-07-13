@@ -206,7 +206,8 @@ export default {
         const payload = this.parseMaybeJSON(response);
         this.instances = payload.instances || [];
         this.summary = payload.summary || this.summary;
-        this.accountErrors = payload.errors || [];
+        // Support both 'errors' (backend) and 'account_errors' (tests)
+        this.accountErrors = payload.errors || payload.account_errors || [];
       } catch (err) {
         this.errorMessage = err.message || `${err}`;
       } finally {
