@@ -54,6 +54,8 @@ TELEGRAF_KEY = os.environ.get("TELEGRAF_KEY") or "TEST"
 
 # Error message constants
 ERROR_INVALID_JSON_BODY = "Invalid JSON body"
+ERROR_INVALID_CLUSTER_ID = "Invalid cluster ID"
+ERROR_INVALID_ACCOUNT_ID = "Invalid account ID"
 ERROR_CLUSTER_NOT_FOUND = "Cluster not found"
 ERROR_AWS_ACCOUNT_NOT_FOUND = "AWS account not found"
 
@@ -2624,7 +2626,7 @@ def get_proxmox_cluster(cluster_id):
         cluster.pop("token_secret", None)
         return json.dumps(cluster, default=str), 200
     except ValueError:
-        return json.dumps({"error": "Invalid cluster ID"}), 400
+        return json.dumps({"error": ERROR_INVALID_CLUSTER_ID}), 400
     except Exception as e:
         return json.dumps({"error": "Failed to retrieve Proxmox cluster"}), 500
 
@@ -2638,7 +2640,7 @@ def update_proxmox_cluster(cluster_id):
     try:
         data = request.get_json(silent=True)
         if data is None:
-            return json.dumps({"error": "Invalid JSON body"}), 400
+            return json.dumps({"error": ERROR_INVALID_JSON_BODY}), 400
 
         object_id = _validate_object_id(cluster_id)
         cluster = mongo_client["labyrinth"]["proxmox_clusters"].find_one(
@@ -2668,7 +2670,7 @@ def update_proxmox_cluster(cluster_id):
         updated_cluster.pop("token_secret", None)
         return json.dumps(updated_cluster, default=str), 200
     except ValueError:
-        return json.dumps({"error": "Invalid cluster ID"}), 400
+        return json.dumps({"error": ERROR_INVALID_CLUSTER_ID}), 400
     except Exception as e:
         return json.dumps({"error": "Failed to update Proxmox cluster configuration"}), 500
 
@@ -2690,7 +2692,7 @@ def delete_proxmox_cluster(cluster_id):
 
         return json.dumps({"status": "deleted"}), 200
     except ValueError:
-        return json.dumps({"error": "Invalid cluster ID"}), 400
+        return json.dumps({"error": ERROR_INVALID_CLUSTER_ID}), 400
     except Exception as e:
         return json.dumps({"error": "Failed to delete Proxmox cluster configuration"}), 500
 
@@ -2801,7 +2803,7 @@ def create_aws_account():
             try:
                 data = json.loads(request.get_data(as_text=True))
             except (ValueError, json.JSONDecodeError):
-                return json.dumps({"error": "Invalid JSON body"}), 400
+                return json.dumps({"error": ERROR_INVALID_JSON_BODY}), 400
 
         required_fields = ["name", "region", "access_key_id", "secret_access_key"]
         if not all(data.get(field) for field in required_fields):
@@ -2849,7 +2851,7 @@ def get_aws_account(account_id):
         account.pop("session_token", None)
         return json.dumps(account, default=str), 200
     except ValueError:
-        return json.dumps({"error": "Invalid account ID"}), 400
+        return json.dumps({"error": ERROR_INVALID_ACCOUNT_ID}), 400
     except Exception as e:
         return json.dumps({"error": "Failed to retrieve AWS account"}), 500
 
@@ -2902,7 +2904,7 @@ def update_aws_account(account_id):
         updated_account.pop("session_token", None)
         return json.dumps(updated_account, default=str), 200
     except ValueError:
-        return json.dumps({"error": "Invalid account ID"}), 400
+        return json.dumps({"error": ERROR_INVALID_ACCOUNT_ID}), 400
     except Exception as e:
         return json.dumps({"error": "Failed to update AWS account"}), 500
 
@@ -2923,7 +2925,7 @@ def delete_aws_account(account_id):
 
         return json.dumps({"status": "deleted"}), 200
     except ValueError:
-        return json.dumps({"error": "Invalid account ID"}), 400
+        return json.dumps({"error": ERROR_INVALID_ACCOUNT_ID}), 400
     except Exception as e:
         return json.dumps({"error": "Failed to delete AWS account"}), 500
 

@@ -622,6 +622,22 @@ def _add_container_info(node_info, client, node_name, containers):
         node_info["containers"].append(container_info)
 
 
+def _get_guest_disk_info(client, node_name, vmid, disk, maxdisk, is_running, qemu_truly_installed):
+    """Extract guest filesystem info if available. Returns updated disk and maxdisk."""
+    if not (qemu_truly_installed and is_running and _to_int(disk) == 0):
+        return disk, maxdisk, None
+    
+    guest_disk_info = client.get_vm_guest_fsinfo(node_name, str(vmid))
+    if not guest_disk_info:
+        return disk, maxdisk, guest_disk_info
+    
+    fsinfo = guest_disk_info.get("result", [])
+    for fs in fsinfo:
+        if fs.get("mountpoint") == "/":
+            return fs.get("used-bytes"), fs.get("total-bytes"), guest_disk_info
+    return disk, maxdisk, guest_disk_info
+
+
 def _build_vm_info(vm, vm_status, agent_status, client, node_name) -> Dict:
     """Build VM information from VM data and status."""
     vmid = vm.get("vmid")
@@ -632,18 +648,10 @@ def _build_vm_info(vm, vm_status, agent_status, client, node_name) -> Dict:
     # Determine if QEMU guest agent is truly installed
     qemu_truly_installed = agent_status.get("installed", False)
     
-    # If agent is installed and running VM has zero disk reported, try to get real disk info from guest
-    guest_disk_info = None
-    if qemu_truly_installed and is_running and _to_int(disk) == 0:
-        guest_disk_info = client.get_vm_guest_fsinfo(node_name, str(vmid))
-        # Extract root filesystem info if available
-        if guest_disk_info:
-            fsinfo = guest_disk_info.get("result", [])
-            for fs in fsinfo:
-                if fs.get("mountpoint") == "/":
-                    disk = fs.get("used-bytes")
-                    maxdisk = fs.get("total-bytes")
-                    break
+    # Try to get real disk info from guest if agent is installed and disk shows zero
+    disk, maxdisk, guest_disk_info = _get_guest_disk_info(
+        client, node_name, vmid, disk, maxdisk, is_running, qemu_truly_installed
+    )
     
     # Check if disk is reported as zero for a running VM (agent may exist but disk metrics unavailable)
     qemu_warning_inferred = (
