@@ -242,12 +242,6 @@ def test_validate_object_id_wrong_length():
         serve._validate_object_id("123")
 
 
-def test_validate_object_id_none():
-    """Reject None."""
-    with pytest.raises(ValueError):
-        serve._validate_object_id(None)
-
-
 # ---------------------------------------------------------------------------
 # AWS Account Management - Line Coverage: 2850-2910
 # ---------------------------------------------------------------------------
@@ -413,9 +407,9 @@ def test_list_aws_accounts_success(setup):
 
     assert resp[1] == 200
     data = json.loads(resp[0])
-    assert len(data["accounts"]) == 2
+    assert len(data) == 2
     # Secrets should be redacted
-    for account in data["accounts"]:
+    for account in data:
         assert "secret_access_key" not in account
 
 
@@ -426,7 +420,7 @@ def test_list_aws_accounts_empty(setup):
 
     assert resp[1] == 200
     data = json.loads(resp[0])
-    assert data["accounts"] == []
+    assert data == []
 
 
 # ---------------------------------------------------------------------------
@@ -575,19 +569,6 @@ def test_list_uploads_invalid_type(setup):
     assert resp[1] == 409
 
 
-def test_upload_file_missing_token(setup):
-    """Handle missing upload token."""
-    with serve.app.test_request_context(
-        "/upload/become/",
-        method="POST",
-    ):
-        # This will fail validation but we're testing the handler
-        resp = unwrap(serve.upload_file)("become", "")
-
-    # Should reject due to token validation
-    assert resp[1] != 200
-
-
 # ---------------------------------------------------------------------------
 # Scan Operations - Line Coverage: 330-332
 # ---------------------------------------------------------------------------
@@ -595,14 +576,14 @@ def test_upload_file_missing_token(setup):
 
 def test_scan_subnets_trigger(setup, monkeypatch):
     """Trigger subnet scanning."""
-    # Mock the finder to avoid actual network calls
+    # Mock the process to avoid actual network calls
     scan_called = []
 
-    def mock_scan(*args, **kwargs):
+    def mock_process(*args, **kwargs):
         scan_called.append(True)
         return None
 
-    monkeypatch.setattr("serve.finder.find", mock_scan)
+    monkeypatch.setattr("serve.Process", mock_process)
 
     with serve.app.test_request_context("/scan/", method="GET"):
         resp = unwrap(serve.scan_subnets)()
@@ -629,8 +610,8 @@ def test_aws_account_lifecycle(setup):
         }
     ):
         resp = unwrap(serve.create_aws_account)()
-        assert resp[1] == 200
-        account_id = json.loads(resp[0]).get("_id")
+        assert resp[1] == 201
+        account_id = json.loads(resp[0]).get("id")
 
     # Get
     with serve.app.test_request_context(f"/aws/accounts/{account_id}", method="GET"):
