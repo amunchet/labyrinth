@@ -87,6 +87,38 @@ def _cluster_data_with_missing_qemu_agent(cluster_name, host):
     }
 
 
+def _cluster_data_with_exhausted_redis_fallback(cluster_name, host):
+    """Cluster payload whose only "issue" is a VM whose live status check
+    failed and whose two-hour Redis fallback cache had nothing to offer -
+    i.e. proxmox_helper._add_vm_info already tried the fallback and lost."""
+    return {
+        "cluster_name": cluster_name,
+        "host": host,
+        "nodes": [
+            {
+                "name": "node-c",
+                "storage": [],
+                "vms": [
+                    {
+                        "id": 401,
+                        "name": "vm-cache-exhausted",
+                        "status": "running",
+                        "maxdisk": 10737418240,
+                        "disk": None,
+                        "qemu_guest_agent_installed": True,
+                        "qemu_guest_agent_warning_inferred": True,
+                        "qemu_guest_agent_error": None,
+                        "_status_live_check_failed": True,
+                        "_status_from_cache": False,
+                        "_status_cache_key": "proxmox-guest-status:cluster-x:node-c:vm:401",
+                    }
+                ],
+                "containers": [],
+            }
+        ],
+    }
+
+
 # ---------------------------------------------------------------------------
 # collect_disk_issues - unit tests
 # ---------------------------------------------------------------------------
@@ -110,6 +142,25 @@ def test_collect_disk_issues_flags_missing_qemu_agent_regardless_of_threshold():
     assert issue["maxdisk"] == 10737418240
     assert issue["qemu_agent_installed"] is False
     assert "not running" in issue["qemu_agent_error"]
+    # This VM's live status call never failed - it's a genuinely missing
+    # agent, not a Redis fallback running out, so this must be False.
+    assert issue["redis_fallback_exhausted"] is False
+
+
+def test_collect_disk_issues_flags_redis_fallback_exhausted():
+    """When the live status check failed AND the two-hour Redis fallback
+    cache had nothing cached (expired or never populated), the issue must
+    say so explicitly - including the Redis key - so it isn't mistaken for
+    a false positive from a single transient API failure."""
+    cluster_data = _cluster_data_with_exhausted_redis_fallback("cluster-x", "10.1.1.3")
+
+    issues = proxmox_disk_check.collect_disk_issues(cluster_data, threshold_percent=80)
+
+    assert len(issues) == 1
+    issue = issues[0]
+    assert issue["type"] == "vm_qemu_missing"
+    assert issue["redis_fallback_exhausted"] is True
+    assert issue["redis_fallback_key"] == "proxmox-guest-status:cluster-x:node-c:vm:401"
 
 
 def test_collect_disk_issues_missing_agent_vm_not_double_counted():
@@ -343,6 +394,38 @@ def test_render_email_template_includes_qemu_missing_section():
     assert "vm-healthy" in html
     assert "cluster-2" in html
     assert "cluster-1" in html
+    # This VM's live check never failed, so no Redis fallback explanation
+    # should be shown - it would be misleading noise for a genuinely
+    # missing/non-functional guest agent.
+    assert "no cached fallback was available" not in html.lower()
+
+
+def test_render_email_template_shows_redis_fallback_details_when_exhausted():
+    """When a VM's live status check failed and its two-hour Redis fallback
+    cache was empty, the email must show the Redis key and an explanation -
+    proof that the fallback window was genuinely exhausted rather than a
+    one-off blip that should have self-healed."""
+    issues = [
+        {
+            "type": "vm_qemu_missing",
+            "cluster": "cluster-x",
+            "host": "10.1.1.3",
+            "node": "node-c",
+            "name": "vm-cache-exhausted",
+            "vm_id": 401,
+            "status": "running",
+            "maxdisk": 10737418240,
+            "qemu_agent_installed": True,
+            "qemu_agent_error": None,
+            "redis_fallback_key": "proxmox-guest-status:cluster-x:node-c:vm:401",
+            "redis_fallback_exhausted": True,
+        },
+    ]
+
+    html = proxmox_disk_check.render_email_template(issues, threshold_percent=80)
+
+    assert "no cached fallback was available" in html.lower()
+    assert "proxmox-guest-status:cluster-x:node-c:vm:401" in html
 
 
 def test_render_email_template_omits_qemu_missing_section_when_absent():

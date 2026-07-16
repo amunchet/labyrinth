@@ -416,8 +416,11 @@ def test_add_vm_info_caches_successful_status(mock_redis):
         proxmox_helper.PROXMOX_GUEST_STATUS_CACHE_TTL_SECONDS,
         json.dumps({"disk": 500, "mem": 100}),
     )
-    assert node_info["vms"][0]["disk"] == 500
-    assert node_info["vms"][0]["_status_from_cache"] is False
+    vm_info = node_info["vms"][0]
+    assert vm_info["disk"] == 500
+    assert vm_info["_status_from_cache"] is False
+    assert vm_info["_status_live_check_failed"] is False
+    assert vm_info["_status_cache_key"] == "proxmox-guest-status:cluster-1:node-a:vm:100"
 
 
 def test_add_vm_info_falls_back_to_cache_when_status_call_fails(mock_redis):
@@ -442,6 +445,8 @@ def test_add_vm_info_falls_back_to_cache_when_status_call_fails(mock_redis):
     vm_info = node_info["vms"][0]
     assert vm_info["disk"] == 700
     assert vm_info["_status_from_cache"] is True
+    assert vm_info["_status_live_check_failed"] is True
+    assert vm_info["_status_cache_key"] == "proxmox-guest-status:cluster-1:node-a:vm:100"
     # A failed call must not overwrite the last known-good cached value.
     mock_redis.setex.assert_not_called()
 
@@ -469,6 +474,8 @@ def test_add_vm_info_no_cache_available_on_failed_status_call(mock_redis):
     vm_info = node_info["vms"][0]
     assert vm_info["disk"] is None
     assert vm_info["_status_from_cache"] is False
+    assert vm_info["_status_live_check_failed"] is True
+    assert vm_info["_status_cache_key"] == "proxmox-guest-status:cluster-1:node-a:vm:100"
 
 
 def test_add_container_info_caches_successful_status(mock_redis):
@@ -494,6 +501,11 @@ def test_add_container_info_caches_successful_status(mock_redis):
     container_info = node_info["containers"][0]
     assert container_info["disk"] == 300
     assert container_info["_status_from_cache"] is False
+    assert container_info["_status_live_check_failed"] is False
+    assert (
+        container_info["_status_cache_key"]
+        == "proxmox-guest-status:cluster-1:node-a:lxc:200"
+    )
 
 
 def test_add_container_info_falls_back_to_cache_when_status_call_fails(mock_redis):
@@ -516,6 +528,11 @@ def test_add_container_info_falls_back_to_cache_when_status_call_fails(mock_redi
     container_info = node_info["containers"][0]
     assert container_info["disk"] == 400
     assert container_info["_status_from_cache"] is True
+    assert container_info["_status_live_check_failed"] is True
+    assert (
+        container_info["_status_cache_key"]
+        == "proxmox-guest-status:cluster-1:node-a:lxc:200"
+    )
     mock_redis.setex.assert_not_called()
 
 
@@ -539,7 +556,10 @@ def test_add_vm_info_without_cluster_identifier_skips_caching(mock_redis):
 
     mock_redis.get.assert_not_called()
     mock_redis.setex.assert_not_called()
-    assert node_info["vms"][0]["_status_from_cache"] is False
+    vm_info = node_info["vms"][0]
+    assert vm_info["_status_from_cache"] is False
+    assert vm_info["_status_live_check_failed"] is True
+    assert vm_info["_status_cache_key"] is None
 
 
 # ---------------------------------------------------------------------------
@@ -1332,3 +1352,53 @@ def test_get_proxmox_disk_data_vm_status_falls_back_to_redis_cache(mock_redis):
     mock_redis.get.assert_called_once_with(
         "proxmox-guest-status:cluster-123:node-a:vm:100"
     )
+
+
+def test_get_proxmox_disk_data_vm_status_fails_with_no_cache_available(mock_redis):
+    """End-to-end: when the live VM status call fails AND there's nothing in
+    the Redis fallback cache (never populated, or expired past the two-hour
+    TTL), the VM is genuinely unmeasurable - the resulting payload must carry
+    enough detail (the cache key, and that the live check failed) for the
+    disk-check email to explain why, instead of just showing zero disk."""
+    cluster = {
+        "_id": "cluster-123",
+        "host": "10.0.0.1",
+        "user": "root@pam",
+        "token_id": "token-1",
+        "token_secret": "secret-1",
+    }
+
+    mock_redis.get.return_value = None
+
+    with patch.object(
+        proxmox_helper.ProxmoxClient,
+        "get_nodes",
+        return_value=[{"node": "node-a", "status": "online"}],
+    ), patch.object(
+        proxmox_helper.ProxmoxClient, "get_storage", return_value=[]
+    ), patch.object(
+        proxmox_helper.ProxmoxClient,
+        "get_vms_and_containers",
+        return_value=(
+            [{"vmid": 100, "name": "vm-1", "status": "running", "maxdisk": 1000}],
+            [],
+        ),
+    ), patch.object(
+        proxmox_helper.ProxmoxClient, "get_vm_status", return_value=None
+    ), patch.object(
+        proxmox_helper.ProxmoxClient,
+        "get_vm_agent_status",
+        return_value={"installed": True, "error": None},
+    ), patch.object(
+        proxmox_helper.ProxmoxClient, "get_vm_guest_fsinfo", return_value=None
+    ):
+        result = proxmox_helper.get_proxmox_disk_data(
+            "10.0.0.1", cluster, redis_client=mock_redis
+        )
+
+    vm = result["nodes"][0]["vms"][0]
+    assert vm["disk"] is None
+    assert vm["_status_from_cache"] is False
+    assert vm["_status_live_check_failed"] is True
+    assert vm["_status_cache_key"] == "proxmox-guest-status:cluster-123:node-a:vm:100"
+    assert vm["qemu_guest_agent_warning_inferred"] is True

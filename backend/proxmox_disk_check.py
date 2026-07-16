@@ -164,6 +164,15 @@ def _collect_vm_issues(node, cluster_name, host, node_name, threshold_percent):
         # entire cluster look "clean" when its VMs simply couldn't be
         # measured.
         if vm.get("qemu_guest_agent_warning_inferred"):
+            # Distinguish a genuinely missing/non-functional guest agent from
+            # a live status check that failed with no Redis fallback left to
+            # cover for it (see proxmox_helper._add_vm_info) - the latter
+            # means the two-hour fallback window has already been exhausted,
+            # which is worth showing so this isn't mistaken for a false
+            # positive from a single transient API failure.
+            redis_fallback_exhausted = bool(
+                vm.get("_status_live_check_failed") and not vm.get("_status_from_cache")
+            )
             issues.append(
                 {
                     "type": "vm_qemu_missing",
@@ -176,6 +185,8 @@ def _collect_vm_issues(node, cluster_name, host, node_name, threshold_percent):
                     "maxdisk": maxdisk,
                     "qemu_agent_installed": vm.get("qemu_guest_agent_installed"),
                     "qemu_agent_error": vm.get("qemu_guest_agent_error"),
+                    "redis_fallback_key": vm.get("_status_cache_key"),
+                    "redis_fallback_exhausted": redis_fallback_exhausted,
                 }
             )
             continue

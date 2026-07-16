@@ -709,6 +709,13 @@ def _add_vm_info(
         vmid = vm.get("vmid")
         vm_status = client.get_vm_status(node_name, str(vmid))
         used_cached_status = False
+        live_check_failed = vm_status is None
+        cache_key = None
+
+        if cluster_identifier is not None:
+            cache_key = get_guest_status_cache_key(
+                cluster_identifier, node_name, "vm", vmid
+            )
 
         if vm_status is not None:
             if cluster_identifier is not None:
@@ -734,6 +741,8 @@ def _add_vm_info(
         agent_status = client.get_vm_agent_status(node_name, str(vmid))
         vm_info = _build_vm_info(vm, vm_status, agent_status, client, node_name)
         vm_info["_status_from_cache"] = used_cached_status
+        vm_info["_status_live_check_failed"] = live_check_failed
+        vm_info["_status_cache_key"] = cache_key
         node_info["vms"].append(vm_info)
 
 
@@ -750,6 +759,13 @@ def _add_container_info(
         vmid = container.get("vmid")
         container_status = client.get_container_status(node_name, str(vmid))
         used_cached_status = False
+        live_check_failed = container_status is None
+        cache_key = None
+
+        if cluster_identifier is not None:
+            cache_key = get_guest_status_cache_key(
+                cluster_identifier, node_name, "lxc", vmid
+            )
 
         if container_status is not None:
             if cluster_identifier is not None:
@@ -781,6 +797,8 @@ def _add_container_info(
             "maxmem": container.get("maxmem"),
             "mem": container_status.get("mem") if container_status else None,
             "_status_from_cache": used_cached_status,
+            "_status_live_check_failed": live_check_failed,
+            "_status_cache_key": cache_key,
         }
         node_info["containers"].append(container_info)
 
