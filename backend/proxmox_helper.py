@@ -63,7 +63,9 @@ def _resolve_cluster_identifier(cluster_or_identifier):
 
 def get_proxmox_cache_key(cluster_or_identifier) -> str:
     """Build the Redis cache key for a Proxmox cluster."""
-    return f"{PROXMOX_CACHE_PREFIX}:{_resolve_cluster_identifier(cluster_or_identifier)}"
+    return (
+        f"{PROXMOX_CACHE_PREFIX}:{_resolve_cluster_identifier(cluster_or_identifier)}"
+    )
 
 
 def get_guest_status_cache_key(
@@ -71,7 +73,9 @@ def get_guest_status_cache_key(
 ) -> str:
     """Build the Redis cache key for a single VM/LXC status fallback entry."""
     cluster_identifier = _resolve_cluster_identifier(cluster_or_identifier)
-    return f"{PROXMOX_GUEST_STATUS_CACHE_PREFIX}:{cluster_identifier}:{node}:{kind}:{vmid}"
+    return (
+        f"{PROXMOX_GUEST_STATUS_CACHE_PREFIX}:{cluster_identifier}:{node}:{kind}:{vmid}"
+    )
 
 
 def get_cached_guest_status(
