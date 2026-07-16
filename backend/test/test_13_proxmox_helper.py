@@ -339,7 +339,9 @@ def test_get_cached_guest_status_found(mock_redis):
     )
 
     assert result == {"disk": 500, "mem": 100}
-    mock_redis.get.assert_called_once_with("proxmox-guest-status:cluster-1:node-a:vm:100")
+    mock_redis.get.assert_called_once_with(
+        "proxmox-guest-status:cluster-1:node-a:vm:100"
+    )
 
 
 def test_get_cached_guest_status_not_found(mock_redis):
