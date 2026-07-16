@@ -123,7 +123,7 @@ def test_get_proxmox_disk_space_prefers_redis_cache(setup, monkeypatch):
 
     monkeypatch.setattr(serve.proxmox_helper, "get_redis_client", lambda: fake_redis)
 
-    def fake_get_proxmox_disk_data(host_ip, cluster_config):
+    def fake_get_proxmox_disk_data(host_ip, cluster_config, redis_client=None):
         raise AssertionError(
             "live Proxmox query should not run when Redis cache is present"
         )
@@ -161,7 +161,7 @@ def test_get_proxmox_disk_space_falls_back_to_live_query_and_caches(setup, monke
 
     monkeypatch.setattr(serve.proxmox_helper, "get_redis_client", lambda: fake_redis)
 
-    def fake_get_proxmox_disk_data(host_ip, cluster_config):
+    def fake_get_proxmox_disk_data(host_ip, cluster_config, redis_client=None):
         calls.append((host_ip, cluster_config["name"]))
         return {
             "nodes": [{"name": "node-live", "storage": [], "vms": [], "containers": []}]
@@ -207,7 +207,7 @@ def test_get_proxmox_disk_space_backfills_qemu_warning_fields(setup, monkeypatch
         }
     )
 
-    def fake_get_proxmox_disk_data(host_ip, cluster_config):
+    def fake_get_proxmox_disk_data(host_ip, cluster_config, redis_client=None):
         return {
             "nodes": [
                 {
@@ -276,7 +276,7 @@ def test_refresh_proxmox_disk_space_bypasses_cache_and_recaches(setup, monkeypat
 
     monkeypatch.setattr(serve.proxmox_helper, "get_redis_client", lambda: fake_redis)
 
-    def fake_get_proxmox_disk_data(host_ip, cluster_config):
+    def fake_get_proxmox_disk_data(host_ip, cluster_config, redis_client=None):
         calls.append((host_ip, cluster_config["name"]))
         return {
             "nodes": [
@@ -730,7 +730,7 @@ def test_refresh_proxmox_cluster_cache_writes_redis_entries(monkeypatch):
     ]
     calls = []
 
-    def fake_get_proxmox_disk_data(host_ip, cluster_config):
+    def fake_get_proxmox_disk_data(host_ip, cluster_config, redis_client=None):
         calls.append((host_ip, cluster_config["name"]))
         return {
             "nodes": [

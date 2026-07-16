@@ -24,14 +24,26 @@ except ImportError:
 PROXMOX_CACHE_PREFIX = "proxmox-disk"
 PROXMOX_CACHE_TTL_SECONDS = int(os.environ.get("PROXMOX_CACHE_TTL_SECONDS", "90"))
 
+# Per-VM/LXC status fallback cache. Individual guest status calls
+# (get_vm_status / get_container_status) occasionally fail transiently
+# (network blip, node under load) even though the guest itself is fine.
+# Treating a failed call as "0 disk used" previously caused false-positive
+# "missing QEMU guest agent" alerts. Instead, the last known-good status is
+# retained for up to two hours so a single failed check has time to be
+# followed by a successful one before an alert email would go out.
+PROXMOX_GUEST_STATUS_CACHE_PREFIX = "proxmox-guest-status"
+PROXMOX_GUEST_STATUS_CACHE_TTL_SECONDS = int(
+    os.environ.get("PROXMOX_GUEST_STATUS_CACHE_TTL_SECONDS", str(2 * 60 * 60))
+)
+
 
 def get_redis_client():
     """Return the shared Redis client used for cached Proxmox payloads."""
     return redis.Redis(host=(os.environ.get("REDIS_HOST") or "redis"))
 
 
-def get_proxmox_cache_key(cluster_or_identifier) -> str:
-    """Build the Redis cache key for a Proxmox cluster."""
+def _resolve_cluster_identifier(cluster_or_identifier):
+    """Extract a stable identifier from a cluster dict or raw identifier."""
     identifier = cluster_or_identifier
 
     if isinstance(cluster_or_identifier, dict):
@@ -46,7 +58,61 @@ def get_proxmox_cache_key(cluster_or_identifier) -> str:
             "Proxmox cluster identifier is required for cache key generation"
         )
 
-    return f"{PROXMOX_CACHE_PREFIX}:{identifier}"
+    return identifier
+
+
+def get_proxmox_cache_key(cluster_or_identifier) -> str:
+    """Build the Redis cache key for a Proxmox cluster."""
+    return f"{PROXMOX_CACHE_PREFIX}:{_resolve_cluster_identifier(cluster_or_identifier)}"
+
+
+def get_guest_status_cache_key(
+    cluster_or_identifier, node: str, kind: str, vmid
+) -> str:
+    """Build the Redis cache key for a single VM/LXC status fallback entry."""
+    cluster_identifier = _resolve_cluster_identifier(cluster_or_identifier)
+    return f"{PROXMOX_GUEST_STATUS_CACHE_PREFIX}:{cluster_identifier}:{node}:{kind}:{vmid}"
+
+
+def get_cached_guest_status(
+    cluster_or_identifier, node: str, kind: str, vmid, redis_client=None
+) -> Optional[Dict]:
+    """Read the last known-good status for a single VM/LXC from Redis."""
+    redis_client = redis_client or get_redis_client()
+
+    try:
+        cached = redis_client.get(
+            get_guest_status_cache_key(cluster_or_identifier, node, kind, vmid)
+        )
+    except Exception:
+        return None
+
+    if not cached:
+        return None
+
+    if isinstance(cached, bytes):
+        cached = cached.decode("utf-8")
+
+    try:
+        return json.loads(cached)
+    except Exception:
+        return None
+
+
+def set_cached_guest_status(
+    cluster_or_identifier, node: str, kind: str, vmid, status: Dict, redis_client=None
+) -> None:
+    """Store a successful VM/LXC status result in Redis with a two-hour TTL."""
+    redis_client = redis_client or get_redis_client()
+
+    try:
+        redis_client.setex(
+            get_guest_status_cache_key(cluster_or_identifier, node, kind, vmid),
+            PROXMOX_GUEST_STATUS_CACHE_TTL_SECONDS,
+            json.dumps(status, default=str),
+        )
+    except Exception:
+        pass
 
 
 def _to_int(value):
@@ -241,7 +307,10 @@ def delete_cached_proxmox_disk_data(cluster_or_identifier, redis_client=None) ->
 
 def fetch_and_cache_proxmox_disk_data(cluster: Dict, redis_client=None) -> Dict:
     """Fetch live Proxmox data for a cluster and cache the normalized payload."""
-    payload = get_proxmox_disk_data(cluster.get("host"), cluster)
+    redis_client = redis_client or get_redis_client()
+    payload = get_proxmox_disk_data(
+        cluster.get("host"), cluster, redis_client=redis_client
+    )
     return set_cached_proxmox_disk_data(cluster, payload, redis_client=redis_client)
 
 
@@ -517,12 +586,16 @@ class ProxmoxClient:
             return None
 
 
-def get_proxmox_disk_data(host_ip: str, cluster_config: Dict) -> Dict:
+def get_proxmox_disk_data(
+    host_ip: str, cluster_config: Dict, redis_client=None
+) -> Dict:
     """
     Retrieve disk space data from a Proxmox host
 
     :param host_ip: Proxmox cluster host IP
     :param cluster_config: Cluster configuration dict with keys: host, user, token_id, token_secret, verify_ssl (optional)
+    :param redis_client: Optional Redis client used to fall back to the last
+        known-good status for a VM/LXC when its live status call fails
     :return: Dictionary with disk space information
     """
     try:
@@ -552,8 +625,14 @@ def get_proxmox_disk_data(host_ip: str, cluster_config: Dict) -> Dict:
             result["error"] = "Could not retrieve nodes"
             return result
 
+        cluster_identifier = (
+            cluster_config.get("_id") or cluster_config.get("name") or host_ip
+        )
+
         for node in nodes:
-            node_info = _build_node_info(node, client)
+            node_info = _build_node_info(
+                node, client, cluster_identifier, redis_client=redis_client
+            )
             result["nodes"].append(node_info)
 
         return result
@@ -570,7 +649,7 @@ def _to_int(value):
         return 0
 
 
-def _build_node_info(node, client) -> Dict:
+def _build_node_info(node, client, cluster_identifier=None, redis_client=None) -> Dict:
     """Build node information including storage, VMs, and containers."""
     node_name = node.get("node")
     node_info = {
@@ -586,8 +665,22 @@ def _build_node_info(node, client) -> Dict:
 
     # Get VMs and containers
     vms, containers = client.get_vms_and_containers(node_name)
-    _add_vm_info(node_info, client, node_name, vms)
-    _add_container_info(node_info, client, node_name, containers)
+    _add_vm_info(
+        node_info,
+        client,
+        node_name,
+        vms,
+        cluster_identifier,
+        redis_client=redis_client,
+    )
+    _add_container_info(
+        node_info,
+        client,
+        node_name,
+        containers,
+        cluster_identifier,
+        redis_client=redis_client,
+    )
 
     return node_info
 
@@ -608,21 +701,77 @@ def _add_storage_info(node_info, client, node_name):
         node_info["storage"].append(storage_info)
 
 
-def _add_vm_info(node_info, client, node_name, vms):
+def _add_vm_info(
+    node_info, client, node_name, vms, cluster_identifier=None, redis_client=None
+):
     """Add VM information to node info."""
     for vm in vms:
         vmid = vm.get("vmid")
         vm_status = client.get_vm_status(node_name, str(vmid))
+        used_cached_status = False
+
+        if vm_status is not None:
+            if cluster_identifier is not None:
+                set_cached_guest_status(
+                    cluster_identifier,
+                    node_name,
+                    "vm",
+                    vmid,
+                    vm_status,
+                    redis_client=redis_client,
+                )
+        elif cluster_identifier is not None:
+            # Live status call failed - fall back to the last known-good
+            # status (retained for up to two hours) instead of treating the
+            # VM as having zero disk usage / a missing guest agent.
+            cached_status = get_cached_guest_status(
+                cluster_identifier, node_name, "vm", vmid, redis_client=redis_client
+            )
+            if cached_status is not None:
+                vm_status = cached_status
+                used_cached_status = True
+
         agent_status = client.get_vm_agent_status(node_name, str(vmid))
         vm_info = _build_vm_info(vm, vm_status, agent_status, client, node_name)
+        vm_info["_status_from_cache"] = used_cached_status
         node_info["vms"].append(vm_info)
 
 
-def _add_container_info(node_info, client, node_name, containers):
+def _add_container_info(
+    node_info,
+    client,
+    node_name,
+    containers,
+    cluster_identifier=None,
+    redis_client=None,
+):
     """Add container information to node info."""
     for container in containers:
         vmid = container.get("vmid")
         container_status = client.get_container_status(node_name, str(vmid))
+        used_cached_status = False
+
+        if container_status is not None:
+            if cluster_identifier is not None:
+                set_cached_guest_status(
+                    cluster_identifier,
+                    node_name,
+                    "lxc",
+                    vmid,
+                    container_status,
+                    redis_client=redis_client,
+                )
+        elif cluster_identifier is not None:
+            # Live status call failed - fall back to the last known-good
+            # status (retained for up to two hours) instead of treating the
+            # container as having no disk usage data.
+            cached_status = get_cached_guest_status(
+                cluster_identifier, node_name, "lxc", vmid, redis_client=redis_client
+            )
+            if cached_status is not None:
+                container_status = cached_status
+                used_cached_status = True
+
         container_info = {
             "id": vmid,
             "name": container.get("name"),
@@ -631,6 +780,7 @@ def _add_container_info(node_info, client, node_name, containers):
             "disk": container_status.get("disk") if container_status else None,
             "maxmem": container.get("maxmem"),
             "mem": container_status.get("mem") if container_status else None,
+            "_status_from_cache": used_cached_status,
         }
         node_info["containers"].append(container_info)
 
