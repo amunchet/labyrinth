@@ -422,7 +422,9 @@ def test_add_vm_info_caches_successful_status(mock_redis):
     assert vm_info["disk"] == 500
     assert vm_info["_status_from_cache"] is False
     assert vm_info["_status_live_check_failed"] is False
-    assert vm_info["_status_cache_key"] == "proxmox-guest-status:cluster-1:node-a:vm:100"
+    assert (
+        vm_info["_status_cache_key"] == "proxmox-guest-status:cluster-1:node-a:vm:100"
+    )
 
 
 def test_add_vm_info_falls_back_to_cache_when_status_call_fails(mock_redis):
@@ -448,7 +450,9 @@ def test_add_vm_info_falls_back_to_cache_when_status_call_fails(mock_redis):
     assert vm_info["disk"] == 700
     assert vm_info["_status_from_cache"] is True
     assert vm_info["_status_live_check_failed"] is True
-    assert vm_info["_status_cache_key"] == "proxmox-guest-status:cluster-1:node-a:vm:100"
+    assert (
+        vm_info["_status_cache_key"] == "proxmox-guest-status:cluster-1:node-a:vm:100"
+    )
     # A failed call must not overwrite the last known-good cached value.
     mock_redis.setex.assert_not_called()
 
@@ -477,7 +481,9 @@ def test_add_vm_info_no_cache_available_on_failed_status_call(mock_redis):
     assert vm_info["disk"] is None
     assert vm_info["_status_from_cache"] is False
     assert vm_info["_status_live_check_failed"] is True
-    assert vm_info["_status_cache_key"] == "proxmox-guest-status:cluster-1:node-a:vm:100"
+    assert (
+        vm_info["_status_cache_key"] == "proxmox-guest-status:cluster-1:node-a:vm:100"
+    )
 
 
 def test_add_container_info_caches_successful_status(mock_redis):
