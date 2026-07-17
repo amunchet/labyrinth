@@ -173,6 +173,15 @@ def _collect_vm_issues(node, cluster_name, host, node_name, threshold_percent):
             redis_fallback_exhausted = bool(
                 vm.get("_status_live_check_failed") and not vm.get("_status_from_cache")
             )
+            # Same idea, but for the separate agent/info call: a connection
+            # failure there (e.g. a transient timeout to Proxmox) is not the
+            # same as Proxmox actually reporting the agent missing, so it
+            # gets its own cache/fallback tracking - see
+            # proxmox_helper.ProxmoxClient.get_vm_agent_status.
+            agent_check_inconclusive = bool(
+                vm.get("_agent_status_live_check_failed")
+                and not vm.get("_agent_status_from_cache")
+            )
             issues.append(
                 {
                     "type": "vm_qemu_missing",
@@ -187,6 +196,8 @@ def _collect_vm_issues(node, cluster_name, host, node_name, threshold_percent):
                     "qemu_agent_error": vm.get("qemu_guest_agent_error"),
                     "redis_fallback_key": vm.get("_status_cache_key"),
                     "redis_fallback_exhausted": redis_fallback_exhausted,
+                    "agent_redis_fallback_key": vm.get("_agent_status_cache_key"),
+                    "agent_check_inconclusive": agent_check_inconclusive,
                 }
             )
             continue

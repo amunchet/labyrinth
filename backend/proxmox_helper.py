@@ -431,14 +431,20 @@ class ProxmoxClient:
             return None
 
     def get_vm_agent_status(self, node: str, vmid: str) -> Dict:
-        """Determine whether the QEMU guest agent is available for a VM."""
+        """Determine whether the QEMU guest agent is available for a VM.
+
+        `reachable` distinguishes a real answer from Proxmox (HTTP error
+        response - the agent genuinely isn't there) from a failure to even
+        reach Proxmox (connection error/timeout - `installed` is left as
+        `None` since we have no idea, rather than falsely asserting "No").
+        """
         try:
             response = self.session.get(
                 f"{self.base_url}/nodes/{node}/qemu/{vmid}/agent/info",
                 timeout=10,
             )
             response.raise_for_status()
-            return {"installed": True, "error": None}
+            return {"installed": True, "error": None, "reachable": True}
         except requests.HTTPError as error:
             response = getattr(error, "response", None)
             message = None
@@ -459,11 +465,13 @@ class ProxmoxClient:
             return {
                 "installed": False,
                 "error": message or str(error),
+                "reachable": True,
             }
         except Exception as error:
             return {
-                "installed": False,
+                "installed": None,
                 "error": str(error),
+                "reachable": False,
             }
 
     def get_vm_guest_fsinfo(self, node: str, vmid: str) -> Optional[Dict]:
@@ -743,10 +751,47 @@ def _add_vm_info(
                 used_cached_status = True
 
         agent_status = client.get_vm_agent_status(node_name, str(vmid))
+        agent_used_cached_status = False
+        agent_live_check_failed = not agent_status.get("reachable", True)
+        agent_cache_key = None
+
+        if cluster_identifier is not None:
+            agent_cache_key = get_guest_status_cache_key(
+                cluster_identifier, node_name, "vm-agent", vmid
+            )
+
+        if agent_status.get("reachable", True):
+            if cluster_identifier is not None:
+                set_cached_guest_status(
+                    cluster_identifier,
+                    node_name,
+                    "vm-agent",
+                    vmid,
+                    agent_status,
+                    redis_client=redis_client,
+                )
+        elif cluster_identifier is not None:
+            # Couldn't reach Proxmox to ask about the agent at all - fall
+            # back to the last known-good answer instead of reporting a
+            # confident "agent missing" from a single connection blip.
+            cached_agent_status = get_cached_guest_status(
+                cluster_identifier,
+                node_name,
+                "vm-agent",
+                vmid,
+                redis_client=redis_client,
+            )
+            if cached_agent_status is not None:
+                agent_status = cached_agent_status
+                agent_used_cached_status = True
+
         vm_info = _build_vm_info(vm, vm_status, agent_status, client, node_name)
         vm_info["_status_from_cache"] = used_cached_status
         vm_info["_status_live_check_failed"] = live_check_failed
         vm_info["_status_cache_key"] = cache_key
+        vm_info["_agent_status_from_cache"] = agent_used_cached_status
+        vm_info["_agent_status_live_check_failed"] = agent_live_check_failed
+        vm_info["_agent_status_cache_key"] = agent_cache_key
         node_info["vms"].append(vm_info)
 
 
@@ -832,8 +877,12 @@ def _build_vm_info(vm, vm_status, agent_status, client, node_name) -> Dict:
     disk = vm_status.get("disk") if vm_status else None
     is_running = str(vm.get("status") or "").lower() == "running"
 
-    # Determine if QEMU guest agent is truly installed
-    qemu_truly_installed = agent_status.get("installed", False)
+    # Determine if QEMU guest agent is confirmed installed. `installed` may
+    # be None when the live check couldn't reach Proxmox at all and no
+    # cached answer was available - that's "unknown", not "not installed",
+    # so only a definite True counts here.
+    agent_installed = agent_status.get("installed")
+    qemu_truly_installed = agent_installed is True
 
     # Try to get real disk info from guest if agent is installed and disk shows zero
     disk, maxdisk, guest_disk_info = _get_guest_disk_info(
@@ -851,7 +900,7 @@ def _build_vm_info(vm, vm_status, agent_status, client, node_name) -> Dict:
         "disk": disk,
         "maxmem": vm.get("maxmem"),
         "mem": vm_status.get("mem") if vm_status else None,
-        "qemu_guest_agent_installed": qemu_truly_installed,
+        "qemu_guest_agent_installed": agent_installed,
         "qemu_guest_agent_error": agent_status.get("error"),
         "qemu_guest_agent_warning_inferred": qemu_warning_inferred,
     }

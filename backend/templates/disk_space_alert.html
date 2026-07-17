@@ -105,9 +105,22 @@
                 <td>{{ vm.name }} (ID: {{ vm.vm_id }})</td>
                 <td>{{ vm.status }}</td>
                 <td>{{ vm.maxdisk|format_size }}</td>
-                <td class="percentage-high">{{ "Yes" if vm.qemu_agent_installed else "No" }}</td>
+                <td class="percentage-high">
+                    {% if vm.qemu_agent_installed == true %}Yes{% elif vm.qemu_agent_installed == false %}No{% else %}Unknown{% endif %}
+                </td>
                 <td>
                     {{ vm.qemu_agent_error or "Guest agent unavailable or not reporting filesystem info" }}
+                    {% if vm.agent_check_inconclusive %}
+                    <br>
+                    <span style="color: #8B0000; font-size: 12px;">
+                        Could not verify guest agent status &mdash; the live check to Proxmox
+                        failed and no cached fallback was available
+                        (Redis key: <code>{{ vm.agent_redis_fallback_key }}</code>) &mdash; either
+                        it was never cached, or more than two hours have passed since the last
+                        successful check. Disk usage still cannot be verified, but this may be a
+                        transient connectivity issue rather than a genuinely missing agent.
+                    </span>
+                    {% endif %}
                     {% if vm.redis_fallback_exhausted %}
                     <br>
                     <span style="color: #8B0000; font-size: 12px;">
