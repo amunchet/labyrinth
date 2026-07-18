@@ -119,6 +119,48 @@ def _cluster_data_with_exhausted_redis_fallback(cluster_name, host):
     }
 
 
+def _cluster_data_with_inconclusive_agent_check(cluster_name, host):
+    """Cluster payload for a VM whose disk-status call succeeded (as is
+    normal for QEMU without an agent - it always reports disk=0) but whose
+    separate agent/info call failed to even reach Proxmox, with nothing left
+    in its own two-hour Redis fallback cache. This is the actual production
+    bug: a transient connection failure to /agent/info alone must not be
+    reported as a confirmed 'agent missing'."""
+    return {
+        "cluster_name": cluster_name,
+        "host": host,
+        "nodes": [
+            {
+                "name": "pve",
+                "storage": [],
+                "vms": [
+                    {
+                        "id": 109,
+                        "name": "venus",
+                        "status": "running",
+                        "maxdisk": 214748364800,
+                        "disk": 0,
+                        "qemu_guest_agent_installed": None,
+                        "qemu_guest_agent_warning_inferred": True,
+                        "qemu_guest_agent_error": (
+                            "HTTPSConnectionPool(host='192.168.0.107', port=8006): "
+                            "Max retries exceeded ... ConnectTimeoutError"
+                        ),
+                        "_status_live_check_failed": False,
+                        "_status_from_cache": False,
+                        "_agent_status_live_check_failed": True,
+                        "_agent_status_from_cache": False,
+                        "_agent_status_cache_key": (
+                            "proxmox-guest-status:south:pve:vm-agent:109"
+                        ),
+                    }
+                ],
+                "containers": [],
+            }
+        ],
+    }
+
+
 # ---------------------------------------------------------------------------
 # collect_disk_issues - unit tests
 # ---------------------------------------------------------------------------
@@ -161,6 +203,29 @@ def test_collect_disk_issues_flags_redis_fallback_exhausted():
     assert issue["type"] == "vm_qemu_missing"
     assert issue["redis_fallback_exhausted"] is True
     assert issue["redis_fallback_key"] == "proxmox-guest-status:cluster-x:node-c:vm:401"
+
+
+def test_collect_disk_issues_flags_agent_check_inconclusive():
+    """A connection failure to /agent/info alone (VM status call succeeded
+    fine) with no cached fallback must be marked inconclusive, not a
+    confirmed missing agent - this is the exact production false-positive
+    reported: a single ConnectTimeoutError to the agent endpoint should not
+    read as 'Agent Installed: No'."""
+    cluster_data = _cluster_data_with_inconclusive_agent_check("south", "192.168.0.107")
+
+    issues = proxmox_disk_check.collect_disk_issues(cluster_data, threshold_percent=80)
+
+    assert len(issues) == 1
+    issue = issues[0]
+    assert issue["type"] == "vm_qemu_missing"
+    assert issue["qemu_agent_installed"] is None
+    assert issue["agent_check_inconclusive"] is True
+    assert issue["agent_redis_fallback_key"] == (
+        "proxmox-guest-status:south:pve:vm-agent:109"
+    )
+    # The VM status check itself succeeded and wasn't served from cache -
+    # this is specifically an agent-check failure, not a status-check one.
+    assert issue["redis_fallback_exhausted"] is False
 
 
 def test_collect_disk_issues_missing_agent_vm_not_double_counted():
@@ -426,6 +491,40 @@ def test_render_email_template_shows_redis_fallback_details_when_exhausted():
 
     assert "no cached fallback was available" in html.lower()
     assert "proxmox-guest-status:cluster-x:node-c:vm:401" in html
+
+
+def test_render_email_template_shows_unknown_and_note_when_agent_check_inconclusive():
+    """A VM whose agent/info call failed with no cached fallback must render
+    'Unknown' (not 'No') in the Agent Installed column, plus an explanatory
+    note - this is the fix for the reported false-positive email, which
+    showed a raw ConnectTimeoutError as if it confirmed the agent was
+    missing."""
+    issues = [
+        {
+            "type": "vm_qemu_missing",
+            "cluster": "south",
+            "host": "192.168.0.107",
+            "node": "pve",
+            "name": "venus",
+            "vm_id": 109,
+            "status": "running",
+            "maxdisk": 214748364800,
+            "qemu_agent_installed": None,
+            "qemu_agent_error": (
+                "HTTPSConnectionPool(host='192.168.0.107', port=8006): "
+                "Max retries exceeded ... ConnectTimeoutError"
+            ),
+            "redis_fallback_exhausted": False,
+            "agent_check_inconclusive": True,
+            "agent_redis_fallback_key": "proxmox-guest-status:south:pve:vm-agent:109",
+        },
+    ]
+
+    html = proxmox_disk_check.render_email_template(issues, threshold_percent=80)
+
+    assert "Unknown" in html
+    assert "Could not verify guest agent status" in html
+    assert "proxmox-guest-status:south:pve:vm-agent:109" in html
 
 
 def test_render_email_template_omits_qemu_missing_section_when_absent():
