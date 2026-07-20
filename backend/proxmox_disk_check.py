@@ -9,6 +9,7 @@ and sends email alerts when usage exceeds a configured threshold.
 import os
 import json
 import sys
+import time
 from typing import List, Dict, Optional, Tuple
 import pymongo
 import redis
@@ -120,6 +121,23 @@ def collect_disk_issues(cluster_data: Dict, threshold_percent: float) -> List[Di
     return issues
 
 
+def _format_warning_duration(seconds: float) -> str:
+    """Render a duration in seconds as a short human-readable string (e.g. '2h 15m')."""
+    seconds = max(0, int(seconds))
+    hours, remainder = divmod(seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours:
+        return f"{hours}h {minutes}m"
+    if minutes:
+        return f"{minutes}m"
+    return f"{secs}s"
+
+
+def _format_warning_timestamp(epoch: float) -> str:
+    """Render an epoch timestamp in the same style as the email's own timestamp."""
+    return datetime.fromtimestamp(epoch).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+
 def _collect_storage_issues(node, cluster_name, host, node_name, threshold_percent):
     """Collect storage/datastore disk issues from a node."""
     issues = []
@@ -182,6 +200,24 @@ def _collect_vm_issues(node, cluster_name, host, node_name, threshold_percent):
                 vm.get("_agent_status_live_check_failed")
                 and not vm.get("_agent_status_from_cache")
             )
+
+            # Beyond "did the fallback run out", explicitly surface whether
+            # *this* reading came from a live API call or the Redis cache,
+            # and how long this VM has continuously shown the warning - so a
+            # brand-new (possibly flaky) reading can be told apart from one
+            # that has persisted across many checks over the two-hour cache
+            # window.
+            warning_first_seen = vm.get("_warning_first_seen")
+            warning_duration_seconds = (
+                (time.time() - warning_first_seen)
+                if warning_first_seen is not None
+                else None
+            )
+            warning_persistent_2h = bool(
+                warning_duration_seconds is not None
+                and warning_duration_seconds >= 2 * 60 * 60
+            )
+
             issues.append(
                 {
                     "type": "vm_qemu_missing",
@@ -198,6 +234,21 @@ def _collect_vm_issues(node, cluster_name, host, node_name, threshold_percent):
                     "redis_fallback_exhausted": redis_fallback_exhausted,
                     "agent_redis_fallback_key": vm.get("_agent_status_cache_key"),
                     "agent_check_inconclusive": agent_check_inconclusive,
+                    "status_from_cache": vm.get("_status_from_cache"),
+                    "status_live_check_failed": vm.get("_status_live_check_failed"),
+                    "warning_first_seen": warning_first_seen,
+                    "warning_first_seen_display": (
+                        _format_warning_timestamp(warning_first_seen)
+                        if warning_first_seen is not None
+                        else None
+                    ),
+                    "warning_duration_seconds": warning_duration_seconds,
+                    "warning_duration_display": (
+                        _format_warning_duration(warning_duration_seconds)
+                        if warning_duration_seconds is not None
+                        else None
+                    ),
+                    "warning_persistent_2h": warning_persistent_2h,
                 }
             )
             continue

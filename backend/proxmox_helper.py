@@ -119,6 +119,76 @@ def set_cached_guest_status(
         pass
 
 
+# Tracks how long a VM has *continuously* shown the zero-disk/missing-agent
+# warning - distinct from PROXMOX_GUEST_STATUS_CACHE above, which only
+# remembers the last known-good status. Without this, an alert email had no
+# way to say whether a warning was a brand-new (possibly flaky) reading or
+# one that has persisted across many checks, since the last-known-good cache
+# is never even consulted once a live check succeeds - even if it reports a
+# zero disk.
+PROXMOX_GUEST_WARNING_STREAK_PREFIX = "proxmox-guest-warning-streak"
+PROXMOX_GUEST_WARNING_STREAK_TTL_SECONDS = int(
+    os.environ.get("PROXMOX_GUEST_WARNING_STREAK_TTL_SECONDS", str(7 * 24 * 60 * 60))
+)
+
+
+def get_guest_warning_streak_key(
+    cluster_or_identifier, node: str, kind: str, vmid
+) -> str:
+    """Build the Redis key tracking an in-progress warning streak for a guest."""
+    cluster_identifier = _resolve_cluster_identifier(cluster_or_identifier)
+    return (
+        f"{PROXMOX_GUEST_WARNING_STREAK_PREFIX}:"
+        f"{cluster_identifier}:{node}:{kind}:{vmid}"
+    )
+
+
+def record_guest_warning_seen(
+    cluster_or_identifier, node: str, kind: str, vmid, redis_client=None
+) -> float:
+    """Record that a guest's zero-disk/missing-agent warning fired right now.
+
+    Returns the epoch timestamp the current unbroken streak began - the
+    first time it was observed, not necessarily now - so callers can tell a
+    brand-new warning (possibly a flaky one-off) apart from one that has
+    persisted across many checks.
+    """
+    redis_client = redis_client or get_redis_client()
+    key = get_guest_warning_streak_key(cluster_or_identifier, node, kind, vmid)
+    now = time.time()
+
+    try:
+        existing = redis_client.get(key)
+    except Exception:
+        return now
+
+    if existing:
+        try:
+            return float(existing)
+        except (TypeError, ValueError):
+            pass
+
+    try:
+        redis_client.setex(key, PROXMOX_GUEST_WARNING_STREAK_TTL_SECONDS, str(now))
+    except Exception:
+        pass
+    return now
+
+
+def clear_guest_warning_streak(
+    cluster_or_identifier, node: str, kind: str, vmid, redis_client=None
+) -> None:
+    """Clear a guest's warning streak once it reports real disk usage again,
+    so a future recurrence is correctly treated as a new streak."""
+    redis_client = redis_client or get_redis_client()
+    try:
+        redis_client.delete(
+            get_guest_warning_streak_key(cluster_or_identifier, node, kind, vmid)
+        )
+    except Exception:
+        pass
+
+
 def _to_int(value):
     try:
         return int(value)
@@ -792,6 +862,27 @@ def _add_vm_info(
         vm_info["_agent_status_from_cache"] = agent_used_cached_status
         vm_info["_agent_status_live_check_failed"] = agent_live_check_failed
         vm_info["_agent_status_cache_key"] = agent_cache_key
+
+        warning_first_seen = None
+        if cluster_identifier is not None:
+            if vm_info.get("qemu_guest_agent_warning_inferred"):
+                warning_first_seen = record_guest_warning_seen(
+                    cluster_identifier,
+                    node_name,
+                    "vm",
+                    vmid,
+                    redis_client=redis_client,
+                )
+            else:
+                clear_guest_warning_streak(
+                    cluster_identifier,
+                    node_name,
+                    "vm",
+                    vmid,
+                    redis_client=redis_client,
+                )
+        vm_info["_warning_first_seen"] = warning_first_seen
+
         node_info["vms"].append(vm_info)
 
 

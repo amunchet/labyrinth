@@ -129,6 +129,39 @@
                         was never cached, or more than two hours have passed since the last
                         successful check for this VM.
                     </span>
+                    {% elif vm.status_from_cache %}
+                    <br>
+                    <span style="color: #b8860b; font-size: 12px;">
+                        This reading came from the Redis fallback cache
+                        (key: <code>{{ vm.redis_fallback_key }}</code>), not a fresh Proxmox
+                        API call &mdash; the live status check failed, but a cached status
+                        from within the last two hours was still available.
+                    </span>
+                    {% elif vm.status_live_check_failed is sameas false %}
+                    <br>
+                    <span style="font-size: 12px; color: #555;">
+                        This is a fresh, live status reading from the Proxmox API
+                        (not cached Redis data) &mdash; the guest agent call succeeded
+                        just now and still reported zero disk usage.
+                    </span>
+                    {% endif %}
+                    {% if vm.warning_first_seen %}
+                    <br>
+                    <span style="font-size: 12px; color: {{ '#8B0000' if vm.warning_persistent_2h else '#555' }};">
+                        {% if vm.warning_persistent_2h %}
+                        This VM has continuously reported this issue for
+                        {{ vm.warning_duration_display }} (first observed
+                        {{ vm.warning_first_seen_display }}) &mdash; that's well beyond the
+                        two-hour Redis fallback window, so this is not a one-off flaky
+                        daemon response.
+                        {% else %}
+                        First observed {{ vm.warning_duration_display }} ago (at
+                        {{ vm.warning_first_seen_display }}) &mdash; still within the
+                        two-hour fallback window, so this could still turn out to be a
+                        transient/flaky guest agent response rather than a confirmed
+                        persistent issue.
+                        {% endif %}
+                    </span>
                     {% endif %}
                 </td>
             </tr>

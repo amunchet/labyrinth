@@ -700,6 +700,160 @@ def test_add_vm_info_without_cluster_identifier_skips_caching(mock_redis):
 
 
 # ---------------------------------------------------------------------------
+# Guest warning streak tracking - record_guest_warning_seen /
+# clear_guest_warning_streak / _add_vm_info integration
+# ---------------------------------------------------------------------------
+
+
+def test_get_guest_warning_streak_key():
+    key = proxmox_helper.get_guest_warning_streak_key("cluster-1", "node-a", "vm", 100)
+    assert key == "proxmox-guest-warning-streak:cluster-1:node-a:vm:100"
+
+
+def test_record_guest_warning_seen_first_time_sets_key(mock_redis):
+    """The first time a warning is seen, 'now' is stored and returned."""
+    mock_redis.get.return_value = None
+
+    first_seen = proxmox_helper.record_guest_warning_seen(
+        "cluster-1", "node-a", "vm", 100, redis_client=mock_redis
+    )
+
+    mock_redis.get.assert_called_once_with(
+        "proxmox-guest-warning-streak:cluster-1:node-a:vm:100"
+    )
+    assert mock_redis.setex.call_count == 1
+    args, _ = mock_redis.setex.call_args
+    assert args[0] == "proxmox-guest-warning-streak:cluster-1:node-a:vm:100"
+    assert args[1] == proxmox_helper.PROXMOX_GUEST_WARNING_STREAK_TTL_SECONDS
+    assert float(args[2]) == pytest.approx(first_seen)
+
+
+def test_record_guest_warning_seen_returns_existing_start_time(mock_redis):
+    """A warning that's already streaking must return the *original* start
+    time, not overwrite it with 'now' - otherwise the streak would never
+    appear to persist across checks."""
+    mock_redis.get.return_value = b"1000.0"
+
+    first_seen = proxmox_helper.record_guest_warning_seen(
+        "cluster-1", "node-a", "vm", 100, redis_client=mock_redis
+    )
+
+    assert first_seen == 1000.0
+    mock_redis.setex.assert_not_called()
+
+
+def test_record_guest_warning_seen_redis_get_error_returns_now(mock_redis):
+    """If Redis is unreachable, fall back to 'now' rather than raising."""
+    mock_redis.get.side_effect = Exception("boom")
+
+    first_seen = proxmox_helper.record_guest_warning_seen(
+        "cluster-1", "node-a", "vm", 100, redis_client=mock_redis
+    )
+
+    assert isinstance(first_seen, float)
+
+
+def test_clear_guest_warning_streak_deletes_key(mock_redis):
+    proxmox_helper.clear_guest_warning_streak(
+        "cluster-1", "node-a", "vm", 100, redis_client=mock_redis
+    )
+
+    mock_redis.delete.assert_called_once_with(
+        "proxmox-guest-warning-streak:cluster-1:node-a:vm:100"
+    )
+
+
+def test_clear_guest_warning_streak_redis_error_is_swallowed(mock_redis):
+    mock_redis.delete.side_effect = Exception("boom")
+
+    # Must not raise.
+    proxmox_helper.clear_guest_warning_streak(
+        "cluster-1", "node-a", "vm", 100, redis_client=mock_redis
+    )
+
+
+def test_add_vm_info_records_warning_streak_start_for_missing_agent(mock_redis):
+    """A VM that trips the zero-disk/missing-agent warning gets its streak
+    recorded so the alert email can later say how long this has persisted."""
+    client = Mock()
+    client.get_vm_status.return_value = {"disk": 0, "mem": 100}
+    client.get_vm_agent_status.return_value = {"installed": True, "error": None}
+    client.get_vm_guest_fsinfo.return_value = None
+    mock_redis.get.return_value = None
+
+    node_info = {"vms": []}
+    proxmox_helper._add_vm_info(
+        node_info,
+        client,
+        "node-a",
+        [{"vmid": 100, "name": "vm-1", "status": "running", "maxdisk": 1000}],
+        cluster_identifier="cluster-1",
+        redis_client=mock_redis,
+    )
+
+    vm_info = node_info["vms"][0]
+    assert vm_info["qemu_guest_agent_warning_inferred"] is True
+    assert vm_info["_warning_first_seen"] is not None
+
+    streak_calls = [
+        c
+        for c in mock_redis.setex.call_args_list
+        if c[0][0] == "proxmox-guest-warning-streak:cluster-1:node-a:vm:100"
+    ]
+    assert len(streak_calls) == 1
+    assert streak_calls[0][0][1] == proxmox_helper.PROXMOX_GUEST_WARNING_STREAK_TTL_SECONDS
+    assert float(streak_calls[0][0][2]) == pytest.approx(vm_info["_warning_first_seen"])
+
+
+def test_add_vm_info_clears_warning_streak_for_healthy_vm(mock_redis):
+    """A VM reporting real disk usage must clear any prior warning streak so
+    a future recurrence is treated as a fresh (not persisted) issue."""
+    client = Mock()
+    client.get_vm_status.return_value = {"disk": 500, "mem": 100}
+    client.get_vm_agent_status.return_value = {"installed": True, "error": None}
+
+    node_info = {"vms": []}
+    proxmox_helper._add_vm_info(
+        node_info,
+        client,
+        "node-a",
+        [{"vmid": 100, "name": "vm-1", "status": "running", "maxdisk": 1000}],
+        cluster_identifier="cluster-1",
+        redis_client=mock_redis,
+    )
+
+    vm_info = node_info["vms"][0]
+    assert vm_info["qemu_guest_agent_warning_inferred"] is False
+    assert vm_info["_warning_first_seen"] is None
+    mock_redis.delete.assert_called_once_with(
+        "proxmox-guest-warning-streak:cluster-1:node-a:vm:100"
+    )
+
+
+def test_add_vm_info_without_cluster_identifier_skips_warning_streak(mock_redis):
+    """Without a cluster identifier, warning-streak tracking is skipped
+    entirely, same as the last-known-good status cache."""
+    client = Mock()
+    client.get_vm_status.return_value = {"disk": 0, "mem": 100}
+    client.get_vm_agent_status.return_value = {"installed": True, "error": None}
+    client.get_vm_guest_fsinfo.return_value = None
+
+    node_info = {"vms": []}
+    proxmox_helper._add_vm_info(
+        node_info,
+        client,
+        "node-a",
+        [{"vmid": 100, "name": "vm-1", "status": "running", "maxdisk": 1000}],
+        cluster_identifier=None,
+        redis_client=mock_redis,
+    )
+
+    vm_info = node_info["vms"][0]
+    assert vm_info["_warning_first_seen"] is None
+    mock_redis.delete.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
 # enrich_qemu_flags
 # ---------------------------------------------------------------------------
 

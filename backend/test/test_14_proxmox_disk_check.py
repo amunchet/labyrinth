@@ -13,6 +13,7 @@ contribute to the final issue list.
 """
 
 import json
+import time
 
 import pytest
 
@@ -525,6 +526,124 @@ def test_render_email_template_shows_unknown_and_note_when_agent_check_inconclus
     assert "Unknown" in html
     assert "Could not verify guest agent status" in html
     assert "proxmox-guest-status:south:pve:vm-agent:109" in html
+
+
+def test_render_email_template_shows_fresh_live_reading_when_check_succeeded():
+    """When the live status check succeeded (not cached, not failed), the
+    email must explicitly say this is a fresh reading - this is the exact
+    gap reported: the details previously said nothing about the Redis cache
+    situation for a VM whose live check succeeded but still reported zero
+    disk."""
+    issues = [
+        {
+            "type": "vm_qemu_missing",
+            "cluster": "south",
+            "host": "10.0.0.5",
+            "node": "pve2",
+            "name": "truenas",
+            "vm_id": 113,
+            "status": "running",
+            "maxdisk": 68719476736,
+            "qemu_agent_installed": True,
+            "qemu_agent_error": None,
+            "redis_fallback_key": "proxmox-guest-status:south:pve2:vm:113",
+            "redis_fallback_exhausted": False,
+            "status_from_cache": False,
+            "status_live_check_failed": False,
+        },
+    ]
+
+    html = proxmox_disk_check.render_email_template(issues, threshold_percent=80)
+
+    assert "fresh, live status reading" in html.lower()
+    assert "no cached fallback was available" not in html.lower()
+
+
+def test_render_email_template_shows_cached_reading_when_fallback_used():
+    """When the live check failed but a cached status was used, the email
+    must say the reading came from Redis rather than a live call."""
+    issues = [
+        {
+            "type": "vm_qemu_missing",
+            "cluster": "south",
+            "host": "10.0.0.5",
+            "node": "pve2",
+            "name": "vm-cached",
+            "vm_id": 114,
+            "status": "running",
+            "maxdisk": 68719476736,
+            "qemu_agent_installed": True,
+            "qemu_agent_error": None,
+            "redis_fallback_key": "proxmox-guest-status:south:pve2:vm:114",
+            "redis_fallback_exhausted": False,
+            "status_from_cache": True,
+            "status_live_check_failed": True,
+        },
+    ]
+
+    html = proxmox_disk_check.render_email_template(issues, threshold_percent=80)
+
+    assert "redis fallback cache" in html.lower()
+    assert "proxmox-guest-status:south:pve2:vm:114" in html
+
+
+def test_render_email_template_shows_persistent_warning_streak():
+    """A warning that has persisted for over two hours must say so
+    explicitly, so the reader can confirm it isn't a one-off flaky daemon
+    response."""
+    issues = [
+        {
+            "type": "vm_qemu_missing",
+            "cluster": "south",
+            "host": "10.0.0.5",
+            "node": "pve2",
+            "name": "truenas",
+            "vm_id": 113,
+            "status": "running",
+            "maxdisk": 68719476736,
+            "qemu_agent_installed": True,
+            "qemu_agent_error": None,
+            "warning_first_seen": 1000.0,
+            "warning_first_seen_display": "2026-07-20 12:00:00 UTC",
+            "warning_duration_display": "3h 15m",
+            "warning_persistent_2h": True,
+        },
+    ]
+
+    html = proxmox_disk_check.render_email_template(issues, threshold_percent=80)
+    normalized = " ".join(html.lower().split())
+
+    assert "continuously reported this issue for" in normalized
+    assert "not a one-off flaky daemon response" in normalized
+    assert "3h 15m" in html
+
+
+def test_render_email_template_shows_new_warning_streak():
+    """A warning first observed just now (within the two-hour window) must
+    be flagged as potentially transient, not a confirmed persistent issue."""
+    issues = [
+        {
+            "type": "vm_qemu_missing",
+            "cluster": "south",
+            "host": "10.0.0.5",
+            "node": "pve2",
+            "name": "truenas",
+            "vm_id": 113,
+            "status": "running",
+            "maxdisk": 68719476736,
+            "qemu_agent_installed": True,
+            "qemu_agent_error": None,
+            "warning_first_seen": 1000.0,
+            "warning_first_seen_display": "2026-07-20 12:00:00 UTC",
+            "warning_duration_display": "45s",
+            "warning_persistent_2h": False,
+        },
+    ]
+
+    html = proxmox_disk_check.render_email_template(issues, threshold_percent=80)
+
+    assert "first observed 45s ago" in html.lower()
+    assert "could still turn out to be a" in html.lower()
 
 
 def test_render_email_template_omits_qemu_missing_section_when_absent():
@@ -1168,6 +1287,167 @@ def test_collect_vm_issues_no_maxdisk():
     )
 
     assert len(issues) == 0
+
+
+def test_collect_vm_issues_missing_agent_reports_fresh_live_reading():
+    """When the live status check succeeded (not cached, not failed), the
+    issue must say so explicitly rather than leaving the Redis cache
+    situation unstated - this is exactly the case the disk-space alert email
+    previously gave no detail about."""
+    node = {
+        "vms": [
+            {
+                "id": 113,
+                "name": "truenas",
+                "status": "running",
+                "maxdisk": 68719476736,
+                "disk": 0,
+                "qemu_guest_agent_installed": True,
+                "qemu_guest_agent_warning_inferred": True,
+                "qemu_guest_agent_error": None,
+                "_status_live_check_failed": False,
+                "_status_from_cache": False,
+                "_status_cache_key": "proxmox-guest-status:south:pve2:vm:113",
+            }
+        ]
+    }
+
+    issues = proxmox_disk_check._collect_vm_issues(
+        node, "south", "10.0.0.5", "pve2", 80
+    )
+
+    assert len(issues) == 1
+    issue = issues[0]
+    assert issue["redis_fallback_exhausted"] is False
+    assert issue["status_from_cache"] is False
+    assert issue["status_live_check_failed"] is False
+
+
+def test_collect_vm_issues_missing_agent_reports_cached_reading():
+    """When the live check failed but a cached fallback was used, the issue
+    must say the reading came from Redis, not a live call."""
+    node = {
+        "vms": [
+            {
+                "id": 114,
+                "name": "vm-cached",
+                "status": "running",
+                "maxdisk": 68719476736,
+                "disk": 0,
+                "qemu_guest_agent_installed": True,
+                "qemu_guest_agent_warning_inferred": True,
+                "qemu_guest_agent_error": None,
+                "_status_live_check_failed": True,
+                "_status_from_cache": True,
+                "_status_cache_key": "proxmox-guest-status:south:pve2:vm:114",
+            }
+        ]
+    }
+
+    issues = proxmox_disk_check._collect_vm_issues(
+        node, "south", "10.0.0.5", "pve2", 80
+    )
+
+    assert len(issues) == 1
+    issue = issues[0]
+    # Fallback wasn't exhausted (a cached value *was* used), but it also
+    # wasn't a fresh live reading.
+    assert issue["redis_fallback_exhausted"] is False
+    assert issue["status_from_cache"] is True
+    assert issue["status_live_check_failed"] is True
+
+
+def test_collect_vm_issues_warning_streak_new_vs_persistent():
+    """A warning first observed just now must not be reported as persistent,
+    while one first observed over two hours ago must be - this is the signal
+    that lets the alert distinguish a flaky one-off from a confirmed,
+    ongoing problem."""
+    now = time.time()
+    node = {
+        "vms": [
+            {
+                "id": 113,
+                "name": "vm-new",
+                "status": "running",
+                "maxdisk": 68719476736,
+                "disk": 0,
+                "qemu_guest_agent_installed": True,
+                "qemu_guest_agent_warning_inferred": True,
+                "_warning_first_seen": now,
+            },
+            {
+                "id": 114,
+                "name": "vm-persistent",
+                "status": "running",
+                "maxdisk": 68719476736,
+                "disk": 0,
+                "qemu_guest_agent_installed": True,
+                "qemu_guest_agent_warning_inferred": True,
+                "_warning_first_seen": now - (3 * 60 * 60),
+            },
+        ]
+    }
+
+    issues = proxmox_disk_check._collect_vm_issues(
+        node, "south", "10.0.0.5", "pve2", 80
+    )
+
+    by_name = {issue["name"]: issue for issue in issues}
+    assert by_name["vm-new"]["warning_persistent_2h"] is False
+    assert by_name["vm-persistent"]["warning_persistent_2h"] is True
+    assert by_name["vm-persistent"]["warning_duration_display"].startswith("3h")
+
+
+def test_collect_vm_issues_no_warning_streak_data():
+    """A VM with no streak data at all (e.g. legacy cached payload before
+    this feature existed) must not blow up and simply omits streak info."""
+    node = {
+        "vms": [
+            {
+                "id": 113,
+                "name": "vm-1",
+                "status": "running",
+                "maxdisk": 68719476736,
+                "disk": 0,
+                "qemu_guest_agent_installed": True,
+                "qemu_guest_agent_warning_inferred": True,
+            }
+        ]
+    }
+
+    issues = proxmox_disk_check._collect_vm_issues(
+        node, "south", "10.0.0.5", "pve2", 80
+    )
+
+    assert issues[0]["warning_first_seen"] is None
+    assert issues[0]["warning_duration_display"] is None
+    assert issues[0]["warning_persistent_2h"] is False
+
+
+# ---------------------------------------------------------------------------
+# _format_warning_duration / _format_warning_timestamp
+# ---------------------------------------------------------------------------
+
+
+def test_format_warning_duration_hours_and_minutes():
+    assert proxmox_disk_check._format_warning_duration(3 * 3600 + 15 * 60) == "3h 15m"
+
+
+def test_format_warning_duration_minutes_only():
+    assert proxmox_disk_check._format_warning_duration(5 * 60) == "5m"
+
+
+def test_format_warning_duration_seconds_only():
+    assert proxmox_disk_check._format_warning_duration(42) == "42s"
+
+
+def test_format_warning_duration_negative_clamped_to_zero():
+    assert proxmox_disk_check._format_warning_duration(-10) == "0s"
+
+
+def test_format_warning_timestamp_format():
+    result = proxmox_disk_check._format_warning_timestamp(0)
+    assert result.endswith("UTC")
 
 
 # ---------------------------------------------------------------------------
