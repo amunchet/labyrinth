@@ -801,7 +801,9 @@ def test_add_vm_info_records_warning_streak_start_for_missing_agent(mock_redis):
         if c[0][0] == "proxmox-guest-warning-streak:cluster-1:node-a:vm:100"
     ]
     assert len(streak_calls) == 1
-    assert streak_calls[0][0][1] == proxmox_helper.PROXMOX_GUEST_WARNING_STREAK_TTL_SECONDS
+    assert (
+        streak_calls[0][0][1] == proxmox_helper.PROXMOX_GUEST_WARNING_STREAK_TTL_SECONDS
+    )
     assert float(streak_calls[0][0][2]) == pytest.approx(vm_info["_warning_first_seen"])
 
 
