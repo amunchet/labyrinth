@@ -27,6 +27,7 @@ import services as svcs
 import proxmox_helper
 import proxmox_disk_check
 import aws_helper
+import ec2_unmatched_check
 
 from common import auth
 from common.test import unwrap
@@ -2133,106 +2134,21 @@ def bulk_insert():
 
 
 # Disk Space Monitoring
-def _normalize_match_string(value):
-    if value is None:
-        return ""
-    return str(value).strip().lower()
 
-
-def _candidate_host_names(host):
-    candidates = set()
-    for key in ["host", "name"]:
-        value = _normalize_match_string(host.get(key))
-        if not value:
-            continue
-        candidates.add(value)
-        if "." in value:
-            candidates.add(value.split(".")[0])
-    return candidates
-
-
-def _candidate_instance_names(instance):
-    candidates = set()
-    tag_name = (instance.get("tags") or {}).get("Name")
-    for value in [
-        instance.get("instance_id"),
-        instance.get("name"),
-        instance.get("private_dns_name"),
-        instance.get("public_dns_name"),
-        tag_name,
-    ]:
-        normalized = _normalize_match_string(value)
-        if not normalized:
-            continue
-        candidates.add(normalized)
-        if "." in normalized:
-            candidates.add(normalized.split(".")[0])
-    return candidates
-
-
-def _truthy_monitor_value(value):
-    return _normalize_match_string(value) in ["true", "1", "yes", "on"]
-
-
-def _build_labyrinth_host_match(instance, host):
-    reasons = []
-    host_ip = _normalize_match_string(host.get("ip"))
-    instance_ips = {
-        _normalize_match_string(instance.get("private_ip")),
-        _normalize_match_string(instance.get("public_ip")),
-    }
-    instance_ips.discard("")
-
-    if host_ip and host_ip in instance_ips:
-        reasons.append("ip")
-
-    host_names = _candidate_host_names(host)
-    instance_names = _candidate_instance_names(instance)
-    if host_names and instance_names and host_names.intersection(instance_names):
-        reasons.append("hostname")
-
-    if not reasons:
-        return None
-
-    services = host.get("services") or []
-    return {
-        "ip": host.get("ip"),
-        "mac": host.get("mac"),
-        "host": host.get("host") or host.get("name"),
-        "group": host.get("group"),
-        "tags": host.get("tags", ""),
-        "monitor": host.get("monitor"),
-        "service_count": len(services),
-        "services": services,
-        "match_reasons": reasons,
-    }
+# EC2 <-> Labyrinth host matching lives in aws_helper.py (shared with
+# ec2_unmatched_check.py's alert cron, which cannot import serve.py without
+# creating a circular import). Re-exported here under their historical names
+# since existing tests call them as serve._candidate_host_names(), etc.
+_normalize_match_string = aws_helper._normalize_match_string
+_candidate_host_names = aws_helper._candidate_host_names
+_candidate_instance_names = aws_helper._candidate_instance_names
+_truthy_monitor_value = aws_helper._truthy_monitor_value
+_build_labyrinth_host_match = aws_helper._build_labyrinth_host_match
 
 
 def _enrich_aws_instances_with_matches(instances):
     hosts = list(mongo_client["labyrinth"]["hosts"].find({}))
-    enriched_instances = []
-
-    for instance in instances:
-        matches = []
-        for host in hosts:
-            match = _build_labyrinth_host_match(instance, host)
-            if match:
-                matches.append(match)
-
-        monitoring_enabled = any(
-            _truthy_monitor_value(match.get("monitor"))
-            or match.get("service_count", 0) > 0
-            for match in matches
-        )
-
-        enriched = dict(instance)
-        enriched["labyrinth_matches"] = matches
-        enriched["match_count"] = len(matches)
-        enriched["matched"] = len(matches) > 0
-        enriched["monitoring_enabled"] = monitoring_enabled
-        enriched_instances.append(enriched)
-
-    return enriched_instances
+    return aws_helper._enrich_aws_instances_with_matches(instances, hosts)
 
 
 @app.route("/disk-space/proxmox", methods=["GET"])
@@ -2994,9 +2910,118 @@ def get_aws_settings():
             account["_id"] = str(account["_id"])
             sanitized_accounts.append(account)
 
-        return json.dumps({"accounts": sanitized_accounts}, default=str), 200
+        recipients_setting = mongo_client["labyrinth"]["settings"].find_one(
+            {"name": "ec2_alert_recipients"}
+        )
+
+        return (
+            json.dumps(
+                {
+                    "accounts": sanitized_accounts,
+                    "ec2_alert_recipients": _parse_recipients_setting(
+                        recipients_setting
+                    ),
+                },
+                default=str,
+            ),
+            200,
+        )
     except Exception as e:
         return json.dumps({"error": "Failed to retrieve AWS settings"}), 500
+
+
+@app.route("/aws/test-email", methods=["POST"])
+@app.route("/aws/test-email/", methods=["POST"])
+@requires_auth_admin
+def send_ec2_unmatched_test_email():
+    """
+    Manually trigger an EC2 unmatched-instance alert test email.
+
+    Expected JSON body: {
+        "mode": "simple" | "full",   # default "simple"
+        "recipients": ["a@example.com"]  # optional, overrides saved settings
+    }
+
+    - "simple": sends a minimal message confirming SMTP is configured
+      correctly, without querying AWS.
+    - "full": queries live AWS EC2 data using the same matching logic as the
+      real alert and sends the real alert template, always sending even if
+      zero instances are currently unmatched, so admins can preview
+      formatting and confirm delivery.
+    """
+    try:
+        data = request.get_json(silent=True)
+        if data is None:
+            try:
+                data = (
+                    json.loads(request.get_data(as_text=True))
+                    if request.get_data(as_text=True)
+                    else {}
+                )
+            except (ValueError, json.JSONDecodeError):
+                return json.dumps({"error": ERROR_INVALID_JSON_BODY}), 400
+
+        mode = (data.get("mode") or "simple").lower()
+        if mode not in ("simple", "full"):
+            return json.dumps({"error": "mode must be 'simple' or 'full'"}), 400
+
+        recipients = _get_ec2_test_email_recipients(data)
+        if not recipients:
+            return (
+                json.dumps(
+                    {
+                        "error": "No recipients configured. Add recipients first or include them in the request."
+                    }
+                ),
+                400,
+            )
+
+        if mode == "full":
+            result = ec2_unmatched_check.send_full_test_email(
+                recipients,
+                db=mongo_client,
+            )
+            return (
+                json.dumps(
+                    {
+                        "status": "sent",
+                        "mode": "full",
+                        **result,
+                    }
+                ),
+                200,
+            )
+
+        ec2_unmatched_check.send_simple_test_email(recipients)
+        return (
+            json.dumps(
+                {
+                    "status": "sent",
+                    "mode": "simple",
+                }
+            ),
+            200,
+        )
+    except ValueError as e:
+        return json.dumps({"error": "Invalid email configuration"}), 400
+    except Exception as e:
+        return json.dumps({"error": "Failed to send test email"}), 500
+
+
+def _get_ec2_test_email_recipients(data):
+    """Get recipients from request data or fall back to saved settings."""
+    recipients = data.get("recipients")
+    if isinstance(recipients, str):
+        recipients = [r.strip() for r in recipients.split(",") if r.strip()]
+
+    if recipients:
+        return recipients
+
+    # Fall back to saved recipients (same settings the alert cron uses)
+    recipients_setting = mongo_client["labyrinth"]["settings"].find_one(
+        {"name": "ec2_alert_recipients"}
+    )
+    return _parse_recipients_setting(recipients_setting)
 
 
 if __name__ == "__main__":  # pragma: no cover
