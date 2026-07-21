@@ -36,6 +36,72 @@ PROXMOX_GUEST_STATUS_CACHE_TTL_SECONDS = int(
     os.environ.get("PROXMOX_GUEST_STATUS_CACHE_TTL_SECONDS", str(2 * 60 * 60))
 )
 
+# Last known-good *measured* disk usage for a single VM, independent of the
+# guest-status cache above. A VM can have a perfectly successful status call
+# and a perfectly successful guest-agent call, and still fail to resolve real
+# filesystem usage for a single cycle (get-fsinfo/df escape valve both come up
+# empty) - that's a transient blip, not proof the guest agent is actually
+# missing. Before treating a zero-disk reading as a real "can't measure this"
+# problem, we check whether a real (non-zero) reading was seen within the
+# last two hours; if so, the zero reading is suppressed as a flaky read
+# instead of triggering an alert. Same TTL as the guest-status cache.
+PROXMOX_GOOD_DISK_CACHE_PREFIX = "proxmox-good-disk"
+
+
+def get_good_disk_cache_key(cluster_or_identifier, node: str, kind: str, vmid) -> str:
+    """Build the Redis cache key for a VM/LXC's last known-good disk reading."""
+    cluster_identifier = _resolve_cluster_identifier(cluster_or_identifier)
+    return (
+        f"{PROXMOX_GOOD_DISK_CACHE_PREFIX}:{cluster_identifier}:{node}:{kind}:{vmid}"
+    )
+
+
+def get_cached_good_disk(
+    cluster_or_identifier, node: str, kind: str, vmid, redis_client=None
+) -> Optional[Dict]:
+    """Read the last known-good measured disk usage for a single VM/LXC."""
+    redis_client = redis_client or get_redis_client()
+
+    try:
+        cached = redis_client.get(
+            get_good_disk_cache_key(cluster_or_identifier, node, kind, vmid)
+        )
+    except Exception:
+        return None
+
+    if not cached:
+        return None
+
+    if isinstance(cached, bytes):
+        cached = cached.decode("utf-8")
+
+    try:
+        return json.loads(cached)
+    except Exception:
+        return None
+
+
+def set_cached_good_disk(
+    cluster_or_identifier,
+    node: str,
+    kind: str,
+    vmid,
+    used,
+    total,
+    redis_client=None,
+) -> None:
+    """Store a successful, non-zero disk reading with a two-hour TTL."""
+    redis_client = redis_client or get_redis_client()
+
+    try:
+        redis_client.setex(
+            get_good_disk_cache_key(cluster_or_identifier, node, kind, vmid),
+            PROXMOX_GUEST_STATUS_CACHE_TTL_SECONDS,
+            json.dumps({"used": used, "total": total}, default=str),
+        )
+    except Exception:
+        pass
+
 
 def get_redis_client():
     """Return the shared Redis client used for cached Proxmox payloads."""
@@ -743,7 +809,15 @@ def _add_vm_info(
                 used_cached_status = True
 
         agent_status = client.get_vm_agent_status(node_name, str(vmid))
-        vm_info = _build_vm_info(vm, vm_status, agent_status, client, node_name)
+        vm_info = _build_vm_info(
+            vm,
+            vm_status,
+            agent_status,
+            client,
+            node_name,
+            cluster_identifier=cluster_identifier,
+            redis_client=redis_client,
+        )
         vm_info["_status_from_cache"] = used_cached_status
         vm_info["_status_live_check_failed"] = live_check_failed
         vm_info["_status_cache_key"] = cache_key
@@ -825,7 +899,15 @@ def _get_guest_disk_info(
     return disk, maxdisk, guest_disk_info
 
 
-def _build_vm_info(vm, vm_status, agent_status, client, node_name) -> Dict:
+def _build_vm_info(
+    vm,
+    vm_status,
+    agent_status,
+    client,
+    node_name,
+    cluster_identifier=None,
+    redis_client=None,
+) -> Dict:
     """Build VM information from VM data and status."""
     vmid = vm.get("vmid")
     maxdisk = vm.get("maxdisk")
@@ -843,6 +925,28 @@ def _build_vm_info(vm, vm_status, agent_status, client, node_name) -> Dict:
     # Check if disk is reported as zero for a running VM (agent may exist but disk metrics unavailable)
     qemu_warning_inferred = is_running and _to_int(maxdisk) > 0 and _to_int(disk) == 0
 
+    last_known_good_disk = None
+    if cluster_identifier is not None:
+        if qemu_warning_inferred:
+            # Zero disk despite the agent/status calls succeeding - before
+            # treating this as a real "can't measure" problem, see whether a
+            # real reading was captured within the last two hours.
+            last_known_good_disk = get_cached_good_disk(
+                cluster_identifier, node_name, "vm", vmid, redis_client=redis_client
+            )
+        elif _to_int(maxdisk) > 0:
+            # A genuinely measured, non-zero disk reading - remember it so a
+            # later transient zero-read doesn't trigger a false alert.
+            set_cached_good_disk(
+                cluster_identifier,
+                node_name,
+                "vm",
+                vmid,
+                disk,
+                maxdisk,
+                redis_client=redis_client,
+            )
+
     vm_info = {
         "id": vmid,
         "name": vm.get("name"),
@@ -854,6 +958,7 @@ def _build_vm_info(vm, vm_status, agent_status, client, node_name) -> Dict:
         "qemu_guest_agent_installed": qemu_truly_installed,
         "qemu_guest_agent_error": agent_status.get("error"),
         "qemu_guest_agent_warning_inferred": qemu_warning_inferred,
+        "_last_known_good_disk": last_known_good_disk,
     }
     # Include raw guest info for debugging if available
     if guest_disk_info:

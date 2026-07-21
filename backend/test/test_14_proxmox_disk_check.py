@@ -1048,6 +1048,90 @@ def test_collect_vm_issues_missing_qemu_agent():
     # Should not appear again as a normal VM issue
 
 
+def test_collect_vm_issues_zero_disk_suppressed_by_recent_good_reading():
+    """A zero-disk read is a flaky guest-agent blip, not a real problem, when
+    a real (non-zero, under-threshold) reading was cached within the last
+    two hours - so no issue should be raised at all."""
+    node = {
+        "vms": [
+            {
+                "id": 100,
+                "name": "vm-1",
+                "status": "running",
+                "maxdisk": 10737418240,
+                "disk": 0,
+                "qemu_guest_agent_installed": True,
+                "qemu_guest_agent_warning_inferred": True,
+                "qemu_guest_agent_error": "Guest disk reported as zero",
+                "_last_known_good_disk": {"used": 500, "total": 10737418240},
+            }
+        ]
+    }
+
+    issues = proxmox_disk_check._collect_vm_issues(
+        node, "cluster-1", "10.0.0.1", "node-1", 80
+    )
+
+    assert issues == []
+
+
+def test_collect_vm_issues_zero_disk_with_recent_good_reading_over_threshold():
+    """A zero-disk read still raises a real 'vm' issue (not vm_qemu_missing)
+    when the last known-good cached reading was itself over threshold - the
+    zero read doesn't hide a genuine problem."""
+    node = {
+        "vms": [
+            {
+                "id": 100,
+                "name": "vm-1",
+                "status": "running",
+                "maxdisk": 1000,
+                "disk": 0,
+                "qemu_guest_agent_installed": True,
+                "qemu_guest_agent_warning_inferred": True,
+                "qemu_guest_agent_error": "Guest disk reported as zero",
+                "_last_known_good_disk": {"used": 950, "total": 1000},
+            }
+        ]
+    }
+
+    issues = proxmox_disk_check._collect_vm_issues(
+        node, "cluster-1", "10.0.0.1", "node-1", 80
+    )
+
+    assert len(issues) == 1
+    assert issues[0]["type"] == "vm"
+    assert issues[0]["stale_reading"] is True
+    assert issues[0]["percentage"] == pytest.approx(95.0)
+
+
+def test_collect_vm_issues_zero_disk_no_recent_good_reading():
+    """Without any good reading cached in the last two hours, the VM is
+    genuinely unmeasurable and must still be surfaced as vm_qemu_missing."""
+    node = {
+        "vms": [
+            {
+                "id": 100,
+                "name": "vm-1",
+                "status": "running",
+                "maxdisk": 10737418240,
+                "disk": 0,
+                "qemu_guest_agent_installed": False,
+                "qemu_guest_agent_warning_inferred": True,
+                "qemu_guest_agent_error": "Agent not installed",
+                "_last_known_good_disk": None,
+            }
+        ]
+    }
+
+    issues = proxmox_disk_check._collect_vm_issues(
+        node, "cluster-1", "10.0.0.1", "node-1", 80
+    )
+
+    assert len(issues) == 1
+    assert issues[0]["type"] == "vm_qemu_missing"
+
+
 def test_collect_vm_issues_no_maxdisk():
     """Skip VMs without maxdisk."""
     node = {

@@ -413,11 +413,19 @@ def test_add_vm_info_caches_successful_status(mock_redis):
         redis_client=mock_redis,
     )
 
-    mock_redis.setex.assert_called_once_with(
+    mock_redis.setex.assert_any_call(
         "proxmox-guest-status:cluster-1:node-a:vm:100",
         proxmox_helper.PROXMOX_GUEST_STATUS_CACHE_TTL_SECONDS,
         json.dumps({"disk": 500, "mem": 100}),
     )
+    # A non-zero disk reading is also cached as "last known-good" so a later
+    # transient zero-read doesn't trigger a false alert.
+    mock_redis.setex.assert_any_call(
+        "proxmox-good-disk:cluster-1:node-a:vm:100",
+        proxmox_helper.PROXMOX_GUEST_STATUS_CACHE_TTL_SECONDS,
+        json.dumps({"used": 500, "total": 1000}),
+    )
+    assert mock_redis.setex.call_count == 2
     vm_info = node_info["vms"][0]
     assert vm_info["disk"] == 500
     assert vm_info["_status_from_cache"] is False
@@ -453,8 +461,14 @@ def test_add_vm_info_falls_back_to_cache_when_status_call_fails(mock_redis):
     assert (
         vm_info["_status_cache_key"] == "proxmox-guest-status:cluster-1:node-a:vm:100"
     )
-    # A failed call must not overwrite the last known-good cached value.
-    mock_redis.setex.assert_not_called()
+    # A failed call must not overwrite the last known-good status cache -
+    # the only setex call should be refreshing the separate "good disk"
+    # reading cache with the (non-zero) fallback value.
+    mock_redis.setex.assert_called_once_with(
+        "proxmox-good-disk:cluster-1:node-a:vm:100",
+        proxmox_helper.PROXMOX_GUEST_STATUS_CACHE_TTL_SECONDS,
+        json.dumps({"used": 700, "total": 1000}),
+    )
 
 
 def test_add_vm_info_no_cache_available_on_failed_status_call(mock_redis):
