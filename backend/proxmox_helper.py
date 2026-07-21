@@ -51,9 +51,7 @@ PROXMOX_GOOD_DISK_CACHE_PREFIX = "proxmox-good-disk"
 def get_good_disk_cache_key(cluster_or_identifier, node: str, kind: str, vmid) -> str:
     """Build the Redis cache key for a VM/LXC's last known-good disk reading."""
     cluster_identifier = _resolve_cluster_identifier(cluster_or_identifier)
-    return (
-        f"{PROXMOX_GOOD_DISK_CACHE_PREFIX}:{cluster_identifier}:{node}:{kind}:{vmid}"
-    )
+    return f"{PROXMOX_GOOD_DISK_CACHE_PREFIX}:{cluster_identifier}:{node}:{kind}:{vmid}"
 
 
 def get_cached_good_disk(
