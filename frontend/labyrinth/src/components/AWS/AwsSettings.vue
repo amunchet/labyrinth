@@ -168,6 +168,70 @@
         </b-card>
       </b-col>
     </b-row>
+
+    <b-row class="mt-4">
+      <b-col cols="12">
+        <b-card class="text-left text-start">
+          <b-card-title>EC2 Unmatched Instance Alerts</b-card-title>
+          <b-card-sub-title>
+            Email notifications when an EC2 instance can't be matched to an
+            existing Labyrinth host
+          </b-card-sub-title>
+
+          <b-form @submit.prevent="saveAlertSettings">
+            <b-form-group
+              label="Recipient email(s):"
+              label-for="ec2-alert-recipients"
+              description="Comma-separated list of email addresses to notify"
+            >
+              <b-form-textarea
+                id="ec2-alert-recipients"
+                v-model="alertRecipientsText"
+                rows="2"
+                placeholder="admin@example.com, ops@example.com"
+              />
+            </b-form-group>
+
+            <b-button
+              variant="primary"
+              type="submit"
+              :disabled="savingAlertSettings"
+            >
+              <b-spinner
+                small
+                v-if="savingAlertSettings"
+                class="mr-2"
+              ></b-spinner>
+              Save Alert Settings
+            </b-button>
+          </b-form>
+
+          <hr />
+
+          <p class="text-muted small mb-2">
+            Send a test email to the recipient(s) above without waiting for
+            the next scheduled check.
+          </p>
+          <b-button
+            variant="outline-secondary"
+            class="mr-2"
+            :disabled="sendingSimpleTest || sendingFullTest"
+            @click="sendTestEmail('simple')"
+          >
+            <b-spinner small v-if="sendingSimpleTest" class="mr-2"></b-spinner>
+            Send Test Email
+          </b-button>
+          <b-button
+            variant="outline-secondary"
+            :disabled="sendingSimpleTest || sendingFullTest"
+            @click="sendTestEmail('full')"
+          >
+            <b-spinner small v-if="sendingFullTest" class="mr-2"></b-spinner>
+            Send Full Test Email (Live Data)
+          </b-button>
+        </b-card>
+      </b-col>
+    </b-row>
   </div>
 </template>
 
@@ -184,6 +248,10 @@ export default {
       successMessage: "",
       errorMessage: "",
       accounts: [],
+      alertRecipientsText: "",
+      savingAlertSettings: false,
+      sendingSimpleTest: false,
+      sendingFullTest: false,
       fields: [
         { key: "account", label: "Account" },
         { key: "access_key_id", label: "Access Key ID" },
@@ -220,8 +288,87 @@ export default {
         const response = await Helper.apiCall("aws", "settings", auth);
         const payload = this.parseMaybeJSON(response);
         this.accounts = payload.accounts || [];
+        this.alertRecipientsText = Array.isArray(payload.ec2_alert_recipients)
+          ? payload.ec2_alert_recipients.join(", ")
+          : "";
       } catch (err) {
         this.errorMessage = err.message || `${err}`;
+      }
+    },
+    async saveAlertSettings() {
+      this.savingAlertSettings = true;
+      this.clearMessages();
+      try {
+        const auth = this.$auth;
+        const recipientsData = new FormData();
+        recipientsData.append("name", "ec2_alert_recipients");
+        recipientsData.append("value", this.alertRecipientsText);
+        await Helper.apiPost("settings", "", "", auth, recipientsData);
+        this.successMessage = "EC2 unmatched instance alert settings saved successfully!";
+      } catch (err) {
+        this.errorMessage = err.message || `${err}`;
+      } finally {
+        this.savingAlertSettings = false;
+      }
+    },
+    async sendTestEmail(mode) {
+      const recipients = this.alertRecipientsText
+        .split(",")
+        .map((r) => r.trim())
+        .filter((r) => r.length > 0);
+
+      if (recipients.length === 0) {
+        this.errorMessage =
+          "Enter at least one recipient email above before sending a test.";
+        return;
+      }
+
+      const isFull = mode === "full";
+      if (isFull) {
+        this.sendingFullTest = true;
+      } else {
+        this.sendingSimpleTest = true;
+      }
+      this.clearMessages();
+
+      try {
+        const auth = this.$auth;
+        const payload = JSON.stringify({ mode: mode, recipients: recipients });
+        const response = await Helper.apiPost(
+          "aws/test-email",
+          "",
+          "",
+          auth,
+          payload
+        );
+        const data = this.parseMaybeJSON(response);
+
+        if (isFull) {
+          const errorCount =
+            data && Array.isArray(data.account_errors)
+              ? data.account_errors.length
+              : 0;
+          let msg =
+            "Full test email sent! Found " +
+            data.unmatched_found +
+            " unmatched instance(s).";
+          if (errorCount > 0) {
+            msg +=
+              " (" +
+              errorCount +
+              " account" +
+              (errorCount === 1 ? "" : "s") +
+              " could not be reached)";
+          }
+          this.successMessage = msg;
+        } else {
+          this.successMessage = "Test email sent successfully! Check your inbox.";
+        }
+      } catch (err) {
+        this.errorMessage = err.message || `${err}`;
+      } finally {
+        this.sendingSimpleTest = false;
+        this.sendingFullTest = false;
       }
     },
     resetForm() {

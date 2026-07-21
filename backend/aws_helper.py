@@ -114,3 +114,111 @@ def _build_instance_dict(instance: Dict, owner_id: str, account_config: Dict) ->
         "region": account_config.get("region"),
         "account_name": account_config.get("name"),
     }
+
+
+def _normalize_match_string(value):
+    if value is None:
+        return ""
+    return str(value).strip().lower()
+
+
+def _candidate_host_names(host):
+    candidates = set()
+    for key in ["host", "name"]:
+        value = _normalize_match_string(host.get(key))
+        if not value:
+            continue
+        candidates.add(value)
+        if "." in value:
+            candidates.add(value.split(".")[0])
+    return candidates
+
+
+def _candidate_instance_names(instance):
+    candidates = set()
+    tag_name = (instance.get("tags") or {}).get("Name")
+    for value in [
+        instance.get("instance_id"),
+        instance.get("name"),
+        instance.get("private_dns_name"),
+        instance.get("public_dns_name"),
+        tag_name,
+    ]:
+        normalized = _normalize_match_string(value)
+        if not normalized:
+            continue
+        candidates.add(normalized)
+        if "." in normalized:
+            candidates.add(normalized.split(".")[0])
+    return candidates
+
+
+def _truthy_monitor_value(value):
+    return _normalize_match_string(value) in ["true", "1", "yes", "on"]
+
+
+def _build_labyrinth_host_match(instance, host):
+    reasons = []
+    host_ip = _normalize_match_string(host.get("ip"))
+    instance_ips = {
+        _normalize_match_string(instance.get("private_ip")),
+        _normalize_match_string(instance.get("public_ip")),
+    }
+    instance_ips.discard("")
+
+    if host_ip and host_ip in instance_ips:
+        reasons.append("ip")
+
+    host_names = _candidate_host_names(host)
+    instance_names = _candidate_instance_names(instance)
+    if host_names and instance_names and host_names.intersection(instance_names):
+        reasons.append("hostname")
+
+    if not reasons:
+        return None
+
+    services = host.get("services") or []
+    return {
+        "ip": host.get("ip"),
+        "mac": host.get("mac"),
+        "host": host.get("host") or host.get("name"),
+        "group": host.get("group"),
+        "tags": host.get("tags", ""),
+        "monitor": host.get("monitor"),
+        "service_count": len(services),
+        "services": services,
+        "match_reasons": reasons,
+    }
+
+
+def _enrich_aws_instances_with_matches(instances: List[Dict], hosts: List[Dict]) -> List[Dict]:
+    """Annotate EC2 instances with any matching Labyrinth ``hosts`` records.
+
+    ``hosts`` is passed in (rather than queried here) so callers that already
+    have the host list - e.g. when enriching instances across several AWS
+    accounts in one request - can fetch it once instead of re-querying Mongo
+    per account.
+    """
+    enriched_instances = []
+
+    for instance in instances:
+        matches = []
+        for host in hosts:
+            match = _build_labyrinth_host_match(instance, host)
+            if match:
+                matches.append(match)
+
+        monitoring_enabled = any(
+            _truthy_monitor_value(match.get("monitor"))
+            or match.get("service_count", 0) > 0
+            for match in matches
+        )
+
+        enriched = dict(instance)
+        enriched["labyrinth_matches"] = matches
+        enriched["match_count"] = len(matches)
+        enriched["matched"] = len(matches) > 0
+        enriched["monitoring_enabled"] = monitoring_enabled
+        enriched_instances.append(enriched)
+
+    return enriched_instances
