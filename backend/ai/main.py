@@ -99,6 +99,9 @@ def process_dashboard(testing=False):
                 out["tags"] = kept_tags
         return out or None
 
+    # internal service names excluded from all-services lists
+    EXCLUDED_SERVICE_NAMES = {"new_host", "open_ports", "closed_ports"}
+
     for dash in data:
         for group in dash.get("groups", []):
             for host in group.get("hosts", []):
@@ -116,6 +119,7 @@ def process_dashboard(testing=False):
                 }
 
                 failing = []
+                all_service_names = []
                 for svc in host.get("services", []):
                     # figure out a human name for the service
                     name = (svc.get("name") or "").strip()
@@ -128,14 +132,16 @@ def process_dashboard(testing=False):
                                 (found.get("display_name") or found.get("name") or "")
                             ).strip()
 
+                    # collect all real service names (for connection-issue detection)
+                    if name and name not in EXCLUDED_SERVICE_NAMES:
+                        all_service_names.append(name)
+
                     # only consider hard failures; ignore 'new_host' and services lowered to 'warning'
                     if (
                         name
                         and svc.get("state") is False
                         and name not in warning_services
-                        and name != "new_host"
-                        and name != "open_ports"
-                        and name != "closed_ports"
+                        and name not in EXCLUDED_SERVICE_NAMES
                     ):
                         # append the readable name
                         failing.append(name)
@@ -156,9 +162,80 @@ def process_dashboard(testing=False):
                 if failing:
                     # prefer 'host' if populated, otherwise fall back to ip
                     host_key = (host.get("host") or "").strip() or host.get("ip")
-                    results.append([host_key, failing])
+                    results.append(
+                        {
+                            "host": host_key,
+                            "failing": failing,
+                            "all_services": all_service_names,
+                        }
+                    )
 
     return json.dumps(results).replace(" ", "")
+
+
+def render_email_html(host_alerts):
+    """
+    Render a clean, glanceable HTML email from structured host_alerts JSON.
+
+    host_alerts is a list of dicts:
+      [
+        {
+          "host": str,
+          "severity": "critical" | "warning",
+          "likely_connection_issue": bool,
+          "failing_services": [str, ...],
+          "notes": str
+        },
+        ...
+      ]
+
+    Returns:
+        str: HTML string suitable for use as an email body. Returns a simple
+             "No active alerts" paragraph when host_alerts is empty or None.
+    """
+    if not host_alerts:
+        return "<p>No active alerts.</p>"
+
+    rows = []
+    for alert in host_alerts:
+        host = alert.get("host", "unknown")
+        severity = (alert.get("severity") or "").upper()
+        conn_issue = alert.get("likely_connection_issue", False)
+        failing = alert.get("failing_services") or []
+        notes = alert.get("notes", "")
+
+        severity_color = "#c0392b" if severity == "CRITICAL" else "#e67e22"
+        conn_badge = (
+            ' <span style="font-size:0.85em;color:#7f8c8d;">(possible connection issue)</span>'
+            if conn_issue
+            else ""
+        )
+        failing_str = ", ".join(failing) if failing else "—"
+
+        rows.append(
+            f"<tr>"
+            f'<td style="padding:6px 10px;border-bottom:1px solid #eee;">{host}</td>'
+            f'<td style="padding:6px 10px;border-bottom:1px solid #eee;color:{severity_color};font-weight:bold;">'
+            f"{severity}{conn_badge}</td>"
+            f'<td style="padding:6px 10px;border-bottom:1px solid #eee;">{failing_str}</td>'
+            f'<td style="padding:6px 10px;border-bottom:1px solid #eee;color:#555;">{notes}</td>'
+            f"</tr>"
+        )
+
+    rows_html = "\n".join(rows)
+    return (
+        '<table style="border-collapse:collapse;font-family:sans-serif;font-size:14px;width:100%;">'
+        "<thead>"
+        '<tr style="background:#f2f2f2;">'
+        '<th style="padding:8px 10px;text-align:left;border-bottom:2px solid #ddd;">Host</th>'
+        '<th style="padding:8px 10px;text-align:left;border-bottom:2px solid #ddd;">Severity</th>'
+        '<th style="padding:8px 10px;text-align:left;border-bottom:2px solid #ddd;">Failing Services</th>'
+        '<th style="padding:8px 10px;text-align:left;border-bottom:2px solid #ddd;">Notes</th>'
+        "</tr>"
+        "</thead>"
+        f"<tbody>\n{rows_html}\n</tbody>"
+        "</table>"
+    )
 
 
 def main(initial_prompt="", prompt_filename="initial_prompt.txt"):
@@ -243,7 +320,14 @@ def main(initial_prompt="", prompt_filename="initial_prompt.txt"):
             msg_id = email_helper.email_helper(
                 to=[os.environ.get("EMAIL_TO")],
                 subject=f"Labyrinth IT AI ALERT [{datetime.now().strftime('%Y-%m-%d %H:00')}]",
-                html=output.get("summary_email", "See HTML version"),
+                # Use the structured template when host_alerts is present (even if empty —
+                # an empty list is a valid "no alerts" state distinct from a missing field).
+                # Fall back to legacy summary_email for backward compatibility.
+                html=(
+                    render_email_html(output.get("host_alerts"))
+                    if output.get("host_alerts") is not None
+                    else output.get("summary_email", "See HTML version")
+                ),
                 text="See HTML version",
                 attachments=None,
                 from_name="Labyrinth AI",
