@@ -185,6 +185,76 @@ def set_cached_guest_status(
         pass
 
 
+# Tracks how long a VM has *continuously* shown the zero-disk/missing-agent
+# warning - distinct from PROXMOX_GUEST_STATUS_CACHE above, which only
+# remembers the last known-good status. Without this, an alert email had no
+# way to say whether a warning was a brand-new (possibly flaky) reading or
+# one that has persisted across many checks, since the last-known-good cache
+# is never even consulted once a live check succeeds - even if it reports a
+# zero disk.
+PROXMOX_GUEST_WARNING_STREAK_PREFIX = "proxmox-guest-warning-streak"
+PROXMOX_GUEST_WARNING_STREAK_TTL_SECONDS = int(
+    os.environ.get("PROXMOX_GUEST_WARNING_STREAK_TTL_SECONDS", str(7 * 24 * 60 * 60))
+)
+
+
+def get_guest_warning_streak_key(
+    cluster_or_identifier, node: str, kind: str, vmid
+) -> str:
+    """Build the Redis key tracking an in-progress warning streak for a guest."""
+    cluster_identifier = _resolve_cluster_identifier(cluster_or_identifier)
+    return (
+        f"{PROXMOX_GUEST_WARNING_STREAK_PREFIX}:"
+        f"{cluster_identifier}:{node}:{kind}:{vmid}"
+    )
+
+
+def record_guest_warning_seen(
+    cluster_or_identifier, node: str, kind: str, vmid, redis_client=None
+) -> float:
+    """Record that a guest's zero-disk/missing-agent warning fired right now.
+
+    Returns the epoch timestamp the current unbroken streak began - the
+    first time it was observed, not necessarily now - so callers can tell a
+    brand-new warning (possibly a flaky one-off) apart from one that has
+    persisted across many checks.
+    """
+    redis_client = redis_client or get_redis_client()
+    key = get_guest_warning_streak_key(cluster_or_identifier, node, kind, vmid)
+    now = time.time()
+
+    try:
+        existing = redis_client.get(key)
+    except Exception:
+        return now
+
+    if existing:
+        try:
+            return float(existing)
+        except (TypeError, ValueError):
+            pass
+
+    try:
+        redis_client.setex(key, PROXMOX_GUEST_WARNING_STREAK_TTL_SECONDS, str(now))
+    except Exception:
+        pass
+    return now
+
+
+def clear_guest_warning_streak(
+    cluster_or_identifier, node: str, kind: str, vmid, redis_client=None
+) -> None:
+    """Clear a guest's warning streak once it reports real disk usage again,
+    so a future recurrence is correctly treated as a new streak."""
+    redis_client = redis_client or get_redis_client()
+    try:
+        redis_client.delete(
+            get_guest_warning_streak_key(cluster_or_identifier, node, kind, vmid)
+        )
+    except Exception:
+        pass
+
+
 def _to_int(value):
     try:
         return int(value)
@@ -497,14 +567,20 @@ class ProxmoxClient:
             return None
 
     def get_vm_agent_status(self, node: str, vmid: str) -> Dict:
-        """Determine whether the QEMU guest agent is available for a VM."""
+        """Determine whether the QEMU guest agent is available for a VM.
+
+        `reachable` distinguishes a real answer from Proxmox (HTTP error
+        response - the agent genuinely isn't there) from a failure to even
+        reach Proxmox (connection error/timeout - `installed` is left as
+        `None` since we have no idea, rather than falsely asserting "No").
+        """
         try:
             response = self.session.get(
                 f"{self.base_url}/nodes/{node}/qemu/{vmid}/agent/info",
                 timeout=10,
             )
             response.raise_for_status()
-            return {"installed": True, "error": None}
+            return {"installed": True, "error": None, "reachable": True}
         except requests.HTTPError as error:
             response = getattr(error, "response", None)
             message = None
@@ -525,11 +601,13 @@ class ProxmoxClient:
             return {
                 "installed": False,
                 "error": message or str(error),
+                "reachable": True,
             }
         except Exception as error:
             return {
-                "installed": False,
+                "installed": None,
                 "error": str(error),
+                "reachable": False,
             }
 
     def get_vm_guest_fsinfo(self, node: str, vmid: str) -> Optional[Dict]:
@@ -809,6 +887,40 @@ def _add_vm_info(
                 used_cached_status = True
 
         agent_status = client.get_vm_agent_status(node_name, str(vmid))
+        agent_used_cached_status = False
+        agent_live_check_failed = not agent_status.get("reachable", True)
+        agent_cache_key = None
+
+        if cluster_identifier is not None:
+            agent_cache_key = get_guest_status_cache_key(
+                cluster_identifier, node_name, "vm-agent", vmid
+            )
+
+        if agent_status.get("reachable", True):
+            if cluster_identifier is not None:
+                set_cached_guest_status(
+                    cluster_identifier,
+                    node_name,
+                    "vm-agent",
+                    vmid,
+                    agent_status,
+                    redis_client=redis_client,
+                )
+        elif cluster_identifier is not None:
+            # Couldn't reach Proxmox to ask about the agent at all - fall
+            # back to the last known-good answer instead of reporting a
+            # confident "agent missing" from a single connection blip.
+            cached_agent_status = get_cached_guest_status(
+                cluster_identifier,
+                node_name,
+                "vm-agent",
+                vmid,
+                redis_client=redis_client,
+            )
+            if cached_agent_status is not None:
+                agent_status = cached_agent_status
+                agent_used_cached_status = True
+
         vm_info = _build_vm_info(
             vm,
             vm_status,
@@ -821,6 +933,30 @@ def _add_vm_info(
         vm_info["_status_from_cache"] = used_cached_status
         vm_info["_status_live_check_failed"] = live_check_failed
         vm_info["_status_cache_key"] = cache_key
+        vm_info["_agent_status_from_cache"] = agent_used_cached_status
+        vm_info["_agent_status_live_check_failed"] = agent_live_check_failed
+        vm_info["_agent_status_cache_key"] = agent_cache_key
+
+        warning_first_seen = None
+        if cluster_identifier is not None:
+            if vm_info.get("qemu_guest_agent_warning_inferred"):
+                warning_first_seen = record_guest_warning_seen(
+                    cluster_identifier,
+                    node_name,
+                    "vm",
+                    vmid,
+                    redis_client=redis_client,
+                )
+            else:
+                clear_guest_warning_streak(
+                    cluster_identifier,
+                    node_name,
+                    "vm",
+                    vmid,
+                    redis_client=redis_client,
+                )
+        vm_info["_warning_first_seen"] = warning_first_seen
+
         node_info["vms"].append(vm_info)
 
 
@@ -914,8 +1050,12 @@ def _build_vm_info(
     disk = vm_status.get("disk") if vm_status else None
     is_running = str(vm.get("status") or "").lower() == "running"
 
-    # Determine if QEMU guest agent is truly installed
-    qemu_truly_installed = agent_status.get("installed", False)
+    # Determine if QEMU guest agent is confirmed installed. `installed` may
+    # be None when the live check couldn't reach Proxmox at all and no
+    # cached answer was available - that's "unknown", not "not installed",
+    # so only a definite True counts here.
+    agent_installed = agent_status.get("installed")
+    qemu_truly_installed = agent_installed is True
 
     # Try to get real disk info from guest if agent is installed and disk shows zero
     disk, maxdisk, guest_disk_info = _get_guest_disk_info(
@@ -955,7 +1095,7 @@ def _build_vm_info(
         "disk": disk,
         "maxmem": vm.get("maxmem"),
         "mem": vm_status.get("mem") if vm_status else None,
-        "qemu_guest_agent_installed": qemu_truly_installed,
+        "qemu_guest_agent_installed": agent_installed,
         "qemu_guest_agent_error": agent_status.get("error"),
         "qemu_guest_agent_warning_inferred": qemu_warning_inferred,
         "_last_known_good_disk": last_known_good_disk,

@@ -413,10 +413,17 @@ def test_add_vm_info_caches_successful_status(mock_redis):
         redis_client=mock_redis,
     )
 
+    # The VM status and the (separately cached) agent-info answer are each
+    # written to their own Redis keys.
     mock_redis.setex.assert_any_call(
         "proxmox-guest-status:cluster-1:node-a:vm:100",
         proxmox_helper.PROXMOX_GUEST_STATUS_CACHE_TTL_SECONDS,
         json.dumps({"disk": 500, "mem": 100}),
+    )
+    mock_redis.setex.assert_any_call(
+        "proxmox-guest-status:cluster-1:node-a:vm-agent:100",
+        proxmox_helper.PROXMOX_GUEST_STATUS_CACHE_TTL_SECONDS,
+        json.dumps({"installed": True, "error": None}),
     )
     # A non-zero disk reading is also cached as "last known-good" so a later
     # transient zero-read doesn't trigger a false alert.
@@ -425,7 +432,7 @@ def test_add_vm_info_caches_successful_status(mock_redis):
         proxmox_helper.PROXMOX_GUEST_STATUS_CACHE_TTL_SECONDS,
         json.dumps({"used": 500, "total": 1000}),
     )
-    assert mock_redis.setex.call_count == 2
+    assert mock_redis.setex.call_count == 3
     vm_info = node_info["vms"][0]
     assert vm_info["disk"] == 500
     assert vm_info["_status_from_cache"] is False
@@ -461,10 +468,16 @@ def test_add_vm_info_falls_back_to_cache_when_status_call_fails(mock_redis):
     assert (
         vm_info["_status_cache_key"] == "proxmox-guest-status:cluster-1:node-a:vm:100"
     )
-    # A failed call must not overwrite the last known-good status cache -
-    # the only setex call should be refreshing the separate "good disk"
-    # reading cache with the (non-zero) fallback value.
-    mock_redis.setex.assert_called_once_with(
+    # A failed status call must not overwrite the last known-good cached
+    # value for that key - only the agent-info cache and the "good disk"
+    # reading cache (both refreshed with genuinely good data) get written.
+    vm_status_calls = [
+        call
+        for call in mock_redis.setex.call_args_list
+        if call.args[0] == "proxmox-guest-status:cluster-1:node-a:vm:100"
+    ]
+    assert vm_status_calls == []
+    mock_redis.setex.assert_any_call(
         "proxmox-good-disk:cluster-1:node-a:vm:100",
         proxmox_helper.PROXMOX_GUEST_STATUS_CACHE_TTL_SECONDS,
         json.dumps({"used": 700, "total": 1000}),
@@ -498,6 +511,120 @@ def test_add_vm_info_no_cache_available_on_failed_status_call(mock_redis):
     assert (
         vm_info["_status_cache_key"] == "proxmox-guest-status:cluster-1:node-a:vm:100"
     )
+
+
+def test_add_vm_info_agent_check_falls_back_to_cache_on_connection_failure(mock_redis):
+    """A transient connection failure to the agent/info endpoint (e.g. a
+    timeout reaching Proxmox) must not be reported as a confirmed 'agent
+    missing' - it should fall back to the last known-good agent answer,
+    same as the VM status/disk check already does."""
+    client = Mock()
+    client.get_vm_status.return_value = {"disk": 0, "mem": 100}
+    client.get_vm_agent_status.return_value = {
+        "installed": None,
+        "error": "ConnectTimeoutError(...)",
+        "reachable": False,
+    }
+    client.get_vm_guest_fsinfo.return_value = None
+    mock_redis.get.return_value = json.dumps({"installed": True, "error": None}).encode(
+        "utf-8"
+    )
+
+    node_info = {"vms": []}
+    proxmox_helper._add_vm_info(
+        node_info,
+        client,
+        "node-a",
+        [{"vmid": 109, "name": "venus", "status": "running", "maxdisk": 1000}],
+        cluster_identifier="cluster-1",
+        redis_client=mock_redis,
+    )
+
+    vm_info = node_info["vms"][0]
+    # The cached "installed" answer wins over the raw connection error.
+    assert vm_info["qemu_guest_agent_installed"] is True
+    assert vm_info["qemu_guest_agent_error"] is None
+    assert vm_info["_agent_status_from_cache"] is True
+    assert vm_info["_agent_status_live_check_failed"] is True
+    # A cache hit means the live failure must not overwrite the last
+    # known-good agent answer.
+    agent_key_calls = [
+        c
+        for c in mock_redis.setex.call_args_list
+        if c.args[0] == "proxmox-guest-status:cluster-1:node-a:vm-agent:109"
+    ]
+    assert agent_key_calls == []
+
+
+def test_add_vm_info_agent_check_unknown_when_no_cache_available(mock_redis):
+    """When the agent/info call fails to even reach Proxmox and there's no
+    cached fallback, the agent status must be reported as unknown (None),
+    never as a confirmed 'not installed'."""
+    client = Mock()
+    client.get_vm_status.return_value = {"disk": 0, "mem": 100}
+    client.get_vm_agent_status.return_value = {
+        "installed": None,
+        "error": "ConnectTimeoutError(...)",
+        "reachable": False,
+    }
+    mock_redis.get.return_value = None
+
+    node_info = {"vms": []}
+    proxmox_helper._add_vm_info(
+        node_info,
+        client,
+        "node-a",
+        [{"vmid": 109, "name": "venus", "status": "running", "maxdisk": 1000}],
+        cluster_identifier="cluster-1",
+        redis_client=mock_redis,
+    )
+
+    vm_info = node_info["vms"][0]
+    assert vm_info["qemu_guest_agent_installed"] is None
+    assert vm_info["_agent_status_from_cache"] is False
+    assert vm_info["_agent_status_live_check_failed"] is True
+    assert (
+        vm_info["_agent_status_cache_key"]
+        == "proxmox-guest-status:cluster-1:node-a:vm-agent:109"
+    )
+
+
+def test_add_vm_info_agent_check_success_is_cached(mock_redis):
+    """A definitive agent/info answer (installed or not) is cached so a
+    later transient failure has something to fall back to."""
+    client = Mock()
+    client.get_vm_status.return_value = {"disk": 500, "mem": 100}
+    client.get_vm_agent_status.return_value = {
+        "installed": False,
+        "error": "QEMU guest agent is not running",
+        "reachable": True,
+    }
+
+    node_info = {"vms": []}
+    proxmox_helper._add_vm_info(
+        node_info,
+        client,
+        "node-a",
+        [{"vmid": 109, "name": "venus", "status": "running", "maxdisk": 1000}],
+        cluster_identifier="cluster-1",
+        redis_client=mock_redis,
+    )
+
+    mock_redis.setex.assert_any_call(
+        "proxmox-guest-status:cluster-1:node-a:vm-agent:109",
+        proxmox_helper.PROXMOX_GUEST_STATUS_CACHE_TTL_SECONDS,
+        json.dumps(
+            {
+                "installed": False,
+                "error": "QEMU guest agent is not running",
+                "reachable": True,
+            }
+        ),
+    )
+    vm_info = node_info["vms"][0]
+    assert vm_info["qemu_guest_agent_installed"] is False
+    assert vm_info["_agent_status_from_cache"] is False
+    assert vm_info["_agent_status_live_check_failed"] is False
 
 
 def test_add_container_info_caches_successful_status(mock_redis):
@@ -582,6 +709,162 @@ def test_add_vm_info_without_cluster_identifier_skips_caching(mock_redis):
     assert vm_info["_status_from_cache"] is False
     assert vm_info["_status_live_check_failed"] is True
     assert vm_info["_status_cache_key"] is None
+
+
+# ---------------------------------------------------------------------------
+# Guest warning streak tracking - record_guest_warning_seen /
+# clear_guest_warning_streak / _add_vm_info integration
+# ---------------------------------------------------------------------------
+
+
+def test_get_guest_warning_streak_key():
+    key = proxmox_helper.get_guest_warning_streak_key("cluster-1", "node-a", "vm", 100)
+    assert key == "proxmox-guest-warning-streak:cluster-1:node-a:vm:100"
+
+
+def test_record_guest_warning_seen_first_time_sets_key(mock_redis):
+    """The first time a warning is seen, 'now' is stored and returned."""
+    mock_redis.get.return_value = None
+
+    first_seen = proxmox_helper.record_guest_warning_seen(
+        "cluster-1", "node-a", "vm", 100, redis_client=mock_redis
+    )
+
+    mock_redis.get.assert_called_once_with(
+        "proxmox-guest-warning-streak:cluster-1:node-a:vm:100"
+    )
+    assert mock_redis.setex.call_count == 1
+    args, _ = mock_redis.setex.call_args
+    assert args[0] == "proxmox-guest-warning-streak:cluster-1:node-a:vm:100"
+    assert args[1] == proxmox_helper.PROXMOX_GUEST_WARNING_STREAK_TTL_SECONDS
+    assert float(args[2]) == pytest.approx(first_seen)
+
+
+def test_record_guest_warning_seen_returns_existing_start_time(mock_redis):
+    """A warning that's already streaking must return the *original* start
+    time, not overwrite it with 'now' - otherwise the streak would never
+    appear to persist across checks."""
+    mock_redis.get.return_value = b"1000.0"
+
+    first_seen = proxmox_helper.record_guest_warning_seen(
+        "cluster-1", "node-a", "vm", 100, redis_client=mock_redis
+    )
+
+    assert first_seen == 1000.0
+    mock_redis.setex.assert_not_called()
+
+
+def test_record_guest_warning_seen_redis_get_error_returns_now(mock_redis):
+    """If Redis is unreachable, fall back to 'now' rather than raising."""
+    mock_redis.get.side_effect = Exception("boom")
+
+    first_seen = proxmox_helper.record_guest_warning_seen(
+        "cluster-1", "node-a", "vm", 100, redis_client=mock_redis
+    )
+
+    assert isinstance(first_seen, float)
+
+
+def test_clear_guest_warning_streak_deletes_key(mock_redis):
+    proxmox_helper.clear_guest_warning_streak(
+        "cluster-1", "node-a", "vm", 100, redis_client=mock_redis
+    )
+
+    mock_redis.delete.assert_called_once_with(
+        "proxmox-guest-warning-streak:cluster-1:node-a:vm:100"
+    )
+
+
+def test_clear_guest_warning_streak_redis_error_is_swallowed(mock_redis):
+    mock_redis.delete.side_effect = Exception("boom")
+
+    # Must not raise.
+    proxmox_helper.clear_guest_warning_streak(
+        "cluster-1", "node-a", "vm", 100, redis_client=mock_redis
+    )
+
+
+def test_add_vm_info_records_warning_streak_start_for_missing_agent(mock_redis):
+    """A VM that trips the zero-disk/missing-agent warning gets its streak
+    recorded so the alert email can later say how long this has persisted."""
+    client = Mock()
+    client.get_vm_status.return_value = {"disk": 0, "mem": 100}
+    client.get_vm_agent_status.return_value = {"installed": True, "error": None}
+    client.get_vm_guest_fsinfo.return_value = None
+    mock_redis.get.return_value = None
+
+    node_info = {"vms": []}
+    proxmox_helper._add_vm_info(
+        node_info,
+        client,
+        "node-a",
+        [{"vmid": 100, "name": "vm-1", "status": "running", "maxdisk": 1000}],
+        cluster_identifier="cluster-1",
+        redis_client=mock_redis,
+    )
+
+    vm_info = node_info["vms"][0]
+    assert vm_info["qemu_guest_agent_warning_inferred"] is True
+    assert vm_info["_warning_first_seen"] is not None
+
+    streak_calls = [
+        c
+        for c in mock_redis.setex.call_args_list
+        if c[0][0] == "proxmox-guest-warning-streak:cluster-1:node-a:vm:100"
+    ]
+    assert len(streak_calls) == 1
+    assert (
+        streak_calls[0][0][1] == proxmox_helper.PROXMOX_GUEST_WARNING_STREAK_TTL_SECONDS
+    )
+    assert float(streak_calls[0][0][2]) == pytest.approx(vm_info["_warning_first_seen"])
+
+
+def test_add_vm_info_clears_warning_streak_for_healthy_vm(mock_redis):
+    """A VM reporting real disk usage must clear any prior warning streak so
+    a future recurrence is treated as a fresh (not persisted) issue."""
+    client = Mock()
+    client.get_vm_status.return_value = {"disk": 500, "mem": 100}
+    client.get_vm_agent_status.return_value = {"installed": True, "error": None}
+
+    node_info = {"vms": []}
+    proxmox_helper._add_vm_info(
+        node_info,
+        client,
+        "node-a",
+        [{"vmid": 100, "name": "vm-1", "status": "running", "maxdisk": 1000}],
+        cluster_identifier="cluster-1",
+        redis_client=mock_redis,
+    )
+
+    vm_info = node_info["vms"][0]
+    assert vm_info["qemu_guest_agent_warning_inferred"] is False
+    assert vm_info["_warning_first_seen"] is None
+    mock_redis.delete.assert_called_once_with(
+        "proxmox-guest-warning-streak:cluster-1:node-a:vm:100"
+    )
+
+
+def test_add_vm_info_without_cluster_identifier_skips_warning_streak(mock_redis):
+    """Without a cluster identifier, warning-streak tracking is skipped
+    entirely, same as the last-known-good status cache."""
+    client = Mock()
+    client.get_vm_status.return_value = {"disk": 0, "mem": 100}
+    client.get_vm_agent_status.return_value = {"installed": True, "error": None}
+    client.get_vm_guest_fsinfo.return_value = None
+
+    node_info = {"vms": []}
+    proxmox_helper._add_vm_info(
+        node_info,
+        client,
+        "node-a",
+        [{"vmid": 100, "name": "vm-1", "status": "running", "maxdisk": 1000}],
+        cluster_identifier=None,
+        redis_client=mock_redis,
+    )
+
+    vm_info = node_info["vms"][0]
+    assert vm_info["_warning_first_seen"] is None
+    mock_redis.delete.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -963,7 +1246,7 @@ def test_proxmox_client_get_vm_agent_status_http_error_no_json(mock_session):
 
 
 def test_proxmox_client_get_vm_agent_status_general_exception(mock_session):
-    """Handle general exception."""
+    """A connection-level failure is unknown, not a confirmed 'not installed'."""
     client = proxmox_helper.ProxmoxClient(
         host="10.0.0.1", user="root@pam", token_id="token-1", token_secret="secret-1"
     )
@@ -973,8 +1256,44 @@ def test_proxmox_client_get_vm_agent_status_general_exception(mock_session):
 
     result = client.get_vm_agent_status("node-1", "100")
 
-    assert result["installed"] is False
+    assert result["installed"] is None
+    assert result["reachable"] is False
     assert "timeout" in result["error"]
+
+
+def test_proxmox_client_get_vm_agent_status_success_is_reachable(mock_session):
+    """A successful check is marked reachable so it can be cached."""
+    client = proxmox_helper.ProxmoxClient(
+        host="10.0.0.1", user="root@pam", token_id="token-1", token_secret="secret-1"
+    )
+    client.session = mock_session
+
+    mock_response = Mock()
+    mock_response.json.return_value = {"data": {"supported_commands": []}}
+    mock_session.get.return_value = mock_response
+
+    result = client.get_vm_agent_status("node-1", "100")
+
+    assert result["reachable"] is True
+
+
+def test_proxmox_client_get_vm_agent_status_http_error_is_reachable(mock_session):
+    """A real HTTP error from Proxmox counts as a reachable, definitive answer."""
+    client = proxmox_helper.ProxmoxClient(
+        host="10.0.0.1", user="root@pam", token_id="token-1", token_secret="secret-1"
+    )
+    client.session = mock_session
+
+    http_error = requests.HTTPError()
+    http_response = Mock()
+    http_response.json.return_value = {"errors": "Agent not installed"}
+    http_error.response = http_response
+    mock_session.get.side_effect = http_error
+
+    result = client.get_vm_agent_status("node-1", "100")
+
+    assert result["reachable"] is True
+    assert result["installed"] is False
 
 
 def test_proxmox_client_get_vm_guest_fsinfo_success(mock_session):

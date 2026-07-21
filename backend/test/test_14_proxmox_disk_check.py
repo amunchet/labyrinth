@@ -13,6 +13,7 @@ contribute to the final issue list.
 """
 
 import json
+import time
 
 import pytest
 
@@ -119,6 +120,48 @@ def _cluster_data_with_exhausted_redis_fallback(cluster_name, host):
     }
 
 
+def _cluster_data_with_inconclusive_agent_check(cluster_name, host):
+    """Cluster payload for a VM whose disk-status call succeeded (as is
+    normal for QEMU without an agent - it always reports disk=0) but whose
+    separate agent/info call failed to even reach Proxmox, with nothing left
+    in its own two-hour Redis fallback cache. This is the actual production
+    bug: a transient connection failure to /agent/info alone must not be
+    reported as a confirmed 'agent missing'."""
+    return {
+        "cluster_name": cluster_name,
+        "host": host,
+        "nodes": [
+            {
+                "name": "pve",
+                "storage": [],
+                "vms": [
+                    {
+                        "id": 109,
+                        "name": "venus",
+                        "status": "running",
+                        "maxdisk": 214748364800,
+                        "disk": 0,
+                        "qemu_guest_agent_installed": None,
+                        "qemu_guest_agent_warning_inferred": True,
+                        "qemu_guest_agent_error": (
+                            "HTTPSConnectionPool(host='192.168.0.107', port=8006): "
+                            "Max retries exceeded ... ConnectTimeoutError"
+                        ),
+                        "_status_live_check_failed": False,
+                        "_status_from_cache": False,
+                        "_agent_status_live_check_failed": True,
+                        "_agent_status_from_cache": False,
+                        "_agent_status_cache_key": (
+                            "proxmox-guest-status:south:pve:vm-agent:109"
+                        ),
+                    }
+                ],
+                "containers": [],
+            }
+        ],
+    }
+
+
 # ---------------------------------------------------------------------------
 # collect_disk_issues - unit tests
 # ---------------------------------------------------------------------------
@@ -161,6 +204,29 @@ def test_collect_disk_issues_flags_redis_fallback_exhausted():
     assert issue["type"] == "vm_qemu_missing"
     assert issue["redis_fallback_exhausted"] is True
     assert issue["redis_fallback_key"] == "proxmox-guest-status:cluster-x:node-c:vm:401"
+
+
+def test_collect_disk_issues_flags_agent_check_inconclusive():
+    """A connection failure to /agent/info alone (VM status call succeeded
+    fine) with no cached fallback must be marked inconclusive, not a
+    confirmed missing agent - this is the exact production false-positive
+    reported: a single ConnectTimeoutError to the agent endpoint should not
+    read as 'Agent Installed: No'."""
+    cluster_data = _cluster_data_with_inconclusive_agent_check("south", "192.168.0.107")
+
+    issues = proxmox_disk_check.collect_disk_issues(cluster_data, threshold_percent=80)
+
+    assert len(issues) == 1
+    issue = issues[0]
+    assert issue["type"] == "vm_qemu_missing"
+    assert issue["qemu_agent_installed"] is None
+    assert issue["agent_check_inconclusive"] is True
+    assert issue["agent_redis_fallback_key"] == (
+        "proxmox-guest-status:south:pve:vm-agent:109"
+    )
+    # The VM status check itself succeeded and wasn't served from cache -
+    # this is specifically an agent-check failure, not a status-check one.
+    assert issue["redis_fallback_exhausted"] is False
 
 
 def test_collect_disk_issues_missing_agent_vm_not_double_counted():
@@ -426,6 +492,158 @@ def test_render_email_template_shows_redis_fallback_details_when_exhausted():
 
     assert "no cached fallback was available" in html.lower()
     assert "proxmox-guest-status:cluster-x:node-c:vm:401" in html
+
+
+def test_render_email_template_shows_unknown_and_note_when_agent_check_inconclusive():
+    """A VM whose agent/info call failed with no cached fallback must render
+    'Unknown' (not 'No') in the Agent Installed column, plus an explanatory
+    note - this is the fix for the reported false-positive email, which
+    showed a raw ConnectTimeoutError as if it confirmed the agent was
+    missing."""
+    issues = [
+        {
+            "type": "vm_qemu_missing",
+            "cluster": "south",
+            "host": "192.168.0.107",
+            "node": "pve",
+            "name": "venus",
+            "vm_id": 109,
+            "status": "running",
+            "maxdisk": 214748364800,
+            "qemu_agent_installed": None,
+            "qemu_agent_error": (
+                "HTTPSConnectionPool(host='192.168.0.107', port=8006): "
+                "Max retries exceeded ... ConnectTimeoutError"
+            ),
+            "redis_fallback_exhausted": False,
+            "agent_check_inconclusive": True,
+            "agent_redis_fallback_key": "proxmox-guest-status:south:pve:vm-agent:109",
+        },
+    ]
+
+    html = proxmox_disk_check.render_email_template(issues, threshold_percent=80)
+
+    assert "Unknown" in html
+    assert "Could not verify guest agent status" in html
+    assert "proxmox-guest-status:south:pve:vm-agent:109" in html
+
+
+def test_render_email_template_shows_fresh_live_reading_when_check_succeeded():
+    """When the live status check succeeded (not cached, not failed), the
+    email must explicitly say this is a fresh reading - this is the exact
+    gap reported: the details previously said nothing about the Redis cache
+    situation for a VM whose live check succeeded but still reported zero
+    disk."""
+    issues = [
+        {
+            "type": "vm_qemu_missing",
+            "cluster": "south",
+            "host": "10.0.0.5",
+            "node": "pve2",
+            "name": "truenas",
+            "vm_id": 113,
+            "status": "running",
+            "maxdisk": 68719476736,
+            "qemu_agent_installed": True,
+            "qemu_agent_error": None,
+            "redis_fallback_key": "proxmox-guest-status:south:pve2:vm:113",
+            "redis_fallback_exhausted": False,
+            "status_from_cache": False,
+            "status_live_check_failed": False,
+        },
+    ]
+
+    html = proxmox_disk_check.render_email_template(issues, threshold_percent=80)
+
+    assert "fresh, live status reading" in html.lower()
+    assert "no cached fallback was available" not in html.lower()
+
+
+def test_render_email_template_shows_cached_reading_when_fallback_used():
+    """When the live check failed but a cached status was used, the email
+    must say the reading came from Redis rather than a live call."""
+    issues = [
+        {
+            "type": "vm_qemu_missing",
+            "cluster": "south",
+            "host": "10.0.0.5",
+            "node": "pve2",
+            "name": "vm-cached",
+            "vm_id": 114,
+            "status": "running",
+            "maxdisk": 68719476736,
+            "qemu_agent_installed": True,
+            "qemu_agent_error": None,
+            "redis_fallback_key": "proxmox-guest-status:south:pve2:vm:114",
+            "redis_fallback_exhausted": False,
+            "status_from_cache": True,
+            "status_live_check_failed": True,
+        },
+    ]
+
+    html = proxmox_disk_check.render_email_template(issues, threshold_percent=80)
+
+    assert "redis fallback cache" in html.lower()
+    assert "proxmox-guest-status:south:pve2:vm:114" in html
+
+
+def test_render_email_template_shows_persistent_warning_streak():
+    """A warning that has persisted for over two hours must say so
+    explicitly, so the reader can confirm it isn't a one-off flaky daemon
+    response."""
+    issues = [
+        {
+            "type": "vm_qemu_missing",
+            "cluster": "south",
+            "host": "10.0.0.5",
+            "node": "pve2",
+            "name": "truenas",
+            "vm_id": 113,
+            "status": "running",
+            "maxdisk": 68719476736,
+            "qemu_agent_installed": True,
+            "qemu_agent_error": None,
+            "warning_first_seen": 1000.0,
+            "warning_first_seen_display": "2026-07-20 12:00:00 UTC",
+            "warning_duration_display": "3h 15m",
+            "warning_persistent_2h": True,
+        },
+    ]
+
+    html = proxmox_disk_check.render_email_template(issues, threshold_percent=80)
+    normalized = " ".join(html.lower().split())
+
+    assert "continuously reported this issue for" in normalized
+    assert "not a one-off flaky daemon response" in normalized
+    assert "3h 15m" in html
+
+
+def test_render_email_template_shows_new_warning_streak():
+    """A warning first observed just now (within the two-hour window) must
+    be flagged as potentially transient, not a confirmed persistent issue."""
+    issues = [
+        {
+            "type": "vm_qemu_missing",
+            "cluster": "south",
+            "host": "10.0.0.5",
+            "node": "pve2",
+            "name": "truenas",
+            "vm_id": 113,
+            "status": "running",
+            "maxdisk": 68719476736,
+            "qemu_agent_installed": True,
+            "qemu_agent_error": None,
+            "warning_first_seen": 1000.0,
+            "warning_first_seen_display": "2026-07-20 12:00:00 UTC",
+            "warning_duration_display": "45s",
+            "warning_persistent_2h": False,
+        },
+    ]
+
+    html = proxmox_disk_check.render_email_template(issues, threshold_percent=80)
+
+    assert "first observed 45s ago" in html.lower()
+    assert "could still turn out to be a" in html.lower()
 
 
 def test_render_email_template_omits_qemu_missing_section_when_absent():
@@ -1153,6 +1371,167 @@ def test_collect_vm_issues_no_maxdisk():
     )
 
     assert len(issues) == 0
+
+
+def test_collect_vm_issues_missing_agent_reports_fresh_live_reading():
+    """When the live status check succeeded (not cached, not failed), the
+    issue must say so explicitly rather than leaving the Redis cache
+    situation unstated - this is exactly the case the disk-space alert email
+    previously gave no detail about."""
+    node = {
+        "vms": [
+            {
+                "id": 113,
+                "name": "truenas",
+                "status": "running",
+                "maxdisk": 68719476736,
+                "disk": 0,
+                "qemu_guest_agent_installed": True,
+                "qemu_guest_agent_warning_inferred": True,
+                "qemu_guest_agent_error": None,
+                "_status_live_check_failed": False,
+                "_status_from_cache": False,
+                "_status_cache_key": "proxmox-guest-status:south:pve2:vm:113",
+            }
+        ]
+    }
+
+    issues = proxmox_disk_check._collect_vm_issues(
+        node, "south", "10.0.0.5", "pve2", 80
+    )
+
+    assert len(issues) == 1
+    issue = issues[0]
+    assert issue["redis_fallback_exhausted"] is False
+    assert issue["status_from_cache"] is False
+    assert issue["status_live_check_failed"] is False
+
+
+def test_collect_vm_issues_missing_agent_reports_cached_reading():
+    """When the live check failed but a cached fallback was used, the issue
+    must say the reading came from Redis, not a live call."""
+    node = {
+        "vms": [
+            {
+                "id": 114,
+                "name": "vm-cached",
+                "status": "running",
+                "maxdisk": 68719476736,
+                "disk": 0,
+                "qemu_guest_agent_installed": True,
+                "qemu_guest_agent_warning_inferred": True,
+                "qemu_guest_agent_error": None,
+                "_status_live_check_failed": True,
+                "_status_from_cache": True,
+                "_status_cache_key": "proxmox-guest-status:south:pve2:vm:114",
+            }
+        ]
+    }
+
+    issues = proxmox_disk_check._collect_vm_issues(
+        node, "south", "10.0.0.5", "pve2", 80
+    )
+
+    assert len(issues) == 1
+    issue = issues[0]
+    # Fallback wasn't exhausted (a cached value *was* used), but it also
+    # wasn't a fresh live reading.
+    assert issue["redis_fallback_exhausted"] is False
+    assert issue["status_from_cache"] is True
+    assert issue["status_live_check_failed"] is True
+
+
+def test_collect_vm_issues_warning_streak_new_vs_persistent():
+    """A warning first observed just now must not be reported as persistent,
+    while one first observed over two hours ago must be - this is the signal
+    that lets the alert distinguish a flaky one-off from a confirmed,
+    ongoing problem."""
+    now = time.time()
+    node = {
+        "vms": [
+            {
+                "id": 113,
+                "name": "vm-new",
+                "status": "running",
+                "maxdisk": 68719476736,
+                "disk": 0,
+                "qemu_guest_agent_installed": True,
+                "qemu_guest_agent_warning_inferred": True,
+                "_warning_first_seen": now,
+            },
+            {
+                "id": 114,
+                "name": "vm-persistent",
+                "status": "running",
+                "maxdisk": 68719476736,
+                "disk": 0,
+                "qemu_guest_agent_installed": True,
+                "qemu_guest_agent_warning_inferred": True,
+                "_warning_first_seen": now - (3 * 60 * 60),
+            },
+        ]
+    }
+
+    issues = proxmox_disk_check._collect_vm_issues(
+        node, "south", "10.0.0.5", "pve2", 80
+    )
+
+    by_name = {issue["name"]: issue for issue in issues}
+    assert by_name["vm-new"]["warning_persistent_2h"] is False
+    assert by_name["vm-persistent"]["warning_persistent_2h"] is True
+    assert by_name["vm-persistent"]["warning_duration_display"].startswith("3h")
+
+
+def test_collect_vm_issues_no_warning_streak_data():
+    """A VM with no streak data at all (e.g. legacy cached payload before
+    this feature existed) must not blow up and simply omits streak info."""
+    node = {
+        "vms": [
+            {
+                "id": 113,
+                "name": "vm-1",
+                "status": "running",
+                "maxdisk": 68719476736,
+                "disk": 0,
+                "qemu_guest_agent_installed": True,
+                "qemu_guest_agent_warning_inferred": True,
+            }
+        ]
+    }
+
+    issues = proxmox_disk_check._collect_vm_issues(
+        node, "south", "10.0.0.5", "pve2", 80
+    )
+
+    assert issues[0]["warning_first_seen"] is None
+    assert issues[0]["warning_duration_display"] is None
+    assert issues[0]["warning_persistent_2h"] is False
+
+
+# ---------------------------------------------------------------------------
+# _format_warning_duration / _format_warning_timestamp
+# ---------------------------------------------------------------------------
+
+
+def test_format_warning_duration_hours_and_minutes():
+    assert proxmox_disk_check._format_warning_duration(3 * 3600 + 15 * 60) == "3h 15m"
+
+
+def test_format_warning_duration_minutes_only():
+    assert proxmox_disk_check._format_warning_duration(5 * 60) == "5m"
+
+
+def test_format_warning_duration_seconds_only():
+    assert proxmox_disk_check._format_warning_duration(42) == "42s"
+
+
+def test_format_warning_duration_negative_clamped_to_zero():
+    assert proxmox_disk_check._format_warning_duration(-10) == "0s"
+
+
+def test_format_warning_timestamp_format():
+    result = proxmox_disk_check._format_warning_timestamp(0)
+    assert result.endswith("UTC")
 
 
 # ---------------------------------------------------------------------------

@@ -117,9 +117,22 @@
                 <td>{{ vm.name }} (ID: {{ vm.vm_id }})</td>
                 <td>{{ vm.status }}</td>
                 <td>{{ vm.maxdisk|format_size }}</td>
-                <td class="percentage-high">{{ "Yes" if vm.qemu_agent_installed else "No" }}</td>
+                <td class="percentage-high">
+                    {% if vm.qemu_agent_installed == true %}Yes{% elif vm.qemu_agent_installed == false %}No{% else %}Unknown{% endif %}
+                </td>
                 <td>
                     {{ vm.qemu_agent_error or "Guest agent unavailable or not reporting filesystem info" }}
+                    {% if vm.agent_check_inconclusive %}
+                    <br>
+                    <span style="color: #8B0000; font-size: 12px;">
+                        Could not verify guest agent status &mdash; the live check to Proxmox
+                        failed and no cached fallback was available
+                        (Redis key: <code>{{ vm.agent_redis_fallback_key }}</code>) &mdash; either
+                        it was never cached, or more than two hours have passed since the last
+                        successful check. Disk usage still cannot be verified, but this may be a
+                        transient connectivity issue rather than a genuinely missing agent.
+                    </span>
+                    {% endif %}
                     {% if vm.redis_fallback_exhausted %}
                     <br>
                     <span style="color: #8B0000; font-size: 12px;">
@@ -127,6 +140,39 @@
                         (Redis key: <code>{{ vm.redis_fallback_key }}</code>) &mdash; either it
                         was never cached, or more than two hours have passed since the last
                         successful check for this VM.
+                    </span>
+                    {% elif vm.status_from_cache %}
+                    <br>
+                    <span style="color: #b8860b; font-size: 12px;">
+                        This reading came from the Redis fallback cache
+                        (key: <code>{{ vm.redis_fallback_key }}</code>), not a fresh Proxmox
+                        API call &mdash; the live status check failed, but a cached status
+                        from within the last two hours was still available.
+                    </span>
+                    {% elif vm.status_live_check_failed is sameas false %}
+                    <br>
+                    <span style="font-size: 12px; color: #555;">
+                        This is a fresh, live status reading from the Proxmox API
+                        (not cached Redis data) &mdash; the guest agent call succeeded
+                        just now and still reported zero disk usage.
+                    </span>
+                    {% endif %}
+                    {% if vm.warning_first_seen %}
+                    <br>
+                    <span style="font-size: 12px; color: {{ '#8B0000' if vm.warning_persistent_2h else '#555' }};">
+                        {% if vm.warning_persistent_2h %}
+                        This VM has continuously reported this issue for
+                        {{ vm.warning_duration_display }} (first observed
+                        {{ vm.warning_first_seen_display }}) &mdash; that's well beyond the
+                        two-hour Redis fallback window, so this is not a one-off flaky
+                        daemon response.
+                        {% else %}
+                        First observed {{ vm.warning_duration_display }} ago (at
+                        {{ vm.warning_first_seen_display }}) &mdash; still within the
+                        two-hour fallback window, so this could still turn out to be a
+                        transient/flaky guest agent response rather than a confirmed
+                        persistent issue.
+                        {% endif %}
                     </span>
                     {% endif %}
                 </td>
