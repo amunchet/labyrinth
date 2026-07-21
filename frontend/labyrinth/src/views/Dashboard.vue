@@ -589,18 +589,17 @@ export default {
         }
 
         // Services Search
-
-        var found_service = host.services
-          .findIndex((x) => x && x.name.toLowerCase().includes(search.service.toLowerCase()));
-        if (found_service != -1) {
-          var service_state = host.services[found_service]?.state;
-          if (desired_state != null) {
-            retval = service_state == desired_state;
+        if (search.service != "") {
+          var found_service = host.services
+            .findIndex((x) => x && x.name.toLowerCase().includes(search.service.toLowerCase()));
+          if (found_service != -1) {
+            var service_state = host.services[found_service]?.state;
+            if (desired_state != null) {
+              retval = service_state == desired_state;
+            } else {
+              retval = true;
+            }
           } else {
-            retval = true;
-          }
-        } else {
-          if (has_service) {
             retval = false;
           }
         }
