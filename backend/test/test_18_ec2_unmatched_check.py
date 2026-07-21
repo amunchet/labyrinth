@@ -425,7 +425,9 @@ def test_send_ec2_test_email_endpoint_simple_mode(setup, monkeypatch):
     def fake_simple(recipients):
         assert recipients == ["a@example.com"]
 
-    monkeypatch.setattr(serve.ec2_unmatched_check, "send_simple_test_email", fake_simple)
+    monkeypatch.setattr(
+        serve.ec2_unmatched_check, "send_simple_test_email", fake_simple
+    )
 
     with serve.app.test_request_context(
         "/aws/test-email",
@@ -461,7 +463,9 @@ def test_send_ec2_test_email_endpoint_full_mode(setup, monkeypatch):
     assert payload["unmatched_found"] == 2
 
 
-def test_send_ec2_test_email_endpoint_falls_back_to_saved_recipients(setup, monkeypatch):
+def test_send_ec2_test_email_endpoint_falls_back_to_saved_recipients(
+    setup, monkeypatch
+):
     """Falls back to saved settings when no recipients are given in the request."""
     serve.mongo_client["labyrinth"]["settings"].insert_one(
         {"name": "ec2_alert_recipients", "value": "saved@example.com"}
@@ -472,7 +476,9 @@ def test_send_ec2_test_email_endpoint_falls_back_to_saved_recipients(setup, monk
     def fake_simple(recipients):
         captured["recipients"] = recipients
 
-    monkeypatch.setattr(serve.ec2_unmatched_check, "send_simple_test_email", fake_simple)
+    monkeypatch.setattr(
+        serve.ec2_unmatched_check, "send_simple_test_email", fake_simple
+    )
 
     with serve.app.test_request_context(
         "/aws/test-email", method="POST", json={"mode": "simple"}
@@ -513,7 +519,9 @@ def test_send_ec2_test_email_endpoint_invalid_email_configuration(setup, monkeyp
     def fake_simple(recipients):
         raise ValueError("bad config")
 
-    monkeypatch.setattr(serve.ec2_unmatched_check, "send_simple_test_email", fake_simple)
+    monkeypatch.setattr(
+        serve.ec2_unmatched_check, "send_simple_test_email", fake_simple
+    )
 
     with serve.app.test_request_context(
         "/aws/test-email",

@@ -126,9 +126,7 @@ def send_alert_email(
 ) -> str:
     """Render the unmatched EC2 instance alert Jinja2 template and send it via email_helper."""
     if subject is None:
-        subject = (
-            f"EC2 Unmatched Instance Alert - {len(unmatched_instances)} Instance(s) Found"
-        )
+        subject = f"EC2 Unmatched Instance Alert - {len(unmatched_instances)} Instance(s) Found"
 
     html_content = render_email_template(unmatched_instances)
 
@@ -189,9 +187,7 @@ def send_full_test_email(
 
     unmatched_instances, account_errors = gather_unmatched_instances(db=db)
 
-    subject = (
-        f"[TEST] EC2 Unmatched Instance Alert - {len(unmatched_instances)} Instance(s) Found"
-    )
+    subject = f"[TEST] EC2 Unmatched Instance Alert - {len(unmatched_instances)} Instance(s) Found"
     send_alert_email(recipients, unmatched_instances, subject=subject)
 
     return {

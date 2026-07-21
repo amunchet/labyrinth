@@ -209,8 +209,8 @@
           <hr />
 
           <p class="text-muted small mb-2">
-            Send a test email to the recipient(s) above without waiting for
-            the next scheduled check.
+            Send a test email to the recipient(s) above without waiting for the
+            next scheduled check.
           </p>
           <b-button
             variant="outline-secondary"
@@ -304,7 +304,8 @@ export default {
         recipientsData.append("name", "ec2_alert_recipients");
         recipientsData.append("value", this.alertRecipientsText);
         await Helper.apiPost("settings", "", "", auth, recipientsData);
-        this.successMessage = "EC2 unmatched instance alert settings saved successfully!";
+        this.successMessage =
+          "EC2 unmatched instance alert settings saved successfully!";
       } catch (err) {
         this.errorMessage = err.message || `${err}`;
       } finally {
@@ -362,7 +363,8 @@ export default {
           }
           this.successMessage = msg;
         } else {
-          this.successMessage = "Test email sent successfully! Check your inbox.";
+          this.successMessage =
+            "Test email sent successfully! Check your inbox.";
         }
       } catch (err) {
         this.errorMessage = err.message || `${err}`;

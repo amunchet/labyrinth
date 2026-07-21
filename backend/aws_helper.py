@@ -191,7 +191,9 @@ def _build_labyrinth_host_match(instance, host):
     }
 
 
-def _enrich_aws_instances_with_matches(instances: List[Dict], hosts: List[Dict]) -> List[Dict]:
+def _enrich_aws_instances_with_matches(
+    instances: List[Dict], hosts: List[Dict]
+) -> List[Dict]:
     """Annotate EC2 instances with any matching Labyrinth ``hosts`` records.
 
     ``hosts`` is passed in (rather than queried here) so callers that already
