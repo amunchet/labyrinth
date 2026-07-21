@@ -5,6 +5,13 @@
         <b-button class="float-left" variant="danger" @click="deleteHost()"
           >Delete</b-button
         >
+        <b-button
+          class="float-left ml-2"
+          variant="secondary"
+          v-if="!isNew"
+          @click="cloneHost()"
+          >Clone</b-button
+        >
         <b-button class="float-right ml-2" variant="primary" @click="saveHost()"
           >OK</b-button
         >
@@ -567,6 +574,15 @@ export default {
         .catch((e) => {
           this.$store.commit("updateError", e);
         });
+    },
+    cloneHost: function () {
+      let cloned = JSON.parse(JSON.stringify(this.host));
+      delete cloned._id;
+      cloned.ip = "";
+      cloned.mac = "";
+      this.host = cloned;
+      this.isNew = true;
+      this.metrics = [];
     },
     deleteHost: /* istanbul ignore next */ function () {
       let host = this.host;

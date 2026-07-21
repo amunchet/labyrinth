@@ -15,14 +15,15 @@
   >
     <div class="top">
       <div
-        :class="monitor ? 'number' : 'number unmonitored'"
+        :class="(monitor ? 'number' : 'number unmonitored') + (subnet && !ip.startsWith(subnet) ? ' number-wide' : '')"
         @click="
           () => {
             $emit('selected_changed');
           }
         "
       >
-        .{{ ip.split(".")[ip.split(".").length - 1] }}
+        <span v-if="subnet && !ip.startsWith(subnet)" :title="ip">{{ ip }}</span>
+        <span v-else>.{{ ip.split(".")[ip.split(".").length - 1] }}</span>
       </div>
 
       <div
@@ -129,7 +130,26 @@
               <span v-if="service['hover']" class="small_text">
                 {{ service.name.replace("_", " ") }}
               </span>
-              <span v-else>&nbsp;&nbsp;&nbsp;</span>
+              <span v-else class="state_icon">
+                <font-awesome-icon
+                  v-if="service.state === true"
+                  icon="check"
+                  class="text-success"
+                  size="xs"
+                />
+                <font-awesome-icon
+                  v-else-if="service.state === false"
+                  icon="times"
+                  class="text-danger"
+                  size="xs"
+                />
+                <font-awesome-icon
+                  v-else-if="service.state === -1"
+                  icon="clock"
+                  class="text-warning"
+                  size="xs"
+                />
+              </span>
             </div>
           </div>
         </div>
@@ -169,6 +189,7 @@ export default {
     "service_level",
     "service_levels",
     "selected",
+    "subnet",
   ],
   data() {
     return {
@@ -251,6 +272,10 @@ export default {
   line-height: 10px !important;
   color: #65656e;
 }
+.state_icon {
+  font-size: 8pt;
+  line-height: 24px;
+}
 .main {
   padding: 10px;
   border-radius: 1rem;
@@ -295,6 +320,15 @@ export default {
   /* top: 0; */
   margin-bottom: 0.5rem;
   cursor: pointer;
+}
+.number-wide {
+  width: auto;
+  min-width: 50px;
+  max-width: 180px;
+  font-size: 9pt;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .unmonitored {
   color: #dfdfde;
