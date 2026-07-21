@@ -782,10 +782,10 @@ def create_edit_service(service=""):
     if "_id" in data:
         del data["_id"]
 
-    if "display_name" not in data:
-        data["display_name"] = ""
+    if "display_name" not in data or not data["display_name"]:
+        data["display_name"] = data.get("name", "")
 
-    if [
+    if data["display_name"] and [
         x
         for x in mongo_client["labyrinth"]["services"].find(
             {"display_name": data["display_name"]}
@@ -1408,6 +1408,7 @@ def run_ansible_background(job_id, data):
         data["vault_password"],
         data["become_file"],
         ssh_key_file=data.get("ssh_key", ""),
+        totp_file=data.get("totp_file", ""),
     )
 
     redis_client.hset(job_id, "status", "running")

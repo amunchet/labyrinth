@@ -56,6 +56,17 @@
         </b-select>
       </b-col>
     </b-row>
+    <b-row>
+      <b-col>Do Not Scan?</b-col>
+      <b-col>
+        <b-form-checkbox
+          size="lg"
+          name="do-not-scan"
+          switch
+          v-model="subnet.do_not_scan"
+        />
+      </b-col>
+    </b-row>
     <hr />
 
     <h6>Origin</h6>

@@ -116,7 +116,12 @@ def check_file(filename, file_type, raw=""):
 
 
 def run_ansible(
-    hosts: List, playbook: str, vault_password: str, become_file: str, ssh_key_file=""
+    hosts: List,
+    playbook: str,
+    vault_password: str,
+    become_file: str,
+    ssh_key_file="",
+    totp_file="",
 ):
     """
     Runs ansible playbook
@@ -127,7 +132,8 @@ def run_ansible(
     :param vault_password - this is the temporary vault password to store 
     :param become_file - Encrypted vault file that contains the become password
 
-    :param ssh_key_file - SSH key to use for hosts
+    :param ssh_key_file - SSH key to use for hosts (optional)
+    :param totp_file - TOTP secret file for 2FA hosts (optional)
 
     ```
     ansible_runner.run(\
@@ -141,6 +147,7 @@ def run_ansible(
     SRC_DIR = "/src/uploads/ansible"
     BECOME_DIR = "/src/uploads/become"
     SSH_DIR = "/src/uploads/ssh"
+    TOTP_DIR = "/src/uploads/totp"
 
     if not os.path.exists("/run"):  # pragma: no cover
         os.mkdir("/run")
@@ -176,12 +183,38 @@ def run_ansible(
 
     shutil.copy(old_become, "{}/vars/{}.yml".format(RUN_DIR, become_file))
 
-    # Write password
-    with open("{}/vault.pass".format(RUN_DIR), "w") as f:
-        f.write(vault_password)
+    # SSH key file (optional)
+    if ssh_key_file:
+        safe_ssh_key = secure_filename(ssh_key_file)
+        ssh_dir_real = os.path.realpath(SSH_DIR)
+        ssh_key_path = os.path.realpath(os.path.join(SSH_DIR, safe_ssh_key))
+        # Verify resolved path stays within SSH_DIR to prevent directory traversal
+        if os.path.commonpath([ssh_dir_real, ssh_key_path]) != ssh_dir_real:
+            raise Exception("Invalid SSH key file path: " + ssh_key_file)
+        if not os.path.exists(ssh_key_path):
+            raise Exception("SSH key file not found: " + str(ssh_key_path))
+        dest_key = "{}/env/ssh_key".format(RUN_DIR)
+        shutil.copy(ssh_key_path, dest_key)
+        os.chmod(dest_key, 0o600)
 
-    # Write password
-    with open("{}/vault.pass".format(RUN_DIR), "w") as f:
+    # TOTP file for 2FA hosts (optional)
+    if totp_file:
+        safe_totp = secure_filename(totp_file + ".yml")
+        totp_dir_real = os.path.realpath(TOTP_DIR)
+        totp_path = os.path.realpath(os.path.join(TOTP_DIR, safe_totp))
+        # Verify resolved path stays within TOTP_DIR to prevent directory traversal
+        if os.path.commonpath([totp_dir_real, totp_path]) != totp_dir_real:
+            raise Exception("Invalid TOTP file path: " + totp_file)
+        if not os.path.exists(totp_path):
+            raise Exception("TOTP file not found: " + str(totp_path))
+        shutil.copy(totp_path, "{}/vars/{}.yml".format(RUN_DIR, secure_filename(totp_file)))
+
+    # Write vault password to a restrictive temp file (required by ansible-runner).
+    # The password is necessarily stored as plain text here because ansible-vault
+    # reads it from a file at runtime.
+    vault_pass_path = "{}/vault.pass".format(RUN_DIR)
+    fd = os.open(vault_pass_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
         f.write(vault_password)
 
     # Run ansible and return HTML
