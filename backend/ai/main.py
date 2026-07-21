@@ -162,11 +162,13 @@ def process_dashboard(testing=False):
                 if failing:
                     # prefer 'host' if populated, otherwise fall back to ip
                     host_key = (host.get("host") or "").strip() or host.get("ip")
-                    results.append({
-                        "host": host_key,
-                        "failing": failing,
-                        "all_services": all_service_names,
-                    })
+                    results.append(
+                        {
+                            "host": host_key,
+                            "failing": failing,
+                            "all_services": all_service_names,
+                        }
+                    )
 
     return json.dumps(results).replace(" ", "")
 
@@ -321,9 +323,11 @@ def main(initial_prompt="", prompt_filename="initial_prompt.txt"):
                 # Use the structured template when host_alerts is present (even if empty —
                 # an empty list is a valid "no alerts" state distinct from a missing field).
                 # Fall back to legacy summary_email for backward compatibility.
-                html=render_email_html(output.get("host_alerts"))
-                if output.get("host_alerts") is not None
-                else output.get("summary_email", "See HTML version"),
+                html=(
+                    render_email_html(output.get("host_alerts"))
+                    if output.get("host_alerts") is not None
+                    else output.get("summary_email", "See HTML version")
+                ),
                 text="See HTML version",
                 attachments=None,
                 from_name="Labyrinth AI",

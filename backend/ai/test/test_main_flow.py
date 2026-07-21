@@ -353,14 +353,17 @@ def test_main_fatal_when_dashboard_redis_fails(monkeypatch, capsys):
 # render_email_html tests
 # ---------------------------------------------------------------------------
 
+
 def test_render_email_html_empty():
     from ai.main import render_email_html
+
     html = render_email_html([])
     assert "No active alerts" in html
 
 
 def test_render_email_html_critical_row():
     from ai.main import render_email_html
+
     alerts = [
         {
             "host": "server-1",
@@ -382,6 +385,7 @@ def test_render_email_html_critical_row():
 
 def test_render_email_html_connection_issue_badge():
     from ai.main import render_email_html
+
     alerts = [
         {
             "host": "net-host",
@@ -397,6 +401,7 @@ def test_render_email_html_connection_issue_badge():
 
 def test_render_email_html_warning_severity():
     from ai.main import render_email_html
+
     alerts = [
         {
             "host": "worker-1",
@@ -413,6 +418,7 @@ def test_render_email_html_warning_severity():
 
 def test_render_email_html_multiple_hosts():
     from ai.main import render_email_html
+
     alerts = [
         {
             "host": "host-a",
@@ -440,6 +446,7 @@ def test_render_email_html_multiple_hosts():
 def test_process_dashboard_includes_all_services():
     """all_services includes non-failing services too."""
     from ai.main import process_dashboard
+
     data = [
         {
             "groups": [
