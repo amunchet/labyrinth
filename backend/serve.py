@@ -2241,6 +2241,7 @@ def add_manual_disk_host():
                 "ip": request.form.get("ip"),
                 "type": request.form.get("type"),
                 "description": request.form.get("description", ""),
+                "service": request.form.get("service", ""),
             }
 
         if data is None:
@@ -2261,6 +2262,7 @@ def add_manual_disk_host():
             "ip": data["ip"],
             "type": data["type"],
             "description": data.get("description", ""),
+            "service": data.get("service", ""),
             "created": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "updated": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         }
