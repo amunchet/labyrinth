@@ -304,10 +304,10 @@ export default {
   cursor: pointer;
 }
 .number-wide {
-  width: auto;
+  width: 75%;
   min-width: 50px;
   max-width: 180px;
-  font-size: 9pt;
+  /* font-size: 9pt; */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

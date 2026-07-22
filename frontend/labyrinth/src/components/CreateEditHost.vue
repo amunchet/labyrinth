@@ -271,13 +271,13 @@
             <font-awesome-icon
               v-if="key.item.state === true"
               icon="check"
-              class="text-success"
+              class="text-success state-icon"
               size="1x"
             />
             <font-awesome-icon
               v-else-if="key.item.state === false"
               icon="times-circle"
-              class="text-danger"
+              class="text-danger state-icon"
               size="1x"
             />
           </template>
@@ -671,6 +671,10 @@ h4 {
 .text-small {
   font-size: 9pt;
   color: grey;
+}
+.state-icon {
+  display: inline-block;
+  padding-top: 0.375rem;
 }
 .tags-preview {
   display: flex;
