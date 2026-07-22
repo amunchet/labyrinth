@@ -207,7 +207,9 @@ def run_ansible(
             raise Exception("Invalid TOTP file path: " + totp_file)
         if not os.path.exists(totp_path):
             raise Exception("TOTP file not found: " + str(totp_path))
-        shutil.copy(totp_path, "{}/vars/{}.yml".format(RUN_DIR, secure_filename(totp_file)))
+        shutil.copy(
+            totp_path, "{}/vars/{}.yml".format(RUN_DIR, secure_filename(totp_file))
+        )
 
     # Write vault password to a restrictive temp file (required by ansible-runner).
     # The password is necessarily stored as plain text here because ansible-vault

@@ -164,7 +164,9 @@ def main():  # pragma: no cover
 
     # Use Redis-based global lock so multiple Docker containers don't duplicate work
     global_lock_key = "labyrinth_finder_lock"
-    lock_acquired = rclient.set(global_lock_key, "1", nx=True, ex=GLOBAL_LOCK_TIMEOUT_SECONDS)
+    lock_acquired = rclient.set(
+        global_lock_key, "1", nx=True, ex=GLOBAL_LOCK_TIMEOUT_SECONDS
+    )
     if not lock_acquired:
         print("Another finder instance is already running. Exiting.")
         return
@@ -180,7 +182,9 @@ def main():  # pragma: no cover
             # Check do_not_scan flag on the subnet document
             try:
                 subnet_data = json.loads(unwrap(list_subnet)(subnet)[0])
-                if isinstance(subnet_data, dict) and subnet_data.get("do_not_scan", False):
+                if isinstance(subnet_data, dict) and subnet_data.get(
+                    "do_not_scan", False
+                ):
                     print(f"Skipping {subnet}: do_not_scan flag is set")
                     return
             except Exception as exc:
@@ -188,7 +192,9 @@ def main():  # pragma: no cover
 
             # Acquire per-subnet Redis lock to prevent concurrent scans of the same subnet
             subnet_lock_key = "scan_lock_{}".format(subnet)
-            subnet_lock = rclient.set(subnet_lock_key, "1", nx=True, ex=SUBNET_LOCK_TIMEOUT_SECONDS)
+            subnet_lock = rclient.set(
+                subnet_lock_key, "1", nx=True, ex=SUBNET_LOCK_TIMEOUT_SECONDS
+            )
             if not subnet_lock:
                 print(f"Subnet {subnet} is already being scanned. Skipping.")
                 return
@@ -218,7 +224,9 @@ def main():  # pragma: no cover
                             unwrap(create_edit_host)(convert_host(host))
 
                         update_redis("\nInserting metrics...", subnet)
-                        metric = unwrap(insert_metric)({"metrics": [process_scan(host)]})
+                        metric = unwrap(insert_metric)(
+                            {"metrics": [process_scan(host)]}
+                        )
                         update_redis("\n" + str(metric), subnet)
                     except Exception as exc:
                         update_redis("\nException occurred: " + str(exc), subnet)

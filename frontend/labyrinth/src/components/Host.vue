@@ -15,14 +15,19 @@
   >
     <div class="top">
       <div
-        :class="(monitor ? 'number' : 'number unmonitored') + (subnet && !ip.startsWith(subnet) ? ' number-wide' : '')"
+        :class="
+          (monitor ? 'number' : 'number unmonitored') +
+          (subnet && !ip.startsWith(subnet) ? ' number-wide' : '')
+        "
         @click="
           () => {
             $emit('selected_changed');
           }
         "
       >
-        <span v-if="subnet && !ip.startsWith(subnet)" :title="ip">{{ ip }}</span>
+        <span v-if="subnet && !ip.startsWith(subnet)" :title="ip">{{
+          ip
+        }}</span>
         <span v-else>.{{ ip.split(".")[ip.split(".").length - 1] }}</span>
       </div>
 

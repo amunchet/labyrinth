@@ -415,11 +415,21 @@
               />
             </b-col>
           </b-row>
-          <b-row class="mt-3" v-if="files_list['totp'] && files_list['totp'].length > 0">
+          <b-row
+            class="mt-3"
+            v-if="files_list['totp'] && files_list['totp'].length > 0"
+          >
             <b-col>
-              <b>2FA / TOTP File</b> (optional - for hosts requiring two-factor authentication):<br />
+              <b>2FA / TOTP File</b> (optional - for hosts requiring two-factor
+              authentication):<br />
               <b-select
-                :options="[{ text: 'None', value: '' }, ...files_list['totp'].map(f => ({ text: f, value: f.replace(/\.yml$/, '') }))]"
+                :options="[
+                  { text: 'None', value: '' },
+                  ...files_list['totp'].map((f) => ({
+                    text: f,
+                    value: f.replace(/\.yml$/, ''),
+                  })),
+                ]"
                 v-model="selected['totp']"
               />
             </b-col>
