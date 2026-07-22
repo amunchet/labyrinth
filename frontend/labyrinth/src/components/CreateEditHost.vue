@@ -267,6 +267,20 @@
           striped
           :fields="['name', 'state', '_']"
         >
+          <template v-slot:cell(state)="key">
+            <font-awesome-icon
+              v-if="key.item.state === true"
+              icon="check"
+              class="text-success"
+              size="1x"
+            />
+            <font-awesome-icon
+              v-else-if="key.item.state === false"
+              icon="times-circle"
+              class="text-danger"
+              size="1x"
+            />
+          </template>
           <template v-slot:cell(_)="key">
             <b-button
               @click="
