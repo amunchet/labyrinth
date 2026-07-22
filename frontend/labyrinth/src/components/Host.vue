@@ -135,26 +135,7 @@
               <span v-if="service['hover']" class="small_text">
                 {{ service.name.replace("_", " ") }}
               </span>
-              <span v-else class="state_icon">
-                <font-awesome-icon
-                  v-if="service.state === true"
-                  icon="check"
-                  class="text-success"
-                  size="xs"
-                />
-                <font-awesome-icon
-                  v-else-if="service.state === false"
-                  icon="times"
-                  class="text-danger"
-                  size="xs"
-                />
-                <font-awesome-icon
-                  v-else-if="service.state === -1"
-                  icon="clock"
-                  class="text-warning"
-                  size="xs"
-                />
-              </span>
+              <span v-else>&nbsp;&nbsp;&nbsp;</span>
             </div>
           </div>
         </div>
@@ -276,10 +257,6 @@ export default {
   font-size: 8pt;
   line-height: 10px !important;
   color: #65656e;
-}
-.state_icon {
-  font-size: 8pt;
-  line-height: 24px;
 }
 .main {
   padding: 10px;
