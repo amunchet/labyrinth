@@ -569,7 +569,7 @@ export default {
       let retval = false;
 
       let desired_state = null;
-      var has_service = searches.filter((x) => x?.service != "").length > 0;
+      // var has_service = searches.filter((x) => x?.service != "").length > 0;
       searches.forEach((search) => {
         // Services state
         if (search.service_state != undefined && search.service_state != null) {
