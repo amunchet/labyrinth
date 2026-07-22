@@ -268,18 +268,20 @@
           :fields="['name', 'state', '_']"
         >
           <template v-slot:cell(state)="key">
-            <font-awesome-icon
+            <b-button
               v-if="key.item.state === true"
-              icon="check"
-              class="text-success state-icon"
-              size="1x"
-            />
-            <font-awesome-icon
+              variant="link"
+              class="shadow-none text-success"
+            >
+              <font-awesome-icon icon="check" size="1x" />
+            </b-button>
+            <b-button
               v-else-if="key.item.state === false"
-              icon="times-circle"
-              class="text-danger state-icon"
-              size="1x"
-            />
+              variant="link"
+              class="shadow-none text-danger"
+            >
+              <font-awesome-icon icon="times-circle" size="1x" />
+            </b-button>
           </template>
           <template v-slot:cell(_)="key">
             <b-button
@@ -671,10 +673,6 @@ h4 {
 .text-small {
   font-size: 9pt;
   color: grey;
-}
-.state-icon {
-  display: inline-block;
-  padding-top: 0.375rem;
 }
 .tags-preview {
   display: flex;
