@@ -14,17 +14,29 @@ import os
 # Defaults used the first time the AI alert flow runs, before anything has
 # been saved to the `labyrinth.settings` Mongo collection via the Settings UI.
 DEFAULT_AI_PROMPT = (
-    "Below is the output from our IT system. Based on the service names, the "
-    "server names, and other metric information, including inference of port "
-    "types, infer the importance and criticality of each failing service. Full "
-    "Disks are a critical issue. ONLY RESPOND IN JSON. 3 fields, first one "
-    "wake_up_it_director: true or false depending on if we should wake him up "
-    "for the issues. The second one is summary_email: a summary email triaging "
-    "the issues (can summarize non-critical ones). Only present facts and "
-    "inferences, don't present suggested fixes.  Format cleanly in HTML to be "
-    "read in Gmail client. 3rd field is critical_services - a list of critical "
-    "services + hosts based on your inference from names.  Only include host "
-    "and service_name fields, nothing else in the critical_service field"
+    "Below is the output from our IT monitoring system. Each entry contains a "
+    "host name, its failing services (with check details and latest metric "
+    "data), and all monitored services on that host.\n\n"
+    "Based on the service names, host names, metric data, and the ratio of "
+    "failing-to-total services, infer the importance and criticality of each "
+    "failing service. Full disks are always a critical issue. If most or all "
+    "services on a host are failing, flag it as a likely connection issue "
+    "rather than individual service failures.\n\n"
+    "ONLY RESPOND IN JSON with exactly these 3 fields:\n\n"
+    '1. "wake_up_it_director": true or false — whether the issues are severe '
+    "enough to alert the IT director.\n\n"
+    '2. "host_alerts": a list of per-host alert objects. Each object must '
+    "have exactly these fields:\n"
+    '   - "host": the host name/IP\n'
+    '   - "severity": "critical" or "warning"\n'
+    '   - "likely_connection_issue": true if most/all services on this host '
+    "are failing (suggesting a network or host-level problem rather than "
+    "individual service failures), false otherwise\n"
+    '   - "failing_services": list of failing service names for this host\n'
+    '   - "notes": one short sentence summarizing what is failing and why it '
+    "matters. Be concise — no suggested fixes.\n\n"
+    '3. "critical_services": list of objects with only "host" and '
+    '"service_name" fields for services classified as critical.'
 )
 DEFAULT_AI_MODEL = "gpt-5-mini"
 DEFAULT_AI_ALERT_SUBJECT_TEMPLATE = "Labyrinth IT AI ALERT [{time}]"

@@ -12,13 +12,19 @@ from threading import Thread
 
 import redis
 
-from pid import PidFile
 from typing import Dict, List
 from nmap import PortScannerYield as ps
 
 
 from common.test import unwrap
 from serve import list_subnet, list_subnets, create_edit_host, list_host, insert_metric
+
+# Redis lock expiration times (in seconds).
+# The global lock prevents multiple finder processes from running simultaneously.
+GLOBAL_LOCK_TIMEOUT_SECONDS = 3600
+# The subnet lock prevents concurrent scans of the same subnet across instances.
+# Set longer than a typical full-port scan to handle slow hosts.
+SUBNET_LOCK_TIMEOUT_SECONDS = 7200
 
 
 def scan(subnet: str, callback_fn, verbose=False) -> List:  # pragma: no cover
@@ -60,8 +66,7 @@ def scan(subnet: str, callback_fn, verbose=False) -> List:  # pragma: no cover
     scanner = ps()
     results = []
 
-    arguments = "-sV -O -A --script vulners"
-    arguments = "-sT -PU0 -Pn --top-ports 2500"  # Removed vulners, since security scanning will be done externally
+    arguments = "-sT -PU0 -Pn -p-"  # Scan all ports to catch non-standard services (e.g. MongoDB on 27017)
     callback_fn(search + "\n\n" + f"Hosts Count:{len(arr)}")
 
     for line in scanner.scan(hosts=search, arguments=arguments):
@@ -157,7 +162,16 @@ def main():  # pragma: no cover
         output = rclient.get("output-{}".format(subnet)).decode("utf-8")
         rclient.set("output-{}".format(subnet), output + str(msg))
 
-    with PidFile("labyrinth-finder") as p:
+    # Use Redis-based global lock so multiple Docker containers don't duplicate work
+    global_lock_key = "labyrinth_finder_lock"
+    lock_acquired = rclient.set(
+        global_lock_key, "1", nx=True, ex=GLOBAL_LOCK_TIMEOUT_SECONDS
+    )
+    if not lock_acquired:
+        print("Another finder instance is already running. Exiting.")
+        return
+
+    try:
         # List each subnet
         subnets = json.loads(unwrap(list_subnets)()[0])
 
@@ -165,36 +179,61 @@ def main():  # pragma: no cover
             """
             Scans a subnet
             """
-            rclient.set("output-{}".format(subnet), "")
-            update_redis("\nStarting {}".format(subnet), subnet)
-            results = scan(subnet, lambda x: update_redis(x, subnet))
+            # Check do_not_scan flag on the subnet document
+            try:
+                subnet_data = json.loads(unwrap(list_subnet)(subnet)[0])
+                if isinstance(subnet_data, dict) and subnet_data.get(
+                    "do_not_scan", False
+                ):
+                    print(f"Skipping {subnet}: do_not_scan flag is set")
+                    return
+            except Exception as exc:
+                print(f"Could not read subnet data for {subnet}: {exc}")
 
-            # For each host, if it doesn't exist, create it.
-            update_redis("\nHosts Check...", subnet)
-            for result in results:
-                host = [x for x in result["scan"].values()]
-                if not host:
-                    continue
-                host = host[0]
+            # Acquire per-subnet Redis lock to prevent concurrent scans of the same subnet
+            subnet_lock_key = "scan_lock_{}".format(subnet)
+            subnet_lock = rclient.set(
+                subnet_lock_key, "1", nx=True, ex=SUBNET_LOCK_TIMEOUT_SECONDS
+            )
+            if not subnet_lock:
+                print(f"Subnet {subnet} is already being scanned. Skipping.")
+                return
 
-                try:
-                    if "mac" in host["addresses"]:
-                        mac = host["addresses"]["mac"]
-                    else:
-                        mac = host["addresses"]["ipv4"]
-                    update_redis("\n" + str(mac), subnet)
-                    output = unwrap(list_host)(mac)[0]
-                    if output == "null":
-                        update_redis("\nCreating new host: {}".format(mac), subnet)
-                        unwrap(create_edit_host)(convert_host(host))
+            try:
+                rclient.set("output-{}".format(subnet), "")
+                update_redis("\nStarting {}".format(subnet), subnet)
+                results = scan(subnet, lambda x: update_redis(x, subnet))
 
-                    update_redis("\nInserting metrics...", subnet)
-                    metric = unwrap(insert_metric)({"metrics": [process_scan(host)]})
-                    update_redis("\n" + str(metric), subnet)
-                except Exception as exc:
-                    update_redis("\nException occurred: " + str(exc), subnet)
+                # For each host, if it doesn't exist, create it.
+                update_redis("\nHosts Check...", subnet)
+                for result in results:
+                    host = [x for x in result["scan"].values()]
+                    if not host:
+                        continue
+                    host = host[0]
 
-            update_redis("Finished.\n", subnet)
+                    try:
+                        if "mac" in host["addresses"]:
+                            mac = host["addresses"]["mac"]
+                        else:
+                            mac = host["addresses"]["ipv4"]
+                        update_redis("\n" + str(mac), subnet)
+                        output = unwrap(list_host)(mac)[0]
+                        if output == "null":
+                            update_redis("\nCreating new host: {}".format(mac), subnet)
+                            unwrap(create_edit_host)(convert_host(host))
+
+                        update_redis("\nInserting metrics...", subnet)
+                        metric = unwrap(insert_metric)(
+                            {"metrics": [process_scan(host)]}
+                        )
+                        update_redis("\n" + str(metric), subnet)
+                    except Exception as exc:
+                        update_redis("\nException occurred: " + str(exc), subnet)
+
+                update_redis("Finished.\n", subnet)
+            finally:
+                rclient.delete(subnet_lock_key)
 
         # Set up a queue for subnets
         subnet_queue = queue.Queue()
@@ -224,6 +263,9 @@ def main():  # pragma: no cover
         # Keep the main thread alive indefinitely
         for t in threads:
             t.join()
+
+    finally:
+        rclient.delete(global_lock_key)
 
 
 if __name__ == "__main__":

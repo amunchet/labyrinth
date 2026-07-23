@@ -340,6 +340,19 @@
                 </div>
               </b-form-group>
 
+              <b-form-group
+                v-if="selectedHostServiceOptions.length"
+                label="Monitor Service:"
+                label-for="host-service-select"
+                description="Which of this host's services should be used for the disk check."
+              >
+                <b-form-select
+                  id="host-service-select"
+                  v-model="selectedService"
+                  :options="selectedHostServiceOptions"
+                ></b-form-select>
+              </b-form-group>
+
               <b-button
                 variant="primary"
                 type="submit"
@@ -364,6 +377,10 @@
                       {{ host.ip }} | {{ host.type }}
                     </small>
                     <br />
+                    <small v-if="host.service" class="text-muted">
+                      Monitored Service: {{ host.service }}
+                    </small>
+                    <br v-if="host.service" />
                     <small v-if="host.description" class="text-muted">
                       {{ host.description }}
                     </small>
@@ -453,6 +470,7 @@ export default {
       availableHosts: [],
       hostSearch: "",
       selectedHostId: "",
+      selectedService: "",
       manualHosts: [],
       addingHost: false,
       successMessage: "",
@@ -499,6 +517,26 @@ export default {
     },
     selectedHostDisplayName() {
       return this.selectedHost ? this.hostDisplayName(this.selectedHost) : "";
+    },
+    selectedHostServiceOptions() {
+      if (
+        !this.selectedHost ||
+        !this.selectedHost.services ||
+        !this.selectedHost.services.length
+      ) {
+        return [];
+      }
+      return this.selectedHost.services.map((service) => ({
+        value: service,
+        text: service,
+      }));
+    },
+  },
+  watch: {
+    selectedHostId() {
+      this.selectedService = this.selectedHostServiceOptions.length
+        ? this.selectedHostServiceOptions[0].value
+        : "";
     },
   },
   methods: {
@@ -824,6 +862,7 @@ export default {
         );
         formData.append("ip", selectedHost.ip || "");
         formData.append("type", "disk-check");
+        formData.append("service", this.selectedService || "");
         formData.append(
           "description",
           "Selected from existing host" +
