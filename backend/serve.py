@@ -28,6 +28,8 @@ import proxmox_helper
 import proxmox_disk_check
 import aws_helper
 
+from ai.ai_settings import get_ai_alert_settings
+
 from common import auth
 from common.test import unwrap
 from flask import Flask, request, Response, send_file
@@ -2551,6 +2553,66 @@ def _get_test_email_recipients(data):
         {"name": "disk_space_alert_recipients"}
     )
     return _parse_recipients_setting(recipients_setting)
+
+
+@app.route("/ai/settings", methods=["GET"])
+@app.route("/ai/settings/", methods=["GET"])
+@requires_auth_read
+def get_ai_settings():
+    """
+    Get AI alert settings (prompt, model, recipients, subject template, from
+    name) used by the hourly AI dashboard summary/alert job.
+    """
+    try:
+        return json.dumps(get_ai_alert_settings(mongo_client)), 200
+    except Exception as e:
+        return json.dumps({"error": "Failed to retrieve AI settings"}), 500
+
+
+@app.route("/ai/settings", methods=["POST"])
+@app.route("/ai/settings/", methods=["POST"])
+@requires_auth_admin
+def save_ai_settings():
+    """
+    Save AI alert settings.
+    Expected JSON (any subset of these fields; omitted fields are left
+    unchanged): {
+        "prompt": "...",
+        "model": "gpt-5-mini",
+        "recipients": "a@example.com, b@example.com",
+        "subject_template": "Labyrinth IT AI ALERT [{time}]",
+        "from_name": "Labyrinth AI"
+    }
+    """
+    try:
+        data = request.get_json(silent=True)
+        if data is None:
+            try:
+                data = json.loads(request.get_data(as_text=True))
+            except (ValueError, json.JSONDecodeError):
+                return json.dumps({"error": ERROR_INVALID_JSON_BODY}), 400
+
+        field_to_setting_name = {
+            "prompt": "ai_prompt",
+            "model": "ai_model",
+            "recipients": "ai_alert_recipients",
+            "subject_template": "ai_alert_subject_template",
+            "from_name": "ai_alert_from_name",
+        }
+
+        settings_collection = mongo_client["labyrinth"]["settings"]
+        for field, setting_name in field_to_setting_name.items():
+            if field not in data:
+                continue
+            value = data[field]
+            if isinstance(value, list):
+                value = ", ".join(str(v) for v in value)
+            settings_collection.delete_one({"name": setting_name})
+            settings_collection.insert_one({"name": setting_name, "value": value})
+
+        return json.dumps(get_ai_alert_settings(mongo_client)), 200
+    except Exception as e:
+        return json.dumps({"error": "Failed to save AI settings"}), 500
 
 
 @app.route("/proxmox-clusters", methods=["GET"])

@@ -1,16 +1,43 @@
 import json
 import redis
 import os
+import pymongo
 from datetime import datetime
 
 from ai import chatgpt_helper
 from ai import email_helper
 from ai import slack_helper
+from ai.ai_settings import (
+    DEFAULT_AI_PROMPT,
+    DEFAULT_AI_MODEL,
+    DEFAULT_AI_ALERT_SUBJECT_TEMPLATE,
+    DEFAULT_AI_ALERT_FROM_NAME,
+    get_ai_alert_settings,
+)
 
 
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+def get_mongo_client():  # pragma: no cover
+    """Get MongoDB client from connection string."""
+    if os.getenv("GITHUB") or os.getenv("TESTBED"):
+        return pymongo.MongoClient(
+            "mongodb://{}:{}@{}".format(
+                os.environ.get("MONGO_USERNAME"),
+                os.environ.get("MONGO_PASSWORD"),
+                os.environ.get("MONGO_HOST"),
+            )
+        )
+    return pymongo.MongoClient(
+        "mongodb+srv://{}:{}@{}".format(
+            os.environ.get("MONGO_USERNAME"),
+            os.environ.get("MONGO_PASSWORD"),
+            os.environ.get("MONGO_HOST"),
+        )
+    )
 
 
 def process_dashboard(testing=False):
@@ -161,7 +188,7 @@ def process_dashboard(testing=False):
     return json.dumps(results).replace(" ", "")
 
 
-def main(initial_prompt="", prompt_filename="initial_prompt.txt"):
+def main(initial_prompt="", db=None):
     """
     Main process runner
     """
@@ -169,12 +196,18 @@ def main(initial_prompt="", prompt_filename="initial_prompt.txt"):
     # Read in from Redis
     first_pass = process_dashboard()
 
-    # Pass through ChatGPT
-    if not initial_prompt:  # pragma: no cover
-        with open(os.path.join("ai", prompt_filename)) as f:
-            initial_prompt = f.read()
+    db = db or get_mongo_client()
+    ai_settings = get_ai_alert_settings(db)
 
-    output = chatgpt_helper.ml_process(first_pass, initial_prompt)
+    # An explicit initial_prompt wins (used by tests); otherwise use the
+    # prompt configured under Settings -> AI Alerts (backed by Mongo, with a
+    # built-in default for fresh installs - see get_ai_alert_settings).
+    if not initial_prompt:
+        initial_prompt = ai_settings["prompt"]
+
+    output = chatgpt_helper.ml_process(
+        first_pass, initial_prompt, model_override=ai_settings["model"]
+    )
 
     # Determine if we need to send email
     output = output.json()
@@ -240,15 +273,21 @@ def main(initial_prompt="", prompt_filename="initial_prompt.txt"):
             else:
                 print("First run (no baseline); sending email.")
 
-            msg_id = email_helper.email_helper(
-                to=[os.environ.get("EMAIL_TO")],
-                subject=f"Labyrinth IT AI ALERT [{datetime.now().strftime('%Y-%m-%d %H:00')}]",
-                html=output.get("summary_email", "See HTML version"),
-                text="See HTML version",
-                attachments=None,
-                from_name="Labyrinth AI",
-            )
-            print("Message-ID:", msg_id)
+            if not ai_settings["recipients"]:
+                print("No AI alert recipients configured; skipping email.")
+            else:
+                subject = ai_settings["subject_template"].replace(
+                    "{time}", datetime.now().strftime("%Y-%m-%d %H:00")
+                )
+                msg_id = email_helper.email_helper(
+                    to=ai_settings["recipients"],
+                    subject=subject,
+                    html=output.get("summary_email", "See HTML version"),
+                    text="See HTML version",
+                    attachments=None,
+                    from_name=ai_settings["from_name"],
+                )
+                print("Message-ID:", msg_id)
         else:
             print("No NEW critical issues since last email")
 
