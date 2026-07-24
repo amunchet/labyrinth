@@ -1,7 +1,8 @@
 """
 AI alert settings (prompt / model / recipients / subject / from-name) shared
-by the hourly AI dashboard summary job (`ai/main.py`) and the `/ai/settings`
-API routes in `serve.py`.
+by the hourly AI dashboard summary job (`ai/main.py`), the on-demand test
+pipeline (`ai/ai_pipeline.py`), and the `/ai/settings` API routes in
+`serve.py`.
 
 Kept as its own module (rather than living in `ai/main.py`) so that
 `serve.py` can read/write these settings without importing the rest of
@@ -10,6 +11,8 @@ which isn't exercised by the backend test suite.
 """
 
 import os
+
+import pymongo
 
 # Defaults used the first time the AI alert flow runs, before anything has
 # been saved to the `labyrinth.settings` Mongo collection via the Settings UI.
@@ -41,6 +44,25 @@ DEFAULT_AI_PROMPT = (
 DEFAULT_AI_MODEL = "gpt-5-mini"
 DEFAULT_AI_ALERT_SUBJECT_TEMPLATE = "Labyrinth IT AI ALERT [{time}]"
 DEFAULT_AI_ALERT_FROM_NAME = "Labyrinth AI"
+
+
+def get_mongo_client():  # pragma: no cover
+    """Get MongoDB client from connection string."""
+    if os.getenv("GITHUB") or os.getenv("TESTBED"):
+        return pymongo.MongoClient(
+            "mongodb://{}:{}@{}".format(
+                os.environ.get("MONGO_USERNAME"),
+                os.environ.get("MONGO_PASSWORD"),
+                os.environ.get("MONGO_HOST"),
+            )
+        )
+    return pymongo.MongoClient(
+        "mongodb+srv://{}:{}@{}".format(
+            os.environ.get("MONGO_USERNAME"),
+            os.environ.get("MONGO_PASSWORD"),
+            os.environ.get("MONGO_HOST"),
+        )
+    )
 
 
 def get_ai_alert_settings(db) -> dict:

@@ -166,4 +166,82 @@ describe("AiAlerts.vue", () => {
     expect(wrapper.find("#ai-subject-template").exists()).toBe(true);
     expect(wrapper.find("#ai-from-name").exists()).toBe(true);
   });
+
+  test("sendTestEmail requires a recipient before calling the API", async () => {
+    wrapper = mount(AiAlerts, {
+      mocks: { $auth: config.mocks["$auth"] },
+    });
+    await wrapper.vm.$nextTick();
+    await new Promise((r) => setTimeout(r, 0));
+
+    wrapper.vm.recipientsText = "";
+    await wrapper.vm.sendTestEmail("simple");
+
+    expect(wrapper.vm.errorMessage).toContain("Enter at least one recipient");
+    expect(Helper.apiPost).not.toHaveBeenCalled();
+  });
+
+  test("sendTestEmail simple mode posts recipients and shows success", async () => {
+    Helper.apiPost.mockResolvedValue({ status: "sent", mode: "simple" });
+
+    wrapper = mount(AiAlerts, {
+      mocks: { $auth: config.mocks["$auth"] },
+    });
+    await wrapper.vm.$nextTick();
+    await new Promise((r) => setTimeout(r, 0));
+
+    wrapper.vm.recipientsText = "a@example.com, b@example.com";
+    await wrapper.vm.sendTestEmail("simple");
+
+    expect(Helper.apiPost).toHaveBeenCalledWith(
+      "ai/test-email",
+      "",
+      "",
+      config.mocks["$auth"],
+      JSON.stringify({
+        mode: "simple",
+        recipients: ["a@example.com", "b@example.com"],
+      })
+    );
+    expect(wrapper.vm.successMessage).toContain("Test email sent");
+    expect(wrapper.vm.sendingSimpleTest).toBe(false);
+  });
+
+  test("sendTestEmail full mode reports the AI verdict on success", async () => {
+    Helper.apiPost.mockResolvedValue({
+      status: "sent",
+      mode: "full",
+      wake_up_it_director: true,
+      host_alerts_count: 2,
+    });
+
+    wrapper = mount(AiAlerts, {
+      mocks: { $auth: config.mocks["$auth"] },
+    });
+    await wrapper.vm.$nextTick();
+    await new Promise((r) => setTimeout(r, 0));
+
+    wrapper.vm.recipientsText = "a@example.com";
+    await wrapper.vm.sendTestEmail("full");
+
+    expect(wrapper.vm.successMessage).toContain("wake_up_it_director: true");
+    expect(wrapper.vm.successMessage).toContain("2 host alert(s)");
+    expect(wrapper.vm.sendingFullTest).toBe(false);
+  });
+
+  test("sendTestEmail surfaces an error message on failure", async () => {
+    Helper.apiPost.mockRejectedValue(new Error("boom"));
+
+    wrapper = mount(AiAlerts, {
+      mocks: { $auth: config.mocks["$auth"] },
+    });
+    await wrapper.vm.$nextTick();
+    await new Promise((r) => setTimeout(r, 0));
+
+    wrapper.vm.recipientsText = "a@example.com";
+    await wrapper.vm.sendTestEmail("simple");
+
+    expect(wrapper.vm.errorMessage).toContain("boom");
+    expect(wrapper.vm.sendingSimpleTest).toBe(false);
+  });
 });

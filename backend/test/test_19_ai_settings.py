@@ -12,6 +12,8 @@ import pytest
 import serve
 
 from ai import ai_settings
+from ai import chatgpt_helper
+from ai import email_helper
 from common.test import unwrap
 
 
@@ -148,3 +150,166 @@ def test_save_ai_settings_rejects_invalid_json_body(setup):
 
     assert resp[1] == 400
     assert "error" in json.loads(resp[0])
+
+
+def _fake_email_sender(sink):
+    def _send(**kwargs):
+        sink.update(kwargs)
+        return "<fake-msg-id>"
+
+    return _send
+
+
+def test_send_ai_test_email_simple_mode_uses_saved_settings(setup, monkeypatch):
+    """Simple mode sends using saved recipients/subject/from-name, no ChatGPT call."""
+    serve.mongo_client["labyrinth"]["settings"].insert_many(
+        [
+            {"name": "ai_alert_recipients", "value": "ops@example.com"},
+            {"name": "ai_alert_subject_template", "value": "Custom [{time}]"},
+            {"name": "ai_alert_from_name", "value": "Custom Bot"},
+        ]
+    )
+
+    sent = {}
+    monkeypatch.setattr(email_helper, "email_helper", _fake_email_sender(sent))
+
+    with serve.app.test_request_context(
+        "/ai/test-email", method="POST", json={"mode": "simple"}
+    ):
+        resp = unwrap(serve.send_ai_test_email)()
+
+    assert resp[1] == 200
+    assert json.loads(resp[0]) == {"status": "sent", "mode": "simple"}
+    assert sent["to"] == ["ops@example.com"]
+    assert sent["from_name"] == "Custom Bot"
+    assert sent["subject"].startswith("[TEST] Custom [")
+
+
+def test_send_ai_test_email_simple_mode_accepts_override_recipients(setup, monkeypatch):
+    """An explicit recipients list in the request body wins over saved settings."""
+    serve.mongo_client["labyrinth"]["settings"].insert_one(
+        {"name": "ai_alert_recipients", "value": "saved@example.com"}
+    )
+
+    sent = {}
+    monkeypatch.setattr(email_helper, "email_helper", _fake_email_sender(sent))
+
+    with serve.app.test_request_context(
+        "/ai/test-email",
+        method="POST",
+        json={"mode": "simple", "recipients": "override@example.com"},
+    ):
+        resp = unwrap(serve.send_ai_test_email)()
+
+    assert resp[1] == 200
+    assert sent["to"] == ["override@example.com"]
+
+
+def test_send_ai_test_email_simple_mode_requires_recipients(setup, monkeypatch):
+    monkeypatch.delenv("EMAIL_TO", raising=False)
+
+    with serve.app.test_request_context(
+        "/ai/test-email", method="POST", json={"mode": "simple"}
+    ):
+        resp = unwrap(serve.send_ai_test_email)()
+
+    assert resp[1] == 400
+    assert "No recipients configured" in json.loads(resp[0])["error"]
+
+
+def test_send_ai_test_email_full_mode_runs_pipeline_and_sends(setup, monkeypatch):
+    """Full mode runs the real dashboard -> ChatGPT -> email pipeline and always sends."""
+    serve.mongo_client["labyrinth"]["settings"].insert_one(
+        {"name": "ai_alert_recipients", "value": "ops@example.com"}
+    )
+
+    class FakeResp:
+        def json(self):
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "wake_up_it_director": False,
+                                    "host_alerts": [],
+                                    "critical_services": [],
+                                }
+                            )
+                        }
+                    }
+                ]
+            }
+
+    monkeypatch.setattr(chatgpt_helper, "ml_process", lambda *a, **k: FakeResp())
+
+    sent = {}
+    monkeypatch.setattr(email_helper, "email_helper", _fake_email_sender(sent))
+
+    with serve.app.test_request_context(
+        "/ai/test-email", method="POST", json={"mode": "full"}
+    ):
+        resp = unwrap(serve.send_ai_test_email)()
+
+    assert resp[1] == 200
+    data = json.loads(resp[0])
+    assert data["status"] == "sent"
+    assert data["mode"] == "full"
+    assert data["wake_up_it_director"] is False
+    assert data["host_alerts_count"] == 0
+    assert data["critical_services_count"] == 0
+    assert "message_id" in data
+    assert sent["to"] == ["ops@example.com"]
+    assert sent["html"] == "<p>No active alerts.</p>"
+    assert sent["subject"].startswith("[TEST] ")
+
+
+def test_send_ai_test_email_full_mode_requires_recipients(setup, monkeypatch):
+    monkeypatch.delenv("EMAIL_TO", raising=False)
+
+    with serve.app.test_request_context(
+        "/ai/test-email", method="POST", json={"mode": "full"}
+    ):
+        resp = unwrap(serve.send_ai_test_email)()
+
+    assert resp[1] == 400
+    assert json.loads(resp[0]) == {"error": "Invalid email configuration"}
+
+
+def test_send_ai_test_email_rejects_invalid_mode(setup):
+    with serve.app.test_request_context(
+        "/ai/test-email", method="POST", json={"mode": "bogus"}
+    ):
+        resp = unwrap(serve.send_ai_test_email)()
+
+    assert resp[1] == 400
+    assert "mode must be" in json.loads(resp[0])["error"]
+
+
+def test_send_ai_test_email_rejects_invalid_json_body(setup):
+    with serve.app.test_request_context(
+        "/ai/test-email",
+        method="POST",
+        data="not json",
+        content_type="text/plain",
+    ):
+        resp = unwrap(serve.send_ai_test_email)()
+
+    assert resp[1] == 400
+    assert "error" in json.loads(resp[0])
+
+
+def test_send_ai_test_email_defaults_to_simple_mode(setup, monkeypatch):
+    """Omitting 'mode' defaults to the cheap/no-ChatGPT simple test."""
+    serve.mongo_client["labyrinth"]["settings"].insert_one(
+        {"name": "ai_alert_recipients", "value": "ops@example.com"}
+    )
+
+    sent = {}
+    monkeypatch.setattr(email_helper, "email_helper", _fake_email_sender(sent))
+
+    with serve.app.test_request_context("/ai/test-email", method="POST", json={}):
+        resp = unwrap(serve.send_ai_test_email)()
+
+    assert resp[1] == 200
+    assert json.loads(resp[0])["mode"] == "simple"

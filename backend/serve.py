@@ -30,6 +30,7 @@ import aws_helper
 import ec2_unmatched_check
 
 from ai.ai_settings import get_ai_alert_settings
+from ai.ai_pipeline import send_simple_test_email, send_full_test_email
 
 from common import auth
 from common.test import unwrap
@@ -2532,6 +2533,71 @@ def save_ai_settings():
         return json.dumps(get_ai_alert_settings(mongo_client)), 200
     except Exception as e:
         return json.dumps({"error": "Failed to save AI settings"}), 500
+
+
+@app.route("/ai/test-email", methods=["POST"])
+@app.route("/ai/test-email/", methods=["POST"])
+@requires_auth_admin
+def send_ai_test_email():
+    """
+    Manually trigger an AI alert test email, so admins can confirm their
+    saved prompt/model/recipient settings work without waiting for the next
+    scheduled run.
+
+    Expected JSON body: {
+        "mode": "simple" | "full",   # default "simple"
+        "recipients": ["a@example.com"]  # optional, overrides saved settings
+    }
+
+    - "simple": sends a minimal message confirming recipients/subject/from
+      name are wired correctly, without calling ChatGPT.
+    - "full": runs the real dashboard -> ChatGPT -> email pipeline using the
+      saved prompt/model, and always sends the resulting email (even if the
+      model decides not to wake up the IT director) so admins can preview
+      real output and confirm the current prompt still behaves sensibly.
+    """
+    try:
+        data = request.get_json(silent=True)
+        if data is None:
+            try:
+                data = (
+                    json.loads(request.get_data(as_text=True))
+                    if request.get_data(as_text=True)
+                    else {}
+                )
+            except (ValueError, json.JSONDecodeError):
+                return json.dumps({"error": ERROR_INVALID_JSON_BODY}), 400
+
+        mode = (data.get("mode") or "simple").lower()
+        if mode not in ("simple", "full"):
+            return json.dumps({"error": "mode must be 'simple' or 'full'"}), 400
+
+        recipients = data.get("recipients")
+        if isinstance(recipients, str):
+            recipients = [r.strip() for r in recipients.split(",") if r.strip()]
+        recipients = recipients or None
+
+        if mode == "full":
+            result = send_full_test_email(recipients, db=mongo_client)
+            return json.dumps({"status": "sent", "mode": "full", **result}), 200
+
+        ai_settings = get_ai_alert_settings(mongo_client)
+        to = recipients or ai_settings["recipients"]
+        if not to:
+            return (
+                json.dumps(
+                    {
+                        "error": "No recipients configured. Add recipients first or include them in the request."
+                    }
+                ),
+                400,
+            )
+        send_simple_test_email(to, ai_settings)
+        return json.dumps({"status": "sent", "mode": "simple"}), 200
+    except ValueError as e:
+        return json.dumps({"error": "Invalid email configuration"}), 400
+    except Exception as e:
+        return json.dumps({"error": "Failed to send test email"}), 500
 
 
 @app.route("/proxmox-clusters", methods=["GET"])

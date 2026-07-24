@@ -64,6 +64,35 @@
       </b-button>
     </b-form>
 
+    <hr />
+
+    <p class="text-muted small mb-2">
+      Send a test email to the recipient(s) above without waiting for the next
+      scheduled run, to confirm your settings haven't broken alerting.
+    </p>
+    <b-button
+      variant="outline-secondary"
+      class="mr-2"
+      :disabled="sendingSimpleTest || sendingFullTest"
+      @click="sendTestEmail('simple')"
+    >
+      <b-spinner small v-if="sendingSimpleTest" class="mr-2"></b-spinner>
+      Send Test Email
+    </b-button>
+    <b-button
+      variant="outline-secondary"
+      :disabled="sendingSimpleTest || sendingFullTest"
+      @click="sendTestEmail('full')"
+    >
+      <b-spinner small v-if="sendingFullTest" class="mr-2"></b-spinner>
+      Send Full Test Email (Live AI Run)
+    </b-button>
+    <p class="text-muted small mt-2 mb-0">
+      "Send Test Email" just checks recipients/subject/from-name via SMTP. "Send
+      Full Test Email" runs the real prompt/model against current dashboard data
+      and always emails the result, even if nothing is currently critical.
+    </p>
+
     <b-alert
       v-if="successMessage"
       variant="success"
@@ -101,6 +130,8 @@ export default {
       fromName: "",
       saving: false,
       loading: false,
+      sendingSimpleTest: false,
+      sendingFullTest: false,
       successMessage: "",
       errorMessage: "",
     };
@@ -177,6 +208,58 @@ export default {
         this.errorMessage = err.message;
       } finally {
         this.saving = false;
+      }
+    },
+
+    async sendTestEmail(mode) {
+      const recipients = this.recipientsText
+        .split(",")
+        .map((r) => r.trim())
+        .filter((r) => r.length > 0);
+
+      if (recipients.length === 0) {
+        this.errorMessage =
+          "Enter at least one recipient email above before sending a test.";
+        return;
+      }
+
+      const isFull = mode === "full";
+      if (isFull) {
+        this.sendingFullTest = true;
+      } else {
+        this.sendingSimpleTest = true;
+      }
+      this.successMessage = "";
+      this.errorMessage = "";
+
+      try {
+        const auth = this.$auth;
+        const payload = JSON.stringify({ mode: mode, recipients: recipients });
+        const response = await Helper.apiPost(
+          "ai/test-email",
+          "",
+          "",
+          auth,
+          payload
+        );
+        const data = this.parseMaybeJSON(response);
+
+        if (isFull) {
+          this.successMessage =
+            "Full test email sent! wake_up_it_director: " +
+            data.wake_up_it_director +
+            " (" +
+            data.host_alerts_count +
+            " host alert(s) in the response).";
+        } else {
+          this.successMessage =
+            "Test email sent successfully! Check your inbox.";
+        }
+      } catch (err) {
+        this.errorMessage = err.message;
+      } finally {
+        this.sendingSimpleTest = false;
+        this.sendingFullTest = false;
       }
     },
   },
