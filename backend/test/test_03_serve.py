@@ -500,9 +500,7 @@ def test_update_host_service_level(setup):
     assert found["service_levels"] == [{"service": "check_hd-1", "level": "warning"}]
 
     # Changing the level replaces the existing entry rather than duplicating it
-    b = unwrap(serve.update_host_service_level)(
-        "192.168.10.176", "check_hd-1", "error"
-    )
+    b = unwrap(serve.update_host_service_level)("192.168.10.176", "check_hd-1", "error")
     assert b[1] == 200
 
     found = serve.mongo_client["labyrinth"]["hosts"].find_one({"ip": "192.168.10.176"})
@@ -516,7 +514,9 @@ def test_update_host_service_level(setup):
     assert found["service_levels"] == []
 
     # Not found
-    b = unwrap(serve.update_host_service_level)("192.168.99.99", "check_hd-1", "warning")
+    b = unwrap(serve.update_host_service_level)(
+        "192.168.99.99", "check_hd-1", "warning"
+    )
     assert b[1] == 498
 
 
