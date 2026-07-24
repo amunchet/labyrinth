@@ -29,8 +29,33 @@ class FakeRedis:
         self.store[key] = value
 
 
+class FakeSettingsCollection:
+    """Minimal stand-in for the `labyrinth.settings` Mongo collection."""
+
+    def __init__(self, docs=None):
+        self._docs = {d["name"]: d for d in (docs or [])}
+
+    def find_one(self, query):
+        return self._docs.get(query.get("name"))
+
+
+class FakeMongo:
+    """Minimal stand-in for a pymongo client: db["labyrinth"]["settings"]."""
+
+    def __init__(self, settings_docs=None):
+        self._settings = FakeSettingsCollection(settings_docs)
+
+    def __getitem__(self, _dbname):
+        return {"settings": self._settings}
+
+
 def load_main_with_mocks(
-    monkeypatch, redis_obj, ml_json_payload, email_enabled=True, alert_ttl="7200"
+    monkeypatch,
+    redis_obj,
+    ml_json_payload,
+    email_enabled=True,
+    alert_ttl="7200",
+    settings_docs=None,
 ):
     # Mock environment
     os.environ["EMAIL_TO"] = "alerts@example.com"
@@ -70,7 +95,8 @@ def load_main_with_mocks(
     from ai import main as app_main
 
     importlib.reload(app_main)
-    return app_main, sent
+    fake_db = FakeMongo(settings_docs)
+    return app_main, sent, fake_db
 
 
 def make_dashboard_bytes(payload):
@@ -126,11 +152,11 @@ def test_main_sends_email_on_new_critical_services(monkeypatch, capsys):
         ]
     }
 
-    app_main, sent = load_main_with_mocks(
+    app_main, sent, fake_db = load_main_with_mocks(
         monkeypatch, redis_obj, ml_json_payload=ml_json
     )
 
-    app_main.main("inital_prompt.txt.example")
+    app_main.main("inital_prompt.txt.example", db=fake_db)
 
     out = capsys.readouterr().out
     assert "Waking Up IT Director..." in out
@@ -185,11 +211,11 @@ def test_main_skips_email_if_same_critical_services(monkeypatch, capsys):
         ]
     }
 
-    app_main, sent = load_main_with_mocks(
+    app_main, sent, fake_db = load_main_with_mocks(
         monkeypatch, redis_obj, ml_json_payload=ml_json
     )
 
-    app_main.main("inital_prompt.txt.example")
+    app_main.main("inital_prompt.txt.example", db=fake_db)
     out = capsys.readouterr().out
     assert "No NEW critical issues since last email" in out  # updated message
     assert sent["called"] is False  # no email
@@ -215,10 +241,10 @@ def test_main_no_wakeup(monkeypatch, capsys):
         ]
     }
 
-    app_main, sent = load_main_with_mocks(
+    app_main, sent, fake_db = load_main_with_mocks(
         monkeypatch, redis_obj, ml_json_payload=ml_json
     )
-    app_main.main("inital_prompt.txt.example")
+    app_main.main("inital_prompt.txt.example", db=fake_db)
     out = capsys.readouterr().out
     assert "wake_up_it_director = False; no email sent." in out
     assert sent["called"] is False
@@ -262,10 +288,10 @@ def test_main_handles_legacy_last_email_format(monkeypatch, capsys):
         ]
     }
 
-    app_main, sent = load_main_with_mocks(
+    app_main, sent, fake_db = load_main_with_mocks(
         monkeypatch, redis_obj, ml_json_payload=ml_json
     )
-    app_main.main("inital_prompt.txt.example")
+    app_main.main("inital_prompt.txt.example", db=fake_db)
     out = capsys.readouterr().out
     assert "New critical issues since last email" in out  # updated message
     assert sent["called"] is True
@@ -294,10 +320,10 @@ def test_main_falls_back_to_summary_email_when_no_host_alerts(monkeypatch, capsy
         ]
     }
 
-    app_main, sent = load_main_with_mocks(
+    app_main, sent, fake_db = load_main_with_mocks(
         monkeypatch, redis_obj, ml_json_payload=ml_json
     )
-    app_main.main("inital_prompt.txt.example")
+    app_main.main("inital_prompt.txt.example", db=fake_db)
     assert sent["called"] is True
     assert sent["kwargs"]["html"] == "<h1>LEGACY ALERT</h1>"
 
@@ -337,13 +363,13 @@ def test_main_fatal_when_dashboard_redis_fails(monkeypatch, capsys):
         ]
     }
 
-    app_main, sent = load_main_with_mocks(
+    app_main, sent, fake_db = load_main_with_mocks(
         monkeypatch, redis_obj, ml_json_payload=ml_json
     )
 
     # Expect the *entire* run to be fatal due to the initial dashboard fetch
     with pytest.raises(Exception):
-        app_main.main("inital_prompt.txt.example")
+        app_main.main("inital_prompt.txt.example", db=fake_db)
 
     # Ensure we did NOT proceed to email, since we died before that stage
     assert sent["called"] is False
