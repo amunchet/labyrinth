@@ -1994,10 +1994,20 @@ def read_metrics(host, service="", count=100, option=""):
         .limit(count)
     ]
 
+    # Staleness (vs. wall-clock "now") only makes sense for the single
+    # latest-value fetch, which reflects current live status. Historical
+    # rows should be judged on whether they passed/failed at the time they
+    # were recorded, not on how old they are relative to right now -
+    # otherwise nearly every point in a History graph older than a few
+    # minutes would be marked "-1"/stale and render as a failure.
+    is_latest = option == "latest"
+    port_stale_time = 10000 if is_latest else float("inf")
+    check_stale_time = 600 if is_latest else float("inf")
+
     if service.strip() == "open_ports" or service.strip() == "closed_ports":
         for item in retval:
             item["judgement"] = mc.judge_port(
-                item, service, found_host, stale_time=10000
+                item, service, found_host, stale_time=port_stale_time
             )
             item["judgement_debug"] = {
                 "item": json.dumps(item, default=str),
@@ -2009,10 +2019,23 @@ def read_metrics(host, service="", count=100, option=""):
             if item is None or found_service is None:
                 item["judgement"] = False
             else:
-                item["judgement"] = mc.judge(item, found_service)
+                item["judgement"] = mc.judge(
+                    item, found_service, stale_time=check_stale_time
+                )
+
+    def _sort_key(item):
+        ts = item.get("timestamp")
+        if isinstance(ts, datetime.datetime):
+            return ts.timestamp()
+        try:
+            return float(ts)
+        except (TypeError, ValueError):
+            return 0
+
+    retval.sort(key=_sort_key)
 
     return (
-        json.dumps(retval[::-1], default=str),
+        json.dumps(retval, default=str),
         200,
     )
 
@@ -2085,8 +2108,7 @@ def bulk_insert():
 
         if "timestamp" in item:
             try:
-                # item["timestamp"] = datetime.datetime.fromtimestamp(item["timestamp"])
-                item["timestamp"] = datetime.datetime.now()
+                item["timestamp"] = datetime.datetime.fromtimestamp(item["timestamp"])
             except Exception:
                 print("Problem with timestamp - ", sys.exc_info())
 
