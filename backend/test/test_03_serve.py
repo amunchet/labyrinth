@@ -486,6 +486,40 @@ def test_update_host_tags(setup):
     assert b[1] == 498
 
 
+def test_update_host_service_level(setup):
+    """Tests setting/clearing the per-service reporting level override on a host"""
+    test_create_edit_host(setup)
+
+    # Set a service to warning
+    b = unwrap(serve.update_host_service_level)(
+        "192.168.10.176", "check_hd-1", "warning"
+    )
+    assert b[1] == 200
+
+    found = serve.mongo_client["labyrinth"]["hosts"].find_one({"ip": "192.168.10.176"})
+    assert found["service_levels"] == [{"service": "check_hd-1", "level": "warning"}]
+
+    # Changing the level replaces the existing entry rather than duplicating it
+    b = unwrap(serve.update_host_service_level)(
+        "192.168.10.176", "check_hd-1", "error"
+    )
+    assert b[1] == 200
+
+    found = serve.mongo_client["labyrinth"]["hosts"].find_one({"ip": "192.168.10.176"})
+    assert found["service_levels"] == [{"service": "check_hd-1", "level": "error"}]
+
+    # Clear it
+    b = unwrap(serve.update_host_service_level)("192.168.10.176", "check_hd-1")
+    assert b[1] == 200
+
+    found = serve.mongo_client["labyrinth"]["hosts"].find_one({"ip": "192.168.10.176"})
+    assert found["service_levels"] == []
+
+    # Not found
+    b = unwrap(serve.update_host_service_level)("192.168.99.99", "check_hd-1", "warning")
+    assert b[1] == 498
+
+
 def test_read_service(setup):
     """Reads a given service"""
     port_service = {

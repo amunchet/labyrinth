@@ -717,6 +717,29 @@ def update_host_tags(ip, tags=""):
     return "Success", 200
 
 
+@app.route("/host_service_level/<ip>/<service>/")
+@app.route("/host_service_level/<ip>/<service>/<level>/")
+@requires_auth_write
+def update_host_service_level(ip, service, level=""):
+    """
+    Sets (or clears, if level isn't "warning"/"error") the reporting level
+    override for a single service on a host, without touching the rest of
+    the host document.
+    """
+    found = mongo_client["labyrinth"]["hosts"].find_one({"ip": ip})
+    if not found:
+        return "Not found", 498
+    mongo_client["labyrinth"]["hosts"].update_many(
+        {"ip": ip}, {"$pull": {"service_levels": {"service": service}}}
+    )
+    if level in ("warning", "error"):
+        mongo_client["labyrinth"]["hosts"].update_many(
+            {"ip": ip},
+            {"$push": {"service_levels": {"service": service, "level": level}}},
+        )
+    return "Success", 200
+
+
 # Services
 
 
