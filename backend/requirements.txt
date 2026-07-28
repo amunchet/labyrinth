@@ -15,6 +15,7 @@ ansible-runner
 pyyaml
 pillow
 xmltodict
+anthropic
 
 # Development tools
 pytest
