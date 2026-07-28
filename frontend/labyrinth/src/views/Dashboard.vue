@@ -85,8 +85,9 @@
                     >
                   </li>
                   <li>
-                    <strong>service</strong> – Filter by service name (e.g.,
-                    <code>service=nginx</code>)
+                    <strong>service</strong> – Filter by service name or keyword
+                    (e.g., <code>service=nginx</code> or
+                    <code>service=http</code>)
                   </li>
                   <li>
                     <strong>host</strong> – Filter by host name (e.g.,
@@ -346,6 +347,7 @@
                     :host="host.host"
                     :display="host.display"
                     :selected="selected_ips[host.ip] != undefined"
+                    :subnet="host.subnet"
                     @selected_changed="
                       () => {
                         if (selected_ips[host.ip] == undefined) {
@@ -568,7 +570,7 @@ export default {
       let retval = false;
 
       let desired_state = null;
-      var has_service = searches.filter((x) => x?.service != "").length > 0;
+      // var has_service = searches.filter((x) => x?.service != "").length > 0;
       searches.forEach((search) => {
         // Services state
         if (search.service_state != undefined && search.service_state != null) {
@@ -588,19 +590,19 @@ export default {
         }
 
         // Services Search
-
-        var found_service = host.services
-          .map((x) => (x ? x.name.toLowerCase() : ""))
-          .indexOf(search.service.toLowerCase());
-        if (found_service != -1) {
-          var service_state = host.services[found_service]?.state;
-          if (desired_state != null) {
-            retval = service_state == desired_state;
+        if (search.service != "") {
+          var found_service = host.services.findIndex(
+            (x) =>
+              x && x.name.toLowerCase().includes(search.service.toLowerCase())
+          );
+          if (found_service != -1) {
+            var service_state = host.services[found_service]?.state;
+            if (desired_state != null) {
+              retval = service_state == desired_state;
+            } else {
+              retval = true;
+            }
           } else {
-            retval = true;
-          }
-        } else {
-          if (has_service) {
             retval = false;
           }
         }

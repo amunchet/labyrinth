@@ -27,6 +27,10 @@ import services as svcs
 import proxmox_helper
 import proxmox_disk_check
 import aws_helper
+import ec2_unmatched_check
+
+from ai.ai_settings import get_ai_alert_settings
+from ai.ai_pipeline import send_simple_test_email, send_full_test_email
 
 from common import auth
 from common.test import unwrap
@@ -717,6 +721,29 @@ def update_host_tags(ip, tags=""):
     return "Success", 200
 
 
+@app.route("/host_service_level/<ip>/<service>/")
+@app.route("/host_service_level/<ip>/<service>/<level>/")
+@requires_auth_write
+def update_host_service_level(ip, service, level=""):
+    """
+    Sets (or clears, if level isn't "warning"/"error") the reporting level
+    override for a single service on a host, without touching the rest of
+    the host document.
+    """
+    found = mongo_client["labyrinth"]["hosts"].find_one({"ip": ip})
+    if not found:
+        return "Not found", 498
+    mongo_client["labyrinth"]["hosts"].update_many(
+        {"ip": ip}, {"$pull": {"service_levels": {"service": service}}}
+    )
+    if level in ("warning", "error"):
+        mongo_client["labyrinth"]["hosts"].update_many(
+            {"ip": ip},
+            {"$push": {"service_levels": {"service": service, "level": level}}},
+        )
+    return "Success", 200
+
+
 # Services
 
 
@@ -781,10 +808,10 @@ def create_edit_service(service=""):
     if "_id" in data:
         del data["_id"]
 
-    if "display_name" not in data:
-        data["display_name"] = ""
+    if "display_name" not in data or not data["display_name"]:
+        data["display_name"] = data.get("name", "")
 
-    if [
+    if data["display_name"] and [
         x
         for x in mongo_client["labyrinth"]["services"].find(
             {"display_name": data["display_name"]}
@@ -1407,6 +1434,7 @@ def run_ansible_background(job_id, data):
         data["vault_password"],
         data["become_file"],
         ssh_key_file=data.get("ssh_key", ""),
+        totp_file=data.get("totp_file", ""),
     )
 
     redis_client.hset(job_id, "status", "running")
@@ -1994,16 +2022,20 @@ def read_metrics(host, service="", count=100, option=""):
         .limit(count)
     ]
 
-    # Staleness is "is the current reading fresh right now" - meaningful for
-    # metrics-latest, meaningless for history rows (which are always old
-    # relative to "now" and would otherwise judge as -1 forever).
-    stale_time = 10000 if table == "metrics-latest" else float("inf")
-    check_stale_time = 600 if table == "metrics-latest" else float("inf")
+    # Staleness (vs. wall-clock "now") only makes sense for the single
+    # latest-value fetch, which reflects current live status. Historical
+    # rows should be judged on whether they passed/failed at the time they
+    # were recorded, not on how old they are relative to right now -
+    # otherwise nearly every point in a History graph older than a few
+    # minutes would be marked "-1"/stale and render as a failure.
+    is_latest = option == "latest"
+    port_stale_time = 10000 if is_latest else float("inf")
+    check_stale_time = 600 if is_latest else float("inf")
 
     if service.strip() == "open_ports" or service.strip() == "closed_ports":
         for item in retval:
             item["judgement"] = mc.judge_port(
-                item, service, found_host, stale_time=stale_time
+                item, service, found_host, stale_time=port_stale_time
             )
             item["judgement_debug"] = {
                 "item": json.dumps(item, default=str),
@@ -2019,8 +2051,19 @@ def read_metrics(host, service="", count=100, option=""):
                     item, found_service, stale_time=check_stale_time
                 )
 
+    def _sort_key(item):
+        ts = item.get("timestamp")
+        if isinstance(ts, datetime.datetime):
+            return ts.timestamp()
+        try:
+            return float(ts)
+        except (TypeError, ValueError):
+            return 0
+
+    retval.sort(key=_sort_key)
+
     return (
-        json.dumps(retval[::-1], default=str),
+        json.dumps(retval, default=str),
         200,
     )
 
@@ -2093,8 +2136,7 @@ def bulk_insert():
 
         if "timestamp" in item:
             try:
-                # item["timestamp"] = datetime.datetime.fromtimestamp(item["timestamp"])
-                item["timestamp"] = datetime.datetime.now()
+                item["timestamp"] = datetime.datetime.fromtimestamp(item["timestamp"])
             except Exception:
                 print("Problem with timestamp - ", sys.exc_info())
 
@@ -2141,106 +2183,21 @@ def bulk_insert():
 
 
 # Disk Space Monitoring
-def _normalize_match_string(value):
-    if value is None:
-        return ""
-    return str(value).strip().lower()
 
-
-def _candidate_host_names(host):
-    candidates = set()
-    for key in ["host", "name"]:
-        value = _normalize_match_string(host.get(key))
-        if not value:
-            continue
-        candidates.add(value)
-        if "." in value:
-            candidates.add(value.split(".")[0])
-    return candidates
-
-
-def _candidate_instance_names(instance):
-    candidates = set()
-    tag_name = (instance.get("tags") or {}).get("Name")
-    for value in [
-        instance.get("instance_id"),
-        instance.get("name"),
-        instance.get("private_dns_name"),
-        instance.get("public_dns_name"),
-        tag_name,
-    ]:
-        normalized = _normalize_match_string(value)
-        if not normalized:
-            continue
-        candidates.add(normalized)
-        if "." in normalized:
-            candidates.add(normalized.split(".")[0])
-    return candidates
-
-
-def _truthy_monitor_value(value):
-    return _normalize_match_string(value) in ["true", "1", "yes", "on"]
-
-
-def _build_labyrinth_host_match(instance, host):
-    reasons = []
-    host_ip = _normalize_match_string(host.get("ip"))
-    instance_ips = {
-        _normalize_match_string(instance.get("private_ip")),
-        _normalize_match_string(instance.get("public_ip")),
-    }
-    instance_ips.discard("")
-
-    if host_ip and host_ip in instance_ips:
-        reasons.append("ip")
-
-    host_names = _candidate_host_names(host)
-    instance_names = _candidate_instance_names(instance)
-    if host_names and instance_names and host_names.intersection(instance_names):
-        reasons.append("hostname")
-
-    if not reasons:
-        return None
-
-    services = host.get("services") or []
-    return {
-        "ip": host.get("ip"),
-        "mac": host.get("mac"),
-        "host": host.get("host") or host.get("name"),
-        "group": host.get("group"),
-        "tags": host.get("tags", ""),
-        "monitor": host.get("monitor"),
-        "service_count": len(services),
-        "services": services,
-        "match_reasons": reasons,
-    }
+# EC2 <-> Labyrinth host matching lives in aws_helper.py (shared with
+# ec2_unmatched_check.py's alert cron, which cannot import serve.py without
+# creating a circular import). Re-exported here under their historical names
+# since existing tests call them as serve._candidate_host_names(), etc.
+_normalize_match_string = aws_helper._normalize_match_string
+_candidate_host_names = aws_helper._candidate_host_names
+_candidate_instance_names = aws_helper._candidate_instance_names
+_truthy_monitor_value = aws_helper._truthy_monitor_value
+_build_labyrinth_host_match = aws_helper._build_labyrinth_host_match
 
 
 def _enrich_aws_instances_with_matches(instances):
     hosts = list(mongo_client["labyrinth"]["hosts"].find({}))
-    enriched_instances = []
-
-    for instance in instances:
-        matches = []
-        for host in hosts:
-            match = _build_labyrinth_host_match(instance, host)
-            if match:
-                matches.append(match)
-
-        monitoring_enabled = any(
-            _truthy_monitor_value(match.get("monitor"))
-            or match.get("service_count", 0) > 0
-            for match in matches
-        )
-
-        enriched = dict(instance)
-        enriched["labyrinth_matches"] = matches
-        enriched["match_count"] = len(matches)
-        enriched["matched"] = len(matches) > 0
-        enriched["monitoring_enabled"] = monitoring_enabled
-        enriched_instances.append(enriched)
-
-    return enriched_instances
+    return aws_helper._enrich_aws_instances_with_matches(instances, hosts)
 
 
 @app.route("/disk-space/proxmox", methods=["GET"])
@@ -2333,6 +2290,7 @@ def add_manual_disk_host():
                 "ip": request.form.get("ip"),
                 "type": request.form.get("type"),
                 "description": request.form.get("description", ""),
+                "service": request.form.get("service", ""),
             }
 
         if data is None:
@@ -2353,6 +2311,7 @@ def add_manual_disk_host():
             "ip": data["ip"],
             "type": data["type"],
             "description": data.get("description", ""),
+            "service": data.get("service", ""),
             "created": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "updated": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         }
@@ -2559,6 +2518,131 @@ def _get_test_email_recipients(data):
         {"name": "disk_space_alert_recipients"}
     )
     return _parse_recipients_setting(recipients_setting)
+
+
+@app.route("/ai/settings", methods=["GET"])
+@app.route("/ai/settings/", methods=["GET"])
+@requires_auth_read
+def get_ai_settings():
+    """
+    Get AI alert settings (prompt, model, recipients, subject template, from
+    name) used by the hourly AI dashboard summary/alert job.
+    """
+    try:
+        return json.dumps(get_ai_alert_settings(mongo_client)), 200
+    except Exception as e:
+        return json.dumps({"error": "Failed to retrieve AI settings"}), 500
+
+
+@app.route("/ai/settings", methods=["POST"])
+@app.route("/ai/settings/", methods=["POST"])
+@requires_auth_admin
+def save_ai_settings():
+    """
+    Save AI alert settings.
+    Expected JSON (any subset of these fields; omitted fields are left
+    unchanged): {
+        "prompt": "...",
+        "model": "gpt-5-mini",
+        "recipients": "a@example.com, b@example.com",
+        "subject_template": "Labyrinth IT AI ALERT [{time}]",
+        "from_name": "Labyrinth AI"
+    }
+    """
+    try:
+        data = request.get_json(silent=True)
+        if data is None:
+            try:
+                data = json.loads(request.get_data(as_text=True))
+            except (ValueError, json.JSONDecodeError):
+                return json.dumps({"error": ERROR_INVALID_JSON_BODY}), 400
+
+        field_to_setting_name = {
+            "prompt": "ai_prompt",
+            "model": "ai_model",
+            "recipients": "ai_alert_recipients",
+            "subject_template": "ai_alert_subject_template",
+            "from_name": "ai_alert_from_name",
+        }
+
+        settings_collection = mongo_client["labyrinth"]["settings"]
+        for field, setting_name in field_to_setting_name.items():
+            if field not in data:
+                continue
+            value = data[field]
+            if isinstance(value, list):
+                value = ", ".join(str(v) for v in value)
+            settings_collection.delete_one({"name": setting_name})
+            settings_collection.insert_one({"name": setting_name, "value": value})
+
+        return json.dumps(get_ai_alert_settings(mongo_client)), 200
+    except Exception as e:
+        return json.dumps({"error": "Failed to save AI settings"}), 500
+
+
+@app.route("/ai/test-email", methods=["POST"])
+@app.route("/ai/test-email/", methods=["POST"])
+@requires_auth_admin
+def send_ai_test_email():
+    """
+    Manually trigger an AI alert test email, so admins can confirm their
+    saved prompt/model/recipient settings work without waiting for the next
+    scheduled run.
+
+    Expected JSON body: {
+        "mode": "simple" | "full",   # default "simple"
+        "recipients": ["a@example.com"]  # optional, overrides saved settings
+    }
+
+    - "simple": sends a minimal message confirming recipients/subject/from
+      name are wired correctly, without calling ChatGPT.
+    - "full": runs the real dashboard -> ChatGPT -> email pipeline using the
+      saved prompt/model, and always sends the resulting email (even if the
+      model decides not to wake up the IT director) so admins can preview
+      real output and confirm the current prompt still behaves sensibly.
+    """
+    try:
+        data = request.get_json(silent=True)
+        if data is None:
+            try:
+                data = (
+                    json.loads(request.get_data(as_text=True))
+                    if request.get_data(as_text=True)
+                    else {}
+                )
+            except (ValueError, json.JSONDecodeError):
+                return json.dumps({"error": ERROR_INVALID_JSON_BODY}), 400
+
+        mode = (data.get("mode") or "simple").lower()
+        if mode not in ("simple", "full"):
+            return json.dumps({"error": "mode must be 'simple' or 'full'"}), 400
+
+        recipients = data.get("recipients")
+        if isinstance(recipients, str):
+            recipients = [r.strip() for r in recipients.split(",") if r.strip()]
+        recipients = recipients or None
+
+        if mode == "full":
+            result = send_full_test_email(recipients, db=mongo_client)
+            return json.dumps({"status": "sent", "mode": "full", **result}), 200
+
+        ai_settings = get_ai_alert_settings(mongo_client)
+        to = recipients or ai_settings["recipients"]
+        if not to:
+            return (
+                json.dumps(
+                    {
+                        "error": "No recipients configured. Add recipients first or include them in the request."
+                    }
+                ),
+                400,
+            )
+        send_simple_test_email(to, ai_settings)
+        return json.dumps({"status": "sent", "mode": "simple"}), 200
+    except ValueError as e:
+        return json.dumps({"error": "Invalid email configuration"}), 400
+    except Exception as e:
+        return json.dumps({"error": "Failed to send test email"}), 500
 
 
 @app.route("/proxmox-clusters", methods=["GET"])
@@ -3002,9 +3086,118 @@ def get_aws_settings():
             account["_id"] = str(account["_id"])
             sanitized_accounts.append(account)
 
-        return json.dumps({"accounts": sanitized_accounts}, default=str), 200
+        recipients_setting = mongo_client["labyrinth"]["settings"].find_one(
+            {"name": "ec2_alert_recipients"}
+        )
+
+        return (
+            json.dumps(
+                {
+                    "accounts": sanitized_accounts,
+                    "ec2_alert_recipients": _parse_recipients_setting(
+                        recipients_setting
+                    ),
+                },
+                default=str,
+            ),
+            200,
+        )
     except Exception as e:
         return json.dumps({"error": "Failed to retrieve AWS settings"}), 500
+
+
+@app.route("/aws/test-email", methods=["POST"])
+@app.route("/aws/test-email/", methods=["POST"])
+@requires_auth_admin
+def send_ec2_unmatched_test_email():
+    """
+    Manually trigger an EC2 unmatched-instance alert test email.
+
+    Expected JSON body: {
+        "mode": "simple" | "full",   # default "simple"
+        "recipients": ["a@example.com"]  # optional, overrides saved settings
+    }
+
+    - "simple": sends a minimal message confirming SMTP is configured
+      correctly, without querying AWS.
+    - "full": queries live AWS EC2 data using the same matching logic as the
+      real alert and sends the real alert template, always sending even if
+      zero instances are currently unmatched, so admins can preview
+      formatting and confirm delivery.
+    """
+    try:
+        data = request.get_json(silent=True)
+        if data is None:
+            try:
+                data = (
+                    json.loads(request.get_data(as_text=True))
+                    if request.get_data(as_text=True)
+                    else {}
+                )
+            except (ValueError, json.JSONDecodeError):
+                return json.dumps({"error": ERROR_INVALID_JSON_BODY}), 400
+
+        mode = (data.get("mode") or "simple").lower()
+        if mode not in ("simple", "full"):
+            return json.dumps({"error": "mode must be 'simple' or 'full'"}), 400
+
+        recipients = _get_ec2_test_email_recipients(data)
+        if not recipients:
+            return (
+                json.dumps(
+                    {
+                        "error": "No recipients configured. Add recipients first or include them in the request."
+                    }
+                ),
+                400,
+            )
+
+        if mode == "full":
+            result = ec2_unmatched_check.send_full_test_email(
+                recipients,
+                db=mongo_client,
+            )
+            return (
+                json.dumps(
+                    {
+                        "status": "sent",
+                        "mode": "full",
+                        **result,
+                    }
+                ),
+                200,
+            )
+
+        ec2_unmatched_check.send_simple_test_email(recipients)
+        return (
+            json.dumps(
+                {
+                    "status": "sent",
+                    "mode": "simple",
+                }
+            ),
+            200,
+        )
+    except ValueError as e:
+        return json.dumps({"error": "Invalid email configuration"}), 400
+    except Exception as e:
+        return json.dumps({"error": "Failed to send test email"}), 500
+
+
+def _get_ec2_test_email_recipients(data):
+    """Get recipients from request data or fall back to saved settings."""
+    recipients = data.get("recipients")
+    if isinstance(recipients, str):
+        recipients = [r.strip() for r in recipients.split(",") if r.strip()]
+
+    if recipients:
+        return recipients
+
+    # Fall back to saved recipients (same settings the alert cron uses)
+    recipients_setting = mongo_client["labyrinth"]["settings"].find_one(
+        {"name": "ec2_alert_recipients"}
+    )
+    return _parse_recipients_setting(recipients_setting)
 
 
 if __name__ == "__main__":  # pragma: no cover

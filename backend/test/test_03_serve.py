@@ -486,6 +486,40 @@ def test_update_host_tags(setup):
     assert b[1] == 498
 
 
+def test_update_host_service_level(setup):
+    """Tests setting/clearing the per-service reporting level override on a host"""
+    test_create_edit_host(setup)
+
+    # Set a service to warning
+    b = unwrap(serve.update_host_service_level)(
+        "192.168.10.176", "check_hd-1", "warning"
+    )
+    assert b[1] == 200
+
+    found = serve.mongo_client["labyrinth"]["hosts"].find_one({"ip": "192.168.10.176"})
+    assert found["service_levels"] == [{"service": "check_hd-1", "level": "warning"}]
+
+    # Changing the level replaces the existing entry rather than duplicating it
+    b = unwrap(serve.update_host_service_level)("192.168.10.176", "check_hd-1", "error")
+    assert b[1] == 200
+
+    found = serve.mongo_client["labyrinth"]["hosts"].find_one({"ip": "192.168.10.176"})
+    assert found["service_levels"] == [{"service": "check_hd-1", "level": "error"}]
+
+    # Clear it
+    b = unwrap(serve.update_host_service_level)("192.168.10.176", "check_hd-1")
+    assert b[1] == 200
+
+    found = serve.mongo_client["labyrinth"]["hosts"].find_one({"ip": "192.168.10.176"})
+    assert found["service_levels"] == []
+
+    # Not found
+    b = unwrap(serve.update_host_service_level)(
+        "192.168.99.99", "check_hd-1", "warning"
+    )
+    assert b[1] == 498
+
+
 def test_read_service(setup):
     """Reads a given service"""
     port_service = {
@@ -660,6 +694,59 @@ def test_delete_service(setup):
     c = [x for x in b]
     assert len(c) == 1
     assert c[0]["services"] == ["closed_ports"]
+
+
+def test_delete_service_duplicate_names(setup):
+    """
+    Bug: Can't delete a service when multiple display names share the same service name.
+    Deleting by display_name should only affect the targeted service.
+    """
+    # Two services with the same 'name' but different 'display_names'
+    service_a = {
+        "display_name": "labyrinth-lego-ssl",
+        "name": "labyrinth-lego",
+        "type": "check",
+        "metric": "ssl",
+        "field": "expiry",
+        "comparison": "greater",
+        "value": 30,
+    }
+    service_b = {
+        "display_name": "labyrinth-lego-cert",
+        "name": "labyrinth-lego",
+        "type": "check",
+        "metric": "cert",
+        "field": "valid",
+        "comparison": "equals",
+        "value": 1,
+    }
+
+    a = unwrap(serve.create_edit_service)(service_a)
+    assert a[1] == 200
+
+    a = unwrap(serve.create_edit_service)(service_b)
+    assert a[1] == 200
+
+    b = serve.mongo_client["labyrinth"]["services"].find({})
+    c = [x for x in b]
+    assert len(c) == 2
+
+    # Delete only service_a by its display_name
+    a = unwrap(serve.delete_service)("labyrinth-lego-ssl")
+    assert a[1] == 200
+
+    b = serve.mongo_client["labyrinth"]["services"].find({})
+    c = [x for x in b]
+    assert len(c) == 1
+    assert c[0]["display_name"] == "labyrinth-lego-cert"
+
+    # Delete service_b
+    a = unwrap(serve.delete_service)("labyrinth-lego-cert")
+    assert a[1] == 200
+
+    b = serve.mongo_client["labyrinth"]["services"].find({})
+    c = [x for x in b]
+    assert len(c) == 0
 
 
 def test_update_mac_address(setup):

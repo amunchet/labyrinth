@@ -85,6 +85,131 @@ def test_read_metrics(setup):
         assert b[0]["timestamp"] == 2
 
 
+def test_read_metrics_history_ignores_staleness(setup):
+    """
+    History rows must be judged on whether they passed/failed at the time
+    they were recorded, not on how old they are relative to "now" - a
+    History graph intentionally spans well beyond the 600s staleness window
+    used for live/current status.
+    """
+    serve.mongo_client["labyrinth"]["services"].delete_many(
+        {"display_name": "old-check"}
+    )
+    serve.mongo_client["labyrinth"]["services"].insert_one(
+        {
+            "display_name": "old-check",
+            "name": "old-check",
+            "type": "check",
+            "metric": "value",
+            "comparison": "equals",
+            "value": "ok",
+        }
+    )
+
+    old_timestamp = time.time() - 7200  # 2 hours old, well past stale_time=600
+    serve.mongo_client["labyrinth"]["metrics"].insert_one(
+        {
+            "timestamp": old_timestamp,
+            "name": "old-check",
+            "fields": {"value": "ok"},
+            "tags": {
+                "host": "history-host",
+                "ip": "history-host",
+                "mac": "history-host",
+                "labyrinth_name": "old-check",
+            },
+        }
+    )
+
+    a = unwrap(serve.read_metrics)("history-host", "old-check")
+    assert a[1] == 200
+    b = json.loads(a[0])
+    assert len(b) == 1
+    assert b[0]["judgement"] is True
+
+
+def test_read_metrics_latest_still_applies_staleness(setup):
+    """
+    The dedicated "latest" fetch reflects current live status, so an old
+    latest-value record should still be judged stale ("-1").
+    """
+    serve.mongo_client["labyrinth"]["services"].delete_many(
+        {"display_name": "old-check"}
+    )
+    serve.mongo_client["labyrinth"]["services"].insert_one(
+        {
+            "display_name": "old-check",
+            "name": "old-check",
+            "type": "check",
+            "metric": "value",
+            "comparison": "equals",
+            "value": "ok",
+        }
+    )
+
+    old_timestamp = time.time() - 7200
+    serve.mongo_client["labyrinth"]["metrics-latest"].insert_one(
+        {
+            "timestamp": old_timestamp,
+            "name": "old-check",
+            "fields": {"value": "ok"},
+            "tags": {
+                "host": "history-host-2",
+                "ip": "history-host-2",
+                "mac": "history-host-2",
+                "labyrinth_name": "old-check",
+            },
+        }
+    )
+
+    a = unwrap(serve.read_metrics)("history-host-2", "old-check", 100, "latest")
+    assert a[1] == 200
+    b = json.loads(a[0])
+    assert len(b) == 1
+    assert b[0]["judgement"] == -1
+
+
+def test_read_metrics_orders_by_metric_timestamp(setup):
+    """
+    Mongo insertion order (_id) can diverge from a metric's own timestamp
+    (e.g. bulk-write sweep jitter). read_metrics must order its response by
+    each point's own timestamp, not by insertion order, or a History graph's
+    x-axis ends up out of order.
+    """
+    now = time.time()
+
+    # Insert the newer point first (smaller _id) and the older point second
+    # (larger _id) - deliberately the opposite of chronological order.
+    serve.mongo_client["labyrinth"]["metrics"].insert_one(
+        {
+            "timestamp": now,
+            "name": "order-check",
+            "tags": {
+                "host": "order-host",
+                "ip": "order-host",
+                "mac": "order-host",
+            },
+        }
+    )
+    serve.mongo_client["labyrinth"]["metrics"].insert_one(
+        {
+            "timestamp": now - 500,
+            "name": "order-check",
+            "tags": {
+                "host": "order-host",
+                "ip": "order-host",
+                "mac": "order-host",
+            },
+        }
+    )
+
+    a = unwrap(serve.read_metrics)("order-host")
+    assert a[1] == 200
+    b = json.loads(a[0])
+    assert len(b) == 2
+    assert b[0]["timestamp"] < b[1]["timestamp"]
+
+
 def test_time_judge(setup):
     """
     Tests time judgement
@@ -269,92 +394,3 @@ def test_metric_judge(setup):
     host["open_ports"] = [22, 23, 27, 28]
     output = metrics.judge_port(metric=port_scan, service="open_ports", host=host)
     assert not output
-
-
-def test_read_metrics_history_not_judged_stale(setup):
-    """
-    History rows are always older than any sane stale_time relative to "now",
-    so read_metrics must not let the default staleness check blank out their
-    real pass/fail judgement (regression test for the always -1 bug).
-    """
-    serve.mongo_client["labyrinth"]["services"].delete_many(
-        {"display_name": "history-test"}
-    )
-    serve.mongo_client["labyrinth"]["services"].insert_one(
-        {
-            "display_name": "history-test",
-            "name": "history_check",
-            "type": "check",
-            "metric": "value",
-            "comparison": "equals",
-            "value": "ok",
-        }
-    )
-
-    old_timestamp = time.time() - 100000  # far past any stale_time default
-
-    serve.mongo_client["labyrinth"]["metrics"].insert_one(
-        {
-            "timestamp": old_timestamp,
-            "name": "history_check",
-            "fields": {"value": "ok"},
-            "tags": {
-                "host": "history-host",
-                "ip": "10.0.0.55",
-                "mac": "aa:bb:cc",
-                "labyrinth_name": "history_check",
-            },
-        }
-    )
-
-    a = unwrap(serve.read_metrics)("history-host", "history-test", 10)
-    assert a[1] == 200
-    b = json.loads(a[0])
-    matches = [x for x in b if x["timestamp"] == old_timestamp]
-    assert matches
-    assert matches[0]["judgement"] is True
-
-
-def test_read_metrics_latest_still_goes_stale(setup):
-    """
-    The "latest" option is meant to reflect current freshness, so an old
-    metrics-latest row must still judge as -1 (unlike history rows above).
-    """
-    serve.mongo_client["labyrinth"]["services"].delete_many(
-        {"display_name": "latest-stale-test"}
-    )
-    serve.mongo_client["labyrinth"]["services"].insert_one(
-        {
-            "display_name": "latest-stale-test",
-            "name": "latest_stale_check",
-            "type": "check",
-            "metric": "value",
-            "comparison": "equals",
-            "value": "ok",
-        }
-    )
-
-    old_timestamp = time.time() - 100000
-
-    serve.mongo_client["labyrinth"]["metrics-latest"].insert_one(
-        {
-            "timestamp": old_timestamp,
-            "name": "latest_stale_check",
-            "fields": {"value": "ok"},
-            "tags": {
-                "host": "latest-stale-host",
-                "ip": "10.0.0.56",
-                "mac": "aa:bb:cd",
-                "labyrinth_name": "latest_stale_check",
-            },
-        }
-    )
-
-    a = unwrap(serve.read_metrics)(
-        "latest-stale-host", "latest-stale-test", 10, "latest"
-    )
-    assert a[1] == 200
-    b = json.loads(a[0])
-    matches = [x for x in b if x["timestamp"] == old_timestamp]
-    assert matches
-    assert matches[0]["judgement"] == -1

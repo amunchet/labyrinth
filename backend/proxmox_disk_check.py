@@ -174,14 +174,49 @@ def _collect_vm_issues(node, cluster_name, host, node_name, threshold_percent):
         maxdisk = vm.get("maxdisk")
         disk = vm.get("disk")
 
-        # A running VM with maxdisk but a zero/blank disk reading means
-        # the QEMU guest agent is missing, not running, or couldn't
-        # report filesystem info - so disk usage cannot be verified at
-        # all. Always surface this, regardless of threshold, since
-        # silently skipping these VMs (previous behavior) could make an
-        # entire cluster look "clean" when its VMs simply couldn't be
-        # measured.
+        # A running VM with maxdisk but a zero/blank disk reading means this
+        # cycle's guest-agent/fsinfo read came back empty - it does NOT by
+        # itself mean the agent is missing, since a single transient failure
+        # (network blip, node under load) can produce the same zero reading
+        # as a genuinely absent agent. Before alerting, check whether a real
+        # (non-zero) disk reading was captured for this VM within the last
+        # two hours (see proxmox_helper.get_cached_good_disk):
+        #   - a recent good reading under threshold -> suppress entirely,
+        #     this is a flaky read, not a real problem.
+        #   - a recent good reading at/over threshold -> surface as a real
+        #     "vm" disk issue using that last known-good data.
+        #   - no good reading in the last two hours -> genuinely can't
+        #     verify this VM any more, always surface regardless of
+        #     threshold so a whole cluster doesn't look "clean" just because
+        #     its VMs stopped being measurable.
         if vm.get("qemu_guest_agent_warning_inferred"):
+            last_known_good = vm.get("_last_known_good_disk")
+
+            if last_known_good and last_known_good.get("total"):
+                good_used = last_known_good.get("used")
+                good_total = last_known_good.get("total")
+                percent = calculate_percentage(good_used, good_total)
+                if percent >= threshold_percent:
+                    issues.append(
+                        {
+                            "type": "vm",
+                            "cluster": cluster_name,
+                            "host": host,
+                            "node": node_name,
+                            "name": vm.get("name"),
+                            "vm_id": vm.get("id"),
+                            "status": vm.get("status"),
+                            "used": good_used,
+                            "total": good_total,
+                            "percentage": round(percent, 2),
+                            "qemu_agent_installed": vm.get(
+                                "qemu_guest_agent_installed"
+                            ),
+                            "stale_reading": True,
+                        }
+                    )
+                continue
+
             # Distinguish a genuinely missing/non-functional guest agent from
             # a live status check that failed with no Redis fallback left to
             # cover for it (see proxmox_helper._add_vm_info) - the latter
