@@ -25,7 +25,7 @@ export async function savePlaybookContents(
   );
 }
 
-// params: { hosts, playbook, vaultPassword, becomeFile, sshKey }
+// params: { hosts, playbook, vaultPassword, becomeFile, sshKey, totpFile }
 // onLog(logs) is called with the accumulated log lines each time a poll comes back.
 export async function runPlaybookAndPoll(
   auth,
@@ -38,6 +38,7 @@ export async function runPlaybookAndPoll(
     vault_password: params.vaultPassword,
     become_file: params.becomeFile.replace(".yml", ""),
     ssh_key: params.sshKey || "",
+    totp_file: params.totpFile || "",
   };
 
   let formData = new FormData();

@@ -8,8 +8,9 @@ python-jose
 pymongo[srv]
 python-nmap
 ansi2html
-redis
 pid
+redis
+
 ansible
 ansible-runner
 pyyaml

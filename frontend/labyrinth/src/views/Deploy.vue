@@ -415,6 +415,25 @@
               />
             </b-col>
           </b-row>
+          <b-row
+            class="mt-3"
+            v-if="files_list['totp'] && files_list['totp'].length > 0"
+          >
+            <b-col>
+              <b>2FA / TOTP File</b> (optional - for hosts requiring two-factor
+              authentication):<br />
+              <b-select
+                :options="[
+                  { text: 'None', value: '' },
+                  ...files_list['totp'].map((f) => ({
+                    text: f,
+                    value: f.replace(/\.yml$/, ''),
+                  })),
+                ]"
+                v-model="selected['totp']"
+              />
+            </b-col>
+          </b-row>
         </b-card>
       </b-col>
     </b-row>
@@ -567,6 +586,7 @@ export default {
         ssh: "",
         become: "",
         other: "",
+        totp: "",
       },
 
       generated_ansible: {},
@@ -648,6 +668,7 @@ export default {
     },
     selected_group: /* istanbul ignore next */ function (val) {
       if (val != "") {
+        this.ips = [];
         this.loadGroupMembers();
       }
     },
@@ -807,6 +828,7 @@ export default {
 
       let auth = this.$auth;
       this.running = true;
+      this.playbook_loaded = false;
       this.playbook_result = "";
       this.playbook_results = [];
 
@@ -819,6 +841,7 @@ export default {
             vaultPassword: this.vault_password,
             becomeFile: this.selected["become"],
             sshKey: this.selected["ssh"],
+            totpFile: this.selected["totp"] || "",
           },
           (logs) => {
             this.playbook_result = logs.join("\r\n\r\n");
@@ -840,11 +863,13 @@ export default {
 
         this.playbook_result = results;
         this.running = false;
+        this.playbook_loaded = true;
       } catch (error) {
         // Handle any errors
         console.log(error);
         this.$store.commit("updateError", error.message || error);
         this.running = false;
+        this.playbook_loaded = true;
       }
     },
 

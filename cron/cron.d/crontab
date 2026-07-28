@@ -7,5 +7,6 @@
 0 * * * * /bin/bash /cron/ai.sh > /var/log/ai
 1 0 * * * /bin/bash /cron/level_expire.sh > /var/log/level_expire
 0 * * * * /bin/bash /cron/disk_check.sh > /var/log/disk_check
+0 * * * * /bin/bash /cron/ec2_check.sh > /var/log/ec2_check
 
 # Must have Blank line before EOF

@@ -72,21 +72,33 @@
                 <td>{{ vm.name }} (ID: {{ vm.vm_id }})</td>
                 <td>{{ vm.status }}</td>
                 <td>{{ vm.used|format_size }} / {{ vm.total|format_size }}</td>
-                <td class="percentage-high">{{ vm.percentage }}%</td>
+                <td class="percentage-high">
+                    {{ vm.percentage }}%
+                    {% if vm.stale_reading %}
+                    <br>
+                    <span style="color: #666; font-size: 11px; font-weight: normal;">
+                        (last known-good reading; current guest agent read came back empty)
+                    </span>
+                    {% endif %}
+                </td>
             </tr>
             {% endfor %}
         </table>
     </div>
     {% endif %}
-    
+
     {% if qemu_missing %}
     <div class="issue-group">
         <h3>⚠️ VMs Missing QEMU Guest Agent (Disk Usage Unknown)</h3>
         <p style="color: #666; font-size: 13px; margin-top: -5px;">
-            These running VMs report zero disk usage because the QEMU guest
-            agent is missing, not running, or not returning filesystem info.
-            Their actual disk usage cannot be verified and may be over the
-            threshold without being detected above.
+            These running VMs report zero disk usage and no successful disk
+            reading has been captured for them in the last two hours, so the
+            QEMU guest agent is presumed missing, not running, or not
+            returning filesystem info. Their actual disk usage cannot be
+            verified and may be over the threshold without being detected
+            above. (A single transient zero-reading with a good reading
+            still cached from within the last two hours is not shown here -
+            see the Virtual Machines table above instead.)
         </p>
         <table>
             <tr>
