@@ -1,5 +1,10 @@
 <template>
   <b-modal id="service_detail" title="Service Details" size="xl">
+    <b-spinner
+      class="d-block ml-auto mr-auto mt-4 mb-4"
+      v-if="historyLoading"
+    />
+
     <div class="d-flex justify-content-end mb-2" v-if="display">
       <b-button-group size="sm">
         <b-button
@@ -162,6 +167,7 @@ export default {
       result: [],
       result_backwards: [],
       loading: false,
+      historyLoading: false,
       latest_metric: [],
       granularity: "day",
       granularityOptions: [
@@ -210,6 +216,7 @@ export default {
 
         let auth = this.$auth;
         this.loading = true;
+        this.historyLoading = true;
         this.display = false;
         this.showHistory = false;
         await Helper.apiCall(
@@ -221,11 +228,13 @@ export default {
             this.result = res;
             this.result_backwards = JSON.parse(JSON.stringify(res)).reverse();
             this.loading = false;
+            this.historyLoading = false;
             this.display = true;
           })
           .catch((e) => {
             this.$store.commit("updateError", e);
             this.loading = false;
+            this.historyLoading = false;
           });
       }
     },
