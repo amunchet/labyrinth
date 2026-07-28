@@ -5,15 +5,36 @@
       Grid of services currently failing or reporting no data. Mark a service as
       a warning to downgrade its alert severity without silencing it.
     </p>
-    <b-row class="text-left mb-3">
+    <b-row class="text-left mb-3 align-items-end">
       <b-col md="4">
-        <b-form-input
-          v-model="filter"
-          placeholder="Filter by host, group, or service..."
-        />
+        <b-input-group>
+          <b-form-input
+            v-model="filter_input"
+            placeholder="Filter by host, group, or service..."
+            @keyup.enter="applyFilter"
+          />
+          <b-input-group-append>
+            <b-button variant="primary" @click="applyFilter"> Filter </b-button>
+          </b-input-group-append>
+        </b-input-group>
+      </b-col>
+      <b-col md="auto">
+        <b-form-checkbox v-model="monitored_only" switch>
+          Monitored hosts only
+        </b-form-checkbox>
+      </b-col>
+      <b-col md="auto" class="ml-auto">
+        <b-button
+          variant="outline-secondary"
+          :disabled="loading"
+          @click="loadData()"
+        >
+          <b-spinner small v-if="loading" class="mr-1" />
+          Refresh
+        </b-button>
       </b-col>
     </b-row>
-    <div v-if="loading">
+    <div v-if="loading && !full_data.length">
       <b-spinner class="m-2" />
     </div>
     <div v-else>
@@ -24,19 +45,21 @@
         <b-card
           v-for="item in filteredProblems"
           :key="item.ip + '-' + item.service_name"
-          :class="'problem-card text-left ' + cardClass(item)"
+          class="problem-card text-left"
         >
           <div class="d-flex justify-content-between align-items-start">
             <strong>{{ item.host_name || item.ip }}</strong>
-            <b-badge :variant="item.state === -1 ? 'warning' : 'danger'">
-              {{ item.state === -1 ? "Unknown" : "Critical" }}
+            <b-badge :variant="severity(item).variant">
+              {{ severity(item).text }}
             </b-badge>
           </div>
           <div class="text-muted small">
             {{ item.ip }} &middot; {{ item.group }} &middot; {{ item.subnet }}
           </div>
           <hr class="my-2" />
-          <div>{{ item.service_name.replace(/_/g, " ") }}</div>
+          <div :class="severity(item).textClass">
+            {{ item.service_name.replace(/_/g, " ") }}
+          </div>
           <div class="mt-2">
             <b-button
               size="sm"
@@ -68,7 +91,9 @@ export default {
     return {
       loading: false,
       full_data: [],
-      filter: "",
+      filter_input: "",
+      applied_filter: "",
+      monitored_only: true,
     };
   },
   computed: {
@@ -77,6 +102,9 @@ export default {
       (this.full_data || []).forEach((subnet) => {
         (subnet.groups || []).forEach((group) => {
           (group.hosts || []).forEach((host) => {
+            if (this.monitored_only && !this.isMonitored(host)) {
+              return;
+            }
             (host.services || []).forEach((service) => {
               if (service.state === false || service.state === -1) {
                 output.push({
@@ -96,10 +124,10 @@ export default {
       return output;
     },
     filteredProblems: function () {
-      if (!this.filter) {
+      if (!this.applied_filter) {
         return this.problems;
       }
-      let needle = this.filter.toLowerCase();
+      let needle = this.applied_filter.toLowerCase();
       return this.problems.filter((item) =>
         [item.host_name, item.ip, item.group, item.service_name]
           .filter((x) => x)
@@ -108,6 +136,12 @@ export default {
     },
   },
   methods: {
+    applyFilter: function () {
+      this.applied_filter = this.filter_input;
+    },
+    isMonitored: function (host) {
+      return String(host.monitor).toLowerCase() === "true";
+    },
     isWarning: function (host, service_name) {
       if (host.service_level === "warning") {
         return true;
@@ -119,11 +153,22 @@ export default {
       }
       return false;
     },
-    cardClass: function (item) {
-      if (item.state === -1) {
-        return item.is_warning ? "orange-border" : "orange-bg";
+    severity: function (item) {
+      if (item.is_warning) {
+        return {
+          text: "Warning",
+          variant: "warning",
+          textClass: "text-warning",
+        };
       }
-      return item.is_warning ? "red-border" : "red-bg";
+      if (item.state === false) {
+        return {
+          text: "Critical",
+          variant: "danger",
+          textClass: "text-danger",
+        };
+      }
+      return { text: "Unknown", variant: "secondary", textClass: "text-muted" };
     },
     setWarning: /* istanbul ignore next */ function (item, level) {
       let auth = this.$auth;

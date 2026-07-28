@@ -410,6 +410,7 @@ export default {
       },
 
       timeout: null,
+      stopped: false,
 
       selected_ips: {},
     };
@@ -762,6 +763,9 @@ export default {
       }
       await Helper.apiCall("dashboard", url, auth)
         .then((res) => {
+          if (this.stopped) {
+            return;
+          }
           this.full_data = res.sort((a, b) => {
             if (a.subnet > b.subnet) {
               return 1;
@@ -801,6 +805,9 @@ export default {
           this.loading = false;
         })
         .catch((e) => {
+          if (this.stopped) {
+            return;
+          }
           clearTimeout(this.timeout);
           this.timeout = setTimeout(() => {
             this.loadData(false);
@@ -884,6 +891,7 @@ export default {
     }
   },
   destroyed: function () {
+    this.stopped = true;
     clearTimeout(this.timeout);
   },
 };
