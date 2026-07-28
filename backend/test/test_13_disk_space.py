@@ -62,9 +62,9 @@ def _make_proxmox_client():
 
 def cleanup_test_data():
     """Clean up disk-space test data."""
-    serve.mongo_client["labyrinth"]["hosts"].delete_many({})
-    serve.mongo_client["labyrinth"]["settings"].delete_many({})
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].delete_many({})
+    serve.db["labyrinth"]["hosts"].delete_many({})
+    serve.db["labyrinth"]["settings"].delete_many({})
+    serve.db["labyrinth"]["proxmox_clusters"].delete_many({})
 
 
 @pytest.fixture
@@ -78,7 +78,7 @@ def setup():
 
 def test_get_proxmox_disk_space_prefers_redis_cache(setup, monkeypatch):
     """Uses cached Proxmox payloads from Redis before attempting live API calls."""
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_many(
+    serve.db["labyrinth"]["proxmox_clusters"].insert_many(
         [
             {
                 "name": "cluster-1",
@@ -100,7 +100,7 @@ def test_get_proxmox_disk_space_prefers_redis_cache(setup, monkeypatch):
     )
 
     clusters = list(
-        serve.mongo_client["labyrinth"]["proxmox_clusters"].find({}).sort("name", 1)
+        serve.db["labyrinth"]["proxmox_clusters"].find({}).sort("name", 1)
     )
     fake_redis = FakeRedis(
         store={
@@ -145,7 +145,7 @@ def test_get_proxmox_disk_space_prefers_redis_cache(setup, monkeypatch):
 
 def test_get_proxmox_disk_space_falls_back_to_live_query_and_caches(setup, monkeypatch):
     """Falls back to live Proxmox API calls and stores the payload in Redis."""
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one(
+    serve.db["labyrinth"]["proxmox_clusters"].insert_one(
         {
             "name": "cluster-live",
             "host": "10.1.1.10",
@@ -179,7 +179,7 @@ def test_get_proxmox_disk_space_falls_back_to_live_query_and_caches(setup, monke
     assert calls == [("10.1.1.10", "cluster-live")]
     assert fake_redis.setex_calls
 
-    cluster = serve.mongo_client["labyrinth"]["proxmox_clusters"].find_one(
+    cluster = serve.db["labyrinth"]["proxmox_clusters"].find_one(
         {"name": "cluster-live"}
     )
     cache_key = proxmox_helper.get_proxmox_cache_key(cluster)
@@ -196,7 +196,7 @@ def test_get_proxmox_disk_space_no_clusters_returns_empty(setup):
 
 def test_get_proxmox_disk_space_backfills_qemu_warning_fields(setup, monkeypatch):
     """Adds QEMU guest-agent flags to API output even when helper returns old VM shape."""
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one(
+    serve.db["labyrinth"]["proxmox_clusters"].insert_one(
         {
             "name": "cluster-old",
             "host": "10.5.5.5",
@@ -246,7 +246,7 @@ def test_get_proxmox_disk_space_backfills_qemu_warning_fields(setup, monkeypatch
 
 def test_refresh_proxmox_disk_space_bypasses_cache_and_recaches(setup, monkeypatch):
     """The refresh endpoint always performs a live query, ignoring any cached value, and updates Redis."""
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one(
+    serve.db["labyrinth"]["proxmox_clusters"].insert_one(
         {
             "name": "cluster-refresh",
             "host": "10.1.1.20",
@@ -257,7 +257,7 @@ def test_refresh_proxmox_disk_space_bypasses_cache_and_recaches(setup, monkeypat
         }
     )
 
-    cluster = serve.mongo_client["labyrinth"]["proxmox_clusters"].find_one(
+    cluster = serve.db["labyrinth"]["proxmox_clusters"].find_one(
         {"name": "cluster-refresh"}
     )
     stale_payload = json.dumps(
@@ -416,7 +416,7 @@ def test_proxmox_cluster_crud(setup):
     assert "token_secret" not in updated
 
     # Verify update in database
-    db_cluster = serve.mongo_client["labyrinth"]["proxmox_clusters"].find_one(
+    db_cluster = serve.db["labyrinth"]["proxmox_clusters"].find_one(
         {"_id": bson.ObjectId(cluster_id)}
     )
     assert db_cluster["token_secret"] == "updated-secret"
@@ -474,7 +474,7 @@ def test_disk_space_settings_includes_clusters(setup):
     """Get disk space settings returns cluster list and unconfigured hosts."""
     # Create clusters
     cluster1_id = (
-        serve.mongo_client["labyrinth"]["proxmox_clusters"]
+        serve.db["labyrinth"]["proxmox_clusters"]
         .insert_one(
             {
                 "name": "cluster-a",
@@ -488,14 +488,14 @@ def test_disk_space_settings_includes_clusters(setup):
         .inserted_id
     )
 
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {
             "name": "proxmox_tag",
             "value": "Proxmox",
         }
     )
 
-    serve.mongo_client["labyrinth"]["hosts"].insert_many(
+    serve.db["labyrinth"]["hosts"].insert_many(
         [
             {
                 "ip": "10.1.1.1",
@@ -795,7 +795,7 @@ def test_proxmox_refresh_worker_loads_clusters_and_refreshes(monkeypatch):
         captured["redis_client"] = redis_client
         return [{"cluster_name": "cluster-a"}]
 
-    monkeypatch.setattr(proxmox_refresh, "mongo_client", FakeMongoClient())
+    monkeypatch.setattr(proxmox_refresh, "db", FakeMongoClient())
     monkeypatch.setattr(proxmox_refresh, "PidFile", FakePidFile)
     monkeypatch.setattr(
         proxmox_refresh.proxmox_helper, "get_redis_client", lambda: fake_redis

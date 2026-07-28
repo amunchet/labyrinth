@@ -21,6 +21,7 @@ services:
     build: "backend"
     depends_on:
       - mongo
+      - postgres
       - redis
     ports:
       - "7000:7000"
@@ -31,6 +32,12 @@ services:
     networks:
       - labyrinth
     environment:
+      DB_BACKEND: postgres
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: labyrinth
+      POSTGRES_PASSWORD: temp
+      POSTGRES_DB: labyrinth
       MONGO_USERNAME: root
       MONGO_PASSWORD: temp
       MONGO_HOST: mongo
@@ -87,6 +94,22 @@ services:
       ME_CONFIG_MONGODB_ADMINPASSWORD: temp
       ME_CONFIG_MONGODB_URL: mongodb://root:temp@mongo:27017/
 
+  # Postgres/TimescaleDB - the default database backend (DB_BACKEND=postgres).
+  # See backend/db/ and MONGO_MIGRATION.md. Mongo above is kept running so
+  # the DB_BACKEND=mongo fallback path stays testable.
+  postgres:
+    image: timescale/timescaledb:2.17.2-pg16
+    ports:
+      - 127.0.0.1:5432:5432
+    networks:
+      - labyrinth
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: labyrinth
+      POSTGRES_PASSWORD: temp
+      POSTGRES_DB: labyrinth
+
   # Redis
   redis:
     image: bitnami/redis:latest
@@ -114,12 +137,19 @@ services:
       dockerfile: backend/ai/mcp/Dockerfile
     depends_on:
       - mongo
+      - postgres
       - redis
     networks:
       - labyrinth
     volumes:
       - ./backend:/app/backend
     environment:
+      DB_BACKEND: postgres
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: labyrinth
+      POSTGRES_PASSWORD: temp
+      POSTGRES_DB: labyrinth
       MONGO_USERNAME: root
       MONGO_PASSWORD: temp
       MONGO_HOST: mongo
@@ -139,13 +169,24 @@ services:
     build:
       context: .
       dockerfile: cron/Dockerfile
+    depends_on:
+      - mongo
+      - postgres
+      - redis
     volumes:
       - ./backend/:/src
       - ./cron:/cron
       - ./alertmanager:/alertmanager
+      - ./backups:/backups
     networks:
       - labyrinth
     environment:
+      DB_BACKEND: postgres
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: labyrinth
+      POSTGRES_PASSWORD: temp
+      POSTGRES_DB: labyrinth
       MONGO_USERNAME: root
       MONGO_PASSWORD: temp
       MONGO_HOST: mongo

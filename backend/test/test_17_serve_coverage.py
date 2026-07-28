@@ -8,6 +8,8 @@ metrics handling, and sanitization functions.
 import json
 import os
 import io
+import shutil
+import tempfile
 import pytest
 import datetime
 import yaml
@@ -22,12 +24,12 @@ from common.test import unwrap
 
 def cleanup_test_data():
     """Clean up test data"""
-    serve.mongo_client["labyrinth"]["aws_accounts"].delete_many({})
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].delete_many({})
-    serve.mongo_client["labyrinth"]["settings"].delete_many({})
-    serve.mongo_client["labyrinth"]["hosts"].delete_many({})
-    serve.mongo_client["labyrinth"]["metrics"].delete_many({})
-    serve.mongo_client["labyrinth"]["metrics-latest"].delete_many({})
+    serve.db["labyrinth"]["aws_accounts"].delete_many({})
+    serve.db["labyrinth"]["proxmox_clusters"].delete_many({})
+    serve.db["labyrinth"]["settings"].delete_many({})
+    serve.db["labyrinth"]["hosts"].delete_many({})
+    serve.db["labyrinth"]["metrics"].delete_many({})
+    serve.db["labyrinth"]["metrics-latest"].delete_many({})
 
     try:
         a = redis.Redis(host=os.environ.get("REDIS_HOST"))
@@ -260,7 +262,7 @@ def test_get_aws_account_success(setup):
         "access_key_id": "AKIAIOSFODNN7EXAMPLE",
         "secret_access_key": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
     }
-    serve.mongo_client["labyrinth"]["aws_accounts"].insert_one(account)
+    serve.db["labyrinth"]["aws_accounts"].insert_one(account)
 
     with serve.app.test_request_context(f"/aws/accounts/{account_id}", method="GET"):
         resp = unwrap(serve.get_aws_account)(account_id)
@@ -300,7 +302,7 @@ def test_update_aws_account_success(setup):
         "access_key_id": "AKIAIOSFODNN7EXAMPLE",
         "secret_access_key": "old-secret",
     }
-    serve.mongo_client["labyrinth"]["aws_accounts"].insert_one(account)
+    serve.db["labyrinth"]["aws_accounts"].insert_one(account)
 
     with serve.app.test_request_context(
         f"/aws/accounts/{account_id}",
@@ -310,7 +312,7 @@ def test_update_aws_account_success(setup):
         resp = unwrap(serve.update_aws_account)(account_id)
 
     assert resp[1] == 200
-    updated = serve.mongo_client["labyrinth"]["aws_accounts"].find_one(
+    updated = serve.db["labyrinth"]["aws_accounts"].find_one(
         {"_id": bson.ObjectId(account_id)}
     )
     assert updated["name"] == "new-name"
@@ -325,7 +327,7 @@ def test_update_aws_account_no_json(setup):
         "name": "test",
         "region": "us-east-1",
     }
-    serve.mongo_client["labyrinth"]["aws_accounts"].insert_one(account)
+    serve.db["labyrinth"]["aws_accounts"].insert_one(account)
 
     with serve.app.test_request_context(f"/aws/accounts/{account_id}", method="PUT"):
         resp = unwrap(serve.update_aws_account)(account_id)
@@ -351,7 +353,7 @@ def test_update_aws_account_duplicate_name(setup):
     account_id_1 = str(bson.ObjectId())
     account_id_2 = str(bson.ObjectId())
 
-    serve.mongo_client["labyrinth"]["aws_accounts"].insert_many(
+    serve.db["labyrinth"]["aws_accounts"].insert_many(
         [
             {"_id": bson.ObjectId(account_id_1), "name": "existing"},
             {"_id": bson.ObjectId(account_id_2), "name": "to-update"},
@@ -375,14 +377,14 @@ def test_delete_aws_account_success(setup):
         "name": "to-delete",
         "region": "us-east-1",
     }
-    serve.mongo_client["labyrinth"]["aws_accounts"].insert_one(account)
+    serve.db["labyrinth"]["aws_accounts"].insert_one(account)
 
     with serve.app.test_request_context(f"/aws/accounts/{account_id}", method="DELETE"):
         resp = unwrap(serve.delete_aws_account)(account_id)
 
     assert resp[1] == 200
     assert (
-        serve.mongo_client["labyrinth"]["aws_accounts"].count_documents(
+        serve.db["labyrinth"]["aws_accounts"].count_documents(
             {"_id": bson.ObjectId(account_id)}
         )
         == 0
@@ -401,7 +403,7 @@ def test_delete_aws_account_not_found(setup):
 
 def test_list_aws_accounts_success(setup):
     """List AWS accounts."""
-    serve.mongo_client["labyrinth"]["aws_accounts"].insert_many(
+    serve.db["labyrinth"]["aws_accounts"].insert_many(
         [
             {
                 "_id": bson.ObjectId(),
@@ -519,7 +521,7 @@ def test_bulk_insert_timestamp_handling(setup):
 
 def test_refresh_proxmox_disk_space_success(setup, monkeypatch):
     """Refresh Proxmox disk space data."""
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one(
+    serve.db["labyrinth"]["proxmox_clusters"].insert_one(
         {
             "_id": bson.ObjectId(),
             "name": "cluster-1",
@@ -557,7 +559,7 @@ def test_refresh_proxmox_disk_space_error(setup, monkeypatch):
 
 def test_get_manual_disk_space_success(setup):
     """Get manual disk space configuration."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {
             "name": "manual_disk_host_192_168_1_1",
             "value": json.dumps(
@@ -658,7 +660,7 @@ def test_aws_account_lifecycle(setup):
 
 def test_delete_host_by_ip(setup):
     """Delete host by IP address."""
-    serve.mongo_client["labyrinth"]["hosts"].insert_one(
+    serve.db["labyrinth"]["hosts"].insert_one(
         {"ip": "192.168.1.1", "mac": "00:11:22:33:44:55", "hostname": "test-host"}
     )
 
@@ -666,14 +668,12 @@ def test_delete_host_by_ip(setup):
         resp = unwrap(serve.delete_host)("192.168.1.1")
 
     assert resp[1] == 200
-    assert (
-        serve.mongo_client["labyrinth"]["hosts"].find_one({"ip": "192.168.1.1"}) is None
-    )
+    assert serve.db["labyrinth"]["hosts"].find_one({"ip": "192.168.1.1"}) is None
 
 
 def test_delete_host_by_mac(setup):
     """Delete host by MAC address."""
-    serve.mongo_client["labyrinth"]["hosts"].insert_one(
+    serve.db["labyrinth"]["hosts"].insert_one(
         {"ip": "192.168.1.1", "mac": "00:11:22:33:44:55", "hostname": "test-host"}
     )
 
@@ -693,7 +693,7 @@ def test_delete_host_not_found(setup):
 
 def test_host_group_rename_success(setup):
     """Rename host group."""
-    serve.mongo_client["labyrinth"]["hosts"].insert_one(
+    serve.db["labyrinth"]["hosts"].insert_one(
         {"ip": "192.168.1.1", "group": "old-group"}
     )
 
@@ -701,13 +701,13 @@ def test_host_group_rename_success(setup):
         resp = unwrap(serve.host_group_rename)("192.168.1.1", "new-group")
 
     assert resp[1] == 200
-    host = serve.mongo_client["labyrinth"]["hosts"].find_one({"ip": "192.168.1.1"})
+    host = serve.db["labyrinth"]["hosts"].find_one({"ip": "192.168.1.1"})
     assert host["group"] == "new-group"
 
 
 def test_host_group_rename_no_group(setup):
     """Rename host group to empty."""
-    serve.mongo_client["labyrinth"]["hosts"].insert_one(
+    serve.db["labyrinth"]["hosts"].insert_one(
         {"ip": "192.168.1.1", "group": "old-group"}
     )
 
@@ -727,7 +727,7 @@ def test_host_group_rename_not_found(setup):
 
 def test_group_delete_service(setup):
     """Delete service from group."""
-    serve.mongo_client["labyrinth"]["hosts"].insert_many(
+    serve.db["labyrinth"]["hosts"].insert_many(
         [
             {
                 "ip": "192.168.1.1",
@@ -750,14 +750,14 @@ def test_group_delete_service(setup):
         resp = unwrap(serve.group_delete_service)("192.168.1.0/24", "servers", "ssh")
 
     assert resp[1] == 200
-    h1 = serve.mongo_client["labyrinth"]["hosts"].find_one({"ip": "192.168.1.1"})
+    h1 = serve.db["labyrinth"]["hosts"].find_one({"ip": "192.168.1.1"})
     assert "ssh" not in h1["services"]
     assert "http" in h1["services"]
 
 
 def test_list_tags(setup):
     """List all unique tags."""
-    serve.mongo_client["labyrinth"]["hosts"].insert_many(
+    serve.db["labyrinth"]["hosts"].insert_many(
         [
             {"ip": "192.168.1.1", "tags": "prod, critical"},
             {"ip": "192.168.1.2", "tags": "staging, important"},
@@ -777,7 +777,7 @@ def test_list_tags(setup):
 
 def test_list_tag_members(setup):
     """List hosts with specific tag."""
-    serve.mongo_client["labyrinth"]["hosts"].insert_many(
+    serve.db["labyrinth"]["hosts"].insert_many(
         [
             {"ip": "192.168.1.1", "tags": "prod, critical"},
             {"ip": "192.168.1.2", "tags": "staging"},
@@ -827,10 +827,10 @@ def test_host_matches_tag_no_match(setup):
 def test_delete_service(setup):
     """Delete a service."""
     # secure_filename converts spaces to underscores
-    serve.mongo_client["labyrinth"]["services"].insert_one(
+    serve.db["labyrinth"]["services"].insert_one(
         {"name": "ssh-check", "display_name": "SSH_Check"}
     )
-    serve.mongo_client["labyrinth"]["hosts"].insert_one(
+    serve.db["labyrinth"]["hosts"].insert_one(
         {"ip": "192.168.1.1", "services": ["SSH_Check"]}
     )
 
@@ -839,9 +839,7 @@ def test_delete_service(setup):
 
     assert resp[1] == 200
     assert (
-        serve.mongo_client["labyrinth"]["services"].find_one(
-            {"display_name": "SSH_Check"}
-        )
+        serve.db["labyrinth"]["services"].find_one({"display_name": "SSH_Check"})
         is None
     )
 
@@ -852,7 +850,7 @@ def test_delete_service_with_snippet(mock_remove, mock_listdir, setup):
     """Delete service and associated snippet."""
     mock_listdir.return_value = ["SSH_Check"]
 
-    serve.mongo_client["labyrinth"]["services"].insert_one(
+    serve.db["labyrinth"]["services"].insert_one(
         {"name": "ssh-check", "display_name": "SSH_Check"}
     )
 
@@ -1105,7 +1103,7 @@ def test_restart_alertmanager(mock_open, mock_post, setup):
 
 def test_get_setting_all(setup):
     """Get all settings."""
-    serve.mongo_client["labyrinth"]["settings"].insert_many(
+    serve.db["labyrinth"]["settings"].insert_many(
         [
             {"name": "setting1", "value": "value1"},
             {"name": "setting2", "value": "value2"},
@@ -1122,7 +1120,7 @@ def test_get_setting_all(setup):
 
 def test_get_setting_specific(setup):
     """Get specific setting."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {"name": "test-setting", "value": "test-value"}
     )
 
@@ -1147,15 +1145,13 @@ def test_save_setting_new(setup):
         resp = unwrap(serve.save_setting)("new-setting", "new-value")
 
     assert resp[1] == 200
-    setting = serve.mongo_client["labyrinth"]["settings"].find_one(
-        {"name": "new-setting"}
-    )
+    setting = serve.db["labyrinth"]["settings"].find_one({"name": "new-setting"})
     assert setting["value"] == "new-value"
 
 
 def test_save_setting_update(setup):
     """Update existing setting."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {"name": "update-setting", "value": "old-value"}
     )
 
@@ -1163,9 +1159,7 @@ def test_save_setting_update(setup):
         resp = unwrap(serve.save_setting)("update-setting", "new-value")
 
     assert resp[1] == 200
-    setting = serve.mongo_client["labyrinth"]["settings"].find_one(
-        {"name": "update-setting"}
-    )
+    setting = serve.db["labyrinth"]["settings"].find_one({"name": "update-setting"})
     assert setting["value"] == "new-value"
 
 
@@ -1252,10 +1246,15 @@ def test_bulk_insert_with_exception(
         None,  # last_time returns None
     ]
 
-    # Mock datetime.now() to return an actual datetime object
+    # Mock datetime.now() to return an actual datetime object. timedelta is
+    # left as the real class (not further mocked) so bulk_insert()'s
+    # metrics-latest TTL-emulation cutoff (datetime.now() - timedelta(...))
+    # produces a real datetime instead of an unconfigured MagicMock, which
+    # pymongo can't BSON-encode into the delete_many() filter.
     mock_datetime_module.datetime.now.return_value = datetime.datetime(
         2026, 7, 13, 19, 57, 51
     )
+    mock_datetime_module.timedelta = datetime.timedelta
 
     with patch("time.time", return_value=1000):
         with serve.app.test_request_context("/bulk_insert/"):
@@ -1317,20 +1316,30 @@ def test_run_ansible_endpoint(mock_environ, mock_redis, setup):
         "become_file": "",
     }
 
-    with patch("ansible_helper.run_ansible", return_value=("/tmp", "test")):
-        with patch("ansible_runner.run_async") as mock_run:
-            mock_thread = MagicMock()
-            mock_thread.is_alive.return_value = False
-            mock_runner = MagicMock()
-            mock_runner.events = []
-            mock_run.return_value = (mock_thread, mock_runner)
+    # run_ansible_background() (spawned as a real subprocess below, so this
+    # mock's return value is inherited via fork rather than staying
+    # test-process-local) unconditionally shutil.rmtree()s whatever
+    # directory it's given on cleanup - a real, disposable temp directory
+    # here, not the literal "/tmp" sentinel, so that cleanup doesn't delete
+    # the container's actual /tmp.
+    fake_run_dir = tempfile.mkdtemp()
+    try:
+        with patch("ansible_helper.run_ansible", return_value=(fake_run_dir, "test")):
+            with patch("ansible_runner.run_async") as mock_run:
+                mock_thread = MagicMock()
+                mock_thread.is_alive.return_value = False
+                mock_runner = MagicMock()
+                mock_runner.events = []
+                mock_run.return_value = (mock_thread, mock_runner)
 
-            with serve.app.test_request_context(
-                "/ansible_runner/", method="POST", data=json.dumps(ansible_data)
-            ):
-                resp = unwrap(serve.run_ansible_endpoint)(json.dumps(ansible_data))
+                with serve.app.test_request_context(
+                    "/ansible_runner/", method="POST", data=json.dumps(ansible_data)
+                ):
+                    resp = unwrap(serve.run_ansible_endpoint)(json.dumps(ansible_data))
 
-    assert resp[1] in [200, 201]
+        assert resp[1] in [200, 201]
+    finally:
+        shutil.rmtree(fake_run_dir, ignore_errors=True)
 
 
 # ---------------------------------------------------------------------------
@@ -1397,7 +1406,7 @@ def test_get_proxmox_clusters_empty(setup):
 def test_get_proxmox_cluster_by_name(setup):
     """Get Proxmox cluster by ID."""
     cluster_id = str(bson.ObjectId())
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one(
+    serve.db["labyrinth"]["proxmox_clusters"].insert_one(
         {"_id": bson.ObjectId(cluster_id), "name": "test-cluster", "host": "10.0.0.1"}
     )
 
@@ -1409,7 +1418,7 @@ def test_get_proxmox_cluster_by_name(setup):
 
 def test_list_subnets_groups(setup):
     """List subnet groups."""
-    serve.mongo_client["labyrinth"]["hosts"].insert_many(
+    serve.db["labyrinth"]["hosts"].insert_many(
         [
             {"ip": "192.168.1.1", "subnet": "192.168.1.0/24", "group": "servers"},
             {"ip": "192.168.1.2", "subnet": "192.168.1.0/24", "group": "servers"},
@@ -1424,7 +1433,7 @@ def test_list_subnets_groups(setup):
 
 def test_list_subnets_group_members(setup):
     """List members of a subnet group."""
-    serve.mongo_client["labyrinth"]["hosts"].insert_many(
+    serve.db["labyrinth"]["hosts"].insert_many(
         [
             {"ip": "192.168.1.1", "subnet": "192.168.1.0/24", "group": "servers"},
             {"ip": "192.168.1.2", "subnet": "192.168.1.0/24", "group": "servers"},
@@ -1442,7 +1451,7 @@ def test_list_subnets_group_members(setup):
 
 def test_list_services_display_names(setup):
     """Get all service display names."""
-    serve.mongo_client["labyrinth"]["services"].insert_many(
+    serve.db["labyrinth"]["services"].insert_many(
         [
             {"name": "ssh-check", "display_name": "SSH"},
             {"name": "http-check", "display_name": "HTTP"},
@@ -1461,9 +1470,9 @@ def test_list_services_display_names(setup):
 def test_read_service_by_name(setup):
     """Get service by display name."""
     # Clean up first to avoid data pollution
-    serve.mongo_client["labyrinth"]["services"].delete_many({})
+    serve.db["labyrinth"]["services"].delete_many({})
 
-    serve.mongo_client["labyrinth"]["services"].insert_one(
+    serve.db["labyrinth"]["services"].insert_one(
         {"name": "ssh-check", "display_name": "SSH", "check_type": "port", "port": 22}
     )
 
@@ -1601,9 +1610,7 @@ def test_host_matches_tag_with_whitespace():
 
 def test_list_tag_members_empty_result(setup):
     """List tag members when no hosts have tag."""
-    serve.mongo_client["labyrinth"]["hosts"].insert_one(
-        {"ip": "192.168.1.1", "tags": "staging"}
-    )
+    serve.db["labyrinth"]["hosts"].insert_one({"ip": "192.168.1.1", "tags": "staging"})
 
     with serve.app.test_request_context("/tags/nonexistent"):
         resp = unwrap(serve.list_tag_members)("nonexistent")
@@ -1642,7 +1649,7 @@ def test_get_setting_empty_result(setup):
 
 def test_group_delete_service_no_match(setup):
     """Delete service that doesn't exist in group."""
-    serve.mongo_client["labyrinth"]["hosts"].insert_one(
+    serve.db["labyrinth"]["hosts"].insert_one(
         {
             "ip": "192.168.1.1",
             "subnet": "192.168.1.0/24",
@@ -1657,13 +1664,13 @@ def test_group_delete_service_no_match(setup):
         resp = unwrap(serve.group_delete_service)("192.168.1.0/24", "servers", "ssh")
 
     assert resp[1] == 200
-    h1 = serve.mongo_client["labyrinth"]["hosts"].find_one({"ip": "192.168.1.1"})
+    h1 = serve.db["labyrinth"]["hosts"].find_one({"ip": "192.168.1.1"})
     assert h1["services"] == ["http"]
 
 
 def test_delete_host_by_ip_multiple_hosts(setup):
     """Delete specific host when multiple exist."""
-    serve.mongo_client["labyrinth"]["hosts"].insert_many(
+    serve.db["labyrinth"]["hosts"].insert_many(
         [
             {"ip": "192.168.1.1", "mac": "00:11:22:33:44:55"},
             {"ip": "192.168.1.2", "mac": "00:11:22:33:44:66"},
@@ -1674,13 +1681,8 @@ def test_delete_host_by_ip_multiple_hosts(setup):
         resp = unwrap(serve.delete_host)("192.168.1.1")
 
     assert resp[1] == 200
-    assert (
-        serve.mongo_client["labyrinth"]["hosts"].find_one({"ip": "192.168.1.1"}) is None
-    )
-    assert (
-        serve.mongo_client["labyrinth"]["hosts"].find_one({"ip": "192.168.1.2"})
-        is not None
-    )
+    assert serve.db["labyrinth"]["hosts"].find_one({"ip": "192.168.1.1"}) is None
+    assert serve.db["labyrinth"]["hosts"].find_one({"ip": "192.168.1.2"}) is not None
 
 
 @patch("redis.Redis")
@@ -1916,7 +1918,7 @@ def test_create_proxmox_cluster_missing_fields(setup):
 def test_create_proxmox_cluster_duplicate_name(setup):
     """Reject duplicate proxmox cluster names."""
     cluster_id = str(bson.ObjectId())
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one(
+    serve.db["labyrinth"]["proxmox_clusters"].insert_one(
         {
             "_id": bson.ObjectId(cluster_id),
             "name": "cluster1",
@@ -2018,7 +2020,7 @@ def test_get_proxmox_cluster_not_found(setup):
 
 def test_list_proxmox_clusters(setup):
     """Test listing proxmox clusters."""
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one(
+    serve.db["labyrinth"]["proxmox_clusters"].insert_one(
         {
             "_id": bson.ObjectId(),
             "name": "cluster1",
@@ -2045,7 +2047,7 @@ def test_delete_metric_invalid_id(setup):
 
 def test_get_disk_space_settings_error(setup):
     """Handle error retrieving disk space settings."""
-    with patch("serve.mongo_client") as mock_mongo:
+    with patch("serve.db") as mock_mongo:
         mock_mongo.__getitem__.side_effect = Exception("Error")
         with serve.app.test_request_context("/disk-space/settings", method="GET"):
             resp = unwrap(serve.get_disk_space_settings)()
@@ -2088,7 +2090,7 @@ def test_get_disk_space_settings_no_clusters(setup):
 
 def test_get_aws_settings(setup):
     """Test retrieving AWS settings."""
-    serve.mongo_client["labyrinth"]["aws_accounts"].insert_one(
+    serve.db["labyrinth"]["aws_accounts"].insert_one(
         {
             "_id": bson.ObjectId(),
             "name": "test-account",
@@ -2135,7 +2137,7 @@ def test_create_aws_account_missing_fields(setup):
 
 def test_create_aws_account_duplicate_name(setup):
     """Reject duplicate AWS account names."""
-    serve.mongo_client["labyrinth"]["aws_accounts"].insert_one(
+    serve.db["labyrinth"]["aws_accounts"].insert_one(
         {
             "_id": bson.ObjectId(),
             "name": "existing-account",
@@ -2163,7 +2165,7 @@ def test_create_aws_account_duplicate_name(setup):
 def test_update_aws_account_invalid_json(setup):
     """Handle invalid JSON in update AWS account."""
     account_id = str(bson.ObjectId())
-    serve.mongo_client["labyrinth"]["aws_accounts"].insert_one(
+    serve.db["labyrinth"]["aws_accounts"].insert_one(
         {"_id": bson.ObjectId(account_id), "name": "test", "region": "us-east-1"}
     )
 
@@ -2405,7 +2407,7 @@ def test_get_structure_cache(setup):
 
 def test_create_edit_link_post_method(setup):
     """Test create_edit_link with POST method."""
-    serve.mongo_client["labyrinth"]["subnets"].insert_one(
+    serve.db["labyrinth"]["subnets"].insert_one(
         {"_id": bson.ObjectId(), "subnet": "192.168.1.0/24"}
     )
 
@@ -2428,7 +2430,7 @@ def test_create_edit_link_invalid_method(setup):
 def test_update_aws_account_with_secret_key(setup):
     """Test updating AWS account with secret key."""
     account_id = str(bson.ObjectId())
-    serve.mongo_client["labyrinth"]["aws_accounts"].insert_one(
+    serve.db["labyrinth"]["aws_accounts"].insert_one(
         {
             "_id": bson.ObjectId(account_id),
             "name": "test",
@@ -2451,7 +2453,7 @@ def test_update_aws_account_with_secret_key(setup):
 def test_update_proxmox_cluster_success(setup):
     """Test successful proxmox cluster update."""
     cluster_id = str(bson.ObjectId())
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one(
+    serve.db["labyrinth"]["proxmox_clusters"].insert_one(
         {
             "_id": bson.ObjectId(cluster_id),
             "name": "cluster1",
@@ -2476,7 +2478,7 @@ def test_update_proxmox_cluster_success(setup):
 def test_get_proxmox_cluster_success(setup):
     """Test getting proxmox cluster."""
     cluster_id = str(bson.ObjectId())
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one(
+    serve.db["labyrinth"]["proxmox_clusters"].insert_one(
         {
             "_id": bson.ObjectId(cluster_id),
             "name": "cluster1",
@@ -2514,7 +2516,7 @@ def test_create_aws_account_success(setup):
 
 def test_list_aws_accounts_with_secrets_redacted(setup):
     """Test list AWS accounts redacts secrets."""
-    serve.mongo_client["labyrinth"]["aws_accounts"].insert_one(
+    serve.db["labyrinth"]["aws_accounts"].insert_one(
         {
             "_id": bson.ObjectId(),
             "name": "account1",

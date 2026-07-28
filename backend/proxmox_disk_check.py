@@ -11,7 +11,6 @@ import json
 import sys
 import time
 from typing import List, Dict, Optional, Tuple
-import pymongo
 import redis
 from jinja2 import Environment, FileSystemLoader, Template, select_autoescape
 from datetime import datetime
@@ -22,6 +21,7 @@ sys.path.insert(0, "/src")
 
 import proxmox_helper
 from ai import email_helper
+from db import get_db
 
 # Setup Jinja2 template environment with auto-escaping enabled for HTML templates
 TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "templates")
@@ -31,23 +31,10 @@ jinja_env = Environment(
 )
 
 
-def get_mongo_client():
-    """Get MongoDB client from connection string."""
-    if os.getenv("GITHUB") or os.getenv("TESTBED"):
-        return pymongo.MongoClient(
-            "mongodb://{}:{}@{}".format(
-                os.environ.get("MONGO_USERNAME"),
-                os.environ.get("MONGO_PASSWORD"),
-                os.environ.get("MONGO_HOST"),
-            )
-        )
-    return pymongo.MongoClient(
-        "mongodb+srv://{}:{}@{}".format(
-            os.environ.get("MONGO_USERNAME"),
-            os.environ.get("MONGO_PASSWORD"),
-            os.environ.get("MONGO_HOST"),
-        )
-    )
+def _get_db_client():
+    """Get a database client for the configured backend (Postgres by
+    default, Mongo if DB_BACKEND=mongo - see backend/db/)."""
+    return get_db()
 
 
 def get_disk_alert_settings(db) -> Dict:
@@ -312,7 +299,7 @@ def gather_all_disk_issues(
 
     Returns a tuple: (issues, cluster_errors)
     """
-    db = db or get_mongo_client()
+    db = db or _get_db_client()
     clusters = list(db["labyrinth"]["proxmox_clusters"].find({}))
     redis_client = redis_client or proxmox_helper.get_redis_client()
 
@@ -457,7 +444,7 @@ def send_full_test_email(
     if not recipients:
         raise ValueError("At least one recipient is required")
 
-    db = db or get_mongo_client()
+    db = db or _get_db_client()
 
     if threshold_percent is None:
         threshold_percent = get_disk_alert_settings(db)["threshold_percent"]
@@ -486,7 +473,7 @@ def check_and_alert_disk_space():
     Main function: Check all Proxmox clusters for disk issues and send email alerts.
     """
     try:
-        db = get_mongo_client()
+        db = _get_db_client()
 
         # Get settings
         settings = get_disk_alert_settings(db)
