@@ -1994,10 +1994,16 @@ def read_metrics(host, service="", count=100, option=""):
         .limit(count)
     ]
 
+    # Staleness is "is the current reading fresh right now" - meaningful for
+    # metrics-latest, meaningless for history rows (which are always old
+    # relative to "now" and would otherwise judge as -1 forever).
+    stale_time = 10000 if table == "metrics-latest" else float("inf")
+    check_stale_time = 600 if table == "metrics-latest" else float("inf")
+
     if service.strip() == "open_ports" or service.strip() == "closed_ports":
         for item in retval:
             item["judgement"] = mc.judge_port(
-                item, service, found_host, stale_time=10000
+                item, service, found_host, stale_time=stale_time
             )
             item["judgement_debug"] = {
                 "item": json.dumps(item, default=str),
@@ -2009,7 +2015,9 @@ def read_metrics(host, service="", count=100, option=""):
             if item is None or found_service is None:
                 item["judgement"] = False
             else:
-                item["judgement"] = mc.judge(item, found_service)
+                item["judgement"] = mc.judge(
+                    item, found_service, stale_time=check_stale_time
+                )
 
     return (
         json.dumps(retval[::-1], default=str),

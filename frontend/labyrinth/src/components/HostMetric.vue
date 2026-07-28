@@ -1,10 +1,24 @@
 <template>
   <b-modal id="service_detail" title="Service Details" size="xl">
-    <line-chart
+    <div class="d-flex justify-content-end mb-2" v-if="display">
+      <b-button-group size="sm">
+        <b-button
+          v-for="option in granularityOptions"
+          :key="option.value"
+          :variant="
+            granularity === option.value ? 'primary' : 'outline-primary'
+          "
+          @click="granularity = option.value"
+        >
+          {{ option.label }}
+        </b-button>
+      </b-button-group>
+    </div>
+    <uptime-graph
       v-if="display"
-      height="100px"
-      :chart-data="datacollection"
-    ></line-chart>
+      :records="result"
+      :granularity="granularity"
+    ></uptime-graph>
 
     <div style="overflow-x: scroll" class="mt-2">
       <h4>Current Result</h4>
@@ -64,74 +78,98 @@
       </b-table>
 
       <hr />
-      <h4>History</h4>
-      <b-table
-        :items="result_backwards"
-        v-if="!loading"
-        :fields="['name', 'tags', 'fields', 'timestamp', 'judgement']"
+      <b-button
+        variant="link"
+        class="p-0 mb-2"
+        @click="showHistory = !showHistory"
       >
-        <template v-slot:cell(timestamp)="row">
-          {{ formatDate(row.item.timestamp * 1000) }}
-          {{ formatDate(row.item.timestamp * 1000, true) }}
-        </template>
+        <font-awesome-icon
+          :icon="showHistory ? 'chevron-down' : 'chevron-right'"
+          size="1x"
+        />&nbsp; {{ showHistory ? "Hide" : "Show" }} Full History
+        <span v-if="!loading">({{ result_backwards.length }} records)</span>
+      </b-button>
 
-        <template v-slot:cell(fields)="row">
-          <b-table
-            :items="Object.keys(row.item.fields)"
-            :fields="['name', 'value']"
-            striped
-            bordered
-            small
-          >
-            <template v-slot:cell(name)="x">
-              {{ x.item.replace(/_/g, " ") }}
-            </template>
-            <template v-slot:cell(value)="x">
-              {{ row.item.fields[x.item] }}
-            </template>
-          </b-table>
-        </template>
-        <template v-slot:cell(tags)="row">
-          <b-table
-            :items="Object.keys(row.item.tags)"
-            :fields="['name', 'value']"
-            striped
-            bordered
-            small
-          >
-            <template v-slot:cell(name)="x">
-              {{ x.item.replace(/_/g, " ") }}
-            </template>
-            <template v-slot:cell(value)="x">
-              {{ row.item.tags[x.item].replace(/_/g, " ") }}
-            </template>
-          </b-table>
-        </template>
-      </b-table>
-      <b-spinner v-else />
+      <b-collapse v-model="showHistory">
+        <h4>History</h4>
+        <b-table
+          :items="result_backwards"
+          v-if="!loading"
+          :fields="['name', 'tags', 'fields', 'timestamp', 'judgement']"
+        >
+          <template v-slot:cell(timestamp)="row">
+            {{ formatDate(row.item.timestamp * 1000) }}
+            {{ formatDate(row.item.timestamp * 1000, true) }}
+          </template>
+
+          <template v-slot:cell(fields)="row">
+            <b-table
+              :items="Object.keys(row.item.fields)"
+              :fields="['name', 'value']"
+              striped
+              bordered
+              small
+            >
+              <template v-slot:cell(name)="x">
+                {{ x.item.replace(/_/g, " ") }}
+              </template>
+              <template v-slot:cell(value)="x">
+                {{ row.item.fields[x.item] }}
+              </template>
+            </b-table>
+          </template>
+          <template v-slot:cell(tags)="row">
+            <b-table
+              :items="Object.keys(row.item.tags)"
+              :fields="['name', 'value']"
+              striped
+              bordered
+              small
+            >
+              <template v-slot:cell(name)="x">
+                {{ x.item.replace(/_/g, " ") }}
+              </template>
+              <template v-slot:cell(value)="x">
+                {{ row.item.tags[x.item].replace(/_/g, " ") }}
+              </template>
+            </b-table>
+          </template>
+        </b-table>
+        <b-spinner v-else />
+      </b-collapse>
     </div>
   </b-modal>
 </template>
 
 <script>
-import LineChart from "./charts/BarChart";
+import UptimeGraph from "./charts/UptimeGraph";
 
 import Helper from "@/helper";
+
+// Enough history to make day/hour bucketing in the uptime graph meaningful,
+// not just the last handful of checks.
+const HISTORY_FETCH_COUNT = 1000;
 
 export default {
   name: "HostMetric",
   props: ["data"],
   components: {
-    LineChart,
+    UptimeGraph,
   },
   data() {
     return {
-      datacollection: null,
       display: false,
       result: [],
       result_backwards: [],
       loading: false,
       latest_metric: [],
+      granularity: "day",
+      granularityOptions: [
+        { value: "day", label: "Day" },
+        { value: "hour", label: "Hour" },
+        { value: "check", label: "Check" },
+      ],
+      showHistory: false,
     };
   },
   mounted() {},
@@ -173,38 +211,16 @@ export default {
         let auth = this.$auth;
         this.loading = true;
         this.display = false;
+        this.showHistory = false;
         await Helper.apiCall(
           "metrics",
-          this.data.ip + "/" + this.data.name,
+          this.data.ip + "/" + this.data.name + "/" + HISTORY_FETCH_COUNT,
           auth
         )
           .then((res) => {
             this.result = res;
             this.result_backwards = JSON.parse(JSON.stringify(res)).reverse();
             this.loading = false;
-            this.datacollection = {
-              labels: this.result.map((x) =>
-                this.formatDate(x["timestamp"] * 1000, true)
-              ),
-              datasets: [
-                {
-                  label: "Success",
-                  backgroundColor: "green",
-                  data: this.result.map((x) => {
-                    if (x["judgement"] == true) {
-                      return 1;
-                    } else {
-                      return 0;
-                    }
-                  }),
-                },
-                {
-                  label: "Failure",
-                  backgroundColor: "red",
-                  data: this.result.map((x) => (x["judgement"] != true) * 1),
-                },
-              ],
-            };
             this.display = true;
           })
           .catch((e) => {
