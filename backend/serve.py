@@ -22,6 +22,7 @@ import yaml
 
 import metrics as mc
 import watcher
+import ingest_counters
 
 import shutil
 import services as svcs
@@ -2056,17 +2057,70 @@ def insert_metric(inp=""):
     if "metrics" not in data:  # pragma: no cover
         return "Invalid data", 421
 
+    # Telegraf agents post here through the Go ingest service (metrics-go).
+    # This route stays as a fallback, so it uses one connection and one
+    # pipelined round trip rather than a connection pool per metric.
+    a = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
+    pipeline = a.pipeline()
+    queued = False
+
     for item in data["metrics"]:
 
         if "tags" in item and "name" in item:
 
-            a = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
-
             name = json.dumps({"name": item["name"], "tags": item["tags"]}, default=str)
-            a.set(f"METRIC-{name}", json.dumps(item, default=str))
-            a.expire(f"METRIC-{name}", 120)
+            pipeline.set(f"METRIC-{name}", json.dumps(item, default=str), ex=120)
+            queued = True
+
+    if queued:
+        pipeline.execute()
 
     return "Success", 200
+
+
+@app.route("/metrics_counts/<host>", methods=["GET"])
+@requires_auth_read
+def read_metric_counts(host):
+    """
+    Telegraf ingest counters for a host - how many requests and metrics it has
+    sent, plus the last hour a minute at a time.  Written by the Go ingest
+    service; see backend/ingest_counters.py for the key layout.
+    """
+    found_host = (
+        db["labyrinth"]["hosts"].find_one({"$or": [{"mac": host}, {"ip": host}]}) or {}
+    )
+
+    return (
+        json.dumps(
+            ingest_counters.read_counts(
+                mac=found_host.get("mac", ""),
+                ip=found_host.get("ip", ""),
+                requested=host,
+            ),
+            default=str,
+        ),
+        200,
+    )
+
+
+@app.route("/metrics_counts/<host>", methods=["DELETE"])
+@requires_auth_write
+def reset_metric_counts(host):
+    """
+    Zeroes a host's ingest counters, so a change to its Telegraf config can be
+    measured against a clean slate.
+    """
+    found_host = (
+        db["labyrinth"]["hosts"].find_one({"$or": [{"mac": host}, {"ip": host}]}) or {}
+    )
+
+    deleted = ingest_counters.reset_counts(
+        mac=found_host.get("mac", ""),
+        ip=found_host.get("ip", ""),
+        requested=host,
+    )
+
+    return json.dumps({"deleted": deleted}), 200
 
 
 @app.route("/bulk_insert/", methods=["GET"])

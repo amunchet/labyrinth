@@ -44,12 +44,30 @@ services:
       REDIS_HOST: redis
       TESTBED: 1
 
+  # Go Telegraf ingest service - serves POST /api/metrics/
+  metrics:
+    build:
+      context: metrics-go
+    depends_on:
+      - redis
+    ports:
+      - 127.0.0.1:9000:9000
+    volumes:
+      # Same dotenv the Flask backend reads, so TELEGRAF_KEY always matches.
+      - ./backend:/backend:ro
+    networks:
+      - labyrinth
+    environment:
+      REDIS_HOST: redis
+      LOG_REQUESTS: "true"
+
   # Caddy frontend server
   frontend:
     build: ./caddy
     restart: always
     depends_on:
       - backend
+      - metrics
       - alertmanager
     networks:
       - labyrinth

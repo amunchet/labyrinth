@@ -10,6 +10,7 @@ Labyrinth is a network analyzer, mapper, and monitor built on NMap, Ansible, and
 
 **Service boundaries:**
 - `backend/` - Flask API server (port 7000 in dev) handling all business logic; nearly every route lives in `backend/serve.py` (~3000 lines)
+- `metrics-go/` - Go Telegraf ingest service (port 9000, `metrics` compose service). Caddy routes `POST /api/metrics/` here; everything else under `/api/` still goes to Flask. Drop-in replacement for `serve.py`'s `insert_metric`: same `TELEGRAF_KEY` header check, same `METRIC-<json>` Redis keys with the same 120s TTL, but one pipelined Redis round trip per agent batch instead of a connection pool per metric. Also records the per-client ingest counters (see below). Full docs in `metrics-go/README.md`
 - `frontend/labyrinth/` - Vue 2 SPA with Bootstrap-Vue for UI, Konva canvas for network topology visualization
 - `alertmanager/` - Prometheus Alertmanager for alert routing
 - `nginx/` - Reverse proxy with lego for SSL cert management
@@ -23,7 +24,7 @@ Labyrinth is a network analyzer, mapper, and monitor built on NMap, Ansible, and
 
 **Data flow:**
 1. Network scans via `backend/finder.py` (nmap) create/update hosts in the database
-2. Telegraf agents collect metrics and POST to `/metrics` with a `TELEGRAF_KEY` header (checked via the `requires_header` decorator, not Auth0)
+2. Telegraf agents collect metrics and POST to `/metrics` with a `TELEGRAF_KEY` header (checked via the `requires_header` decorator, not Auth0). In deployed stacks this is served by `metrics-go`; the Flask route remains as a fallback
 3. Metrics are written to Redis first, then bulk-moved to the database by `cron/bulk_write.sh` (`serve.py`'s `bulk_insert()`)
 4. Frontend polls the backend API to display topology and metrics
 5. `backend/watcher.py` judges service health and sends alerts to Alertmanager (`http://alertmanager:9093/api/v2/alerts`, password read from `/alertmanager/pass`); frontend can list/resolve them via `/alertmanager/alerts`
@@ -48,6 +49,13 @@ Labyrinth is a network analyzer, mapper, and monitor built on NMap, Ansible, and
   - Per-VM/LXC guest status fallback cache (`proxmox-guest-status:{cluster}:{node}:{vm|lxc}:{vmid}`, `PROXMOX_GUEST_STATUS_CACHE_TTL_SECONDS`, default 2 hours) - when a live `get_vm_status`/`get_container_status` call fails, the last known-good status is reused instead of treating the guest as having zero disk usage. This exists specifically to avoid false-positive "missing QEMU guest agent" alerts caused by a single transient API failure.
 - `collect_disk_issues` in `proxmox_disk_check.py` turns cluster payloads into threshold-based issues (datastore/vm/container) and always surfaces VMs whose QEMU guest agent is inferred missing, regardless of threshold - a running VM with `maxdisk > 0` and `disk == 0` is a real "we can't measure this" case, not a clean bill of health.
 - Email alerts render via Jinja2 (`backend/templates/disk_space_alert.html`, autoescaped) through `email_helper`.
+
+### Telegraf ingest and per-client counters (`metrics-go/`, `backend/ingest_counters.py`)
+
+- `metrics-go` reproduces the Flask ingest contract exactly, including the Redis key format. `metrics-go/pyjson.go` reimplements the subset of CPython's `json.dumps` that `serve.py` uses to build keys (`", "`/`": "` separators, insertion order, `ensure_ascii=True`), so both implementations write the *same* key for the same metric and can run side by side or be rolled back cleanly.
+- While storing a batch it also counts it, in the same pipeline: `ingest:count:<client>` (hash of `requests`/`metrics`/`skipped`/`first_seen`/`last_seen`/`last_batch`/`mac`/`ip`/`host`, 30 day TTL) and `ingest:min:<client>:<minute>:r` / `:m` (per-minute buckets, 65 minute TTL so the last hour needs no pruning). `<client>` is the upper-cased `mac` tag, else the `ip` tag, else `remote:<address>`.
+- The counter prefix must never be `METRIC-`: `bulk_insert` does `KEYS METRIC-*` and `GET`s every match, so a hash under that prefix would fail the bulk writer with `WRONGTYPE`.
+- `backend/ingest_counters.py` is the read side (`GET`/`DELETE /metrics_counts/<host>` in `serve.py`, resolving a host by mac or ip), and the counters are displayed in the host settings modal (`CreateEditHost.vue`).
 
 ### AI summaries and MCP (`backend/ai/`)
 
@@ -84,6 +92,16 @@ DB_BACKEND=mongo PYTHONPATH=. pytest test/
 - Routes are wrapped in Auth0 decorators; tests call them via `common.test.unwrap(serve.some_route)()` to bypass auth and invoke the underlying function directly.
 - The database is tested against real ephemeral containers (both `mongo` and `postgres` run in dev/CI), not mocks - matches the existing convention for Mongo, now extended to Postgres. Redis is a mix: some tests hit the real `redis` container, others mock via fixtures/monkeypatch (e.g. `Mock(spec=redis.Redis)`, hand-rolled `FakeRedis` classes).
 - `backend/test/test_18_db_adapters.py` runs the same black-box scenarios against both `MongoClientAdapter` and `PostgresClientAdapter`; `test_19_compact_metrics.py`, `test_20_backup_db.py`, `test_21_migrate_to_postgres.py` cover the cron/migration tooling. Note the numeric test-file prefixes are not unique - `test_18_ec2_unmatched_check.py`, `test_19_ai_settings.py`, and `test_20_ai_pipeline.py` were added independently and collide by number only, not by name.
+
+**Go ingest service tests (`metrics-go/`):**
+```bash
+cd metrics-go
+# no Go toolchain in the stack's images - use the official one
+docker run --rm -v "$PWD":/src -w /src golang:1.23-alpine \
+  sh -c 'gofmt -l . && go vet ./... && go test ./... -cover'
+```
+- `pyjson_test.go` holds golden keys generated by CPython; a failure there means the Go and Flask ingest paths have drifted.
+- Redis is faked with `miniredis`, so no services are needed.
 
 **Frontend (`frontend/labyrinth/`):**
 ```bash
@@ -132,6 +150,8 @@ docker-compose -f docker-compose-production.yml up --build -d
 ## Key Files
 - `backend/serve.py` - all API endpoints
 - `backend/db/` - database adapter ecosystem (`base.py` interface, `mongo_adapter.py`, `postgres_adapter.py`, `__init__.py`'s `get_db()` factory)
+- `metrics-go/` - Go Telegraf ingest service (`server.go` handler, `parse.go` batch parsing, `pyjson.go` Python-compatible key rendering, `counters.go` ingest counters)
+- `backend/ingest_counters.py` - read/reset side of the per-client ingest counters
 - `backend/finder.py` - network discovery
 - `backend/metrics.py` - service health judging
 - `backend/services.py` - Telegraf config parsing

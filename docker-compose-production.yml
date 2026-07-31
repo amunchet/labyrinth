@@ -44,6 +44,30 @@ services:
       REDIS_HOST: redis
       PRODUCTION: 1
 
+  # Go Telegraf ingest service - serves POST /api/metrics/.  This is the hot
+  # path: one pipelined Redis round trip per agent flush instead of the Flask
+  # route's connection pool per metric.
+  metrics:
+    build:
+      context: metrics-go
+      args:
+        TZ: ${TZ}
+    restart: always
+    depends_on:
+      - redis
+    volumes:
+      # Same dotenv the Flask backend reads, so TELEGRAF_KEY always matches.
+      - ./backend:/backend:ro
+    networks:
+      - labyrinth
+    environment:
+      REDIS_HOST: redis
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:9000/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
   frontend:
     build: ./caddy
     restart: always
