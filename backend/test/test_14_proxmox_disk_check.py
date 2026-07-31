@@ -25,8 +25,8 @@ from common.test import unwrap
 
 def cleanup_test_data():
     """Clean up disk-check test data."""
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].delete_many({})
-    serve.mongo_client["labyrinth"]["settings"].delete_many({})
+    serve.db["labyrinth"]["proxmox_clusters"].delete_many({})
+    serve.db["labyrinth"]["settings"].delete_many({})
 
 
 @pytest.fixture
@@ -323,7 +323,7 @@ def test_gather_all_disk_issues_checks_every_cluster_including_qemu_missing(
     even though it was genuinely being queried. This is the direct regression
     test for that bug.
     """
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_many(
+    serve.db["labyrinth"]["proxmox_clusters"].insert_many(
         [
             {
                 "name": "cluster-1",
@@ -356,7 +356,7 @@ def test_gather_all_disk_issues_checks_every_cluster_including_qemu_missing(
     )
 
     issues, errors = proxmox_disk_check.gather_all_disk_issues(
-        80, db=serve.mongo_client, redis_client=object()
+        80, db=serve.db, redis_client=object()
     )
 
     assert errors == []
@@ -374,7 +374,7 @@ def test_gather_all_disk_issues_records_errors_without_skipping_other_clusters(
 ):
     """A cluster that errors out should be reported in cluster_errors, but
     must not prevent other clusters from being checked."""
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_many(
+    serve.db["labyrinth"]["proxmox_clusters"].insert_many(
         [
             {
                 "name": "cluster-broken",
@@ -407,7 +407,7 @@ def test_gather_all_disk_issues_records_errors_without_skipping_other_clusters(
     )
 
     issues, errors = proxmox_disk_check.gather_all_disk_issues(
-        80, db=serve.mongo_client, redis_client=object()
+        80, db=serve.db, redis_client=object()
     )
 
     assert len(errors) == 1
@@ -678,7 +678,7 @@ def test_render_email_template_omits_qemu_missing_section_when_absent():
 def test_send_full_test_email_reports_issues_from_all_clusters(setup, monkeypatch):
     """The 'Send Full Test Email' path must reflect issues found across every
     cluster, including missing-QEMU warnings, and report a per-type breakdown."""
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_many(
+    serve.db["labyrinth"]["proxmox_clusters"].insert_many(
         [
             {
                 "name": "cluster-1",
@@ -725,7 +725,7 @@ def test_send_full_test_email_reports_issues_from_all_clusters(setup, monkeypatc
     result = proxmox_disk_check.send_full_test_email(
         ["ops@example.com"],
         threshold_percent=80,
-        db=serve.mongo_client,
+        db=serve.db,
         redis_client=object(),
     )
 
@@ -826,7 +826,7 @@ def test_send_disk_space_test_email_endpoint_falls_back_to_saved_recipients(
 ):
     """When no recipients are supplied in the request, the endpoint should
     fall back to the saved disk_space_alert_recipients setting."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {
             "name": "disk_space_alert_recipients",
             "value": "saved@example.com, other@example.com",
@@ -985,7 +985,7 @@ def test_format_size_petabytes():
 
 def test_get_disk_alert_settings_defaults(setup):
     """Return defaults when no settings exist."""
-    settings = proxmox_disk_check.get_disk_alert_settings(serve.mongo_client)
+    settings = proxmox_disk_check.get_disk_alert_settings(serve.db)
 
     assert settings["threshold_percent"] == 80
     assert settings["recipients"] == []
@@ -993,61 +993,61 @@ def test_get_disk_alert_settings_defaults(setup):
 
 def test_get_disk_alert_settings_custom_threshold(setup):
     """Retrieve custom threshold."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {"name": "disk_space_alert_threshold", "value": "90"}
     )
 
-    settings = proxmox_disk_check.get_disk_alert_settings(serve.mongo_client)
+    settings = proxmox_disk_check.get_disk_alert_settings(serve.db)
 
     assert settings["threshold_percent"] == 90
 
 
 def test_get_disk_alert_settings_invalid_threshold(setup):
     """Fall back to default for invalid threshold."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {"name": "disk_space_alert_threshold", "value": "not-a-number"}
     )
 
-    settings = proxmox_disk_check.get_disk_alert_settings(serve.mongo_client)
+    settings = proxmox_disk_check.get_disk_alert_settings(serve.db)
 
     assert settings["threshold_percent"] == 80
 
 
 def test_get_disk_alert_settings_empty_threshold(setup):
     """Fall back to default for empty threshold."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {"name": "disk_space_alert_threshold", "value": ""}
     )
 
-    settings = proxmox_disk_check.get_disk_alert_settings(serve.mongo_client)
+    settings = proxmox_disk_check.get_disk_alert_settings(serve.db)
 
     assert settings["threshold_percent"] == 80
 
 
 def test_get_disk_alert_settings_recipients_as_list(setup):
     """Handle recipients as list."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {
             "name": "disk_space_alert_recipients",
             "value": ["user1@example.com", "user2@example.com"],
         }
     )
 
-    settings = proxmox_disk_check.get_disk_alert_settings(serve.mongo_client)
+    settings = proxmox_disk_check.get_disk_alert_settings(serve.db)
 
     assert len(settings["recipients"]) == 2
 
 
 def test_get_disk_alert_settings_recipients_as_comma_string(setup):
     """Parse recipients from comma-separated string."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {
             "name": "disk_space_alert_recipients",
             "value": "user1@example.com, user2@example.com",
         }
     )
 
-    settings = proxmox_disk_check.get_disk_alert_settings(serve.mongo_client)
+    settings = proxmox_disk_check.get_disk_alert_settings(serve.db)
 
     assert len(settings["recipients"]) == 2
     assert "user1@example.com" in settings["recipients"]
@@ -1056,14 +1056,14 @@ def test_get_disk_alert_settings_recipients_as_comma_string(setup):
 
 def test_get_disk_alert_settings_recipients_with_whitespace(setup):
     """Strip whitespace from recipients."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {
             "name": "disk_space_alert_recipients",
             "value": "  user1@example.com  ,  user2@example.com  ",
         }
     )
 
-    settings = proxmox_disk_check.get_disk_alert_settings(serve.mongo_client)
+    settings = proxmox_disk_check.get_disk_alert_settings(serve.db)
 
     assert settings["recipients"] == ["user1@example.com", "user2@example.com"]
 
@@ -1711,7 +1711,7 @@ def test_check_and_alert_disk_space_no_recipients(setup, monkeypatch, capsys):
 
 def test_check_and_alert_disk_space_no_clusters(setup, monkeypatch, capsys):
     """Skip check when no clusters configured."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {"name": "disk_space_alert_recipients", "value": "ops@example.com"}
     )
 
@@ -1723,10 +1723,10 @@ def test_check_and_alert_disk_space_no_clusters(setup, monkeypatch, capsys):
 
 def test_check_and_alert_disk_space_no_issues(setup, monkeypatch, capsys):
     """Handle case with no issues found."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {"name": "disk_space_alert_recipients", "value": "ops@example.com"}
     )
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one(
+    serve.db["labyrinth"]["proxmox_clusters"].insert_one(
         {
             "name": "cluster-1",
             "host": "10.0.0.1",
@@ -1746,10 +1746,10 @@ def test_check_and_alert_disk_space_no_issues(setup, monkeypatch, capsys):
 
 def test_check_and_alert_disk_space_sends_alert_on_issues(setup, monkeypatch, capsys):
     """Send alert when issues are found."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {"name": "disk_space_alert_recipients", "value": "ops@example.com"}
     )
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one(
+    serve.db["labyrinth"]["proxmox_clusters"].insert_one(
         {
             "name": "cluster-1",
             "host": "10.0.0.1",
@@ -1776,10 +1776,10 @@ def test_check_and_alert_disk_space_sends_alert_on_issues(setup, monkeypatch, ca
 
 def test_check_and_alert_disk_space_handles_email_error(setup, monkeypatch, capsys):
     """Handle email sending errors."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {"name": "disk_space_alert_recipients", "value": "ops@example.com"}
     )
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one(
+    serve.db["labyrinth"]["proxmox_clusters"].insert_one(
         {
             "name": "cluster-1",
             "host": "10.0.0.1",

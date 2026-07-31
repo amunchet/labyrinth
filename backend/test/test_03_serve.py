@@ -18,11 +18,11 @@ from common.test import unwrap, delete_keys_recursive
 
 def tearDown():
     """Tears down tests"""
-    serve.mongo_client["labyrinth"]["subnets"].delete_many({})
-    serve.mongo_client["labyrinth"]["hosts"].delete_many({})
-    serve.mongo_client["labyrinth"]["services"].delete_many({})
-    serve.mongo_client["labyrinth"]["settings"].delete_many({})
-    serve.mongo_client["labyrinth"]["metrics"].delete_many({})
+    serve.db["labyrinth"]["subnets"].delete_many({})
+    serve.db["labyrinth"]["hosts"].delete_many({})
+    serve.db["labyrinth"]["services"].delete_many({})
+    serve.db["labyrinth"]["settings"].delete_many({})
+    serve.db["labyrinth"]["metrics"].delete_many({})
 
     a = redis.Redis(host=os.environ.get("REDIS_HOST"))
     for key in a.keys(pattern="METRIC-*"):
@@ -108,7 +108,7 @@ def test_create_edit_subnet(setup):
     a = unwrap(serve.create_edit_subnet)(sample_subnet)
     assert a[1] == 200
 
-    b = serve.mongo_client["labyrinth"]["subnets"].find({})
+    b = serve.db["labyrinth"]["subnets"].find({})
     c = [x for x in b]
     assert len(c) == 1
 
@@ -121,7 +121,7 @@ def test_create_edit_subnet(setup):
     a = unwrap(serve.create_edit_subnet)(sample_subnet)
     assert a[1] == 200
 
-    b = serve.mongo_client["labyrinth"]["subnets"].find({})
+    b = serve.db["labyrinth"]["subnets"].find({})
     d = [x for x in b]
     assert len(d) == 1
 
@@ -157,7 +157,7 @@ def test_create_edit_host(setup):
     a = unwrap(serve.create_edit_host)(sample_host)
     assert a[1] == 200
 
-    b = serve.mongo_client["labyrinth"]["hosts"].find({})
+    b = serve.db["labyrinth"]["hosts"].find({})
     c = [x for x in b]
     print("Hosts: ", c)
     assert len(c) == 1
@@ -165,7 +165,7 @@ def test_create_edit_host(setup):
     for key in sample_host.keys():
         assert sample_host[key] == c[0][key]
 
-    b = serve.mongo_client["labyrinth"]["subnets"].find({})
+    b = serve.db["labyrinth"]["subnets"].find({})
     c = [x for x in b]
     assert len(c) == 1
 
@@ -179,14 +179,14 @@ def test_create_edit_host(setup):
     a = unwrap(serve.create_edit_host)(sample_host)
     assert a[1] == 200
 
-    b = serve.mongo_client["labyrinth"]["hosts"].find({})
+    b = serve.db["labyrinth"]["hosts"].find({})
     c = [x for x in b]
     assert len(c) == 1
 
     for key in sample_host.keys():
         assert sample_host[key] == c[0][key]
 
-    b = serve.mongo_client["labyrinth"]["subnets"].find({})
+    b = serve.db["labyrinth"]["subnets"].find({})
     c = [x for x in b]
     assert len(c) == 2
 
@@ -221,7 +221,7 @@ def test_list_hosts_by_tag(setup):
     assert isinstance(tagged_hosts, list)
 
     # Match by service name when present
-    serve.mongo_client["labyrinth"]["hosts"].update_one(
+    serve.db["labyrinth"]["hosts"].update_one(
         {"ip": "192.168.10.176"}, {"$set": {"services": ["disk-check"]}}
     )
     with serve.app.test_request_context("/hosts/disk-check", method="GET"):
@@ -238,7 +238,7 @@ def test_create_edit_link(setup):
     data = {"ref": "start_76", "ip": ".178", "icon": "Router", "color": "orange"}
     a = unwrap(serve.create_edit_link)(link=data, subnet="192.168.0")
 
-    b = serve.mongo_client["labyrinth"]["subnets"].find({})
+    b = serve.db["labyrinth"]["subnets"].find({})
     c = [x for x in b]
     assert len(c) == 1
 
@@ -250,14 +250,14 @@ def test_create_edit_link(setup):
 def test_delete_subnet(setup):
     """Deletes a subnet"""
     test_create_edit_subnet(setup)
-    b = serve.mongo_client["labyrinth"]["subnets"].find({})
+    b = serve.db["labyrinth"]["subnets"].find({})
     c = [x for x in b]
     assert len(c) == 1
 
     a = unwrap(serve.delete_subnet)("192.168.0")
     assert a[1] == 200
 
-    b = serve.mongo_client["labyrinth"]["subnets"].find({})
+    b = serve.db["labyrinth"]["subnets"].find({})
     c = [x for x in b]
     assert len(c) == 0
 
@@ -271,7 +271,7 @@ def test_host_group_rename(setup):
     """
     test_create_edit_host(setup)
 
-    b = serve.mongo_client["labyrinth"]["hosts"].find({})
+    b = serve.db["labyrinth"]["hosts"].find({})
     c = [x for x in b]
     assert len(c) == 1
     print("This:", c[0])
@@ -280,7 +280,7 @@ def test_host_group_rename(setup):
     a = unwrap(serve.host_group_rename)("192.168.10.176", "test")
     assert a[1] == 200
 
-    b = serve.mongo_client["labyrinth"]["hosts"].find({})
+    b = serve.db["labyrinth"]["hosts"].find({})
     c = [x for x in b]
     assert len(c) == 1
     print(c[0])
@@ -292,14 +292,14 @@ def test_delete_host(setup):
     Deletes a Host
     """
     test_create_edit_host(setup)
-    b = serve.mongo_client["labyrinth"]["hosts"].find({})
+    b = serve.db["labyrinth"]["hosts"].find({})
     c = [x for x in b]
     assert len(c) == 1
 
     a = unwrap(serve.delete_host)("00-00-00-00-01")
     assert a[1] == 200
 
-    b = serve.mongo_client["labyrinth"]["hosts"].find({})
+    b = serve.db["labyrinth"]["hosts"].find({})
     c = [x for x in b]
     assert len(c) == 0
 
@@ -334,7 +334,7 @@ def test_group_monitor(setup):
     """
     test_create_edit_host(setup)
 
-    b = serve.mongo_client["labyrinth"]["hosts"].find({})
+    b = serve.db["labyrinth"]["hosts"].find({})
 
     z = [x for x in b]
     print(z)
@@ -344,7 +344,7 @@ def test_group_monitor(setup):
     x = unwrap(serve.group_monitor)("192.168.10", "Windows Servers", True)
     assert x[1] == 200
 
-    b = serve.mongo_client["labyrinth"]["hosts"].find({})
+    b = serve.db["labyrinth"]["hosts"].find({})
     c = [str(x["monitor"]).lower() for x in b]
     assert "true" in c
 
@@ -355,14 +355,14 @@ def test_group_rename(setup):
     """
     test_create_edit_host(setup)
 
-    b = serve.mongo_client["labyrinth"]["hosts"].find({})
+    b = serve.db["labyrinth"]["hosts"].find({})
     c = [x["group"] for x in b]
     assert "Windows Servers" in c
 
     x = unwrap(serve.group_rename)("192.168.10", "Windows Servers", "Meowmix Servers")
     assert x[1] == 200
 
-    b = serve.mongo_client["labyrinth"]["hosts"].find({})
+    b = serve.db["labyrinth"]["hosts"].find({})
     c = [str(x["group"]).lower() for x in b]
     assert "meowmix servers" in c
 
@@ -372,14 +372,14 @@ def test_group_icon(setup):
     Tests group icon
     """
     test_create_edit_host(setup)
-    b = serve.mongo_client["labyrinth"]["hosts"].find({})
+    b = serve.db["labyrinth"]["hosts"].find({})
     c = [x["icon"] for x in b]
     assert "linux" in c
 
     x = unwrap(serve.group_icon)("192.168.10", "Windows Servers", "windows")
     assert x[1] == 200
 
-    b = serve.mongo_client["labyrinth"]["hosts"].find({})
+    b = serve.db["labyrinth"]["hosts"].find({})
     c = [str(x["icon"]).lower() for x in b]
     assert "windows" in c
 
@@ -389,14 +389,14 @@ def test_group_add_service(setup):
     Tests group add service
     """
     test_create_edit_host(setup)
-    b = serve.mongo_client["labyrinth"]["hosts"].find({})
+    b = serve.db["labyrinth"]["hosts"].find({})
     c = [x["services"] for x in b]
     assert ["open_ports", "closed_ports", "check_hd-1"] in c
 
     x = unwrap(serve.group_add_service)("192.168.10", "Windows Servers", "check_meow")
     assert x[1] == 200
 
-    b = serve.mongo_client["labyrinth"]["hosts"].find({})
+    b = serve.db["labyrinth"]["hosts"].find({})
     c = [x["services"] for x in b]
     assert ["open_ports", "closed_ports", "check_hd-1", "check_meow"] in c
 
@@ -404,7 +404,7 @@ def test_group_add_service(setup):
     x = unwrap(serve.group_add_service)("192.168.10", "Windows Servers", "check_meow")
     assert x[1] == 200
 
-    b = serve.mongo_client["labyrinth"]["hosts"].find({})
+    b = serve.db["labyrinth"]["hosts"].find({})
     c = [x["services"] for x in b]
     assert ["open_ports", "closed_ports", "check_hd-1", "check_meow"] in c
 
@@ -413,7 +413,7 @@ def test_group_add_service(setup):
     )
     assert z[1] == 200
 
-    b = serve.mongo_client["labyrinth"]["hosts"].find({})
+    b = serve.db["labyrinth"]["hosts"].find({})
     c = [x["services"] for x in b]
     assert ["open_ports", "closed_ports", "check_hd-1"] in c
 
@@ -428,7 +428,7 @@ def test_list_tags(setup):
     assert json.loads(b[0]) == []
 
     # Add tags to host
-    serve.mongo_client["labyrinth"]["hosts"].update_many(
+    serve.db["labyrinth"]["hosts"].update_many(
         {"ip": "192.168.10.176"}, {"$set": {"tags": "proxmox, linux"}}
     )
 
@@ -443,7 +443,7 @@ def test_list_tag_members(setup):
     """Tests listing hosts by tag (cross-subnet)"""
     test_create_edit_host(setup)
 
-    serve.mongo_client["labyrinth"]["hosts"].update_many(
+    serve.db["labyrinth"]["hosts"].update_many(
         {"ip": "192.168.10.176"}, {"$set": {"tags": "proxmox, linux"}}
     )
 
@@ -471,14 +471,14 @@ def test_update_host_tags(setup):
     b = unwrap(serve.update_host_tags)("192.168.10.176", "proxmox,linux")
     assert b[1] == 200
 
-    found = serve.mongo_client["labyrinth"]["hosts"].find_one({"ip": "192.168.10.176"})
+    found = serve.db["labyrinth"]["hosts"].find_one({"ip": "192.168.10.176"})
     assert found["tags"] == "proxmox,linux"
 
     # Clear tags
     b = unwrap(serve.update_host_tags)("192.168.10.176")
     assert b[1] == 200
 
-    found = serve.mongo_client["labyrinth"]["hosts"].find_one({"ip": "192.168.10.176"})
+    found = serve.db["labyrinth"]["hosts"].find_one({"ip": "192.168.10.176"})
     assert found["tags"] == ""
 
     # Not found
@@ -496,21 +496,21 @@ def test_update_host_service_level(setup):
     )
     assert b[1] == 200
 
-    found = serve.mongo_client["labyrinth"]["hosts"].find_one({"ip": "192.168.10.176"})
+    found = serve.db["labyrinth"]["hosts"].find_one({"ip": "192.168.10.176"})
     assert found["service_levels"] == [{"service": "check_hd-1", "level": "warning"}]
 
     # Changing the level replaces the existing entry rather than duplicating it
     b = unwrap(serve.update_host_service_level)("192.168.10.176", "check_hd-1", "error")
     assert b[1] == 200
 
-    found = serve.mongo_client["labyrinth"]["hosts"].find_one({"ip": "192.168.10.176"})
+    found = serve.db["labyrinth"]["hosts"].find_one({"ip": "192.168.10.176"})
     assert found["service_levels"] == [{"service": "check_hd-1", "level": "error"}]
 
     # Clear it
     b = unwrap(serve.update_host_service_level)("192.168.10.176", "check_hd-1")
     assert b[1] == 200
 
-    found = serve.mongo_client["labyrinth"]["hosts"].find_one({"ip": "192.168.10.176"})
+    found = serve.db["labyrinth"]["hosts"].find_one({"ip": "192.168.10.176"})
     assert found["service_levels"] == []
 
     # Not found
@@ -619,7 +619,7 @@ def test_create_edit_service(setup):
     a = unwrap(serve.create_edit_service)(check_service)
     assert a[1] == 200
 
-    b = serve.mongo_client["labyrinth"]["services"].find({})
+    b = serve.db["labyrinth"]["services"].find({})
     c = [x for x in b]
     assert len(c) == 2
 
@@ -639,7 +639,7 @@ def test_create_edit_service(setup):
     a = unwrap(serve.create_edit_service)(check_service)
     assert a[1] == 200
 
-    b = serve.mongo_client["labyrinth"]["services"].find({})
+    b = serve.db["labyrinth"]["services"].find({})
     c = [x for x in b]
     assert len(c) == 2
 
@@ -667,12 +667,12 @@ def test_delete_service(setup):
 
     assert os.path.exists(filename)
 
-    b = serve.mongo_client["labyrinth"]["hosts"].find({})
+    b = serve.db["labyrinth"]["hosts"].find({})
     c = [x for x in b]
     assert len(c) == 1
     assert c[0]["services"] == ["open_ports", "closed_ports", "check_hd-1"]
 
-    b = serve.mongo_client["labyrinth"]["services"].find({})
+    b = serve.db["labyrinth"]["services"].find({})
     c = [x for x in b]
     assert len(c) == 2
 
@@ -682,7 +682,7 @@ def test_delete_service(setup):
     a = unwrap(serve.delete_service)("check_hd-1")
     assert a[1] == 200
 
-    b = serve.mongo_client["labyrinth"]["services"].find({})
+    b = serve.db["labyrinth"]["services"].find({})
     c = [x for x in b]
     assert len(c) == 1
 
@@ -690,7 +690,7 @@ def test_delete_service(setup):
     assert not os.path.exists(filename)
 
     # Check that all hosts have the service deleted
-    b = serve.mongo_client["labyrinth"]["hosts"].find({})
+    b = serve.db["labyrinth"]["hosts"].find({})
     c = [x for x in b]
     assert len(c) == 1
     assert c[0]["services"] == ["closed_ports"]
@@ -727,7 +727,7 @@ def test_delete_service_duplicate_names(setup):
     a = unwrap(serve.create_edit_service)(service_b)
     assert a[1] == 200
 
-    b = serve.mongo_client["labyrinth"]["services"].find({})
+    b = serve.db["labyrinth"]["services"].find({})
     c = [x for x in b]
     assert len(c) == 2
 
@@ -735,7 +735,7 @@ def test_delete_service_duplicate_names(setup):
     a = unwrap(serve.delete_service)("labyrinth-lego-ssl")
     assert a[1] == 200
 
-    b = serve.mongo_client["labyrinth"]["services"].find({})
+    b = serve.db["labyrinth"]["services"].find({})
     c = [x for x in b]
     assert len(c) == 1
     assert c[0]["display_name"] == "labyrinth-lego-cert"
@@ -744,7 +744,7 @@ def test_delete_service_duplicate_names(setup):
     a = unwrap(serve.delete_service)("labyrinth-lego-cert")
     assert a[1] == 200
 
-    b = serve.mongo_client["labyrinth"]["services"].find({})
+    b = serve.db["labyrinth"]["services"].find({})
     c = [x for x in b]
     assert len(c) == 0
 
@@ -758,14 +758,14 @@ def test_update_mac_address(setup):
     with the new MAC
     """
     test_create_edit_host(setup)
-    b = serve.mongo_client["labyrinth"]["hosts"].find({})
+    b = serve.db["labyrinth"]["hosts"].find({})
     c = [x for x in b]
     print("Hosts: ", c)
     assert len(c) == 1
 
     a = unwrap(serve.update_mac)(old_mac=c[0]["mac"], new_mac="000000")
     assert a[1] == 200
-    b = serve.mongo_client["labyrinth"]["hosts"].find({})
+    b = serve.db["labyrinth"]["hosts"].find({})
     c = [x for x in b]
     print("Hosts: ", c)
     assert len(c) == 1
@@ -776,14 +776,14 @@ def test_update_mac_address(setup):
 def test_update_ip_address(setup):
     """Updates an IP address for the given MAC address"""
     test_create_edit_host(setup)
-    b = serve.mongo_client["labyrinth"]["hosts"].find({})
+    b = serve.db["labyrinth"]["hosts"].find({})
     c = [x for x in b]
     print("Hosts: ", c)
     assert len(c) == 1
 
     a = unwrap(serve.update_ip)(mac=c[0]["mac"], new_ip="000000")
     assert a[1] == 200
-    b = serve.mongo_client["labyrinth"]["hosts"].find({})
+    b = serve.db["labyrinth"]["hosts"].find({})
     c = [x for x in b]
     print("Hosts: ", c)
     assert len(c) == 1
@@ -810,7 +810,7 @@ def test_insert_metric(setup):
     }
     """Tests inserting into database"""
     try:
-        serve.mongo_client["labyrinth"]["metrics"].drop_index("metrics.timestamp_1")
+        serve.db["labyrinth"]["metrics"].drop_index("metrics.timestamp_1")
     except Exception:
         print("No index found.  Continuing.")
 
@@ -820,7 +820,7 @@ def test_insert_metric(setup):
     # NOTE: We are changing to redis write cache layer
 
     """
-    b = serve.mongo_client["labyrinth"]["metrics-latest"].find({})
+    b = serve.db["labyrinth"]["metrics-latest"].find({})
     c = [x for x in b]
     assert len(c) == 1
     for item in sample_data["metrics"][0]:
@@ -907,14 +907,14 @@ def test_redis_bulk_insert(setup):
             print(a.get(key))
 
     # Check the state of the metrics-latest beforehand
-    b = serve.mongo_client["labyrinth"]["metrics-latest"].find({})
+    b = serve.db["labyrinth"]["metrics-latest"].find({})
     current_length = len(list(b))
 
     a = unwrap(serve.bulk_insert)()
     assert a[1] == 200
     assert a[0] == 3
 
-    # b = serve.mongo_client["labyrinth"]["metrics-latest"].find({})
+    # b = serve.db["labyrinth"]["metrics-latest"].find({})
     # c = [True for x in b if "tags" in x and x["tags"]["host"] == "00-00-00-00-01"]
     # assert len(c) == 3
 
@@ -1008,7 +1008,7 @@ def test_list_dashboard(setup):
         print(
             category.upper(),
             ":",
-            [x for x in serve.mongo_client["labyrinth"][category].find({})],
+            [x for x in serve.db["labyrinth"][category].find({})],
         )
         print("---")
 

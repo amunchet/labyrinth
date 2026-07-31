@@ -11,7 +11,7 @@ from ai.ai_settings import (
     DEFAULT_AI_ALERT_SUBJECT_TEMPLATE,
     DEFAULT_AI_ALERT_FROM_NAME,
     get_ai_alert_settings,
-    get_mongo_client,
+    get_db_client,
 )
 from ai.ai_pipeline import (
     process_dashboard,
@@ -31,11 +31,11 @@ def main(initial_prompt="", db=None):
     Main process runner
     """
 
-    db = db or get_mongo_client()
+    db = db or get_db_client()
     ai_settings = get_ai_alert_settings(db)
 
     # An explicit initial_prompt wins (used by tests); otherwise use the
-    # prompt configured under Settings -> AI Alerts (backed by Mongo, with a
+    # prompt configured under Settings -> AI Alerts (database-backed, with a
     # built-in default for fresh installs - see get_ai_alert_settings).
     prompt = initial_prompt or ai_settings["prompt"]
 

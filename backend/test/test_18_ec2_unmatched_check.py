@@ -16,9 +16,9 @@ from common.test import unwrap
 
 def cleanup_test_data():
     """Clean up EC2 unmatched-check test data."""
-    serve.mongo_client["labyrinth"]["aws_accounts"].delete_many({})
-    serve.mongo_client["labyrinth"]["hosts"].delete_many({})
-    serve.mongo_client["labyrinth"]["settings"].delete_many({})
+    serve.db["labyrinth"]["aws_accounts"].delete_many({})
+    serve.db["labyrinth"]["hosts"].delete_many({})
+    serve.db["labyrinth"]["settings"].delete_many({})
 
 
 @pytest.fixture
@@ -70,25 +70,25 @@ def _instance(instance_id, private_ip, name=None):
 
 def test_get_ec2_alert_settings_defaults(setup):
     """No saved recipients defaults to an empty list."""
-    settings = ec2_unmatched_check.get_ec2_alert_settings(serve.mongo_client)
+    settings = ec2_unmatched_check.get_ec2_alert_settings(serve.db)
     assert settings["recipients"] == []
 
 
 def test_get_ec2_alert_settings_recipients_as_list(setup):
     """Recipients saved as a list pass through unchanged."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {"name": "ec2_alert_recipients", "value": ["a@example.com", "b@example.com"]}
     )
-    settings = ec2_unmatched_check.get_ec2_alert_settings(serve.mongo_client)
+    settings = ec2_unmatched_check.get_ec2_alert_settings(serve.db)
     assert settings["recipients"] == ["a@example.com", "b@example.com"]
 
 
 def test_get_ec2_alert_settings_recipients_as_comma_string(setup):
     """Recipients saved as a comma-separated string are split and trimmed."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {"name": "ec2_alert_recipients", "value": "a@example.com, b@example.com"}
     )
-    settings = ec2_unmatched_check.get_ec2_alert_settings(serve.mongo_client)
+    settings = ec2_unmatched_check.get_ec2_alert_settings(serve.db)
     assert settings["recipients"] == ["a@example.com", "b@example.com"]
 
 
@@ -99,8 +99,8 @@ def test_get_ec2_alert_settings_recipients_as_comma_string(setup):
 
 def test_gather_unmatched_instances_filters_matched_hosts(setup, monkeypatch):
     """Only instances without a matching Labyrinth host are returned."""
-    serve.mongo_client["labyrinth"]["aws_accounts"].insert_one(_account())
-    serve.mongo_client["labyrinth"]["hosts"].insert_one(
+    serve.db["labyrinth"]["aws_accounts"].insert_one(_account())
+    serve.db["labyrinth"]["hosts"].insert_one(
         {
             "ip": "10.0.0.10",
             "mac": "00-11-22-33-44-55",
@@ -126,9 +126,7 @@ def test_gather_unmatched_instances_filters_matched_hosts(setup, monkeypatch):
         ec2_unmatched_check.aws_helper, "list_ec2_instances", fake_list_ec2_instances
     )
 
-    unmatched, errors = ec2_unmatched_check.gather_unmatched_instances(
-        db=serve.mongo_client
-    )
+    unmatched, errors = ec2_unmatched_check.gather_unmatched_instances(db=serve.db)
 
     assert errors == []
     assert len(unmatched) == 1
@@ -140,7 +138,7 @@ def test_gather_unmatched_instances_records_errors_without_skipping_other_accoun
     setup, monkeypatch
 ):
     """One broken AWS account shouldn't block collection from the others."""
-    serve.mongo_client["labyrinth"]["aws_accounts"].insert_many(
+    serve.db["labyrinth"]["aws_accounts"].insert_many(
         [_account("broken-account"), _account("good-account")]
     )
 
@@ -162,9 +160,7 @@ def test_gather_unmatched_instances_records_errors_without_skipping_other_accoun
         ec2_unmatched_check.aws_helper, "list_ec2_instances", fake_list_ec2_instances
     )
 
-    unmatched, errors = ec2_unmatched_check.gather_unmatched_instances(
-        db=serve.mongo_client
-    )
+    unmatched, errors = ec2_unmatched_check.gather_unmatched_instances(db=serve.db)
 
     assert len(errors) == 1
     assert errors[0]["account_name"] == "broken-account"
@@ -268,7 +264,7 @@ def test_send_full_test_email_sends_even_with_no_unmatched_instances(
     setup, monkeypatch
 ):
     """Full test email always sends, even when nothing is unmatched."""
-    serve.mongo_client["labyrinth"]["aws_accounts"].insert_one(_account())
+    serve.db["labyrinth"]["aws_accounts"].insert_one(_account())
 
     def fake_list_ec2_instances(account_config):
         return {
@@ -290,9 +286,7 @@ def test_send_full_test_email_sends_even_with_no_unmatched_instances(
         ec2_unmatched_check.email_helper, "email_helper", fake_email_helper
     )
 
-    result = ec2_unmatched_check.send_full_test_email(
-        ["a@example.com"], db=serve.mongo_client
-    )
+    result = ec2_unmatched_check.send_full_test_email(["a@example.com"], db=serve.db)
 
     assert result["unmatched_found"] == 0
     assert result["account_errors"] == []
@@ -313,7 +307,7 @@ def test_check_and_alert_no_recipients(setup, monkeypatch, capsys):
 
 def test_check_and_alert_no_accounts(setup, monkeypatch, capsys):
     """Skips when recipients exist but no AWS accounts are configured."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {"name": "ec2_alert_recipients", "value": "a@example.com"}
     )
     ec2_unmatched_check.check_and_alert_unmatched_instances()
@@ -323,10 +317,10 @@ def test_check_and_alert_no_accounts(setup, monkeypatch, capsys):
 
 def test_check_and_alert_no_unmatched_instances(setup, monkeypatch, capsys):
     """Prints a clean-bill message and doesn't send email when nothing is unmatched."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {"name": "ec2_alert_recipients", "value": "a@example.com"}
     )
-    serve.mongo_client["labyrinth"]["aws_accounts"].insert_one(_account())
+    serve.db["labyrinth"]["aws_accounts"].insert_one(_account())
 
     monkeypatch.setattr(
         ec2_unmatched_check, "gather_unmatched_instances", lambda db=None: ([], [])
@@ -339,10 +333,10 @@ def test_check_and_alert_no_unmatched_instances(setup, monkeypatch, capsys):
 
 def test_check_and_alert_sends_alert_on_unmatched_instances(setup, monkeypatch, capsys):
     """Sends an alert email when unmatched instances are found."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {"name": "ec2_alert_recipients", "value": "a@example.com"}
     )
-    serve.mongo_client["labyrinth"]["aws_accounts"].insert_one(_account())
+    serve.db["labyrinth"]["aws_accounts"].insert_one(_account())
 
     monkeypatch.setattr(
         ec2_unmatched_check,
@@ -366,10 +360,10 @@ def test_check_and_alert_sends_alert_on_unmatched_instances(setup, monkeypatch, 
 
 def test_check_and_alert_handles_email_error(setup, monkeypatch, capsys):
     """Exits with an error status if the alert email fails to send."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {"name": "ec2_alert_recipients", "value": "a@example.com"}
     )
-    serve.mongo_client["labyrinth"]["aws_accounts"].insert_one(_account())
+    serve.db["labyrinth"]["aws_accounts"].insert_one(_account())
 
     monkeypatch.setattr(
         ec2_unmatched_check,
@@ -392,7 +386,7 @@ def test_check_and_alert_general_error(setup, monkeypatch, capsys):
     """A general exception is caught, logged, and exits with an error status."""
     monkeypatch.setattr(
         ec2_unmatched_check,
-        "get_mongo_client",
+        "_get_db_client",
         lambda: (_ for _ in ()).throw(RuntimeError("connection failed")),
     )
     monkeypatch.setattr("sys.exit", lambda *args: None)
@@ -409,7 +403,7 @@ def test_check_and_alert_general_error(setup, monkeypatch, capsys):
 
 def test_get_aws_settings_includes_ec2_alert_recipients(setup):
     """The AWS settings endpoint returns saved EC2 alert recipients."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {"name": "ec2_alert_recipients", "value": "a@example.com, b@example.com"}
     )
 
@@ -467,7 +461,7 @@ def test_send_ec2_test_email_endpoint_falls_back_to_saved_recipients(
     setup, monkeypatch
 ):
     """Falls back to saved settings when no recipients are given in the request."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {"name": "ec2_alert_recipients", "value": "saved@example.com"}
     )
 

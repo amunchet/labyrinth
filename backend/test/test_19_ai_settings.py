@@ -18,7 +18,7 @@ from common.test import unwrap
 
 
 def cleanup_test_data():
-    serve.mongo_client["labyrinth"]["settings"].delete_many(
+    serve.db["labyrinth"]["settings"].delete_many(
         {
             "name": {
                 "$in": [
@@ -121,11 +121,11 @@ def test_get_ai_alert_settings_accepts_list_stored_directly_in_mongo(setup):
     directly rather than through the /ai/settings POST route which
     normalizes to a CSV string) is still parsed correctly.
     """
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {"name": "ai_alert_recipients", "value": ["a@example.com", " b@example.com "]}
     )
 
-    settings = ai_settings.get_ai_alert_settings(serve.mongo_client)
+    settings = ai_settings.get_ai_alert_settings(serve.db)
     assert settings["recipients"] == ["a@example.com", "b@example.com"]
 
 
@@ -162,7 +162,7 @@ def _fake_email_sender(sink):
 
 def test_send_ai_test_email_simple_mode_uses_saved_settings(setup, monkeypatch):
     """Simple mode sends using saved recipients/subject/from-name, no ChatGPT call."""
-    serve.mongo_client["labyrinth"]["settings"].insert_many(
+    serve.db["labyrinth"]["settings"].insert_many(
         [
             {"name": "ai_alert_recipients", "value": "ops@example.com"},
             {"name": "ai_alert_subject_template", "value": "Custom [{time}]"},
@@ -187,7 +187,7 @@ def test_send_ai_test_email_simple_mode_uses_saved_settings(setup, monkeypatch):
 
 def test_send_ai_test_email_simple_mode_accepts_override_recipients(setup, monkeypatch):
     """An explicit recipients list in the request body wins over saved settings."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {"name": "ai_alert_recipients", "value": "saved@example.com"}
     )
 
@@ -219,7 +219,7 @@ def test_send_ai_test_email_simple_mode_requires_recipients(setup, monkeypatch):
 
 def test_send_ai_test_email_full_mode_runs_pipeline_and_sends(setup, monkeypatch):
     """Full mode runs the real dashboard -> ChatGPT -> email pipeline and always sends."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {"name": "ai_alert_recipients", "value": "ops@example.com"}
     )
 
@@ -301,7 +301,7 @@ def test_send_ai_test_email_rejects_invalid_json_body(setup):
 
 def test_send_ai_test_email_defaults_to_simple_mode(setup, monkeypatch):
     """Omitting 'mode' defaults to the cheap/no-ChatGPT simple test."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {"name": "ai_alert_recipients", "value": "ops@example.com"}
     )
 
