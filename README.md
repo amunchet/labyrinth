@@ -23,8 +23,32 @@ The beautiful network analyzer, mapper, and monitor.
     - Paste that token when `install.sh` asks for the Cloudflare API token for the DNS challenge.
 3.  If you are running docker as non-root, then remove the top section from `install.sh` and re-run.
 
+## Upgrading an existing install
+
+`install.sh` copies `caddy/Caddyfile.sample` to `caddy/Caddyfile` only if that file does not already exist, so an existing deployment keeps its own Caddyfile.  To pick up the Go metrics ingest service, add the nested `handle` blocks from `caddy/Caddyfile.sample` to your `caddy/Caddyfile`:
+
+```
+handle_path /api/* {
+	@telegraf_ingest {
+		method POST
+		path /metrics /metrics/
+	}
+	handle @telegraf_ingest {
+		reverse_proxy metrics:9000
+	}
+
+	handle {
+		reverse_proxy backend:7000
+	}
+}
+```
+
+Then `docker-compose -f docker-compose-production.yml up --build -d`.  Until that edit is made, Telegraf ingest keeps going to the Flask backend and nothing breaks - it is just still slow.
+
 ## Redis notes
 Redis is also going to be used a write cache for incoming metrics.  This way, the load on the metric database server will be greatly reduced.  We can tune the time to write the metrics as well.
+
+Telegraf ingest itself is served by `metrics-go`, a small Go service that turns a whole agent batch into a single pipelined Redis write.  It also keeps per-client request/metric counters, shown in each host's settings modal, so a host that is sending far more than its share is easy to spot.  See `metrics-go/README.md`.
 
 ## Database Notes
 
