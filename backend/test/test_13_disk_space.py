@@ -99,9 +99,7 @@ def test_get_proxmox_disk_space_prefers_redis_cache(setup, monkeypatch):
         ]
     )
 
-    clusters = list(
-        serve.db["labyrinth"]["proxmox_clusters"].find({}).sort("name", 1)
-    )
+    clusters = list(serve.db["labyrinth"]["proxmox_clusters"].find({}).sort("name", 1))
     fake_redis = FakeRedis(
         store={
             proxmox_helper.get_proxmox_cache_key(clusters[0]): json.dumps(
