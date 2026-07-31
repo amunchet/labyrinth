@@ -195,19 +195,48 @@ def _new_id():
     return str(bson.ObjectId())
 
 
+def _as_utc(value):
+    """Pin a naive datetime to UTC.
+
+    The `ts` columns are TIMESTAMPTZ, so a naive value would otherwise be
+    interpreted in whatever the session TimeZone happens to be. pymongo
+    treats naive datetimes as UTC, so doing the same here keeps the numbers
+    a document round-trips through identical on both backends.
+    """
+    if value.tzinfo is None:
+        return value.replace(tzinfo=datetime.timezone.utc)
+    return value
+
+
+def _from_utc(value):
+    """Inverse of _as_utc: hand callers the naive UTC datetime Mongo would.
+
+    psycopg2 returns TIMESTAMPTZ as offset-aware, but pymongo returns naive
+    datetimes, and app code mixes stored timestamps with naive ones built by
+    datetime.now()/fromtimestamp() (serve.py's find_metric, metrics.py's
+    judge). Returning aware values here makes those comparisons raise
+    "can't compare offset-naive and offset-aware datetimes".
+    """
+    if isinstance(value, datetime.datetime) and value.tzinfo is not None:
+        return value.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+    return value
+
+
 def _coerce_timestamp(value):
     if value is None:
-        return datetime.datetime.now()
+        return _as_utc(datetime.datetime.now())
     if isinstance(value, datetime.datetime):
-        return value
+        return _as_utc(value)
     if isinstance(value, (int, float)):
-        return datetime.datetime.fromtimestamp(value)
+        return _as_utc(datetime.datetime.fromtimestamp(value))
     if isinstance(value, str):
         try:
-            return datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+            return _as_utc(
+                datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+            )
         except ValueError:
-            return datetime.datetime.now()
-    return datetime.datetime.now()
+            return _as_utc(datetime.datetime.now())
+    return _as_utc(datetime.datetime.now())
 
 
 def _to_jsonb_param(value):
@@ -470,7 +499,7 @@ class PostgresCollectionAdapter(base.Collection):
             "name": row["name"],
             "tags": row["tags"],
             "fields": row["fields"],
-            "timestamp": row["ts"],
+            "timestamp": _from_utc(row["ts"]),
         }
 
     def _insert_row(self, cur, document):

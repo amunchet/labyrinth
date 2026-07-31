@@ -261,6 +261,32 @@ def test_sort_by_nonexistent_field_does_not_crash(db):
     assert len(result) == 1
 
 
+def test_stored_timestamps_come_back_naive(db):
+    """Both backends must hand back *naive* datetimes.
+
+    App code freely mixes stored timestamps with naive ones it builds itself
+    (serve.py's find_metric falls back to datetime.fromtimestamp, metrics.py's
+    judge rewrites the field to a float in place), so an offset-aware value
+    from one backend and a naive one from the other blow up on comparison
+    with "can't compare offset-naive and offset-aware datetimes".
+    """
+    written = datetime.datetime.now()
+    db["metrics-latest"].insert_one(
+        {
+            "name": "check_hd",
+            "tags": {"ip": "10.0.0.5"},
+            "fields": {"used_percent": 1.0},
+            "timestamp": written,
+        }
+    )
+
+    stored = db["metrics-latest"].find_one({"name": "check_hd"})["timestamp"]
+    assert stored.tzinfo is None
+    # ...and it must still be comparable against a plain datetime.now().
+    assert stored < datetime.datetime.now() + datetime.timedelta(hours=1)
+    assert abs((stored - written).total_seconds()) < 5
+
+
 def test_metrics_bulk_write_insert_and_upsert(db):
     item = {
         "name": "check_hd",
