@@ -33,10 +33,11 @@ Methods: `find`, `find_one`, `insert_one`, `insert_many`, `update_one`,
 and plain iteration.
 
 Filter/update operators (Postgres backend only - see below): `$or`,
-`$pull` (paired with an `$in` filter on the same field), `$in`, `$regex`
-(anchored prefix, e.g. `"^prefix"` - not general regex), `$exists`, `$set`,
-`$unset`, `upsert=True`, and `$lt` (added specifically to emulate Mongo's
-`metrics-latest` TTL index).
+`$pull` (either a scalar, matched exactly, or a criteria document, matched
+as a subset of each array element the way Mongo does), `$push`, `$in`,
+`$regex` (anchored prefix, e.g. `"^prefix"` - not general regex),
+`$exists`, `$set`, `$unset`, `upsert=True`, and `$lt` (added specifically
+to emulate Mongo's `metrics-latest` TTL index).
 
 ## Mongo adapter: full fidelity, zero restrictions
 

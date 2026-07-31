@@ -58,7 +58,8 @@ isn't) and `CLAUDE.md`'s "Database adapter ecosystem" section for a quick
 orientation. In short: `db.get_db()` returns a `Client` implementing
 `backend/db/base.py`'s interface; every route/module goes through it
 (`serve.py`'s `db = get_db()`, `proxmox_disk_check.py`, `proxmox_refresh.py`,
-`utils.py`, `backend/ai/mcp/server.py`). The Postgres adapter translates a
+`ec2_unmatched_check.py`, `utils.py`, `backend/ai/ai_settings.py`,
+`backend/ai/mcp/server.py`). The Postgres adapter translates a
 deliberately narrow set of pymongo operators - exactly what this codebase
 was found to actually use after an exhaustive audit, not a general Mongo
 query language emulator.

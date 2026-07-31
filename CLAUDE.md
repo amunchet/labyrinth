@@ -13,8 +13,8 @@ Labyrinth is a network analyzer, mapper, and monitor built on NMap, Ansible, and
 - `frontend/labyrinth/` - Vue 2 SPA with Bootstrap-Vue for UI, Konva canvas for network topology visualization
 - `alertmanager/` - Prometheus Alertmanager for alert routing
 - `nginx/` - Reverse proxy with lego for SSL cert management
-- `cron/` - Scheduled jobs (crontab in `cron/cron.d/crontab`) running finder, alive checks, watcher, Proxmox refresh/disk-check, bulk metric writes, AI summaries, level expiry
-- `backend/ai/` - hourly AI summary job (`ai.sh` -> `backend/ai/main.py`) that pulls hosts/services/recent metrics from Mongo, sends them to ChatGPT (`chatgpt_helper.py`) for a plain-English summary, and delivers it by email/Slack (`email_helper.py`, `slack_helper.py`)
+- `cron/` - Scheduled jobs (crontab in `cron/cron.d/crontab`) running finder, alive checks, watcher, Proxmox refresh/disk-check, EC2 unmatched-instance check, bulk metric writes, AI summaries, level expiry
+- `backend/ai/` - hourly AI summary job (`ai.sh` -> `backend/ai/main.py`, built on `ai_pipeline.py`/`ai_settings.py`) that pulls hosts/services/recent metrics from the database, sends them to ChatGPT (`chatgpt_helper.py`) for a plain-English summary, and delivers it by email/Slack (`email_helper.py`, `slack_helper.py`)
 - `backend/ai/mcp/` - standalone MCP server (own Dockerfile, runs as the `mcp` compose service on port 8765) exposing host/service/metric tools via `unwrap()`-wrapped Flask handlers, bypassing HTTP auth for trusted-network agent access
 - `backend/db/` - database adapter ecosystem (see below) - PostgreSQL/TimescaleDB by default, MongoDB as an explicit fallback
 - PostgreSQL + TimescaleDB - default data store (`DB_BACKEND=postgres`): JSONB tables for hosts/subnets/services/settings/proxmox_clusters/aws_accounts/themes/dashboards, a TimescaleDB hypertable for `metrics`, a plain table for `metrics-latest`. See `MONGO_MIGRATION.md`.
@@ -28,14 +28,15 @@ Labyrinth is a network analyzer, mapper, and monitor built on NMap, Ansible, and
 4. Frontend polls the backend API to display topology and metrics
 5. `backend/watcher.py` judges service health and sends alerts to Alertmanager (`http://alertmanager:9093/api/v2/alerts`, password read from `/alertmanager/pass`); frontend can list/resolve them via `/alertmanager/alerts`
 6. Proxmox: `cron/proxmox_refresh.sh` refreshes the per-cluster Redis cache; `cron/disk_check.sh` runs `backend/proxmox_disk_check.py` hourly to email disk-space alerts
-7. Postgres backend only: `cron/compact_metrics.sh` daily rolls raw `metrics` rows older than `METRICS_RAW_RETENTION_DAYS` into `metrics_daily` aggregates; `cron/backup_db.sh` daily dumps the database to `/backups` for an external offsite system to pick up
+7. AWS: `cron/ec2_check.sh` runs `backend/ec2_unmatched_check.py` hourly to email a list of EC2 instances that don't match any known Labyrinth host (matching logic shared with `serve.py` via `aws_helper.py`)
+8. Postgres backend only: `cron/compact_metrics.sh` daily rolls raw `metrics` rows older than `METRICS_RAW_RETENTION_DAYS` into `metrics_daily` aggregates; `cron/backup_db.sh` daily dumps the database to `/backups` for an external offsite system to pick up
 
 ### Database adapter ecosystem (`backend/db/`)
 
 - `db.get_db()` (in `backend/db/__init__.py`) is the single entry point, selecting a backend via the `DB_BACKEND` env var (`postgres` default, `mongo` fallback). `serve.py`'s module-level `db = get_db()` (and every other module that touches the database) goes through this - there is no direct `pymongo`/`psycopg2` usage outside `backend/db/`.
 - `backend/db/base.py` defines the interface (`Client`/`Database`/`Collection`/`Cursor`, plus `InsertOne`/`ReplaceOne`/`UpdateOne`/`DeleteOne` bulk-op classes) - a deliberately narrow, pymongo-shaped surface covering only what this codebase actually uses (no aggregation pipelines, transactions, GridFS, or change streams anywhere in the app).
 - `backend/db/mongo_adapter.py` is a thin passthrough onto real `pymongo` - full Mongo query language support, byte-identical behavior to the pre-migration code.
-- `backend/db/postgres_adapter.py` translates that narrow operator set ($set/$or/$pull/$in/$regex-as-prefix/$exists/$unset/upsert, plus $lt for TTL emulation) onto JSONB/typed-column Postgres tables, with schema bootstrap running eagerly at client construction (not lazily like Mongo, since Postgres tables must exist before first use - see `MONGO_MIGRATION.md`).
+- `backend/db/postgres_adapter.py` translates that narrow operator set ($set/$or/$pull/$push/$in/$regex-as-prefix/$exists/$unset/upsert, plus $lt for TTL emulation) onto JSONB/typed-column Postgres tables, with schema bootstrap running eagerly at client construction (not lazily like Mongo, since Postgres tables must exist before first use - see `MONGO_MIGRATION.md`).
 - Full design rationale, schema, and operational runbook: `MONGO_MIGRATION.md`. Adapter contract details: `backend/db/README.md`.
 
 ### Proxmox disk-space monitoring (`backend/proxmox_helper.py`, `backend/proxmox_disk_check.py`)
@@ -50,7 +51,8 @@ Labyrinth is a network analyzer, mapper, and monitor built on NMap, Ansible, and
 
 ### AI summaries and MCP (`backend/ai/`)
 
-- `cron/ai.sh` runs `backend/ai/main.py` hourly: `process_dashboard()` pulls hosts/services and recent metrics from the database, slims them down, and `main()` sends the result to ChatGPT (`chatgpt_helper.py`) using a prompt template (`initial_prompt.txt`, gitignored - see `initial_prompt.txt.example`) to produce a plain-English network summary, delivered via `email_helper.py`/`slack_helper.py`.
+- `cron/ai.sh` runs `backend/ai/main.py` hourly: `ai_pipeline.py`'s `process_dashboard()` pulls hosts/services and recent metrics from the database, slims them down, and `main()` sends the result to ChatGPT (`chatgpt_helper.py`) to produce a plain-English network summary, delivered via `email_helper.py`/`slack_helper.py`.
+- The prompt, model, recipients, subject template, and from-name are configurable under Settings -> AI Alerts (`/ai/settings` routes, stored in the generic `settings` collection/table); `backend/ai/ai_settings.py` reads them with built-in defaults, so `initial_prompt.txt` (gitignored - see `initial_prompt.txt.example`) is now only a fallback. `/ai/test-email` sends either a simple deliverability check or a full dashboard -> ChatGPT -> email run on demand.
 - `backend/ai/mcp/server.py` is a separate MCP (Model Context Protocol) server, run as its own Docker service (`mcp` in compose files) with its own `Dockerfile`/`requirements.txt`. It shares the backend's database/Redis (same `DB_BACKEND` selection, own `backend/ai/mcp/requirements.txt` needs the same driver pins kept in sync with `backend/requirements.txt`) and calls `serve.py` route handlers directly via `unwrap()`, so it exposes host/service/metric management tools (`mcp_list_hosts`, `mcp_create_or_update_host`, `mcp_add_service_to_host`, `mcp_list_services`, `mcp_read_metrics`, etc.) without HTTP auth - intended for trusted-network agent access only. Full tool/schema docs in `backend/ai/mcp/README.md`.
 
 ## Development Workflows
@@ -81,7 +83,7 @@ DB_BACKEND=mongo PYTHONPATH=. pytest test/
 - Fixtures are defined per test file, not centralized in `conftest.py`.
 - Routes are wrapped in Auth0 decorators; tests call them via `common.test.unwrap(serve.some_route)()` to bypass auth and invoke the underlying function directly.
 - The database is tested against real ephemeral containers (both `mongo` and `postgres` run in dev/CI), not mocks - matches the existing convention for Mongo, now extended to Postgres. Redis is a mix: some tests hit the real `redis` container, others mock via fixtures/monkeypatch (e.g. `Mock(spec=redis.Redis)`, hand-rolled `FakeRedis` classes).
-- `backend/test/test_18_db_adapters.py` runs the same black-box scenarios against both `MongoClientAdapter` and `PostgresClientAdapter`; `test_19_compact_metrics.py`, `test_20_backup_db.py`, `test_21_migrate_to_postgres.py` cover the new cron/migration tooling.
+- `backend/test/test_18_db_adapters.py` runs the same black-box scenarios against both `MongoClientAdapter` and `PostgresClientAdapter`; `test_19_compact_metrics.py`, `test_20_backup_db.py`, `test_21_migrate_to_postgres.py` cover the cron/migration tooling. Note the numeric test-file prefixes are not unique - `test_18_ec2_unmatched_check.py`, `test_19_ai_settings.py`, and `test_20_ai_pipeline.py` were added independently and collide by number only, not by name.
 
 **Frontend (`frontend/labyrinth/`):**
 ```bash
@@ -112,7 +114,7 @@ docker-compose -f docker-compose-production.yml up --build -d
 
 **Database access:**
 - Always go through `db.get_db()` / the `Client`/`Database`/`Collection` interface in `backend/db/base.py` - never import `pymongo`/`psycopg2` directly outside `backend/db/`. Call sites look like pymongo (`db["labyrinth"]["hosts"].find_one({...})`) regardless of backend.
-- Only the operators actually used anywhere in the app are supported by the Postgres translator: `$set`, `$or`, `$pull`, `$in`, `$regex` (anchored prefix only), `$exists`, `$unset`, `upsert=True`, `$lt` (TTL emulation only). Don't reach for other Mongo query operators - they won't work on the Postgres backend. See `backend/db/README.md`.
+- Only the operators actually used anywhere in the app are supported by the Postgres translator: `$set`, `$or`, `$pull` (scalar = exact match, document = Mongo-style subset match on each array element), `$push`, `$in`, `$regex` (anchored prefix only), `$exists`, `$unset`, `upsert=True`, `$lt` (TTL emulation only). Don't reach for other Mongo query operators - they won't work on the Postgres backend. See `backend/db/README.md`.
 - IDs are opaque strings shaped like `bson.ObjectId` hex (`str(bson.ObjectId())`), generated by the Postgres adapter without a real Mongo connection - `_validate_object_id()` and the frontend's `_id` handling work unchanged on both backends.
 
 **Telegraf config management:**
@@ -135,8 +137,9 @@ docker-compose -f docker-compose-production.yml up --build -d
 - `backend/services.py` - Telegraf config parsing
 - `backend/ansible_helper.py` - Ansible validation/execution
 - `backend/proxmox_helper.py` / `backend/proxmox_disk_check.py` - Proxmox cluster querying, caching, and disk-space alert emails
+- `backend/aws_helper.py` / `backend/ec2_unmatched_check.py` - EC2 inventory, EC2<->host matching, and unmatched-instance alert emails (see `cron/ec2_check.sh`)
 - `backend/watcher.py` - Alertmanager alert dispatch
-- `backend/ai/main.py` - hourly AI dashboard summary job
+- `backend/ai/main.py` / `backend/ai/ai_pipeline.py` / `backend/ai/ai_settings.py` - hourly AI dashboard summary job, its dashboard->ChatGPT->email pipeline, and the configurable prompt/model/recipient settings
 - `backend/ai/mcp/server.py` - MCP server exposing host/service/metric tools
 - `backend/migrate_to_postgres.py` - one-time Mongo-to-Postgres data migration tool (operator-run, not automatic)
 - `backend/compact_metrics.py` / `backend/backup_db.py` - Postgres-only metrics compaction and database backup (see `cron/compact_metrics.sh`, `cron/backup_db.sh`)

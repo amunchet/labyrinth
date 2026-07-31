@@ -10,6 +10,7 @@ import os
 import io
 import shutil
 import tempfile
+import time
 import pytest
 import datetime
 import yaml
@@ -510,6 +511,35 @@ def test_bulk_insert_timestamp_handling(setup):
             resp = unwrap(serve.bulk_insert)()
 
         assert resp[1] == 200
+    finally:
+        a.close()
+
+
+def test_bulk_insert_preserves_metric_timestamp(setup):
+    """bulk_insert must preserve the metric's own timestamp instead of
+    substituting the wall-clock time it happened to be swept from Redis -
+    otherwise History graphs plot points at sweep time instead of when the
+    metric was actually collected."""
+    a = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
+    try:
+        original_timestamp = time.time() - 7200  # 2 hours ago
+        metric = {
+            "name": "cpu",
+            "tags": {"ip": "192.168.1.9", "host": "server9"},
+            "value": 12.3,
+            "timestamp": original_timestamp,
+        }
+        metric_key = f"METRIC-{json.dumps({'name': metric['name'], 'tags': metric['tags']}, default=str)}"
+        a.set(metric_key, json.dumps(metric, default=str))
+
+        with serve.app.test_request_context("/bulk_insert/", method="GET"):
+            resp = unwrap(serve.bulk_insert)()
+
+        assert resp[1] == 200
+
+        stored = serve.db["labyrinth"]["metrics"].find_one({"tags.ip": "192.168.1.9"})
+        assert stored is not None
+        assert abs(stored["timestamp"].timestamp() - original_timestamp) < 5
     finally:
         a.close()
 
@@ -1246,12 +1276,16 @@ def test_bulk_insert_with_exception(
         None,  # last_time returns None
     ]
 
-    # Mock datetime.now() to return an actual datetime object. timedelta is
+    # Mock datetime.now()/fromtimestamp() to return an actual datetime object,
+    # since bulk_insert converts each metric's own timestamp field. timedelta is
     # left as the real class (not further mocked) so bulk_insert()'s
     # metrics-latest TTL-emulation cutoff (datetime.now() - timedelta(...))
     # produces a real datetime instead of an unconfigured MagicMock, which
-    # pymongo can't BSON-encode into the delete_many() filter.
+    # the database adapters can't encode into the delete_many() filter.
     mock_datetime_module.datetime.now.return_value = datetime.datetime(
+        2026, 7, 13, 19, 57, 51
+    )
+    mock_datetime_module.datetime.fromtimestamp.return_value = datetime.datetime(
         2026, 7, 13, 19, 57, 51
     )
     mock_datetime_module.timedelta = datetime.timedelta

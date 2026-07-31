@@ -5,6 +5,13 @@
         <b-button class="float-left" variant="danger" @click="deleteHost()"
           >Delete</b-button
         >
+        <b-button
+          class="float-left ml-2"
+          variant="secondary"
+          v-if="!isNew"
+          @click="cloneHost()"
+          >Clone</b-button
+        >
         <b-button class="float-right ml-2" variant="primary" @click="saveHost()"
           >OK</b-button
         >
@@ -260,6 +267,22 @@
           striped
           :fields="['name', 'state', '_']"
         >
+          <template v-slot:cell(state)="key">
+            <b-button
+              v-if="key.item.state === true"
+              variant="link"
+              class="shadow-none text-success"
+            >
+              <font-awesome-icon icon="check" size="1x" />
+            </b-button>
+            <b-button
+              v-else-if="key.item.state === false"
+              variant="link"
+              class="shadow-none text-danger"
+            >
+              <font-awesome-icon icon="times-circle" size="1x" />
+            </b-button>
+          </template>
           <template v-slot:cell(_)="key">
             <b-button
               @click="
@@ -567,6 +590,15 @@ export default {
         .catch((e) => {
           this.$store.commit("updateError", e);
         });
+    },
+    cloneHost: function () {
+      let cloned = JSON.parse(JSON.stringify(this.host));
+      delete cloned._id;
+      cloned.ip = "";
+      cloned.mac = "";
+      this.host = cloned;
+      this.isNew = true;
+      this.metrics = [];
     },
     deleteHost: /* istanbul ignore next */ function () {
       let host = this.host;

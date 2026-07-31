@@ -413,7 +413,8 @@ class PostgresCollectionAdapter(base.Collection):
 
     def _translate_update(self, update):
         """Returns (data_column_sql_expr, params). JSONB-kind only - no
-        real app code ever runs $set/$unset/$pull against a metrics table."""
+        real app code ever runs $set/$unset/$pull/$push against a metrics
+        table."""
         expr = "data"
         params = []
         if update.get("$set"):
@@ -424,10 +425,35 @@ class PostgresCollectionAdapter(base.Collection):
                 expr = "({} - '{}')".format(expr, key)
         if update.get("$pull"):
             for key, value in update["$pull"].items():
+                # Mongo treats a document value as a *condition* matched against
+                # each array element (so {"service": x} pulls every element whose
+                # service is x, whatever else it carries), while a scalar value
+                # has to match exactly. `@>` containment is the JSONB equivalent
+                # of that subset match.
+                match = (
+                    "elem @> %s::jsonb"
+                    if isinstance(value, dict)
+                    else "elem = %s::jsonb"
+                )
+                # expr is interpolated twice below, so whatever placeholders it
+                # already carries appear twice as well - repeat their params in
+                # the same order rather than letting the counts drift apart.
+                params = params + params
                 expr = (
                     "jsonb_set({expr}, ARRAY['{key}'], COALESCE("
                     "(SELECT jsonb_agg(elem) FROM jsonb_array_elements({expr}->'{key}') elem "
-                    "WHERE elem <> %s::jsonb), '[]'::jsonb))"
+                    "WHERE NOT ({match})), '[]'::jsonb))"
+                ).format(expr=expr, key=key, match=match)
+                params.append(_to_jsonb_param(value))
+        if update.get("$push"):
+            for key, value in update["$push"].items():
+                # Same double-interpolation caveat as $pull above. Missing (or
+                # null) arrays start as [], matching Mongo's $push semantics.
+                params = params + params
+                expr = (
+                    "jsonb_set({expr}, ARRAY['{key}'], "
+                    "COALESCE({expr}->'{key}', '[]'::jsonb) || "
+                    "jsonb_build_array(%s::jsonb))"
                 ).format(expr=expr, key=key)
                 params.append(_to_jsonb_param(value))
         return expr, params

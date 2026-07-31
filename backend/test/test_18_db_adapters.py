@@ -134,6 +134,52 @@ def test_in_and_pull(db):
     assert db["hosts"].find_one({"mac": "CC:DD"})["services"] == ["http"]
 
 
+def test_pull_by_criteria_document(db):
+    """A document $pull value is a *condition*, not an exact element match -
+    it removes every element carrying those fields, whatever else they hold
+    (serve.py's update_host_service_level relies on this)."""
+    db["hosts"].insert_one(
+        {
+            "mac": "AA:BB",
+            "service_levels": [
+                {"service": "check_hd-1", "level": "warning"},
+                {"service": "check_hd-2", "level": "error"},
+            ],
+        }
+    )
+
+    db["hosts"].update_many(
+        {"mac": "AA:BB"}, {"$pull": {"service_levels": {"service": "check_hd-1"}}}
+    )
+
+    assert db["hosts"].find_one({"mac": "AA:BB"})["service_levels"] == [
+        {"service": "check_hd-2", "level": "error"}
+    ]
+
+
+def test_push(db):
+    db["hosts"].insert_one({"mac": "AA:BB"})
+
+    # Pushing onto a field that doesn't exist yet creates the array.
+    db["hosts"].update_many(
+        {"mac": "AA:BB"},
+        {"$push": {"service_levels": {"service": "check_hd-1", "level": "warning"}}},
+    )
+    assert db["hosts"].find_one({"mac": "AA:BB"})["service_levels"] == [
+        {"service": "check_hd-1", "level": "warning"}
+    ]
+
+    # A second push appends rather than replacing.
+    db["hosts"].update_many(
+        {"mac": "AA:BB"},
+        {"$push": {"service_levels": {"service": "check_hd-2", "level": "error"}}},
+    )
+    assert db["hosts"].find_one({"mac": "AA:BB"})["service_levels"] == [
+        {"service": "check_hd-1", "level": "warning"},
+        {"service": "check_hd-2", "level": "error"},
+    ]
+
+
 def test_regex_prefix(db):
     db["settings"].insert_one({"name": "manual_disk_host_abc", "value": "1"})
     db["settings"].insert_one({"name": "manual_disk_host_def", "value": "2"})
