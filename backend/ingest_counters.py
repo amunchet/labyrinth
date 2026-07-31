@@ -24,6 +24,7 @@ the bulk writer.
 
 import os
 import time
+import re
 
 import redis
 
@@ -76,6 +77,9 @@ def candidate_ids(mac="", ip="", requested=""):
 
     def add(value):
         value = str(value or "").strip()
+        # Keep only host-id characters (mac/ip/hostname-safe) to avoid
+        # reflecting unsafe input content in API responses.
+        value = re.sub(r"[^A-Za-z0-9_.:-]", "", value)
         if value and value not in candidates:
             candidates.append(value)
 
