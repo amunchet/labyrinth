@@ -20,16 +20,26 @@ Usage:
 
 Reads connection details from the same env vars the app itself uses
 (MONGO_USERNAME/MONGO_PASSWORD/MONGO_HOST, POSTGRES_HOST/PORT/USER/
-PASSWORD/DB, GITHUB/TESTBED) - source `backend/.env` first if running this
-outside a container that already has them exported.
+PASSWORD/DB, GITHUB/TESTBED). `backend/.env` is loaded automatically, the
+same way `serve.py` and the `ai/` jobs do it - the production backend
+container sets only DB_BACKEND/POSTGRES_*/REDIS_HOST in compose, so the
+Mongo credentials this script needs exist *only* in that file. Already
+exported variables win over the file's values.
 """
 
 import argparse
 import sys
 
+from dotenv import load_dotenv
+
 from db import base
 from db.mongo_adapter import MongoClientAdapter
 from db.postgres_adapter import PostgresClientAdapter
+
+# Before importing anything that reads the environment at call time, so a
+# hand-run migration inside the production container picks up MONGO_* from
+# /src/.env instead of building a "mongodb+srv://user:pass@None" URI.
+load_dotenv()
 
 # Cheap/small collections first for fast feedback; metrics (potentially
 # large, unbounded under current Mongo behavior) last.
