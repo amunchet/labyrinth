@@ -78,9 +78,9 @@ def counter_hash(**overrides):
 @pytest.fixture
 def hosts_collection():
     """Keeps the hosts collection clean around the route tests."""
-    serve.mongo_client["labyrinth"]["hosts"].delete_many({})
-    yield serve.mongo_client["labyrinth"]["hosts"]
-    serve.mongo_client["labyrinth"]["hosts"].delete_many({})
+    serve.db["labyrinth"]["hosts"].delete_many({})
+    yield serve.db["labyrinth"]["hosts"]
+    serve.db["labyrinth"]["hosts"].delete_many({})
 
 
 # ---------------------------------------------------------------------------

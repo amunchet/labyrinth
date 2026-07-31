@@ -52,6 +52,14 @@ Telegraf ingest itself is served by `metrics-go`, a small Go service that turns 
 
 ## Database Notes
 
+**These are historical dev notes about the original MongoDB implementation.**
+PostgreSQL/TimescaleDB is now the default database backend (MongoDB remains
+available as a fallback) - see `MONGO_MIGRATION.md` for the current
+architecture. The notes below are kept because they document the "Attempt 1"
+Atlas Trigger, which lives entirely in MongoDB Atlas's control plane and
+needs to be manually disabled by anyone cutting an existing deployment over
+- see `MONGO_MIGRATION.md`'s decommissioning checklist.
+
 ### Attempt 2
 I'm converting the Mongo databsae to a timeseries.  This involved the following Python code:
 

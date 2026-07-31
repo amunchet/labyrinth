@@ -47,7 +47,7 @@ class LabyrinthClient:
 
     def get_host(self, host_key: str) -> Optional[Dict[str, Any]]:
         # Try MAC/IP lookup directly for flexibility
-        found = serve.mongo_client["labyrinth"]["hosts"].find_one(
+        found = serve.db["labyrinth"]["hosts"].find_one(
             {"$or": [{"mac": host_key}, {"ip": host_key}]}
         )
         if found:

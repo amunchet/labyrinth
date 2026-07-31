@@ -11,6 +11,8 @@ backend/output-labyrinth
 backend/htmlcov
 venv/**
 data/**
+pgdata/**
+backups/**
 **/.coverage.**
 docker-compose.yml
 frontend/labyrinth/vue.config.js
