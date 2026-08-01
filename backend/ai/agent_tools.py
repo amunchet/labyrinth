@@ -162,5 +162,5 @@ def dispatch(session_id, name, tool_input):
         if name == "propose_playbook":
             return _propose_playbook(session_id, tool_input)
         return {"error": f"Unknown tool: {name}"}
-    except Exception as exc:
-        return {"error": str(exc)}
+    except Exception:
+        return {"error": "Tool execution failed"}
