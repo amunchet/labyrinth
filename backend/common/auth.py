@@ -77,21 +77,6 @@ def get_token_auth_header():  # pragma: no cover
     return token
 
 
-def requires_scope(required_scope):  # pragma: no cover
-    """Determines if the required scope is present in the access token
-    Args:
-        required_scope (str): The scope required to access the resource
-    """
-    token = get_token_auth_header()
-    unverified_claims = jwt.get_unverified_claims(token)
-    if unverified_claims.get("scope"):
-        token_scopes = unverified_claims["scope"].split()
-        for token_scope in token_scopes:
-            print(token_scope)
-            if token_scope == required_scope:
-                return True
-    return False
-
 
 def _requires_auth(f, permission="", error_func=""):  # pragma: no cover
     """Determines if the access token is valid"""
@@ -126,36 +111,6 @@ def _requires_auth(f, permission="", error_func=""):  # pragma: no cover
                         "code": "invalid_header",
                         "description": "Invalid header. "
                         "Use an RS256 signed JWT Access Token",
-                    },
-                    401,
-                )
-
-            # Checks for correct permissions that are passed in
-            unverified_claims = jwt.get_unverified_claims(token)
-
-            client_id = unverified_claims.get("azp")
-
-            if unverified_claims.get("permissions"):
-                token_scopes = unverified_claims["permissions"]
-                found = False
-                for token_scope in token_scopes:
-                    if token_scope == permission:
-                        found = True
-                if not found:
-                    raise AuthError(
-                        {
-                            "code": "invalid_claims",
-                            "description": "Permissions denied (Not found) - "
-                            + permission,
-                        },
-                        401,
-                    )
-
-            else:
-                raise AuthError(
-                    {
-                        "code": "invalid_claims",
-                        "description": "Permissions denied (No permission)",
                     },
                     401,
                 )
@@ -202,6 +157,35 @@ def _requires_auth(f, permission="", error_func=""):  # pragma: no cover
                         {
                             "code": "invalid_header",
                             "description": "Unable to parse authentication" " token.",
+                        },
+                        401,
+                    )
+
+                # Checks for correct permissions using verified payload claims
+                client_id = payload.get("azp")
+                token_scopes = ""
+
+                if payload.get("permissions"):
+                    token_scopes = payload["permissions"]
+                    found = False
+                    for token_scope in token_scopes:
+                        if token_scope == permission:
+                            found = True
+                    if not found:
+                        raise AuthError(
+                            {
+                                "code": "invalid_claims",
+                                "description": "Permissions denied (Not found) - "
+                                + permission,
+                            },
+                            401,
+                        )
+
+                else:
+                    raise AuthError(
+                        {
+                            "code": "invalid_claims",
+                            "description": "Permissions denied (No permission)",
                         },
                         401,
                     )
