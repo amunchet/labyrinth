@@ -95,7 +95,18 @@
               <b>{{ msg.role === "user" ? "You" : "Assistant" }}:</b>
               <span style="white-space: pre-wrap">{{ msg.content }}</span>
             </div>
-            <b-spinner small v-if="sending" class="m-2" />
+            <div v-if="sending" class="m-2 text-muted">
+              <b-spinner small />
+              Working<span v-if="turn_step"> (step {{ turn_step }})</span>...
+              <b-button
+                size="sm"
+                variant="outline-danger"
+                class="ml-2"
+                @click="stopTurn"
+              >
+                Stop
+              </b-button>
+            </div>
           </div>
           <hr />
           <b-row>
@@ -199,6 +210,9 @@ export default {
       draft: null,
       deploying: false,
       deploy_logs: [],
+
+      turn_step: "",
+      tool_trace: [],
     };
   },
   computed: {
@@ -257,6 +271,8 @@ export default {
         const resp = await response.json();
         this.session_id = resp.session_id;
         this.messages = [];
+        // Remembered so a reload rejoins this session instead of losing it.
+        window.localStorage.setItem("ai_chat_session_id", resp.session_id);
       } catch (e) {
         this.$store.commit("updateError", e);
       } finally {
@@ -278,7 +294,9 @@ export default {
       formData.append("data", JSON.stringify({ message: outgoing }));
 
       try {
-        let response = await Helper.apiPost(
+        // The turn runs server-side; this only kicks it off. Results are
+        // collected by polling, so closing the page doesn't lose the turn.
+        await Helper.apiPost(
           "ai_chat/message",
           "",
           this.session_id,
@@ -287,17 +305,96 @@ export default {
           false,
           1
         );
-        const resp = await response.json();
-        this.messages.push({ role: "assistant", content: resp.reply || "" });
-        if (resp.draft) {
-          this.draft = resp.draft;
-          this.deploy_logs = [];
+        await this.pollTurn();
+      } catch (e) {
+        this.$store.commit("updateError", e);
+        this.sending = false;
+      } finally {
+        this.scrollChatToBottom();
+      }
+    },
+    // Polls the server-side turn until it leaves a running state. Safe to call
+    // on mount too, which is how a reloaded page rejoins a turn in progress.
+    pollTurn: /* istanbul ignore next */ async function () {
+      let auth = this.$auth;
+      this.sending = true;
+
+      let polling = true;
+      try {
+        while (polling) {
+          const turn = await Helper.apiCall(
+            "ai_chat/turn",
+            this.session_id,
+            auth
+          );
+
+          this.turn_step = turn.step || "";
+          if (turn.tool_trace) {
+            this.tool_trace = turn.tool_trace;
+          }
+
+          if (turn.status == "queued" || turn.status == "running") {
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+            continue;
+          }
+
+          if (turn.status == "error") {
+            this.$store.commit(
+              "updateError",
+              turn.error || "Agent turn failed"
+            );
+          } else if (turn.reply) {
+            this.messages.push({ role: "assistant", content: turn.reply });
+          }
+          if (turn.draft) {
+            this.draft = turn.draft;
+            this.deploy_logs = [];
+          }
+          polling = false;
         }
       } catch (e) {
         this.$store.commit("updateError", e);
       } finally {
         this.sending = false;
+        this.turn_step = "";
         this.scrollChatToBottom();
+      }
+    },
+    stopTurn: /* istanbul ignore next */ async function () {
+      let auth = this.$auth;
+      try {
+        await Helper.apiDelete("ai_chat/turn", this.session_id, auth);
+      } catch (e) {
+        this.$store.commit("updateError", e);
+      }
+    },
+    // Rejoins a session left behind by a previous page load: pulls the stored
+    // history back, then resumes polling if a turn is still in flight.
+    resumeSession: /* istanbul ignore next */ async function (session_id) {
+      let auth = this.$auth;
+      try {
+        const history = await Helper.apiCall(
+          "ai_chat/history",
+          session_id,
+          auth
+        );
+        this.session_id = session_id;
+        this.messages = (history || []).filter(
+          (m) => m.role == "user" || (m.role == "assistant" && m.content)
+        );
+
+        const turn = await Helper.apiCall(
+          "ai_chat/turn",
+          session_id,
+          auth
+        ).catch(() => null);
+        if (turn && (turn.status == "queued" || turn.status == "running")) {
+          this.pollTurn();
+        }
+      } catch (e) {
+        // Session is gone/expired - fall back to the start-session form.
+        window.localStorage.removeItem("ai_chat_session_id");
+        this.session_id = "";
       }
     },
     approveAndDeploy: /* istanbul ignore next */ async function () {
@@ -341,10 +438,12 @@ export default {
           this.$store.commit("updateError", e);
         })
         .finally(() => {
+          window.localStorage.removeItem("ai_chat_session_id");
           this.session_id = "";
           this.messages = [];
           this.draft = null;
           this.deploy_logs = [];
+          this.tool_trace = [];
         });
     },
     scrollChatToBottom: /* istanbul ignore next */ function () {
@@ -360,6 +459,11 @@ export default {
     this.loadProviders();
     this.loadFileList("become");
     this.loadFileList("ssh");
+
+    const stored = window.localStorage.getItem("ai_chat_session_id");
+    if (stored) {
+      this.resumeSession(stored);
+    }
   },
 };
 </script>

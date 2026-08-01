@@ -7,6 +7,9 @@ from .base import ChatMessage, ChatResult, LLMProvider, ToolCall, ToolDef
 
 OPENAI_BASE_URL = "https://api.openai.com/v1/chat/completions"
 
+# Without an explicit timeout a stalled response holds the worker forever.
+REQUEST_TIMEOUT_SECONDS = int(os.environ.get("AI_CHAT_REQUEST_TIMEOUT", "120"))
+
 
 class OpenAIProvider(LLMProvider):
     """Adapter for OpenAI's chat-completions tool-calling API."""
@@ -75,8 +78,20 @@ class OpenAIProvider(LLMProvider):
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}",
         }
-        response = requests.post(OPENAI_BASE_URL, headers=headers, json=data)
-        response.raise_for_status()
+        response = requests.post(
+            OPENAI_BASE_URL,
+            headers=headers,
+            json=data,
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+        try:
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as exc:
+            # Surface the API's own explanation - a bare "400 Bad Request" gives
+            # nothing to debug a rejected payload with.
+            raise requests.exceptions.HTTPError(
+                f"OpenAI {response.status_code}: {response.text}", response=response
+            ) from exc
         payload = response.json()
 
         message = payload["choices"][0]["message"]

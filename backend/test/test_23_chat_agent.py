@@ -44,6 +44,16 @@ FAKE_SESSION = {
 }
 
 
+@pytest.fixture(autouse=True)
+def no_redis_turn_state():
+    """The loop publishes progress and checks for cancellation via Redis;
+    stub both so these tests stay pure-in-memory."""
+    with patch("ai.chat_agent.chat_store.update_turn"), patch(
+        "ai.chat_agent.chat_store.is_cancel_requested", return_value=False
+    ), patch("ai.chat_agent.chat_store.replace_history"):
+        yield
+
+
 @patch("ai.chat_agent.agent_tools.dispatch")
 @patch("ai.chat_agent.chat_store.append_message")
 @patch("ai.chat_agent.chat_store.get_history")
@@ -226,3 +236,164 @@ def test_default_provider_resolved_from_session(
 
     assert result["reply"] == "Hi"
     mock_get_provider.assert_called_once_with("openai")
+
+
+# History repair: a turn killed mid-flight (worker timeout, restart, cancel)
+# leaves an assistant message whose tool_calls were never answered. Both
+# OpenAI and Anthropic reject that shape, so every later message in the
+# session 400s until it's healed.
+
+
+def test_repair_history_closes_dangling_tool_call():
+    history = [
+        {"role": "user", "content": "why is disk full?"},
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [{"id": "call_1", "name": "list_hosts", "input": {}}],
+        },
+    ]
+
+    repaired, changed = chat_agent.repair_history(history)
+
+    assert changed is True
+    assert repaired[-1]["role"] == "tool"
+    assert repaired[-1]["tool_call_id"] == "call_1"
+    assert "interrupted" in repaired[-1]["content"]
+
+
+def test_repair_history_leaves_complete_history_alone():
+    history = [
+        {"role": "user", "content": "hi"},
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [{"id": "call_1", "name": "list_hosts", "input": {}}],
+        },
+        {"role": "tool", "content": "[]", "tool_call_id": "call_1"},
+        {"role": "assistant", "content": "done", "tool_calls": []},
+    ]
+
+    repaired, changed = chat_agent.repair_history(history)
+
+    assert changed is False
+    assert repaired == history
+
+
+def test_repair_history_closes_only_the_unanswered_call():
+    history = [
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {"id": "call_1", "name": "list_hosts", "input": {}},
+                {"id": "call_2", "name": "get_host", "input": {}},
+            ],
+        },
+        {"role": "tool", "content": "[]", "tool_call_id": "call_1"},
+    ]
+
+    repaired, changed = chat_agent.repair_history(history)
+
+    assert changed is True
+    tool_ids = [m["tool_call_id"] for m in repaired if m["role"] == "tool"]
+    assert tool_ids == ["call_1", "call_2"]
+
+
+@patch("ai.chat_agent.chat_store.replace_history")
+@patch("ai.chat_agent.chat_store.get_history")
+def test_load_repaired_history_persists_the_repair(mock_get_history, mock_replace):
+    """Healed once and written back, so the session isn't re-broken next turn."""
+    mock_get_history.return_value = [
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [{"id": "call_1", "name": "list_hosts", "input": {}}],
+        }
+    ]
+
+    chat_agent._load_repaired_history("sess1")
+
+    mock_replace.assert_called_once()
+
+
+@patch("ai.chat_agent.chat_store.get_history")
+@patch("ai.chat_agent.chat_store.replace_history")
+def test_load_repaired_history_skips_write_when_clean(mock_replace, mock_get_history):
+    mock_get_history.return_value = [{"role": "user", "content": "hi"}]
+
+    chat_agent._load_repaired_history("sess1")
+
+    mock_replace.assert_not_called()
+
+
+@patch("ai.chat_agent.agent_tools.dispatch")
+@patch("ai.chat_agent.chat_store.append_message")
+@patch("ai.chat_agent.chat_store.get_history")
+@patch("ai.chat_agent.chat_store.get_session")
+def test_cancel_stops_the_loop(
+    mock_get_session, mock_get_history, mock_append, mock_dispatch
+):
+    mock_get_session.return_value = FAKE_SESSION
+    mock_get_history.return_value = []
+
+    provider = RepeatingProvider(
+        ChatResult(
+            text="",
+            tool_calls=[ToolCall(id="c1", name="list_hosts", input={})],
+            stop_reason="tool_use",
+        )
+    )
+
+    with patch("ai.chat_agent.chat_store.is_cancel_requested", return_value=True):
+        result = chat_agent.run_agent_turn("sess1", "hi", provider=provider)
+
+    assert result["cancelled"] is True
+    assert result["reply"] == chat_agent.CANCELLED_REPLY
+    assert provider.call_count == 0
+
+
+@patch("ai.chat_agent.chat_store.update_turn")
+@patch("ai.chat_agent.run_agent_turn")
+def test_run_turn_background_records_completion(mock_run_turn, mock_update_turn):
+    mock_run_turn.return_value = {
+        "reply": "all good",
+        "tool_trace": [],
+        "draft": None,
+        "cancelled": False,
+    }
+
+    chat_agent.run_turn_background("sess1", "hi", "turn1")
+
+    _, kwargs = mock_update_turn.call_args
+    assert kwargs["status"] == "completed"
+    assert kwargs["reply"] == "all good"
+
+
+@patch("ai.chat_agent.chat_store.update_turn")
+@patch("ai.chat_agent.run_agent_turn")
+def test_run_turn_background_records_error(mock_run_turn, mock_update_turn):
+    """A provider failure must land as turn status, not vanish with the process."""
+    mock_run_turn.side_effect = RuntimeError("OpenAI 400: bad payload")
+
+    chat_agent.run_turn_background("sess1", "hi", "turn1")
+
+    _, kwargs = mock_update_turn.call_args
+    assert kwargs["status"] == "error"
+    assert "OpenAI 400" in kwargs["error"]
+
+
+@patch("ai.chat_agent.chat_store.update_turn")
+@patch("ai.chat_agent.run_agent_turn")
+def test_run_turn_background_records_cancellation(mock_run_turn, mock_update_turn):
+    mock_run_turn.return_value = {
+        "reply": chat_agent.CANCELLED_REPLY,
+        "tool_trace": [],
+        "draft": None,
+        "cancelled": True,
+    }
+
+    chat_agent.run_turn_background("sess1", "hi", "turn1")
+
+    _, kwargs = mock_update_turn.call_args
+    assert kwargs["status"] == "cancelled"

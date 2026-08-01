@@ -6,6 +6,8 @@ a playbook draft via `propose_playbook`.
 """
 
 import json
+import traceback
+import uuid
 
 from ai import agent_tools
 from ai import chat_store
@@ -13,6 +15,8 @@ from ai.providers import factory
 from ai.providers.base import ChatMessage, ToolCall
 
 MAX_ITERATIONS = 8
+
+CANCELLED_REPLY = "This turn was cancelled."
 
 SYSTEM_PROMPT = (
     "You are a network operations assistant for Labyrinth, a network monitor/mapper. "
@@ -51,7 +55,94 @@ def _from_chat_message(message):
     }
 
 
-def run_agent_turn(session_id, user_message, provider=None):
+def repair_history(history):
+    """Closes any tool_calls that never got a matching tool result.
+
+    A turn killed part-way through (worker timeout, container restart, cancel)
+    persists the assistant message announcing its tool_calls but not the tool
+    results that answer them. Both OpenAI and Anthropic reject a conversation
+    containing such a dangling call, so without this every later message in
+    that session fails with a 400 and the session is effectively bricked.
+
+    Returns (repaired_history, changed).
+    """
+    repaired = []
+    changed = False
+    index = 0
+
+    while index < len(history):
+        message = history[index]
+        repaired.append(message)
+        index += 1
+
+        tool_calls = message.get("tool_calls") or []
+        if message.get("role") != "assistant" or not tool_calls:
+            continue
+
+        # Carry over the tool results that did land, keeping their order...
+        answered = set()
+        while index < len(history) and history[index].get("role") == "tool":
+            answered.add(history[index].get("tool_call_id"))
+            repaired.append(history[index])
+            index += 1
+
+        # ...then close out the calls that never got one.
+        for tool_call in tool_calls:
+            if tool_call.get("id") in answered:
+                continue
+            changed = True
+            repaired.append(
+                {
+                    "role": "tool",
+                    "content": json.dumps(
+                        {"error": "Tool call did not complete (interrupted)."}
+                    ),
+                    "tool_calls": [],
+                    "tool_call_id": tool_call.get("id"),
+                    "tool_name": tool_call.get("name"),
+                }
+            )
+
+    return repaired, changed
+
+
+def _load_repaired_history(session_id):
+    """Loads history, healing (and persisting) any interrupted tool calls."""
+    stored = chat_store.get_history(session_id)
+    repaired, changed = repair_history(stored)
+    if changed:
+        chat_store.replace_history(session_id, repaired)
+    return repaired
+
+
+def run_turn_background(session_id, user_message, turn_id):
+    """Runs a turn out-of-band, recording status/result in Redis.
+
+    Runs in a forked process so the HTTP request can return immediately: the
+    agentic loop makes several sequential LLM calls and easily outlives
+    gunicorn's request timeout, which used to kill the worker mid-turn.
+    """
+    try:
+        result = run_agent_turn(session_id, user_message, turn_id=turn_id)
+    except Exception as exc:  # noqa: BLE001 - surfaced to the client as status
+        chat_store.update_turn(
+            session_id,
+            status="error",
+            error=f"{type(exc).__name__}: {exc}",
+            traceback=traceback.format_exc(),
+        )
+        return
+
+    chat_store.update_turn(
+        session_id,
+        status="cancelled" if result.get("cancelled") else "completed",
+        reply=result["reply"],
+        tool_trace=result["tool_trace"],
+        draft=result["draft"],
+    )
+
+
+def run_agent_turn(session_id, user_message, provider=None, turn_id=None):
     """Runs one chat turn to completion. Persists the full turn to chat_store.
 
     :param provider: optional LLMProvider override, primarily for tests -
@@ -64,7 +155,10 @@ def run_agent_turn(session_id, user_message, provider=None):
     if provider is None:
         provider = factory.get_provider(session["provider"])
 
-    history = [_to_chat_message(m) for m in chat_store.get_history(session_id)]
+    if turn_id is None:
+        turn_id = str(uuid.uuid4())
+
+    history = [_to_chat_message(m) for m in _load_repaired_history(session_id)]
 
     user_msg = ChatMessage(role="user", content=user_message)
     history.append(user_msg)
@@ -73,8 +167,17 @@ def run_agent_turn(session_id, user_message, provider=None):
     tool_trace = []
     draft = None
     reply_text = ""
+    cancelled = False
 
-    for _ in range(MAX_ITERATIONS):
+    chat_store.update_turn(session_id, status="running", step="0")
+
+    for step in range(MAX_ITERATIONS):
+        if chat_store.is_cancel_requested(session_id):
+            cancelled = True
+            reply_text = CANCELLED_REPLY
+            break
+
+        chat_store.update_turn(session_id, step=str(step + 1))
         result = provider.chat(history, agent_tools.TOOL_DEFS, SYSTEM_PROMPT)
 
         assistant_msg = ChatMessage(
@@ -113,6 +216,10 @@ def run_agent_turn(session_id, user_message, provider=None):
                 draft = tool_result["draft"]
                 draft_staged = True
 
+        # Publish the trace as it grows so a polling client sees progress
+        # rather than a spinner until the whole turn lands.
+        chat_store.update_turn(session_id, tool_trace=tool_trace)
+
         if draft_staged:
             reply_text = result.text or "I've drafted a playbook for you to review."
             break
@@ -122,4 +229,10 @@ def run_agent_turn(session_id, user_message, provider=None):
             "Please refine your request or review the tool trace so far."
         )
 
-    return {"reply": reply_text, "tool_trace": tool_trace, "draft": draft}
+    return {
+        "reply": reply_text,
+        "tool_trace": tool_trace,
+        "draft": draft,
+        "cancelled": cancelled,
+        "turn_id": turn_id,
+    }

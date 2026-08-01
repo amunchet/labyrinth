@@ -6,6 +6,7 @@ Labyrinth Web backend
 # Permissions scope names
 import functools
 import os
+import signal
 import sys
 import json
 import socket
@@ -1536,11 +1537,13 @@ def ai_chat_create_session(inp_data=""):
 @app.route("/ai_chat/message/<session_id>", methods=["POST"])
 @requires_auth_admin
 def ai_chat_message(session_id, inp_data=""):
-    """Sends a user message into an existing AI chat session. Body: {message}.
+    """Starts an agent turn for a session. Body: {message}.
 
-    Runs the agentic loop (chat_agent.run_agent_turn), which may call read-only
-    investigation tools and/or stage a draft playbook via propose_playbook -
-    it never deploys anything itself.
+    Returns immediately with a turn_id; the agentic loop (several sequential
+    LLM calls plus tool dispatch) runs in a background process and reports
+    into Redis, polled via /ai_chat/turn/<session_id>. Running it inline used
+    to outlive gunicorn's request timeout, which killed the worker mid-turn
+    and left dangling tool_calls that poisoned the rest of the session.
     """
     if inp_data:
         data = inp_data
@@ -1554,13 +1557,80 @@ def ai_chat_message(session_id, inp_data=""):
         return "Invalid data", 482
 
     from ai import chat_agent
+    from ai import chat_store
 
-    try:
-        result = chat_agent.run_agent_turn(session_id, data["message"])
-    except ValueError:
+    if not chat_store.get_session(session_id):
         return {"error": "Session not found"}, 404
 
-    return result, 200
+    current = chat_store.get_turn(session_id)
+    if current and current.get("status") in ("queued", "running"):
+        return {"error": "A turn is already running", "turn": current}, 409
+
+    turn_id = str(uuid.uuid4())
+    chat_store.start_turn(session_id, turn_id, data["message"])
+
+    process = Process(
+        target=chat_agent.run_turn_background,
+        args=(session_id, data["message"], turn_id),
+    )
+    process.start()
+    chat_store.update_turn(session_id, pid=str(process.pid))
+
+    return {"turn_id": turn_id, "status": "started"}, 200
+
+
+@app.route("/ai_chat/turn/<session_id>", methods=["GET"])
+@app.route("/ai_chat/turn/<session_id>/", methods=["GET"])
+@requires_auth_admin
+def ai_chat_turn_status(session_id):
+    """Returns the current turn's status/result, for polling by any client."""
+    from ai import chat_store
+
+    turn = chat_store.get_turn(session_id)
+    if not turn:
+        return {"error": "No turn found"}, 404
+
+    turn.pop("traceback", None)
+    return turn, 200
+
+
+@app.route("/ai_chat/turn/<session_id>", methods=["DELETE"])
+@app.route("/ai_chat/turn/<session_id>/", methods=["DELETE"])
+@requires_auth_admin
+def ai_chat_turn_cancel(session_id):
+    """Cancels the in-flight turn for a session."""
+    from ai import chat_agent
+    from ai import chat_store
+
+    turn = chat_store.get_turn(session_id)
+    if not turn:
+        return {"error": "No turn found"}, 404
+
+    chat_store.request_cancel(session_id)
+
+    # The loop checks the cancel flag between steps; if it's parked in a
+    # provider HTTP call that could be a while, so kill the worker too.
+    pid = turn.get("pid")
+    if pid:
+        try:
+            os.kill(int(pid), signal.SIGTERM)
+        except (ProcessLookupError, ValueError, PermissionError):
+            pass
+
+    chat_store.update_turn(
+        session_id, status="cancelled", reply=chat_agent.CANCELLED_REPLY
+    )
+    return {"status": "cancelled"}, 200
+
+
+@app.route("/ai_chat/sessions", methods=["GET"])
+@app.route("/ai_chat/sessions/", methods=["GET"])
+@requires_auth_admin
+def ai_chat_sessions():
+    """Lists live chat sessions so another client can pick one up and resume."""
+    from ai import chat_store
+
+    return json.dumps(chat_store.list_sessions()), 200
 
 
 @app.route("/ai_chat/history/<session_id>", methods=["GET"])

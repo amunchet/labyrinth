@@ -5,6 +5,9 @@ import requests
 
 from .base import ChatMessage, ChatResult, LLMProvider, ToolCall, ToolDef
 
+# Without an explicit timeout a stalled response holds the worker forever.
+REQUEST_TIMEOUT_SECONDS = int(os.environ.get("AI_CHAT_REQUEST_TIMEOUT", "120"))
+
 
 class OllamaProvider(LLMProvider):
     """Adapter for a local/self-hosted Ollama server's OpenAI-compatible tool-calling chat API."""
@@ -63,7 +66,9 @@ class OllamaProvider(LLMProvider):
         if tools:
             data["tools"] = self._to_wire_tools(tools)
 
-        response = requests.post(f"{self.host}/api/chat", json=data)
+        response = requests.post(
+            f"{self.host}/api/chat", json=data, timeout=REQUEST_TIMEOUT_SECONDS
+        )
         response.raise_for_status()
         payload = response.json()
 
