@@ -1557,8 +1557,8 @@ def ai_chat_message(session_id, inp_data=""):
 
     try:
         result = chat_agent.run_agent_turn(session_id, data["message"])
-    except ValueError as e:
-        return {"error": str(e)}, 404
+    except ValueError:
+        return {"error": "Session not found"}, 404
 
     return result, 200
 
