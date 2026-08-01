@@ -14,6 +14,7 @@ Ansible helper functions
 
 """
 import os
+import shlex
 import subprocess
 import shutil
 import uuid
@@ -25,12 +26,18 @@ from werkzeug.utils import secure_filename
 from typing import List
 
 
-def check_file(filename, file_type, raw=""):
+def check_file(filename, file_type, raw="", persist=True):
     """
     Verifies the file uploaded is a valid file of the specified type
+
+    :param persist - when False, validates (e.g. `ansible-playbook --check`) without
+        writing the result into /src/uploads/<file_type>/. Used to validate a
+        chat-drafted playbook before it has been reviewed/approved.
     """
     retval = False
     temp_file = "/tmp/{}".format(str(uuid.uuid1()))
+    if not os.path.exists("/tmp"):  # pragma: no cover
+        os.makedirs("/tmp")
 
     filename = secure_filename(filename)
     file_type = secure_filename(file_type)
@@ -57,10 +64,12 @@ def check_file(filename, file_type, raw=""):
         else:
             retval = True
 
-        if retval:
+        if retval and persist:
             if not os.path.exists("/src/uploads/ansible"):  # pragma: no cover
                 os.makedirs("/src/uploads/ansible")
             shutil.move(temp_file, "/src/uploads/ansible/{}.yml".format(filename))
+        elif os.path.exists(temp_file):
+            os.remove(temp_file)
 
         return [retval, x.stdout, x.stderr]
 
@@ -222,3 +231,79 @@ def run_ansible(
     # Run ansible and return HTML
 
     return RUN_DIR, playbook
+
+
+def run_adhoc(
+    hosts: List, argv: List[str], vault_password: str, become_file: str, ssh_key_file=""
+):
+    """
+    Synchronously runs a single ad-hoc command (Ansible's `command` module) against
+    `hosts` and returns its captured output. Used for short-lived read-only diagnostics
+    (disk usage, docker status, logs) - unlike `run_ansible`, this does not go through
+    `ansible_runner.run_async`/background job/Redis log streaming, since the command
+    is expected to complete quickly.
+
+    :param hosts - hosts to run the command against
+    :param argv - argv list for the command module (e.g. ["df", "-h"]); never a shell
+        string, so there is no shell interpolation regardless of argument content
+    :param vault_password - temporary vault password to store
+    :param become_file - Encrypted vault file that contains the become password
+    :param ssh_key_file - SSH key to use for hosts
+    """
+    RUN_DIR = "/run/{}".format(uuid.uuid1())
+    BECOME_DIR = "/src/uploads/become"
+
+    if not os.path.exists("/run"):  # pragma: no cover
+        os.mkdir("/run")
+
+    os.makedirs(RUN_DIR)
+
+    folders = ["inventory", "project", "vars", "env"]
+    for folder in folders:
+        os.makedirs("{}/{}".format(RUN_DIR, folder))
+
+    # Hosts
+    if type(hosts) == str:
+        parsed_hosts = hosts.split(",")
+    else:
+        parsed_hosts = hosts
+
+    with open("{}/inventory/hosts".format(RUN_DIR), "w") as f:
+        f.write("[clients]\n")
+        for host in parsed_hosts:
+            f.write(f"{host}\n")
+
+    # Become file
+    old_become = "{}/{}.yml".format(BECOME_DIR, become_file)
+    if "{}.yml".format(become_file) not in os.listdir(BECOME_DIR):
+        raise Exception("Become file not found" + str(old_become))
+
+    shutil.copy(old_become, "{}/vars/{}.yml".format(RUN_DIR, become_file))
+
+    # Write vault password to a restrictive temp file (required by ansible-runner)
+    vault_pass_path = "{}/vault.pass".format(RUN_DIR)
+    fd = os.open(vault_pass_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(vault_password)
+
+    module_args = " ".join(shlex.quote(a) for a in argv)
+
+    try:
+        result = ansible_runner.run(
+            private_data_dir=RUN_DIR,
+            host_pattern="clients",
+            module="command",
+            module_args=module_args,
+            cmdline="--vault-password-file ../vault.pass",
+            quiet=True,
+        )
+        stdout_lines = [event.get("stdout", "") for event in result.events]
+        return {
+            "status": result.status,
+            "rc": result.rc,
+            "stdout": "\n".join(line for line in stdout_lines if line),
+        }
+    finally:
+        if os.path.exists("{}/vault.pass".format(RUN_DIR)):
+            os.remove("{}/vault.pass".format(RUN_DIR))
+        shutil.rmtree(RUN_DIR)

@@ -103,6 +103,15 @@ const routes = [
     name: "AWS",
     component: () => import(/* webpackChunkName: "aws" */ "../views/AWS.vue"),
   },
+  {
+    path: "/ai-chat",
+    name: "AiChat",
+    // route level code-splitting
+    // this generates a separate chunk (aichat.[hash].js) for this route
+    // which is lazy-loaded when the route is visited.
+    component: () =>
+      import(/* webpackChunkName: "aichat" */ "../views/AiChat.vue"),
+  },
 ];
 
 const router = new VueRouter({

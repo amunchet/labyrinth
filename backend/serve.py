@@ -1486,6 +1486,106 @@ def get_ansible_status(job_id):
     }, 200
 
 
+# AI chat: experimental investigate -> draft playbook -> (human approves via the
+# existing /save_ansible_file/ + /ansible_runner/ routes, unchanged) flow.
+
+
+@app.route("/ai_chat/providers", methods=["GET"])
+@app.route("/ai_chat/providers/", methods=["GET"])
+@requires_auth_admin
+def ai_chat_providers():
+    """Returns the LLM providers that currently have their env vars configured."""
+    from ai.providers import factory
+
+    return json.dumps(factory.list_available_providers()), 200
+
+
+@app.route("/ai_chat/session/", methods=["POST"])
+@requires_auth_admin
+def ai_chat_create_session(inp_data=""):
+    """Creates a new AI chat session.
+
+    Body: {provider, become_file, ssh_key, vault_password}. The become file /
+    ssh key / vault password are chosen once here by the human (same as the
+    Deploy page) and reused server-side for every diagnostic tool call the
+    agent makes in this session - the model never sees or picks credentials.
+    """
+    if inp_data:
+        data = inp_data
+    else:  # pragma: no cover
+        data = request.form.get("data")
+        if not data:
+            return "Invalid data", 481
+
+    data = json.loads(data)
+    required_keys = ["provider", "become_file"]
+    if not all(key in data for key in required_keys):
+        return "Invalid data", 482
+
+    from ai import chat_store
+
+    session_id = chat_store.create_session(
+        data["provider"],
+        data["become_file"],
+        ssh_key=data.get("ssh_key", ""),
+        vault_password=data.get("vault_password", ""),
+    )
+    return {"session_id": session_id}, 200
+
+
+@app.route("/ai_chat/message/<session_id>", methods=["POST"])
+@requires_auth_admin
+def ai_chat_message(session_id, inp_data=""):
+    """Sends a user message into an existing AI chat session. Body: {message}.
+
+    Runs the agentic loop (chat_agent.run_agent_turn), which may call read-only
+    investigation tools and/or stage a draft playbook via propose_playbook -
+    it never deploys anything itself.
+    """
+    if inp_data:
+        data = inp_data
+    else:  # pragma: no cover
+        data = request.form.get("data")
+        if not data:
+            return "Invalid data", 481
+
+    data = json.loads(data)
+    if "message" not in data:
+        return "Invalid data", 482
+
+    from ai import chat_agent
+
+    try:
+        result = chat_agent.run_agent_turn(session_id, data["message"])
+    except ValueError:
+        return {"error": "Session not found"}, 404
+
+    return result, 200
+
+
+@app.route("/ai_chat/history/<session_id>", methods=["GET"])
+@requires_auth_admin
+def ai_chat_history(session_id):
+    """Returns the stored message history for a chat session (reload after refresh)."""
+    from ai import chat_store
+
+    session = chat_store.get_session(session_id)
+    if not session:
+        return {"error": "Session not found"}, 404
+
+    return json.dumps(chat_store.get_history(session_id)), 200
+
+
+@app.route("/ai_chat/session/<session_id>", methods=["DELETE"])
+@requires_auth_admin
+def ai_chat_discard(session_id):
+    """Discards a chat session's config, history, and any unapproved draft."""
+    from ai import chat_store
+
+    chat_store.discard_session(session_id)
+    return "Success", 200
+
+
 @app.route("/mac/<old_mac>/<new_mac>/")
 @requires_auth_write
 def update_mac(old_mac, new_mac):
