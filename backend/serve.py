@@ -192,9 +192,8 @@ PERM_ADMIN = "admin"
 
 @app.route("/error/<int:code>")
 def error_func(code=401, msg="", command=""):  # pragma: no cover
-    if isinstance(code, int):
-        return '{"error": "Auth Error"}', code, {"Content-Type": "application/json"}
-    return '{"error": "Auth Error"}', 500, {"Content-Type": "application/json"}
+    status = int(code) if isinstance(code, int) else 500
+    return Response('{"error": "Auth Error"}', status=status, content_type="application/json")
 
 
 requires_auth_read = functools.partial(
