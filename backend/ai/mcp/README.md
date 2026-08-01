@@ -7,13 +7,18 @@ A Python MCP server that wraps existing backend endpoints (via `unwrap`) to mana
 The MCP server:
 - Runs in its own Docker container alongside the backend
 - Uses `unwrap()` to call Flask handlers directly, bypassing auth decorators
-- Shares the same MongoDB and Redis instances as the backend
+- Shares the same database (see `../../db/README.md` and the root
+  `MONGO_MIGRATION.md` - `DB_BACKEND=postgres` by default, `mongo` fallback)
+  and Redis instance as the backend
 - Exposes tools for managing hosts, services, and reading metrics
 
 ## Prerequisites
 - Python 3.11+
-- Access to the same MongoDB/Redis the backend uses (`MONGO_*`, `REDIS_HOST` envs)
-- Dependency: `modelcontextprotocol` plus backend requirements
+- Access to the same database/Redis the backend uses (`DB_BACKEND`,
+  `POSTGRES_*` or `MONGO_*`, `REDIS_HOST` envs)
+- Dependency: `modelcontextprotocol` plus backend requirements (this
+  directory's own `requirements.txt` is a separate copy - keep its
+  `pymongo`/`psycopg2` pins in sync with `backend/requirements.txt`)
 
 ## Run locally
 ```bash
@@ -25,7 +30,9 @@ python backend/ai/mcp/server.py
 Environment variables:
 - `MCP_PORT` (default 8765)
 - `MCP_HOST` (default 0.0.0.0)
-- `MONGO_HOST`, `MONGO_USERNAME`, `MONGO_PASSWORD`
+- `DB_BACKEND` (default `postgres`)
+- `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` (when `DB_BACKEND=postgres`)
+- `MONGO_HOST`, `MONGO_USERNAME`, `MONGO_PASSWORD` (when `DB_BACKEND=mongo`)
 - `REDIS_HOST`
 
 ## Docker (included in docker-compose)
@@ -119,6 +126,6 @@ Check service example:
 ## Notes
 
 - Uses `unwrap()` to call Flask handlers directly - no HTTP auth required when running inside trusted network
-- Host/service operations persist via existing Mongo client in `backend/serve.py`
+- Host/service operations persist via the shared database client in `backend/serve.py` (`serve.db`, see `../../db/README.md`)
 - Services attached to hosts use the `display_name` field
 - No deployment automation - all changes prepare services/metrics for manual deployment

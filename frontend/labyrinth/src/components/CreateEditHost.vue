@@ -435,6 +435,81 @@
         </b-row>
       </b-col>
     </b-row>
+    <b-row v-if="!isNew">
+      <b-col>
+        <h4>Telegraf Ingest</h4>
+        <div v-if="ingest_loading" class="text-small">
+          Loading ingest counters...
+        </div>
+        <div v-else-if="!ingest.found" class="text-small">
+          No Telegraf traffic recorded for this host yet. Counters start once
+          the host posts to /api/metrics/.
+        </div>
+        <div v-else>
+          <div class="ingest-tiles">
+            <div class="ingest-tile">
+              <span class="ingest-value">{{ ingest.requests }}</span>
+              <span class="ingest-label">Requests total</span>
+            </div>
+            <div class="ingest-tile">
+              <span class="ingest-value">{{ ingest.metrics }}</span>
+              <span class="ingest-label">Metrics total</span>
+            </div>
+            <div class="ingest-tile">
+              <span class="ingest-value">{{ ingestRequestsPerMinute }}</span>
+              <span class="ingest-label">Requests / min</span>
+            </div>
+            <div class="ingest-tile">
+              <span class="ingest-value">{{ ingestMetricsPerMinute }}</span>
+              <span class="ingest-label">Metrics / min</span>
+            </div>
+            <div class="ingest-tile">
+              <span class="ingest-value">{{ ingest.last_batch }}</span>
+              <span class="ingest-label">Last batch size</span>
+            </div>
+          </div>
+
+          <div class="ingest-chart">
+            <div class="ingest-chart-head">
+              <span
+                >Requests per minute, last
+                {{ ingest.window_minutes }} minutes</span
+              >
+              <span class="text-small">peak {{ ingestPeak }}</span>
+            </div>
+            <div class="ingest-bars">
+              <div
+                v-for="bucket in ingest.per_minute"
+                :key="bucket.minute"
+                class="ingest-bar-slot"
+                :title="bucketTitle(bucket)"
+              >
+                <div
+                  class="ingest-bar"
+                  :style="{ height: bucketHeight(bucket) }"
+                ></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="ingest-footer">
+            <span class="text-small">
+              Counted as <code>{{ ingest.client_id }}</code
+              >, last seen {{ ingestLastSeen }}.
+              <template v-if="ingest.skipped">
+                {{ ingest.skipped }} metric(s) rejected for missing name/tags.
+              </template>
+            </span>
+            <b-button
+              size="sm"
+              variant="outline-secondary"
+              @click="resetIngestCounts()"
+              >Reset counters</b-button
+            >
+          </div>
+        </div>
+      </b-col>
+    </b-row>
     <b-row class="overflow-scroll" v-if="metrics.length">
       <h4>Latest Host Metrics</h4>
       <div style="max-height: 400px; overflow-y: scroll">
@@ -469,6 +544,9 @@ export default {
       host: {},
       metrics: [],
 
+      ingest: { found: false, per_minute: [] },
+      ingest_loading: false,
+
       safe_host: {
         ip: "",
         subnet: "",
@@ -502,12 +580,14 @@ export default {
         this.isNew = true;
         this.host = JSON.parse(JSON.stringify(this.safe_host));
         this.metrics = [];
+        this.ingest = { found: false, per_minute: [] };
       } else {
         this.isNew = false;
         this.host = val;
         try {
           this.loadMetrics();
           this.loadServices();
+          this.loadIngestCounts();
         } catch (e) {
           this.$store.commit("updateError", e);
         }
@@ -560,6 +640,76 @@ export default {
         .catch((e) => {
           this.$store.commit("updateError", e);
         });
+    },
+    ingestId: function () {
+      // The ingest service counts a host by MAC when its Telegraf config sets
+      // one and by IP otherwise; the backend resolves whichever we send.
+      return (this.host && (this.host.mac || this.host.ip)) || "";
+    },
+    loadIngestCounts: /* istanbul ignore next */ function () {
+      let auth = this.$auth;
+      let id = this.ingestId();
+      if (!id) {
+        return;
+      }
+
+      this.ingest_loading = true;
+      Helper.apiCall("metrics_counts", id, auth)
+        .then((res) => {
+          this.ingest = res;
+          this.ingest_loading = false;
+        })
+        .catch((e) => {
+          this.ingest_loading = false;
+          this.$store.commit("updateError", e);
+        });
+    },
+    resetIngestCounts: /* istanbul ignore next */ function () {
+      let auth = this.$auth;
+      let id = this.ingestId();
+      if (!id) {
+        return;
+      }
+
+      Helper.apiDelete("metrics_counts", id, auth)
+        .then(() => {
+          this.loadIngestCounts();
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
+    },
+    ingestRate: function (field) {
+      // Averaged over the window actually recorded, so a host that only
+      // started reporting ten minutes ago is not diluted by fifty empty ones.
+      let buckets = this.ingestBuckets.filter((bucket) => bucket.requests > 0);
+      if (!buckets.length) {
+        return 0;
+      }
+      let total = (this.ingest && this.ingest[field]) || 0;
+      return Math.round((total / buckets.length) * 10) / 10;
+    },
+    bucketHeight: function (bucket) {
+      let peak = this.ingestPeak;
+      if (!peak || !bucket || !bucket.requests) {
+        return "0%";
+      }
+      // Floor at 4% so a minute with traffic never renders as a gap.
+      return Math.max(4, Math.round((bucket.requests / peak) * 100)) + "%";
+    },
+    bucketTitle: function (bucket) {
+      if (!bucket) {
+        return "";
+      }
+      let when = new Date(bucket.timestamp * 1000);
+      return (
+        Helper.formatDate(when, true) +
+        " - " +
+        bucket.requests +
+        " request(s), " +
+        bucket.metrics +
+        " metric(s)"
+      );
     },
     saveHost: /* istanbul ignore next  */ function () {
       let auth = this.$auth;
@@ -638,6 +788,28 @@ export default {
     }
   },
   computed: {
+    ingestBuckets() {
+      return (this.ingest && this.ingest.per_minute) || [];
+    },
+    ingestPeak() {
+      return this.ingestBuckets.reduce(
+        (peak, bucket) => Math.max(peak, bucket.requests || 0),
+        0
+      );
+    },
+    ingestRequestsPerMinute() {
+      return this.ingestRate("requests_last_hour");
+    },
+    ingestMetricsPerMinute() {
+      return this.ingestRate("metrics_last_hour");
+    },
+    ingestLastSeen() {
+      if (!this.ingest || !this.ingest.last_seen) {
+        return "never";
+      }
+      let when = new Date(this.ingest.last_seen * 1000);
+      return Helper.formatDate(when) + " " + Helper.formatDate(when, true);
+    },
     parsedTags() {
       const raw = (this.host && this.host.tags) || "";
       return raw
@@ -687,5 +859,74 @@ h4 {
   border-radius: 12px;
   font-size: 9pt;
   white-space: nowrap;
+}
+
+/* Telegraf ingest counters.  One measure, one hue: values stay in text ink
+   and the bars carry the only colour, so the panel reads at a glance. */
+$ingest-hue: #38595e;
+
+.ingest-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ingest-tile {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 90px;
+  padding: 6px 10px;
+  border: 1px solid #e0e3e6;
+  border-radius: 4px;
+  text-align: left;
+}
+.ingest-value {
+  font-size: 15pt;
+  font-weight: 600;
+  line-height: 1.1;
+  color: #212529;
+}
+.ingest-label {
+  font-size: 8.5pt;
+  color: #6c757d;
+}
+
+.ingest-chart {
+  margin-top: 12px;
+}
+.ingest-chart-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 9pt;
+  color: #6c757d;
+  margin-bottom: 3px;
+}
+.ingest-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 56px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid #e0e3e6;
+}
+.ingest-bar-slot {
+  flex: 1 1 0;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  min-width: 2px;
+}
+.ingest-bar {
+  width: 100%;
+  background-color: $ingest-hue;
+  border-radius: 2px 2px 0 0;
+}
+
+.ingest-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
 }
 </style>

@@ -11,7 +11,6 @@ EC2 inventory Labyrinth doesn't know how to monitor yet.
 import os
 import sys
 from typing import List, Dict, Optional, Tuple
-import pymongo
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from datetime import datetime
 
@@ -20,6 +19,7 @@ sys.path.insert(0, "/src")
 
 import aws_helper
 from ai import email_helper
+from db import get_db
 
 # Setup Jinja2 template environment with auto-escaping enabled for HTML templates
 TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "templates")
@@ -29,27 +29,14 @@ jinja_env = Environment(
 )
 
 
-def get_mongo_client():
-    """Get MongoDB client from connection string."""
-    if os.getenv("GITHUB") or os.getenv("TESTBED"):
-        return pymongo.MongoClient(
-            "mongodb://{}:{}@{}".format(
-                os.environ.get("MONGO_USERNAME"),
-                os.environ.get("MONGO_PASSWORD"),
-                os.environ.get("MONGO_HOST"),
-            )
-        )
-    return pymongo.MongoClient(
-        "mongodb+srv://{}:{}@{}".format(
-            os.environ.get("MONGO_USERNAME"),
-            os.environ.get("MONGO_PASSWORD"),
-            os.environ.get("MONGO_HOST"),
-        )
-    )
+def _get_db_client():
+    """Get a database client for the configured backend (Postgres by
+    default, Mongo if DB_BACKEND=mongo - see backend/db/)."""
+    return get_db()
 
 
 def get_ec2_alert_settings(db) -> Dict:
-    """Get EC2 unmatched-instance alert settings from MongoDB.
+    """Get EC2 unmatched-instance alert settings from the database.
 
     Reuses the generic ``labyrinth.settings`` collection (``name``/``value``
     schema) that already backs the ``/settings`` API, so values configured
@@ -77,7 +64,7 @@ def gather_unmatched_instances(db=None) -> Tuple[List[Dict], List[Dict]]:
 
     Returns a tuple: (unmatched_instances, account_errors)
     """
-    db = db or get_mongo_client()
+    db = db or _get_db_client()
     accounts = list(db["labyrinth"]["aws_accounts"].find({}))
     hosts = list(db["labyrinth"]["hosts"].find({}))
 
@@ -183,7 +170,7 @@ def send_full_test_email(
     if not recipients:
         raise ValueError("At least one recipient is required")
 
-    db = db or get_mongo_client()
+    db = db or _get_db_client()
 
     unmatched_instances, account_errors = gather_unmatched_instances(db=db)
 
@@ -202,7 +189,7 @@ def check_and_alert_unmatched_instances():
     send email alerts.
     """
     try:
-        db = get_mongo_client()
+        db = _get_db_client()
 
         settings = get_ec2_alert_settings(db)
         recipients = settings["recipients"]

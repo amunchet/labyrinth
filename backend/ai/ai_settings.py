@@ -12,10 +12,10 @@ which isn't exercised by the backend test suite.
 
 import os
 
-import pymongo
+from db import get_db
 
 # Defaults used the first time the AI alert flow runs, before anything has
-# been saved to the `labyrinth.settings` Mongo collection via the Settings UI.
+# been saved to the `labyrinth.settings` collection via the Settings UI.
 DEFAULT_AI_PROMPT = (
     "Below is the output from our IT monitoring system. Each entry contains a "
     "host name, its failing services (with check details and latest metric "
@@ -46,29 +46,16 @@ DEFAULT_AI_ALERT_SUBJECT_TEMPLATE = "Labyrinth IT AI ALERT [{time}]"
 DEFAULT_AI_ALERT_FROM_NAME = "Labyrinth AI"
 
 
-def get_mongo_client():  # pragma: no cover
-    """Get MongoDB client from connection string."""
-    if os.getenv("GITHUB") or os.getenv("TESTBED"):
-        return pymongo.MongoClient(
-            "mongodb://{}:{}@{}".format(
-                os.environ.get("MONGO_USERNAME"),
-                os.environ.get("MONGO_PASSWORD"),
-                os.environ.get("MONGO_HOST"),
-            )
-        )
-    return pymongo.MongoClient(
-        "mongodb+srv://{}:{}@{}".format(
-            os.environ.get("MONGO_USERNAME"),
-            os.environ.get("MONGO_PASSWORD"),
-            os.environ.get("MONGO_HOST"),
-        )
-    )
+def get_db_client():
+    """Get a database client for the configured backend (Postgres by
+    default, Mongo if DB_BACKEND=mongo - see backend/db/)."""
+    return get_db()
 
 
 def get_ai_alert_settings(db) -> dict:
     """
     Get AI alert settings (prompt, model, recipients, subject template, from
-    name) from MongoDB.
+    name) from the database.
 
     Reuses the generic ``labyrinth.settings`` collection (``name``/``value``
     schema) that already backs the ``/settings`` API, so values configured via

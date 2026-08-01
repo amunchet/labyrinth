@@ -16,7 +16,7 @@ import redis
 
 from ai import chatgpt_helper
 from ai import email_helper
-from ai.ai_settings import get_ai_alert_settings, get_mongo_client
+from ai.ai_settings import get_ai_alert_settings, get_db_client
 
 
 def process_dashboard(testing=False):
@@ -314,7 +314,7 @@ def send_full_test_email(recipients=None, db=None) -> dict:
     regardless of wake_up_it_director, so admins can preview real model
     output and confirm their prompt/model/recipient settings on demand.
     """
-    db = db or get_mongo_client()
+    db = db or get_db_client()
     ai_settings = get_ai_alert_settings(db)
 
     to = recipients or ai_settings["recipients"]

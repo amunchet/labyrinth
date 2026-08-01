@@ -14,7 +14,7 @@ from common.test import unwrap
 
 def tearDown():
     """Tear down"""
-    serve.mongo_client["labyrinth"]["themes"].delete_many({})
+    serve.db["labyrinth"]["themes"].delete_many({})
 
 
 @pytest.fixture
@@ -31,7 +31,7 @@ def test_list_themes(setup):
     Tests Listing themes
         - Check to see that the collection has the defaults created
     """
-    x = list(serve.mongo_client["labyrinth"]["themes"].find({}))
+    x = list(serve.db["labyrinth"]["themes"].find({}))
     assert len(x) == 0
 
     a = unwrap(serve.list_themes)()
@@ -41,7 +41,7 @@ def test_list_themes(setup):
     assert "Blue" in c
     assert "Red" in c
 
-    x = list(serve.mongo_client["labyrinth"]["themes"].find({}))
+    x = list(serve.db["labyrinth"]["themes"].find({}))
     assert len(x) == 3
 
 

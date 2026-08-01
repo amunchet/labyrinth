@@ -5,12 +5,12 @@ gunicorn
 gevent
 python-dotenv
 python-jose
-pymongo[srv]
+pymongo[srv]>=4.6,<5
+psycopg2-binary>=2.9,<3
 python-nmap
 ansi2html
+redis>=5.0,<9
 pid
-redis
-
 ansible
 ansible-runner
 pyyaml
