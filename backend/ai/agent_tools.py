@@ -5,6 +5,7 @@ Wraps the shared `LabyrinthClient` (read-only host/service/metric tools),
 the allowlisted diagnostic-command runner, and `propose_playbook` (which
 stages a draft for human review rather than deploying anything).
 """
+
 import ansible_helper
 
 from ai import chat_store

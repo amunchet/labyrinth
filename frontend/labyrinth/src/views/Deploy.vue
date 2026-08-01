@@ -836,7 +836,8 @@ export default {
         const { results } = await runPlaybookAndPoll(
           auth,
           {
-            hosts: this.ips.length > 0 ? this.ips.join(",") : this.selected_host,
+            hosts:
+              this.ips.length > 0 ? this.ips.join(",") : this.selected_host,
             playbook: this.selected_playbook,
             vaultPassword: this.vault_password,
             becomeFile: this.selected["become"],

@@ -10,9 +10,9 @@ class OllamaProvider(LLMProvider):
     """Adapter for a local/self-hosted Ollama server's OpenAI-compatible tool-calling chat API."""
 
     def __init__(self, host=None, model=None):
-        self.host = (host or os.environ.get("OLLAMA_HOST", "http://localhost:11434")).rstrip(
-            "/"
-        )
+        self.host = (
+            host or os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+        ).rstrip("/")
         self.model = model or os.environ.get("OLLAMA_MODEL", "llama3.1")
 
     def _to_wire_messages(self, messages):

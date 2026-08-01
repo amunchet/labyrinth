@@ -73,7 +73,12 @@ export async function runPlaybookAndPoll(
       auth
     );
 
-    const { status, logs: newLogs, results: newResults, error } = statusResponse;
+    const {
+      status,
+      logs: newLogs,
+      results: newResults,
+      error,
+    } = statusResponse;
     logs = newLogs || [];
 
     if (status === "completed") {

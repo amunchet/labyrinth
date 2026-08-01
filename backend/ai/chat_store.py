@@ -6,6 +6,7 @@ Mirrors the existing ephemeral job/session usage of Redis in this codebase
 new Mongo collection - a chat session + draft playbook is single-consumer,
 ad-hoc, and naturally expires, same shape as those existing keys.
 """
+
 import json
 import os
 import time

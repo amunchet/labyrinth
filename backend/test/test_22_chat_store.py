@@ -118,7 +118,9 @@ def test_discard_session_removes_everything(mock_redis_cls):
 
     session_id = chat_store.create_session("openai", "vault")
     chat_store.append_message(session_id, {"role": "user", "content": "hi"})
-    chat_store.set_draft(session_id, {"yaml": "---\n", "filename": "f", "description": "d"})
+    chat_store.set_draft(
+        session_id, {"yaml": "---\n", "filename": "f", "description": "d"}
+    )
 
     chat_store.discard_session(session_id)
 

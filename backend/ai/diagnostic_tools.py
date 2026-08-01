@@ -5,6 +5,7 @@ host. The model only ever supplies a closed `command_name` enum plus an optional
 a shell string. Commands run via Ansible's `command` module (no shell interpolation)
 through `ansible_helper.run_adhoc`.
 """
+
 import re
 
 import ansible_helper

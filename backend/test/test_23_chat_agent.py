@@ -48,7 +48,9 @@ FAKE_SESSION = {
 @patch("ai.chat_agent.chat_store.append_message")
 @patch("ai.chat_agent.chat_store.get_history")
 @patch("ai.chat_agent.chat_store.get_session")
-def test_immediate_text_reply(mock_get_session, mock_get_history, mock_append, mock_dispatch):
+def test_immediate_text_reply(
+    mock_get_session, mock_get_history, mock_append, mock_dispatch
+):
     mock_get_session.return_value = FAKE_SESSION
     mock_get_history.return_value = []
 
@@ -86,7 +88,9 @@ def test_one_tool_call_round_then_text(
         ]
     )
 
-    result = chat_agent.run_agent_turn("sess1", "why is disk usage high?", provider=provider)
+    result = chat_agent.run_agent_turn(
+        "sess1", "why is disk usage high?", provider=provider
+    )
 
     assert result["reply"] == "No hosts found."
     assert len(result["tool_trace"]) == 1
@@ -145,7 +149,9 @@ def test_max_iterations_exhaustion(
     )
     provider = RepeatingProvider(looping_result)
 
-    result = chat_agent.run_agent_turn("sess1", "investigate forever", provider=provider)
+    result = chat_agent.run_agent_turn(
+        "sess1", "investigate forever", provider=provider
+    )
 
     assert result["draft"] is None
     assert "allotted number of steps" in result["reply"]

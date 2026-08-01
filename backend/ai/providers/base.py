@@ -4,6 +4,7 @@ Neutral chat/tool-calling contract shared by every LLM provider adapter.
 Each adapter translates between this shape and its own wire format so that
 callers (the agentic loop) never need to branch on provider name.
 """
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Literal, Optional

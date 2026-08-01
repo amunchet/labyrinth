@@ -4,6 +4,7 @@ definitions to the session's selected LLM provider, dispatch any tool calls,
 feed results back, and repeat until the model answers in plain text or stages
 a playbook draft via `propose_playbook`.
 """
+
 import json
 
 from ai import agent_tools

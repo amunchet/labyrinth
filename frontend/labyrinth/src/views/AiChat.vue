@@ -4,9 +4,9 @@
       <b-col>
         <h3>AI Assistant <span class="text-muted">(Experimental)</span></h3>
         <p class="text-muted">
-          Describe a problem (e.g. "disk usage is high on 10.0.0.5" or
-          "the nginx container on webhost isn't responding"). The assistant can
-          look at hosts, metrics, and safe read-only diagnostics, then draft an
+          Describe a problem (e.g. "disk usage is high on 10.0.0.5" or "the
+          nginx container on webhost isn't responding"). The assistant can look
+          at hosts, metrics, and safe read-only diagnostics, then draft an
           Ansible playbook to fix it. Nothing is ever deployed without your
           explicit approval below.
         </p>

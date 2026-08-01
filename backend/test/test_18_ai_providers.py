@@ -40,7 +40,9 @@ def test_openai_provider_text_reply(mock_post):
     mock_post.return_value = mock_response
 
     provider = OpenAIProvider(api_key="key", model="gpt-5-mini")
-    result = provider.chat([ChatMessage(role="user", content="hi")], [], "system prompt")
+    result = provider.chat(
+        [ChatMessage(role="user", content="hi")], [], "system prompt"
+    )
 
     assert result.text == "Hello there"
     assert result.tool_calls == []
@@ -76,7 +78,9 @@ def test_openai_provider_tool_call(mock_post):
     mock_post.return_value = mock_response
 
     provider = OpenAIProvider(api_key="key")
-    tools = [ToolDef(name="list_hosts", description="d", input_schema={"type": "object"})]
+    tools = [
+        ToolDef(name="list_hosts", description="d", input_schema={"type": "object"})
+    ]
     messages = [
         ChatMessage(
             role="assistant",
@@ -156,7 +160,9 @@ def test_anthropic_provider_tool_use(mock_anthropic_cls):
     mock_anthropic_cls.return_value = mock_client
 
     provider = AnthropicProvider(api_key="key")
-    tools = [ToolDef(name="list_hosts", description="d", input_schema={"type": "object"})]
+    tools = [
+        ToolDef(name="list_hosts", description="d", input_schema={"type": "object"})
+    ]
     messages = [
         ChatMessage(
             role="assistant",
@@ -225,7 +231,9 @@ def test_ollama_provider_tool_call(mock_post):
     mock_post.return_value = mock_response
 
     provider = OllamaProvider(host="http://localhost:11434")
-    tools = [ToolDef(name="list_hosts", description="d", input_schema={"type": "object"})]
+    tools = [
+        ToolDef(name="list_hosts", description="d", input_schema={"type": "object"})
+    ]
     result = provider.chat([ChatMessage(role="user", content="hi")], tools, "system")
 
     assert result.stop_reason == "tool_use"
