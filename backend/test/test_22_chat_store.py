@@ -78,6 +78,27 @@ def test_create_and_get_session(mock_redis_cls):
     assert chat_store.get_history(session_id) == []
 
 
+@patch("ai.chat_store.session_store.save")
+@patch("ai.chat_store.redis.Redis")
+def test_configure_session_persists_non_secret_metadata(mock_redis_cls, mock_save):
+    fake = FakeRedis()
+    mock_redis_cls.return_value = fake
+
+    session_id = chat_store.create_session("openai", "vault", vault_password="secret")
+    chat_store.configure_session(
+        session_id,
+        prompt="Be concise",
+        skill_ids=["network_inventory"],
+        target_hosts=["10.0.0.5"],
+        title="Disk incident",
+    )
+
+    record = mock_save.call_args.args[1]
+    assert record["target_hosts"] == ["10.0.0.5"]
+    assert record["prompt"] == "Be concise"
+    assert "vault_password" not in record
+
+
 @patch("ai.chat_store.redis.Redis")
 def test_get_session_missing_returns_none(mock_redis_cls):
     mock_redis_cls.return_value = FakeRedis()

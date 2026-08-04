@@ -13,6 +13,7 @@ which isn't exercised by the backend test suite.
 import os
 
 from db import get_db
+from ai.skills import DEFAULT_SKILL_IDS, normalize_skill_ids
 
 # Defaults used the first time the AI alert flow runs, before anything has
 # been saved to the `labyrinth.settings` collection via the Settings UI.
@@ -44,6 +45,14 @@ DEFAULT_AI_PROMPT = (
 DEFAULT_AI_MODEL = "gpt-5-mini"
 DEFAULT_AI_ALERT_SUBJECT_TEMPLATE = "Labyrinth IT AI ALERT [{time}]"
 DEFAULT_AI_ALERT_FROM_NAME = "Labyrinth AI"
+DEFAULT_AI_CHAT_PROMPT = (
+    "Work as a careful network operations engineer. Investigate before making "
+    "claims, cite the relevant hosts or metrics you found, and prefer the "
+    "smallest reversible change. A human reviews every Ansible draft before it "
+    "can run. Never put credentials, passwords, or concrete deployment target "
+    "hosts in a playbook; use the controller-provided clients inventory group."
+)
+DEFAULT_AI_CHAT_MAX_ITERATIONS = 8
 
 
 def get_db_client():
@@ -86,4 +95,28 @@ def get_ai_alert_settings(db) -> dict:
             "ai_alert_subject_template", DEFAULT_AI_ALERT_SUBJECT_TEMPLATE
         ),
         "from_name": _value("ai_alert_from_name", DEFAULT_AI_ALERT_FROM_NAME),
+    }
+
+
+def get_ai_chat_settings(db) -> dict:
+    """Return the operator-configurable settings for interactive chat."""
+    settings_collection = db["labyrinth"]["settings"]
+
+    def _value(name, default):
+        doc = settings_collection.find_one({"name": name})
+        value = doc.get("value") if doc else None
+        return value if value not in (None, "") else default
+
+    raw_skills = _value("ai_chat_skills", DEFAULT_SKILL_IDS)
+    if isinstance(raw_skills, str):
+        raw_skills = [item.strip() for item in raw_skills.split(",") if item.strip()]
+    try:
+        max_iterations = max(1, min(20, int(_value("ai_chat_max_iterations", 8))))
+    except (TypeError, ValueError):
+        max_iterations = DEFAULT_AI_CHAT_MAX_ITERATIONS
+
+    return {
+        "prompt": _value("ai_chat_prompt", DEFAULT_AI_CHAT_PROMPT),
+        "skills": normalize_skill_ids(raw_skills),
+        "max_iterations": max_iterations,
     }

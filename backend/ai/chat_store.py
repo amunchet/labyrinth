@@ -14,6 +14,8 @@ import uuid
 
 import redis
 
+from ai import session_store
+
 SESSION_TTL_SECONDS = int(os.environ.get("AI_CHAT_SESSION_TTL_SECONDS", "86400"))
 
 
@@ -69,6 +71,68 @@ def create_session(provider, become_file, ssh_key="", vault_password=""):
     return session_id
 
 
+def configure_session(
+    session_id,
+    *,
+    prompt="",
+    skill_ids=None,
+    target_hosts=None,
+    title="",
+    max_iterations=8,
+):
+    """Mark a Redis session durable and persist non-secret session metadata."""
+    rc = _client()
+    rc.hset(_session_key(session_id), "durable", "1")
+    rc.hset(_session_key(session_id), "prompt", prompt)
+    rc.hset(_session_key(session_id), "skill_ids", json.dumps(list(skill_ids or [])))
+    rc.hset(_session_key(session_id), "target_hosts", json.dumps(list(target_hosts or [])))
+    rc.hset(_session_key(session_id), "title", title)
+    rc.hset(_session_key(session_id), "max_iterations", str(max_iterations))
+    session = get_session(session_id)
+    if not session:
+        raise ValueError("Chat session not found or expired")
+    now = float(session.get("created_at") or time.time())
+    record = {
+        "provider": session.get("provider", ""),
+        "created_at": now,
+        "updated_at": time.time(),
+        "prompt": prompt,
+        "skills": list(skill_ids or []),
+        "target_hosts": list(target_hosts or []),
+        "title": title,
+        "max_iterations": max_iterations,
+        "status": "active",
+        "message_count": 0,
+        "messages": [],
+    }
+    session_store.save(session_id, record)
+    return record
+
+
+def _sync_durable(session_id, fields=None):
+    """Refresh the durable record without ever copying session credentials."""
+    try:
+        session = get_session(session_id)
+        if not session or session.get("durable") != "1":
+            return
+        record = session_store.get(session_id) or {}
+        history = get_history(session_id)
+        record.update(fields or {})
+        record.update(
+            {
+                "provider": session.get("provider", ""),
+                "updated_at": time.time(),
+                "message_count": len(history),
+                "messages": history,
+            }
+        )
+        session_store.save(session_id, record)
+    except Exception:
+        # Active turns must remain usable if the management database is down;
+        # Redis still retains the short-lived session and turn state.
+        return
+
+
 def get_session(session_id):
     """Returns the session's config hash, or None if it doesn't exist/expired."""
     rc = _client()
@@ -99,6 +163,12 @@ def append_message(session_id, message):
     session_key = _session_key(session_id)
     rc.hset(session_key, "updated_at", str(time.time()))
     rc.expire(session_key, SESSION_TTL_SECONDS)
+    durable_fields = {}
+    if message.get("role") == "user":
+        record = session_store.get(session_id) or {}
+        if not record.get("title"):
+            durable_fields["title"] = message.get("content", "")[:80]
+    _sync_durable(session_id, durable_fields)
 
 
 def replace_history(session_id, history):
@@ -106,6 +176,7 @@ def replace_history(session_id, history):
     rc = _client()
     rc.set(_messages_key(session_id), json.dumps(history))
     rc.expire(_messages_key(session_id), SESSION_TTL_SECONDS)
+    _sync_durable(session_id)
 
 
 def set_draft(session_id, draft):
@@ -113,6 +184,7 @@ def set_draft(session_id, draft):
     rc = _client()
     rc.set(_draft_key(session_id), json.dumps(draft))
     rc.expire(_draft_key(session_id), SESSION_TTL_SECONDS)
+    _sync_durable(session_id, {"draft": draft, "status": "draft_ready"})
 
 
 def get_draft(session_id):
@@ -120,7 +192,10 @@ def get_draft(session_id):
     rc = _client()
     raw = rc.get(_draft_key(session_id))
     if not raw:
-        return None
+        try:
+            return (session_store.get(session_id) or {}).get("draft")
+        except Exception:
+            return None
     return json.loads(_decode(raw))
 
 
@@ -128,6 +203,7 @@ def clear_draft(session_id):
     """Clears the session's draft (on discard, or once approved/deployed)."""
     rc = _client()
     rc.delete(_draft_key(session_id))
+    _sync_durable(session_id, {"draft": None, "status": "active"})
 
 
 def discard_session(session_id):
@@ -137,6 +213,43 @@ def discard_session(session_id):
     rc.delete(_messages_key(session_id))
     rc.delete(_draft_key(session_id))
     rc.delete(_turn_key(session_id))
+    try:
+        session_store.delete(session_id)
+    except Exception:
+        # Redis-backed sessions remain deletable when the management database
+        # is temporarily unavailable.
+        pass
+
+
+def set_deployment(session_id, job_id, target_hosts):
+    """Record a human-approved deployment without storing its credentials."""
+    fields = {
+        "deployment_job_id": job_id,
+        "deployment_hosts": list(target_hosts),
+        "deployment_status": "queued",
+        "status": "deploying",
+    }
+    _sync_durable(session_id, fields)
+
+
+def update_deployment(session_id, status, error="", logs=None, results=None):
+    """Update deployment state even if the Redis session has expired."""
+    fields = {"deployment_status": status, "status": status}
+    if error:
+        fields["deployment_error"] = error
+    if logs is not None:
+        fields["deployment_logs"] = list(logs)
+    if results is not None:
+        fields["deployment_results"] = results
+    try:
+        record = session_store.get(session_id)
+        if record:
+            record.update(fields)
+            record["updated_at"] = time.time()
+            session_store.save(session_id, record)
+    except Exception:
+        pass
+    _sync_durable(session_id, fields)
 
 
 def list_sessions():
@@ -168,8 +281,80 @@ def list_sessions():
                 "turn_status": (turn or {}).get("status", ""),
             }
         )
+    # Durable records are the source of truth once Redis expires. Merge them
+    # when available, but keep the Redis-only behavior for legacy/test sessions.
+    try:
+        durable = {item.get("session_id"): item for item in session_store.list_sessions()}
+        for item in sessions:
+            if item["session_id"] in durable:
+                durable[item["session_id"]].update(item)
+        sessions = list(durable.values()) or sessions
+    except Exception:
+        pass
     sessions.sort(key=lambda s: float(s.get("updated_at") or 0), reverse=True)
+    # Session listings are summaries, never conversation contents or secrets.
+    for item in sessions:
+        item.pop("messages", None)
+        item.pop("vault_password", None)
+        item.pop("become_file", None)
+        item.pop("ssh_key", None)
     return sessions
+
+
+def get_durable_session(session_id):
+    """Return durable metadata, falling back to the active Redis session."""
+    try:
+        active = get_session(session_id)
+    except Exception:
+        active = None
+    if active and active.get("durable") != "1":
+        return active
+    try:
+        record = session_store.get(session_id)
+    except Exception:
+        record = None
+    if record:
+        if active:
+            record.update(
+                {
+                    key: active[key]
+                    for key in ("provider", "become_file", "ssh_key", "vault_password")
+                    if key in active
+                }
+            )
+        return record
+    return active
+
+
+def get_durable_history(session_id):
+    """Return retained history even after the Redis session has expired."""
+    try:
+        active = get_session(session_id)
+    except Exception:
+        active = None
+    if active:
+        return get_history(session_id)
+    try:
+        record = session_store.get(session_id)
+    except Exception:
+        record = None
+    if record and record.get("messages") is not None:
+        return record.get("messages") or []
+    return get_history(session_id)
+
+
+def get_durable_draft(session_id):
+    """Return an unapproved draft from Redis or its durable session record."""
+    try:
+        draft = get_draft(session_id)
+    except Exception:
+        draft = None
+    if draft is not None:
+        return draft
+    try:
+        return (session_store.get(session_id) or {}).get("draft")
+    except Exception:
+        return None
 
 
 # Turn state: one in-flight agent turn per session. Kept in Redis (not in the
@@ -192,6 +377,7 @@ def start_turn(session_id, turn_id, user_message):
     rc.hset(turn_key, "created_at", now)
     rc.hset(turn_key, "updated_at", now)
     rc.expire(turn_key, SESSION_TTL_SECONDS)
+    _sync_durable(session_id, {"turn_status": "queued", "turn_id": turn_id})
 
     return get_turn(session_id, _rc=rc)
 
@@ -206,6 +392,17 @@ def update_turn(session_id, **fields):
         rc.hset(turn_key, key, "" if value is None else value)
     rc.hset(turn_key, "updated_at", str(time.time()))
     rc.expire(turn_key, SESSION_TTL_SECONDS)
+    durable_fields = {}
+    if "status" in fields:
+        durable_fields["turn_status"] = fields["status"]
+    if "step" in fields:
+        durable_fields["turn_step"] = fields["step"]
+    if "error" in fields:
+        durable_fields["turn_error"] = fields["error"]
+    if "reply" in fields:
+        durable_fields["last_reply"] = fields["reply"]
+    if durable_fields:
+        _sync_durable(session_id, durable_fields)
 
 
 def get_turn(session_id, _rc=None):

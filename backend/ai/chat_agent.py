@@ -11,6 +11,7 @@ import uuid
 
 from ai import agent_tools
 from ai import chat_store
+from ai.ai_settings import DEFAULT_AI_CHAT_PROMPT
 from ai.providers import factory
 from ai.providers.base import ChatMessage, ToolCall
 
@@ -30,6 +31,19 @@ SYSTEM_PROMPT = (
     "anything. Never claim you have fixed, deployed, or changed anything until the human "
     "approves and runs the draft themselves."
 )
+
+
+def _system_prompt(session):
+    """Build the system message without exposing deployment target hosts."""
+    prompt = session.get("prompt") or DEFAULT_AI_CHAT_PROMPT
+    return f"{SYSTEM_PROMPT}\n\nOperator guidance:\n{prompt}"
+
+
+def _max_iterations(session):
+    try:
+        return max(1, min(20, int(session.get("max_iterations", MAX_ITERATIONS))))
+    except (TypeError, ValueError):
+        return MAX_ITERATIONS
 
 
 def _to_chat_message(message):
@@ -109,6 +123,8 @@ def repair_history(history):
 def _load_repaired_history(session_id):
     """Loads history, healing (and persisting) any interrupted tool calls."""
     stored = chat_store.get_history(session_id)
+    if not stored:
+        stored = chat_store.get_durable_history(session_id)
     repaired, changed = repair_history(stored)
     if changed:
         chat_store.replace_history(session_id, repaired)
@@ -148,9 +164,14 @@ def run_agent_turn(session_id, user_message, provider=None, turn_id=None):
     :param provider: optional LLMProvider override, primarily for tests -
         normally resolved from the session's stored provider name.
     """
-    session = chat_store.get_session(session_id)
+    session = chat_store.get_durable_session(session_id)
     if not session:
         raise ValueError("Chat session not found or expired")
+
+    # A retained session can be viewed after Redis expiry, but it cannot start
+    # a new turn without its ephemeral credential context.
+    if not session.get("become_file"):
+        raise ValueError("Chat session credentials expired; start a new session")
 
     if provider is None:
         provider = factory.get_provider(session["provider"])
@@ -171,14 +192,18 @@ def run_agent_turn(session_id, user_message, provider=None, turn_id=None):
 
     chat_store.update_turn(session_id, status="running", step="0")
 
-    for step in range(MAX_ITERATIONS):
+    for step in range(_max_iterations(session)):
         if chat_store.is_cancel_requested(session_id):
             cancelled = True
             reply_text = CANCELLED_REPLY
             break
 
         chat_store.update_turn(session_id, step=str(step + 1))
-        result = provider.chat(history, agent_tools.TOOL_DEFS, SYSTEM_PROMPT)
+        result = provider.chat(
+            history,
+            agent_tools.tool_defs_for_session(session),
+            _system_prompt(session),
+        )
 
         assistant_msg = ChatMessage(
             role="assistant", content=result.text, tool_calls=result.tool_calls

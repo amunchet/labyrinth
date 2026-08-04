@@ -10,6 +10,7 @@ import ansible_helper
 
 from ai import chat_store
 from ai import diagnostic_tools
+from ai.skills import SKILLS
 from ai.mcp.client import LabyrinthClient
 from ai.providers.base import ToolDef
 
@@ -93,16 +94,51 @@ TOOL_DEFS = [
 ]
 
 
+def tool_defs_for_session(session):
+    """Return only the tools enabled by the session's selected skills."""
+    skill_ids = set(session.get("skill_ids") or [])
+    if not skill_ids:
+        return TOOL_DEFS
+    enabled = {
+        tool
+        for skill in SKILLS
+        if skill["id"] in skill_ids
+        for tool in skill["tools"]
+    }
+    return [tool for tool in TOOL_DEFS if tool.name in enabled]
+
+
 def _decode(value):
     if isinstance(value, bytes):
         return value.decode("utf-8", errors="replace")
     return value
 
 
+def _target_hosts(session):
+    return {
+        str(host).strip().lower()
+        for host in (session.get("target_hosts") or [])
+        if str(host).strip()
+    }
+
+
+def _is_target_host(session, host):
+    return str(host or "").strip().lower() in _target_hosts(session)
+
+
+def _session_or_empty(session_id):
+    try:
+        return chat_store.get_session(session_id) or {}
+    except Exception:
+        return {}
+
+
 def _run_diagnostic(session_id, tool_input):
-    session = chat_store.get_session(session_id)
+    session = _session_or_empty(session_id)
     if not session:
         raise ValueError("Chat session not found or expired")
+    if _is_target_host(session, tool_input.get("host")):
+        return {"error": "Deployment target hosts are excluded from assistant diagnostics."}
 
     result = diagnostic_tools.run_diagnostic_command(
         tool_input["host"],
@@ -131,6 +167,13 @@ def _propose_playbook(session_id, tool_input):
             "stderr": _decode(stderr),
         }
 
+    session = _session_or_empty(session_id)
+    scope_error = ansible_helper.validate_ai_playbook(
+        yaml_content, forbidden_hosts=session.get("target_hosts", [])
+    )
+    if scope_error:
+        return {"valid": False, "stdout": "", "stderr": scope_error}
+
     draft = {"yaml": yaml_content, "filename": filename, "description": description}
     chat_store.set_draft(session_id, draft)
     return {"valid": True, "draft": draft}
@@ -140,11 +183,32 @@ def dispatch(session_id, name, tool_input):
     """Single entry point the agentic loop calls to execute any tool by name."""
     tool_input = tool_input or {}
     try:
+        session = _session_or_empty(session_id)
+        if session.get("skill_ids"):
+            allowed_tools = {tool.name for tool in tool_defs_for_session(session)}
+            if name not in allowed_tools:
+                return {"error": "This skill is not enabled for the session."}
         if name == "list_hosts":
-            return {"hosts": client.list_hosts()}
+            excluded = _target_hosts(session)
+            hosts = [
+                host
+                for host in client.list_hosts()
+                if not excluded.intersection(
+                    {
+                        str(host.get("ip", "")).strip().lower(),
+                        str(host.get("mac", "")).strip().lower(),
+                        str(host.get("name", "")).strip().lower(),
+                    }
+                )
+            ]
+            return {"hosts": hosts}
         if name == "get_host":
+            if _is_target_host(session, tool_input.get("host_key")):
+                return {"error": "Deployment target hosts are excluded from assistant context."}
             return {"host": client.get_host(tool_input["host_key"])}
         if name == "read_metrics":
+            if _is_target_host(session, tool_input.get("host_key")):
+                return {"error": "Deployment target hosts are excluded from assistant context."}
             return {
                 "metrics": client.get_metrics(
                     tool_input["host_key"],

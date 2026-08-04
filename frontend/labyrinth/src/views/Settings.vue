@@ -22,6 +22,11 @@
             <AiAlerts />
           </div>
         </b-tab>
+        <b-tab title="AI Assistant" lazy>
+          <div class="main">
+            <AiAssistant />
+          </div>
+        </b-tab>
         <b-tab title="Maintenance" lazy>
           <div class="main">
             <Maintenance />
@@ -37,6 +42,7 @@ import Telegraf from "@/views/Settings/Telegraf";
 import CustomDashboards from "@/views/Settings/CustomDashboards";
 import Maintenance from "@/views/Settings/Maintenance";
 import AiAlerts from "@/views/Settings/AiAlerts";
+import AiAssistant from "@/views/Settings/AiAssistant";
 export default {
   name: "Settings",
   data() {
@@ -50,6 +56,7 @@ export default {
     CustomDashboards,
     Maintenance,
     AiAlerts,
+    AiAssistant,
   },
 };
 </script>
