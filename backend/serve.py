@@ -1736,7 +1736,7 @@ def ai_chat_session(session_id):
     session.pop("vault_password", None)
     session.pop("become_file", None)
     session.pop("ssh_key", None)
-    session["session_id"] = session_id
+    session["session_id"] = str(escape(session_id))
     session["draft"] = chat_store.get_durable_draft(session_id)
     return session, 200
 
