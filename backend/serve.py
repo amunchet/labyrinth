@@ -1799,8 +1799,8 @@ def ai_chat_deploy(session_id):
             vault_password=session.get("vault_password", ""),
             forbidden_hosts=session.get("target_hosts", []),
         )
-    except (ValueError, OSError) as exc:
-        return {"error": str(exc)}, 482
+    except (ValueError, OSError):
+        return {"error": "Unable to persist reviewed playbook."}, 482
     if not result[0]:
         return {
             "error": "Playbook validation failed",
