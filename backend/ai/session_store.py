@@ -49,7 +49,7 @@ def save(session_id, record, db=None):
     else:
         document["_id"] = session_id
         collection.insert_one(document)
-    return document
+    return _without_id(document)
 
 
 def get(session_id, db=None):
