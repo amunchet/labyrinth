@@ -77,7 +77,6 @@ def get_token_auth_header():  # pragma: no cover
     return token
 
 
-
 def _requires_auth(f, permission="", error_func=""):  # pragma: no cover
     """Determines if the access token is valid"""
 
