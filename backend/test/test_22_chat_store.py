@@ -277,3 +277,255 @@ def test_list_sessions_summarises_live_sessions(mock_redis_cls):
     assert by_id[first]["message_count"] == 1
     assert by_id[second]["provider"] == "anthropic"
     assert by_id[second]["turn_status"] == "queued"
+
+
+@patch("ai.chat_store.redis.Redis")
+def test_configure_session_raises_when_session_missing(mock_redis_cls):
+    mock_redis_cls.return_value = FakeRedis()
+
+    import pytest
+    with pytest.raises(ValueError, match="not found"):
+        chat_store.configure_session("nonexistent-id", prompt="test")
+
+
+@patch("ai.chat_store.session_store.save")
+@patch("ai.chat_store.session_store.get")
+@patch("ai.chat_store.redis.Redis")
+def test_sync_durable_updates_when_durable_flag_set(mock_redis_cls, mock_get, mock_save):
+    fake = FakeRedis()
+    mock_redis_cls.return_value = fake
+    mock_get.return_value = {"title": "old title"}
+
+    session_id = chat_store.create_session("openai", "vault")
+    # Set durable flag directly in fake redis
+    fake.hset(chat_store._session_key(session_id), "durable", "1")
+
+    chat_store.append_message(session_id, {"role": "user", "content": "hello"})
+
+    assert mock_save.called
+
+
+@patch("ai.chat_store.session_store.save")
+@patch("ai.chat_store.session_store.get", side_effect=Exception("db down"))
+@patch("ai.chat_store.redis.Redis")
+def test_sync_durable_swallows_exception(mock_redis_cls, mock_get, mock_save):
+    fake = FakeRedis()
+    mock_redis_cls.return_value = fake
+
+    session_id = chat_store.create_session("openai", "vault")
+    fake.hset(chat_store._session_key(session_id), "durable", "1")
+
+    # Should not raise even if session_store.get fails
+    chat_store.append_message(session_id, {"role": "user", "content": "hi"})
+    assert not mock_save.called
+
+
+@patch("ai.chat_store.session_store.get")
+@patch("ai.chat_store.redis.Redis")
+def test_get_draft_falls_back_to_session_store(mock_redis_cls, mock_get):
+    fake = FakeRedis()
+    mock_redis_cls.return_value = fake
+    mock_get.return_value = {"draft": {"yaml": "- hosts: all"}}
+
+    session_id = chat_store.create_session("openai", "vault")
+    # No draft in Redis
+    result = chat_store.get_draft(session_id)
+    assert result == {"yaml": "- hosts: all"}
+
+
+@patch("ai.chat_store.session_store.get", side_effect=Exception("db down"))
+@patch("ai.chat_store.redis.Redis")
+def test_get_draft_fallback_exception_returns_none(mock_redis_cls, mock_get):
+    fake = FakeRedis()
+    mock_redis_cls.return_value = fake
+
+    session_id = chat_store.create_session("openai", "vault")
+    result = chat_store.get_draft(session_id)
+    assert result is None
+
+
+@patch("ai.chat_store.session_store.delete", side_effect=Exception("db down"))
+@patch("ai.chat_store.redis.Redis")
+def test_discard_session_swallows_store_exception(mock_redis_cls, mock_delete):
+    fake = FakeRedis()
+    mock_redis_cls.return_value = fake
+
+    session_id = chat_store.create_session("openai", "vault")
+    # Should not raise when session_store.delete fails
+    chat_store.discard_session(session_id)
+    assert mock_delete.called
+
+
+@patch("ai.chat_store.session_store.save")
+@patch("ai.chat_store.session_store.get")
+@patch("ai.chat_store.redis.Redis")
+def test_set_deployment_and_update_deployment(mock_redis_cls, mock_get, mock_save):
+    fake = FakeRedis()
+    mock_redis_cls.return_value = fake
+    mock_get.return_value = {"status": "active"}
+
+    session_id = chat_store.create_session("openai", "vault")
+
+    chat_store.set_deployment(session_id, "job-1", ["10.0.0.5"])
+
+    chat_store.update_deployment(session_id, "success", logs=["ok"], results={"rc": 0})
+    mock_get.return_value = {"status": "deploying", "deployment_job_id": "job-1"}
+
+    chat_store.update_deployment(session_id, "failed", error="timeout")
+
+
+@patch("ai.chat_store.session_store.get", side_effect=Exception("db down"))
+@patch("ai.chat_store.redis.Redis")
+def test_update_deployment_swallows_store_exception(mock_redis_cls, mock_get):
+    fake = FakeRedis()
+    mock_redis_cls.return_value = fake
+
+    session_id = chat_store.create_session("openai", "vault")
+    # Should not raise
+    chat_store.update_deployment(session_id, "success")
+
+
+@patch("ai.chat_store.session_store.list_sessions")
+@patch("ai.chat_store.redis.Redis")
+def test_list_sessions_merges_durable_records(mock_redis_cls, mock_list):
+    fake = FakeRedis()
+    mock_redis_cls.return_value = fake
+
+    session_id = chat_store.create_session("openai", "vault")
+    mock_list.return_value = [
+        {"session_id": session_id, "title": "Incident", "updated_at": "9999999"}
+    ]
+
+    sessions = chat_store.list_sessions()
+    by_id = {s["session_id"]: s for s in sessions}
+    assert session_id in by_id
+    assert by_id[session_id]["title"] == "Incident"
+    # Sensitive fields should be stripped
+    assert "vault_password" not in by_id[session_id]
+    assert "ssh_key" not in by_id[session_id]
+
+
+@patch("ai.chat_store.session_store.list_sessions", side_effect=Exception("db down"))
+@patch("ai.chat_store.redis.Redis")
+def test_list_sessions_falls_back_to_redis_on_exception(mock_redis_cls, mock_list):
+    fake = FakeRedis()
+    mock_redis_cls.return_value = fake
+
+    session_id = chat_store.create_session("openai", "vault")
+    sessions = chat_store.list_sessions()
+    assert any(s["session_id"] == session_id for s in sessions)
+
+
+@patch("ai.chat_store.session_store.get")
+@patch("ai.chat_store.redis.Redis")
+def test_get_durable_session_non_durable_returns_active(mock_redis_cls, mock_get):
+    fake = FakeRedis()
+    mock_redis_cls.return_value = fake
+    mock_get.return_value = {"title": "durable record"}
+
+    session_id = chat_store.create_session("openai", "vault")
+    # session does not have durable flag, returns active Redis session
+    result = chat_store.get_durable_session(session_id)
+    assert result is not None
+    assert result.get("provider") == "openai"
+
+
+@patch("ai.chat_store.session_store.get")
+@patch("ai.chat_store.redis.Redis")
+def test_get_durable_session_returns_durable_record(mock_redis_cls, mock_get):
+    fake = FakeRedis()
+    mock_redis_cls.return_value = fake
+    mock_get.return_value = {"title": "durable record", "session_id": "sid"}
+
+    session_id = chat_store.create_session("openai", "vault")
+    fake.hset(chat_store._session_key(session_id), "durable", "1")
+
+    result = chat_store.get_durable_session(session_id)
+    assert result["title"] == "durable record"
+    # Should have been merged with active session's provider
+    assert result.get("provider") == "openai"
+
+
+@patch("ai.chat_store.session_store.get", return_value=None)
+@patch("ai.chat_store.redis.Redis")
+def test_get_durable_session_falls_back_to_active_when_no_record(mock_redis_cls, mock_get):
+    fake = FakeRedis()
+    mock_redis_cls.return_value = fake
+
+    session_id = chat_store.create_session("openai", "vault")
+    fake.hset(chat_store._session_key(session_id), "durable", "1")
+
+    result = chat_store.get_durable_session(session_id)
+    # Falls back to active Redis session
+    assert result is not None
+
+
+@patch("ai.chat_store.session_store.get")
+@patch("ai.chat_store.redis.Redis")
+def test_get_durable_history_from_expired_session(mock_redis_cls, mock_get):
+    fake = FakeRedis()
+    mock_redis_cls.return_value = fake
+    mock_get.return_value = {"messages": [{"role": "user", "content": "hi"}]}
+
+    # No Redis session for this ID (expired), should fall back to durable
+    result = chat_store.get_durable_history("nonexistent-session")
+    assert result == [{"role": "user", "content": "hi"}]
+
+
+@patch("ai.chat_store.session_store.get", return_value=None)
+@patch("ai.chat_store.redis.Redis")
+def test_get_durable_history_no_record_falls_back_to_redis(mock_redis_cls, mock_get):
+    fake = FakeRedis()
+    mock_redis_cls.return_value = fake
+
+    session_id = chat_store.create_session("openai", "vault")
+    chat_store.append_message(session_id, {"role": "user", "content": "hello"})
+
+    result = chat_store.get_durable_history(session_id)
+    assert result == [{"role": "user", "content": "hello"}]
+
+
+@patch("ai.chat_store.session_store.get", side_effect=Exception("db down"))
+@patch("ai.chat_store.redis.Redis")
+def test_get_durable_history_swallows_exception(mock_redis_cls, mock_get):
+    fake = FakeRedis()
+    mock_redis_cls.return_value = fake
+
+    result = chat_store.get_durable_history("nonexistent")
+    assert result == []
+
+
+@patch("ai.chat_store.session_store.get")
+@patch("ai.chat_store.redis.Redis")
+def test_get_durable_draft_from_session_store(mock_redis_cls, mock_get):
+    fake = FakeRedis()
+    mock_redis_cls.return_value = fake
+    mock_get.return_value = {"draft": {"yaml": "- hosts: all"}}
+
+    result = chat_store.get_durable_draft("nonexistent-session")
+    assert result == {"yaml": "- hosts: all"}
+
+
+@patch("ai.chat_store.session_store.get", side_effect=Exception("db down"))
+@patch("ai.chat_store.redis.Redis")
+def test_get_durable_draft_swallows_exception(mock_redis_cls, mock_get):
+    fake = FakeRedis()
+    mock_redis_cls.return_value = fake
+
+    result = chat_store.get_durable_draft("nonexistent")
+    assert result is None
+
+
+@patch("ai.chat_store.redis.Redis")
+def test_append_message_user_role_sets_title_in_durable(mock_redis_cls):
+    fake = FakeRedis()
+    mock_redis_cls.return_value = fake
+
+    session_id = chat_store.create_session("openai", "vault")
+    # Sets title from first user message (only if no title already set)
+    with patch("ai.chat_store.session_store.get", return_value={}):
+        with patch("ai.chat_store.session_store.save") as mock_save:
+            fake.hset(chat_store._session_key(session_id), "durable", "1")
+            chat_store.append_message(session_id, {"role": "user", "content": "Fix disk issue"})
+            # _sync_durable called with title from first message
+            assert mock_save.called
