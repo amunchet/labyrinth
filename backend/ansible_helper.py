@@ -143,8 +143,8 @@ def validate_ai_playbook(raw, forbidden_hosts=None):
     """
     try:
         plays = list(yaml.safe_load_all(raw))
-    except yaml.YAMLError as exc:
-        return "Invalid YAML: {}".format(exc)
+    except yaml.YAMLError:
+        return "Invalid YAML syntax."
     if not plays or any(not isinstance(play, dict) for play in plays):
         return "The playbook must contain one or more Ansible plays."
 
