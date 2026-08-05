@@ -142,9 +142,17 @@ def validate_ai_playbook(raw, forbidden_hosts=None):
     credentials or a concrete IP/hostname in the playbook.
     """
     try:
-        plays = list(yaml.safe_load_all(raw))
+        docs = list(yaml.safe_load_all(raw))
     except yaml.YAMLError:
         return "Invalid YAML syntax."
+    # yaml.safe_load_all wraps each YAML document; a playbook is a sequence of
+    # play dicts, so each document is a list.  Flatten one level.
+    plays = []
+    for doc in docs:
+        if isinstance(doc, list):
+            plays.extend(doc)
+        elif doc is not None:
+            plays.append(doc)
     if not plays or any(not isinstance(play, dict) for play in plays):
         return "The playbook must contain one or more Ansible plays."
 
