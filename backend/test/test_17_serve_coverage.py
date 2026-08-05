@@ -1024,9 +1024,11 @@ def test_autosave_post(mock_redis, mock_environ, setup):
 # ---------------------------------------------------------------------------
 
 
+@patch("os.path.exists")
 @patch("builtins.open", create=True)
-def test_alertmanager_pass(mock_open, setup):
+def test_alertmanager_pass(mock_open, mock_exists, setup):
     """Get Alertmanager password."""
+    mock_exists.return_value = True
     mock_file = MagicMock()
     mock_file.read.return_value = "test-password"
     mock_open.return_value = mock_file
