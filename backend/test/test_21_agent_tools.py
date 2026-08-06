@@ -167,11 +167,14 @@ def test_tool_defs_for_session_no_skill_ids_returns_all():
 @patch("ai.agent_tools.chat_store.get_session", return_value=None)
 def test_run_diagnostic_missing_session_raises(mock_get_session):
     import pytest
+
     with pytest.raises(ValueError, match="not found"):
         agent_tools._run_diagnostic("no-session", {"host": "x", "command_name": "ping"})
 
 
-@patch("ai.agent_tools.chat_store.get_session", return_value={"target_hosts": ["10.0.0.5"]})
+@patch(
+    "ai.agent_tools.chat_store.get_session", return_value={"target_hosts": ["10.0.0.5"]}
+)
 def test_run_diagnostic_target_host_excluded(mock_get_session):
     result = agent_tools._run_diagnostic(
         "sess1", {"host": "10.0.0.5", "command_name": "ping"}
@@ -180,15 +183,22 @@ def test_run_diagnostic_target_host_excluded(mock_get_session):
     assert "excluded" in result["error"]
 
 
-@patch("ai.agent_tools.chat_store.get_session", return_value={"skill_ids": ["network_inventory"]})
+@patch(
+    "ai.agent_tools.chat_store.get_session",
+    return_value={"skill_ids": ["network_inventory"]},
+)
 @patch("ai.agent_tools.client.list_hosts", return_value=[])
-def test_dispatch_skill_filter_blocks_disallowed_tool(mock_list_hosts, mock_get_session):
+def test_dispatch_skill_filter_blocks_disallowed_tool(
+    mock_list_hosts, mock_get_session
+):
     result = agent_tools.dispatch("sess1", "propose_playbook", {})
     assert "error" in result
     assert "not enabled" in result["error"]
 
 
-@patch("ai.agent_tools.chat_store.get_session", return_value={"target_hosts": ["10.0.0.5"]})
+@patch(
+    "ai.agent_tools.chat_store.get_session", return_value={"target_hosts": ["10.0.0.5"]}
+)
 @patch("ai.agent_tools.client.get_host", return_value={"ip": "10.0.0.5"})
 def test_dispatch_get_host_target_host_excluded(mock_get_host, mock_get_session):
     result = agent_tools.dispatch("sess1", "get_host", {"host_key": "10.0.0.5"})
@@ -196,7 +206,9 @@ def test_dispatch_get_host_target_host_excluded(mock_get_host, mock_get_session)
     assert "excluded" in result["error"]
 
 
-@patch("ai.agent_tools.chat_store.get_session", return_value={"target_hosts": ["10.0.0.5"]})
+@patch(
+    "ai.agent_tools.chat_store.get_session", return_value={"target_hosts": ["10.0.0.5"]}
+)
 @patch("ai.agent_tools.client.get_metrics", return_value=[])
 def test_dispatch_read_metrics_target_host_excluded(mock_get_metrics, mock_get_session):
     result = agent_tools.dispatch("sess1", "read_metrics", {"host_key": "10.0.0.5"})
@@ -204,11 +216,16 @@ def test_dispatch_read_metrics_target_host_excluded(mock_get_metrics, mock_get_s
     assert "excluded" in result["error"]
 
 
-@patch("ai.agent_tools.chat_store.get_session", return_value={"target_hosts": ["10.0.0.5"]})
-@patch("ai.agent_tools.client.list_hosts", return_value=[
-    {"ip": "10.0.0.5", "mac": "aa:bb", "name": "host1"},
-    {"ip": "10.0.0.6", "mac": "cc:dd", "name": "host2"},
-])
+@patch(
+    "ai.agent_tools.chat_store.get_session", return_value={"target_hosts": ["10.0.0.5"]}
+)
+@patch(
+    "ai.agent_tools.client.list_hosts",
+    return_value=[
+        {"ip": "10.0.0.5", "mac": "aa:bb", "name": "host1"},
+        {"ip": "10.0.0.6", "mac": "cc:dd", "name": "host2"},
+    ],
+)
 def test_dispatch_list_hosts_excludes_target_hosts(mock_list_hosts, mock_get_session):
     result = agent_tools.dispatch("sess1", "list_hosts", {})
     ips = [h["ip"] for h in result["hosts"]]

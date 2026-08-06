@@ -1431,7 +1431,9 @@ def run_ansible_background(job_id, data):
         if data.get("session_id"):
             from ai import chat_store
 
-            chat_store.update_deployment(data["session_id"], "completed", logs=results, results=results)
+            chat_store.update_deployment(
+                data["session_id"], "completed", logs=results, results=results
+            )
 
     except Exception as e:
         redis_client.hset(job_id, "status", "error")
@@ -1582,7 +1584,9 @@ def ai_chat_create_session(inp_data=""):
     skill_ids = normalize_skill_ids(data.get("skills", chat_settings["skills"]))
     target_hosts = data.get("target_hosts", [])
     if isinstance(target_hosts, str):
-        target_hosts = [host.strip() for host in target_hosts.split(",") if host.strip()]
+        target_hosts = [
+            host.strip() for host in target_hosts.split(",") if host.strip()
+        ]
     if not isinstance(target_hosts, list):
         return "Invalid target_hosts", 482
     target_hosts = [str(host).strip() for host in target_hosts if str(host).strip()]
@@ -1766,7 +1770,9 @@ def ai_chat_deploy(session_id):
 
     session = chat_store.get_session(session_id)
     if not session:
-        return {"error": "Session credentials expired; start a new session before deploying."}, 409
+        return {
+            "error": "Session credentials expired; start a new session before deploying."
+        }, 409
     data = request.get_json(silent=True)
     if data is None:
         try:

@@ -91,7 +91,9 @@ def configure_session(
     rc.hset(_session_key(session_id), "durable", "1")
     rc.hset(_session_key(session_id), "prompt", prompt)
     rc.hset(_session_key(session_id), "skill_ids", json.dumps(list(skill_ids or [])))
-    rc.hset(_session_key(session_id), "target_hosts", json.dumps(list(target_hosts or [])))
+    rc.hset(
+        _session_key(session_id), "target_hosts", json.dumps(list(target_hosts or []))
+    )
     rc.hset(_session_key(session_id), "title", title)
     rc.hset(_session_key(session_id), "max_iterations", str(max_iterations))
     now = float(session.get("created_at") or time.time())
@@ -292,7 +294,9 @@ def list_sessions():
     # Durable records are the source of truth once Redis expires. Merge them
     # when available, but keep the Redis-only behavior for legacy/test sessions.
     try:
-        durable = {item.get("session_id"): item for item in session_store.list_sessions()}
+        durable = {
+            item.get("session_id"): item for item in session_store.list_sessions()
+        }
         for item in sessions:
             if item["session_id"] in durable:
                 durable[item["session_id"]].update(item)

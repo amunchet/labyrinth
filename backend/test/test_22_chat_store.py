@@ -284,6 +284,7 @@ def test_configure_session_raises_when_session_missing(mock_redis_cls):
     mock_redis_cls.return_value = FakeRedis()
 
     import pytest
+
     with pytest.raises(ValueError, match="not found"):
         chat_store.configure_session("nonexistent-id", prompt="test")
 
@@ -291,7 +292,9 @@ def test_configure_session_raises_when_session_missing(mock_redis_cls):
 @patch("ai.chat_store.session_store.save")
 @patch("ai.chat_store.session_store.get")
 @patch("ai.chat_store.redis.Redis")
-def test_sync_durable_updates_when_durable_flag_set(mock_redis_cls, mock_get, mock_save):
+def test_sync_durable_updates_when_durable_flag_set(
+    mock_redis_cls, mock_get, mock_save
+):
     fake = FakeRedis()
     mock_redis_cls.return_value = fake
     mock_get.return_value = {"title": "old title"}
@@ -448,7 +451,9 @@ def test_get_durable_session_returns_durable_record(mock_redis_cls, mock_get):
 
 @patch("ai.chat_store.session_store.get", return_value=None)
 @patch("ai.chat_store.redis.Redis")
-def test_get_durable_session_falls_back_to_active_when_no_record(mock_redis_cls, mock_get):
+def test_get_durable_session_falls_back_to_active_when_no_record(
+    mock_redis_cls, mock_get
+):
     fake = FakeRedis()
     mock_redis_cls.return_value = fake
 
@@ -526,6 +531,8 @@ def test_append_message_user_role_sets_title_in_durable(mock_redis_cls):
     with patch("ai.chat_store.session_store.get", return_value={}):
         with patch("ai.chat_store.session_store.save") as mock_save:
             fake.hset(chat_store._session_key(session_id), "durable", "1")
-            chat_store.append_message(session_id, {"role": "user", "content": "Fix disk issue"})
+            chat_store.append_message(
+                session_id, {"role": "user", "content": "Fix disk issue"}
+            )
             # _sync_durable called with title from first message
             assert mock_save.called

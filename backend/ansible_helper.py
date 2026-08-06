@@ -224,6 +224,7 @@ def persist_reviewed_playbook(
         vault_password=vault_password,
     )
 
+
 def run_ansible(
     hosts: List,
     playbook: str,

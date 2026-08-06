@@ -100,10 +100,7 @@ def tool_defs_for_session(session):
     if not skill_ids:
         return TOOL_DEFS
     enabled = {
-        tool
-        for skill in SKILLS
-        if skill["id"] in skill_ids
-        for tool in skill["tools"]
+        tool for skill in SKILLS if skill["id"] in skill_ids for tool in skill["tools"]
     }
     return [tool for tool in TOOL_DEFS if tool.name in enabled]
 
@@ -138,7 +135,9 @@ def _run_diagnostic(session_id, tool_input):
     if not session:
         raise ValueError("Chat session not found or expired")
     if _is_target_host(session, tool_input.get("host")):
-        return {"error": "Deployment target hosts are excluded from assistant diagnostics."}
+        return {
+            "error": "Deployment target hosts are excluded from assistant diagnostics."
+        }
 
     result = diagnostic_tools.run_diagnostic_command(
         tool_input["host"],
@@ -204,11 +203,15 @@ def dispatch(session_id, name, tool_input):
             return {"hosts": hosts}
         if name == "get_host":
             if _is_target_host(session, tool_input.get("host_key")):
-                return {"error": "Deployment target hosts are excluded from assistant context."}
+                return {
+                    "error": "Deployment target hosts are excluded from assistant context."
+                }
             return {"host": client.get_host(tool_input["host_key"])}
         if name == "read_metrics":
             if _is_target_host(session, tool_input.get("host_key")):
-                return {"error": "Deployment target hosts are excluded from assistant context."}
+                return {
+                    "error": "Deployment target hosts are excluded from assistant context."
+                }
             return {
                 "metrics": client.get_metrics(
                     tool_input["host_key"],

@@ -4,7 +4,9 @@ from ansible_helper import validate_ai_playbook
 
 def test_ai_playbook_requires_controller_inventory_group():
     assert validate_ai_playbook("- hosts: 10.0.0.5\n  tasks: []\n")
-    assert validate_ai_playbook("- hosts: all\n  vars_files: [secret.yml]\n  tasks: []\n")
+    assert validate_ai_playbook(
+        "- hosts: all\n  vars_files: [secret.yml]\n  tasks: []\n"
+    )
 
 
 def test_ai_playbook_rejects_cleartext_passwords():
@@ -15,9 +17,12 @@ def test_ai_playbook_rejects_cleartext_passwords():
 
 
 def test_ai_playbook_accepts_generic_safe_play():
-    assert validate_ai_playbook(
-        "- hosts: clients\n  gather_facts: false\n  tasks:\n    - command: df -h\n"
-    ) is None
+    assert (
+        validate_ai_playbook(
+            "- hosts: clients\n  gather_facts: false\n  tasks:\n    - command: df -h\n"
+        )
+        is None
+    )
 
 
 def test_ai_playbook_rejects_configured_target_host():
@@ -52,7 +57,9 @@ def test_ai_playbook_single_dict_document():
 
 
 def test_target_hosts_are_excluded_from_inventory_context(monkeypatch):
-    monkeypatch.setattr(agent_tools.chat_store, "get_session", lambda _: {"target_hosts": ["10.0.0.5"]})
+    monkeypatch.setattr(
+        agent_tools.chat_store, "get_session", lambda _: {"target_hosts": ["10.0.0.5"]}
+    )
     monkeypatch.setattr(
         agent_tools.client,
         "list_hosts",
