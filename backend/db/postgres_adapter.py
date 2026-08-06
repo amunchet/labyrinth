@@ -40,6 +40,7 @@ _JSONB_TABLE_INDEXES = {
     "aws_accounts": [("name", False)],
     "themes": [("name", False)],
     "dashboards": [("name", False)],
+    "ai_chat_sessions": [("updated_at", False)],
 }
 
 _METRICS_TABLES = ("metrics", "metrics_latest")
