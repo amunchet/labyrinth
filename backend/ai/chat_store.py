@@ -82,15 +82,18 @@ def configure_session(
 ):
     """Mark a Redis session durable and persist non-secret session metadata."""
     rc = _client()
+    # Check before writing: hset would otherwise create the hash for an
+    # expired/unknown id, so a stale session would silently come back to life
+    # as a credential-less half-session instead of being rejected.
+    session = get_session(session_id)
+    if not session:
+        raise ValueError("Chat session not found or expired")
     rc.hset(_session_key(session_id), "durable", "1")
     rc.hset(_session_key(session_id), "prompt", prompt)
     rc.hset(_session_key(session_id), "skill_ids", json.dumps(list(skill_ids or [])))
     rc.hset(_session_key(session_id), "target_hosts", json.dumps(list(target_hosts or [])))
     rc.hset(_session_key(session_id), "title", title)
     rc.hset(_session_key(session_id), "max_iterations", str(max_iterations))
-    session = get_session(session_id)
-    if not session:
-        raise ValueError("Chat session not found or expired")
     now = float(session.get("created_at") or time.time())
     record = {
         "provider": session.get("provider", ""),
@@ -165,7 +168,12 @@ def append_message(session_id, message):
     rc.expire(session_key, SESSION_TTL_SECONDS)
     durable_fields = {}
     if message.get("role") == "user":
-        record = session_store.get(session_id) or {}
+        try:
+            record = session_store.get(session_id) or {}
+        except Exception:
+            # Same rationale as _sync_durable: appending to an active turn must
+            # not fail because the management database is unavailable.
+            record = {}
         if not record.get("title"):
             durable_fields["title"] = message.get("content", "")[:80]
     _sync_durable(session_id, durable_fields)
