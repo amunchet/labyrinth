@@ -58,12 +58,50 @@ def _connection_dsn():
     )
 
 
-def _connect_with_retry(dsn, minconn=1, maxconn=5, attempts=15, delay=2):
+# Per-process pool bounds. Deliberately small, because the connection budget
+# is much tighter than Postgres' stock 100: the `timescale/timescaledb` image
+# runs timescaledb-tune at first start, which sets `max_connections = 50`.
+#
+# Against 50 (minus superuser_reserved_connections=3) the steady-state demand
+# is roughly:
+#
+#   backend    8 gunicorn workers x POSTGRES_POOL_MAX
+#   mcp        1 process          x POSTGRES_POOL_MAX
+#   cron       up to ~4 overlapping jobs on the same minute (finder,
+#              bulk_write, proxmox_refresh x2) x POSTGRES_POOL_MAX
+#
+# At the old hardcoded maxconn=5 that is 8*5 + 5 + 4*5 = 65 > 47, i.e. the
+# stack could exhaust the server without a single leak. Sync gunicorn workers
+# serve one request at a time and need exactly one connection; the headroom
+# above 1 is for the AI chat background threads. 13*2 = 26 leaves real room.
+_DEFAULT_POOL_MIN = 1
+_DEFAULT_POOL_MAX = 2
+
+
+def _pool_bounds():
+    """Pool size from env, clamped so a bad value can't wedge the pool."""
+
+    def _read(name, default):
+        try:
+            return max(1, int(os.environ.get(name) or default))
+        except (TypeError, ValueError):
+            return default
+
+    minconn = _read("POSTGRES_POOL_MIN", _DEFAULT_POOL_MIN)
+    maxconn = _read("POSTGRES_POOL_MAX", _DEFAULT_POOL_MAX)
+    return minconn, max(minconn, maxconn)
+
+
+def _connect_with_retry(dsn, minconn=None, maxconn=None, attempts=15, delay=2):
     """
     docker-compose `depends_on` only waits for the postgres *container* to
     start, not for it to be ready to accept connections - retry so gunicorn
     workers don't crash-loop on a normal startup race.
     """
+    if minconn is None or maxconn is None:
+        default_min, default_max = _pool_bounds()
+        minconn = default_min if minconn is None else minconn
+        maxconn = default_max if maxconn is None else maxconn
     last_exc = None
     for _ in range(attempts):
         try:
@@ -172,19 +210,61 @@ def _cursor(pool):
 
 
 class _PoolCursor:
+    """Checks a connection out of the pool for the body of a `with` block.
+
+    Every exit path must `putconn`. psycopg2's pool tracks checked-out
+    connections in `_used`, and one that is never returned is gone for good:
+    the pool slot stays occupied forever.
+
+    The path that actually bites is setup, not teardown. After Postgres
+    restarts (upgrade, OOM, failover) every connection sitting idle in the
+    pool is dead, and `conn.autocommit = True` on a dead connection raises
+    InterfaceError *before* the try/finally that would have returned it. Do
+    that `maxconn` times and the pool is permanently exhausted while its
+    backends are still counted server-side - the process then needs a
+    restart to talk to the database again.
+
+    An ordinary failed query (UndefinedTable and friends) is safe either
+    way: the cursor still closes cleanly and the connection goes back.
+    """
+
     def __init__(self, pool):
         self._pool = pool
         self._conn = None
+        self._cur = None
 
     def __enter__(self):
-        self._conn = self._pool.getconn()
-        self._conn.autocommit = True
-        self._cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        conn = self._pool.getconn()
+        try:
+            conn.autocommit = True
+            self._cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        except Exception:
+            # Setting autocommit or opening a cursor only fails on an
+            # already-dead connection - discard rather than recycle it.
+            self._pool.putconn(conn, close=True)
+            raise
+        self._conn = conn
         return self._cur
 
     def __exit__(self, exc_type, exc, tb):
-        self._cur.close()
-        self._pool.putconn(self._conn)
+        conn, cur = self._conn, self._cur
+        self._conn = self._cur = None
+
+        # A connection-level failure poisons the connection: handing it back
+        # to the pool just deals the same broken socket to the next caller.
+        broken = bool(conn.closed) or (
+            exc_type is not None
+            and issubclass(
+                exc_type, (psycopg2.OperationalError, psycopg2.InterfaceError)
+            )
+        )
+        try:
+            if cur is not None and not broken:
+                cur.close()
+        except Exception:
+            broken = True
+        finally:
+            self._pool.putconn(conn, close=broken)
         return False
 
 

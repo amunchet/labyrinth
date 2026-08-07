@@ -8,9 +8,9 @@ file documents the adapter *contract* - what to rely on, what not to.
 ## Usage
 
 ```python
-from db import get_db
+from db import shared_db
 
-db = get_db()                       # Client, backend chosen by DB_BACKEND
+db = shared_db()                    # lazy proxy onto the process-wide Client
 hosts = db["labyrinth"]["hosts"]    # Collection - same shape on both backends
 hosts.insert_one({"mac": "AA:BB"})
 found = hosts.find_one({"mac": "AA:BB"})
@@ -20,6 +20,40 @@ Every call site in this codebase programs against this interface
 (`backend/db/base.py`: `Client`, `Database`, `Collection`, `Cursor`) - never
 against `pymongo` or `psycopg2` directly. `backend/db/mongo_adapter.py` and
 `backend/db/postgres_adapter.py` are the two implementations.
+
+## Connection ownership - pick the right entry point
+
+On Postgres a `Client` owns a `ThreadedConnectionPool`, and nothing reaps
+pools. Which entry point you use is therefore a connection-budget decision,
+not a style preference:
+
+| Function | Builds | Use for |
+|---|---|---|
+| `shared_db()` | nothing until first use | **application code** - module-level `db = shared_db()` |
+| `get_shared_client()` | the one client, on first call | helpers reached from routes/jobs that need a `Client` now |
+| `get_db()` | a **new** client every call | tests and one-shot tooling that will `close()` it |
+
+Rules that follow from that:
+
+- **Never call `get_db()` per request, per job, or per helper invocation.**
+  Each call is another pool of up to `POSTGRES_POOL_MAX` connections that
+  nobody closes. Doing this in a gunicorn worker is how the backend ran the
+  server out of connections (`FATAL: sorry, too many clients already`).
+- **Module-level clients must be lazy.** `finder.py`, `alive.py` and
+  `serve.py updater` all `import serve` purely to reuse route handlers, and
+  several then exit immediately on a contended lock. `shared_db()` returns a
+  proxy so importing costs nothing; the pool is built on first real query.
+- `close_shared_client()` is registered with `atexit`, so short-lived cron
+  processes hand their connections back on the way out.
+
+### Sizing the pool
+
+`POSTGRES_POOL_MIN` / `POSTGRES_POOL_MAX` (default 1 / 2) bound each
+process's pool. The default is small on purpose - see the budget comment in
+`postgres_adapter.py`. The ceiling it is budgeted against is
+`max_connections`, which the compose files pin explicitly because the
+`timescale/timescaledb` image's autotuner otherwise sets it to **50**, not
+Postgres' usual 100.
 
 ## What's supported
 

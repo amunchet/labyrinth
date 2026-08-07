@@ -151,6 +151,9 @@ def compact_metrics():
             return len(rows)
     finally:
         pool.putconn(conn)
+        # Own pool, own responsibility: compaction can run for a while, so
+        # don't leave it to interpreter exit to hand the connections back.
+        client.close()
 
 
 if __name__ == "__main__":  # pragma: no cover

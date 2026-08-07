@@ -12,7 +12,7 @@ which isn't exercised by the backend test suite.
 
 import os
 
-from db import get_db
+from db import get_shared_client
 from ai.skills import DEFAULT_SKILL_IDS, normalize_skill_ids
 
 # Defaults used the first time the AI alert flow runs, before anything has
@@ -56,9 +56,14 @@ DEFAULT_AI_CHAT_MAX_ITERATIONS = 8
 
 
 def get_db_client():
-    """Get a database client for the configured backend (Postgres by
-    default, Mongo if DB_BACKEND=mongo - see backend/db/)."""
-    return get_db()
+    """Get the process-wide database client (Postgres by default, Mongo if
+    DB_BACKEND=mongo - see backend/db/).
+
+    Shared, not fresh: this is reached from Flask routes (the AI Alerts test
+    buttons), so a new client per call would leak a connection pool into a
+    long-lived gunicorn worker on every click.
+    """
+    return get_shared_client()
 
 
 def get_ai_alert_settings(db) -> dict:

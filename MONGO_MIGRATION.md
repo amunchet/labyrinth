@@ -37,6 +37,11 @@ New env vars (see `backend/.env.sample` for the full annotated list):
 | `METRICS_RAW_RETENTION_DAYS` | `30` | Postgres only - see Compaction below |
 | `METRICS_DAILY_RETENTION_DAYS` | unset (unlimited) | Postgres only |
 | `BACKUP_RETENTION_DAYS` | `14` | local `/backups` retention, separate from whatever your offsite system does |
+| `POSTGRES_POOL_MIN` | `1` | Postgres only - per-process pool floor |
+| `POSTGRES_POOL_MAX` | `2` | Postgres only - per-process pool ceiling; see Connection budget below |
+| `POSTGRES_MAX_CONNECTIONS` | `100` | compose-level; the server's `max_connections` |
+| `BULK_INSERT_LOCK_WAIT_SECONDS` | `240` | how long a queued metrics transfer waits for the running one |
+| `BULK_INSERT_LOCK_TTL_SECONDS` | `120` | how long after a crash the transfer lock frees itself |
 
 `MONGO_USERNAME`/`MONGO_PASSWORD`/`MONGO_HOST` are unchanged and still used
 when `DB_BACKEND=mongo`.
@@ -165,6 +170,96 @@ queries spanning older data is **not** implemented - this migration ships
 the storage/compaction mechanism only; no existing route currently queries
 metrics far enough back for this to matter, and wiring it into the frontend
 would be a separate feature.
+
+## Connection budget
+
+Postgres refuses new sessions with `FATAL: sorry, too many clients already`
+once `max_connections` is reached, and the ceiling is lower than it looks:
+the `timescale/timescaledb` image runs `timescaledb-tune` on first start,
+which sets **`max_connections = 50`** rather than Postgres' usual 100. Both
+compose files now pin it explicitly (`POSTGRES_MAX_CONNECTIONS`, default
+100) so the limit is a decision in the compose file instead of a side
+effect of the image and the host's RAM.
+
+Demand is `POSTGRES_POOL_MAX` per *process*, not per container:
+
+| Source | Processes |
+|---|---|
+| `backend` | 8 gunicorn workers |
+| `mcp` | 1 |
+| `cron` | up to ~4 overlapping on the same minute (finder, bulk_write, proxmox_refresh x2) |
+
+At the previous hardcoded pool max of 5 that is `13 x 5 = 65` against an
+effective ~47 (50 minus `superuser_reserved_connections`) - i.e. the stack
+could exhaust the server with no leak involved at all. The default is now
+`POSTGRES_POOL_MAX=2` (`13 x 2 = 26`), which leaves real headroom. Sync
+gunicorn workers serve one request at a time and need exactly one
+connection; the headroom above 1 covers the AI chat background threads.
+
+If you raise `--workers`, raise `POSTGRES_MAX_CONNECTIONS` to match, or
+lower `POSTGRES_POOL_MAX`.
+
+### Things that used to leak connections
+
+Fixed, but worth knowing when reading this code or adding to it:
+
+- **A client per call.** `get_db()` builds a *new* `Client`, and on Postgres
+  a new pool. Helpers like `ai_settings.get_db_client()` called it on every
+  invocation, so each AI-alert/disk/EC2 test-email click from the UI added
+  another never-closed pool to a long-lived gunicorn worker. Application
+  code now goes through `get_shared_client()` / `shared_db()`; see
+  `backend/db/README.md`.
+- **A client per import.** `serve.py`'s module-level client was eager, so
+  every cron entrypoint that imports `serve` for a helper function
+  (`finder.py`, `alive.py`, `serve.py updater`) opened a pool and ran the
+  bootstrap DDL's advisory-lock transaction just to import - several times a
+  minute, including on ticks that exit immediately on a contended lock. It
+  is now a lazy proxy.
+- **A stranded connection per dead socket.** `_PoolCursor.__enter__` set
+  `autocommit` *before* the try/finally that returns the connection. On a
+  dead pooled connection - which is every pooled connection after Postgres
+  restarts, gets OOM-killed, or fails over - that raises `InterfaceError`
+  and the pool slot was lost for good. `POSTGRES_POOL_MAX` of those and the
+  process could never reach Postgres again without a restart. Setup failures
+  now discard the connection with `putconn(close=True)`.
+
+To see current usage:
+
+```sql
+SELECT count(*), state FROM pg_stat_activity
+WHERE datname = 'labyrinth' GROUP BY state;
+```
+
+## Redis -> Postgres metrics transfer
+
+Metrics land in Redis first (`METRIC-<json>` keys, 120s TTL, overwritten in
+place by repeat samples) and are moved to Postgres for permanent retention
+by `cron/bulk_write.sh` -> `serve.py updater` -> `bulk_insert()`, once a
+minute.
+
+Only one transfer runs at a time. A run that spills past the minute mark
+makes the next tick **wait** for it rather than run concurrently over the
+same Redis keys, via the Redis lock in `backend/common/single_run.py`:
+
+- `SET NX PX` with a per-run fencing token, so a run that overruns its TTL
+  can never delete the next run's lock on the way out.
+- A heartbeat thread extends the TTL while the holder is alive, so a genuinely
+  long transfer keeps its lock instead of losing it mid-run.
+- The TTL still bounds a hard crash: a holder that is SIGKILLed frees the
+  lock within `BULK_INSERT_LOCK_TTL_SECONDS` (120s) instead of wedging the
+  transfer forever.
+- Waiting is capped at `BULK_INSERT_LOCK_WAIT_SECONDS` (240s). Giving up is
+  not data loss - the metrics are still in Redis and the next tick retries -
+  and the cap is what stops a permanently stuck holder from accumulating an
+  unbounded pile of blocked cron processes.
+
+This replaced `pid.PidFile`, which was wrong on both counts: it is
+per-container (two cron containers would each run their own "single"
+transfer against the same Redis and double-write), and it *aborts* on
+contention rather than waiting, dropping that window's transfer.
+
+A waiting process holds no Postgres connections - `serve.db` is lazy and
+`index_helper()` runs inside the lock - so queued ticks are cheap.
 
 ## Known behavior notes carried forward unchanged
 
