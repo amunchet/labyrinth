@@ -413,7 +413,7 @@ def test_add_vm_info_caches_successful_status(mock_redis):
         redis_client=mock_redis,
     )
 
-    # Both the VM status and the (separately cached) agent-info answer are
+    # The VM status and the (separately cached) agent-info answer are each
     # written to their own Redis keys.
     mock_redis.setex.assert_any_call(
         "proxmox-guest-status:cluster-1:node-a:vm:100",
@@ -425,7 +425,14 @@ def test_add_vm_info_caches_successful_status(mock_redis):
         proxmox_helper.PROXMOX_GUEST_STATUS_CACHE_TTL_SECONDS,
         json.dumps({"installed": True, "error": None}),
     )
-    assert mock_redis.setex.call_count == 2
+    # A non-zero disk reading is also cached as "last known-good" so a later
+    # transient zero-read doesn't trigger a false alert.
+    mock_redis.setex.assert_any_call(
+        "proxmox-good-disk:cluster-1:node-a:vm:100",
+        proxmox_helper.PROXMOX_GUEST_STATUS_CACHE_TTL_SECONDS,
+        json.dumps({"used": 500, "total": 1000}),
+    )
+    assert mock_redis.setex.call_count == 3
     vm_info = node_info["vms"][0]
     assert vm_info["disk"] == 500
     assert vm_info["_status_from_cache"] is False
@@ -462,14 +469,19 @@ def test_add_vm_info_falls_back_to_cache_when_status_call_fails(mock_redis):
         vm_info["_status_cache_key"] == "proxmox-guest-status:cluster-1:node-a:vm:100"
     )
     # A failed status call must not overwrite the last known-good cached
-    # value for that key (the successful agent-info check still caches
-    # under its own separate key).
+    # value for that key - only the agent-info cache and the "good disk"
+    # reading cache (both refreshed with genuinely good data) get written.
     vm_status_calls = [
         call
         for call in mock_redis.setex.call_args_list
         if call.args[0] == "proxmox-guest-status:cluster-1:node-a:vm:100"
     ]
     assert vm_status_calls == []
+    mock_redis.setex.assert_any_call(
+        "proxmox-good-disk:cluster-1:node-a:vm:100",
+        proxmox_helper.PROXMOX_GUEST_STATUS_CACHE_TTL_SECONDS,
+        json.dumps({"used": 700, "total": 1000}),
+    )
 
 
 def test_add_vm_info_no_cache_available_on_failed_status_call(mock_redis):
