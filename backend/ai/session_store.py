@@ -7,8 +7,7 @@ not part of this document.
 
 import time
 
-from db import get_db
-
+from db import get_shared_client
 
 COLLECTION = "ai_chat_sessions"
 
@@ -23,7 +22,9 @@ def _collection(db=None):
 
         return serve.db["labyrinth"][COLLECTION]
     except (ImportError, AttributeError):
-        return get_db()["labyrinth"][COLLECTION]
+        # Same process-wide client serve.db proxies onto, so the fallback is
+        # no longer a per-call pool either.
+        return get_shared_client()["labyrinth"][COLLECTION]
 
 
 def _without_id(document):

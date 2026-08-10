@@ -117,6 +117,9 @@ services:
   # the DB_BACKEND=mongo fallback path stays testable.
   postgres:
     image: timescale/timescaledb:2.17.2-pg16
+    # Match production's explicit ceiling instead of timescaledb-tune's
+    # max_connections=50 - see docker-compose-production.yml.
+    command: postgres -c max_connections=${POSTGRES_MAX_CONNECTIONS:-100}
     ports:
       - 127.0.0.1:5432:5432
     networks:

@@ -19,7 +19,7 @@ sys.path.insert(0, "/src")
 
 import aws_helper
 from ai import email_helper
-from db import get_db
+from db import get_shared_client
 
 # Setup Jinja2 template environment with auto-escaping enabled for HTML templates
 TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "templates")
@@ -30,9 +30,13 @@ jinja_env = Environment(
 
 
 def _get_db_client():
-    """Get a database client for the configured backend (Postgres by
-    default, Mongo if DB_BACKEND=mongo - see backend/db/)."""
-    return get_db()
+    """Get the process-wide database client (Postgres by default, Mongo if
+    DB_BACKEND=mongo - see backend/db/).
+
+    Shared, not fresh: serve.py calls send_full_test_email() from a route, so
+    a new client per call would leak a pool into a gunicorn worker.
+    """
+    return get_shared_client()
 
 
 def get_ec2_alert_settings(db) -> Dict:

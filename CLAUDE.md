@@ -25,7 +25,7 @@ Labyrinth is a network analyzer, mapper, and monitor built on NMap, Ansible, and
 **Data flow:**
 1. Network scans via `backend/finder.py` (nmap) create/update hosts in the database
 2. Telegraf agents collect metrics and POST to `/metrics` with a `TELEGRAF_KEY` header (checked via the `requires_header` decorator, not Auth0). In deployed stacks this is served by `metrics-go`; the Flask route remains as a fallback
-3. Metrics are written to Redis first, then bulk-moved to the database by `cron/bulk_write.sh` (`serve.py`'s `bulk_insert()`)
+3. Metrics are written to Redis first (short-lived, 120s TTL, overwritten in place), then bulk-moved to the database once a minute by `cron/bulk_write.sh` (`serve.py`'s `bulk_insert()`). Only one transfer runs at a time - a run that overruns the minute makes the next tick wait, via the Redis lock in `backend/common/single_run.py` (fencing token + heartbeat-extended TTL). See "Redis -> Postgres metrics transfer" in `MONGO_MIGRATION.md`
 4. Frontend polls the backend API to display topology and metrics
 5. `backend/watcher.py` judges service health and sends alerts to Alertmanager (`http://alertmanager:9093/api/v2/alerts`, password read from `/alertmanager/pass`); frontend can list/resolve them via `/alertmanager/alerts`
 6. Proxmox: `cron/proxmox_refresh.sh` refreshes the per-cluster Redis cache; `cron/disk_check.sh` runs `backend/proxmox_disk_check.py` hourly to email disk-space alerts
@@ -34,7 +34,9 @@ Labyrinth is a network analyzer, mapper, and monitor built on NMap, Ansible, and
 
 ### Database adapter ecosystem (`backend/db/`)
 
-- `db.get_db()` (in `backend/db/__init__.py`) is the single entry point, selecting a backend via the `DB_BACKEND` env var (`postgres` default, `mongo` fallback). `serve.py`'s module-level `db = get_db()` (and every other module that touches the database) goes through this - there is no direct `pymongo`/`psycopg2` usage outside `backend/db/`.
+- `backend/db/__init__.py` is the single entry point, selecting a backend via the `DB_BACKEND` env var (`postgres` default, `mongo` fallback). Every module that touches the database goes through it - there is no direct `pymongo`/`psycopg2` usage outside `backend/db/`.
+- **Which entry point matters for connection count.** On Postgres a `Client` owns a connection pool and nothing reaps pools, so: `shared_db()` (lazy proxy onto the process-wide client) for module-level application code, `get_shared_client()` for helpers that need a `Client` immediately, and `get_db()` - which builds a **new** client every call - only for tests and one-shot tooling that will `close()` it. Calling `get_db()` per request/per job is how the backend ran Postgres out of connections; `serve.py`'s `db = shared_db()` is lazy specifically because `finder.py`/`alive.py`/`serve.py updater` import it just to reuse route handlers. Budget and history: "Connection budget" in `MONGO_MIGRATION.md`.
+- `POSTGRES_POOL_MIN`/`POSTGRES_POOL_MAX` (1/2) bound each process's pool; the compose files pin `max_connections` explicitly because the `timescale/timescaledb` image's autotuner sets it to 50, not 100.
 - `backend/db/base.py` defines the interface (`Client`/`Database`/`Collection`/`Cursor`, plus `InsertOne`/`ReplaceOne`/`UpdateOne`/`DeleteOne` bulk-op classes) - a deliberately narrow, pymongo-shaped surface covering only what this codebase actually uses (no aggregation pipelines, transactions, GridFS, or change streams anywhere in the app).
 - `backend/db/mongo_adapter.py` is a thin passthrough onto real `pymongo` - full Mongo query language support, byte-identical behavior to the pre-migration code.
 - `backend/db/postgres_adapter.py` translates that narrow operator set ($set/$or/$pull/$push/$in/$regex-as-prefix/$exists/$unset/upsert, plus $lt for TTL emulation) onto JSONB/typed-column Postgres tables, with schema bootstrap running eagerly at client construction (not lazily like Mongo, since Postgres tables must exist before first use - see `MONGO_MIGRATION.md`).
@@ -166,3 +168,61 @@ docker-compose -f docker-compose-production.yml up --build -d
 - `cron/run.sh`, `cron/cron.d/crontab` - scheduled job definitions
 - `start_dev.sh` - development environment bootstrap
 - `MONGO_MIGRATION.md` - full design rationale, schema, and operational runbook for the Postgres migration
+
+<!-- BEGIN ARMADA GLOBAL INSTRUCTIONS (managed by Flagship) -->
+## Armada session policy
+
+You are running inside an Armada session. These rules come from the Flagship
+and apply to every session in the fleet. They sit on top of this project's own
+instructions, and they win wherever the two disagree.
+
+- Armada session: `Too many clients`
+- Working branch: `armada/Too-many-clients-f02b76`
+- Base branch: `master`
+- Session changelog: `CHANGELOG/armada-Too-many-clients-f02b76.md`
+
+### Commit and push your work
+
+- Commit as soon as a change is coherent on its own. Never end a turn with a
+  dirty working tree, and never wait to be asked to commit.
+- Push to `origin` right after committing, so the branch on the remote always
+  matches what you have locally.
+- This holds even when the working branch is the base branch. Armada sessions
+  are disposable and their history is the only durable record of the work, so
+  committing directly to `master` is expected here, not a mistake.
+- If a push is rejected because the remote moved ahead, pull with rebase and
+  push again. Report the failure only if that still does not resolve it.
+
+### Keep the branch mergeable
+
+- Whenever the working branch is not the base branch, verify the work still
+  merges cleanly into `master` before you consider a task finished.
+- Check without mutating the working tree, for example:
+  `git fetch origin && git merge-tree $(git merge-base HEAD origin/master) HEAD origin/master`
+- If that reports conflicts, resolve them now rather than leaving them for
+  whoever opens the pull request. Rebase or merge the base branch in, fix each
+  conflict on its merits, re-run the tests, then commit and push.
+- If a conflict genuinely needs a human decision, stop and say exactly which
+  files conflict and what the competing changes are.
+
+### Keep the changelog current
+
+- Record what you did in `CHANGELOG/armada-Too-many-clients-f02b76.md` as part of the same commit that
+  makes the change.
+- The file is scoped to this branch, so it never conflicts with changelogs
+  written by other sessions.
+- Append one entry per meaningful change, newest last, in this shape:
+
+  ```markdown
+  ## 2025-01-31 14:22 UTC
+  Short description of what changed and why.
+  ```
+
+- Use Central Time (US/Chicago), and include both the date and the time. Get them from `date -u`
+  rather than guessing.
+- Describe the change in terms a reviewer would care about. Skip routine
+  mechanics like formatting passes or lint fixes unless they are the point of
+  the work.
+- This per-branch file is yours to maintain. A top-level auto-generated
+  `CHANGELOG.md`, if the project has one, is still off limits.
+<!-- END ARMADA GLOBAL INSTRUCTIONS -->

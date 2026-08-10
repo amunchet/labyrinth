@@ -52,10 +52,15 @@ def test_collection_uses_provided_db():
     assert result is col
 
 
-def test_collection_falls_back_to_get_db_on_import_error():
+def test_collection_falls_back_to_shared_client_on_import_error():
+    """The fallback must reuse the process-wide client, not build a new one.
+
+    A fresh client per call means a fresh Postgres pool per call, which is
+    how the backend ran itself out of connections - see backend/db/.
+    """
     col = FakeCollection()
     fake_db = _make_db(col)
-    with patch("ai.session_store.get_db", return_value=fake_db):
+    with patch("ai.session_store.get_shared_client", return_value=fake_db):
         with patch.dict("sys.modules", {"serve": None}):
             result = session_store._collection()
     assert result is col

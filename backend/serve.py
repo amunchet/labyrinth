@@ -36,17 +36,17 @@ from ai.ai_settings import get_ai_alert_settings, get_ai_chat_settings
 from ai.skills import SKILLS, normalize_skill_ids
 from ai.ai_pipeline import send_simple_test_email, send_full_test_email
 
-from db import get_db
+from db import shared_db
 from db import base as db_base
 
 from common import auth
 from common.test import unwrap
+from common.single_run import single_run, LockNotAcquired
 from flask import Flask, request, Response, send_file
 from markupsafe import escape
 from werkzeug.utils import secure_filename
 from flask_cors import CORS
 from PIL import Image
-from pid import PidFile
 
 import uuid
 from multiprocessing import Process
@@ -214,7 +214,12 @@ requires_header = functools.partial(_requires_header, permission=TELEGRAF_KEY)
 # Database Access - pluggable adapter ecosystem, defaults to Postgres/
 # TimescaleDB, DB_BACKEND=mongo keeps the original MongoDB path available.
 # See backend/db/ and MONGO_MIGRATION.md.
-db = get_db()
+#
+# Lazy on purpose. finder.py, alive.py and `serve.py updater` all `import
+# serve` purely to reuse route handlers, and several of them then exit
+# immediately on a contended lock. An eager client made every one of those
+# imports open a Postgres pool and run the bootstrap DDL first.
+db = shared_db()
 
 # Route definitions
 
@@ -3554,15 +3559,38 @@ def _get_ec2_test_email_recipients(data):
 
 
 if __name__ == "__main__":  # pragma: no cover
-    # Check on indexes
-    index_helper()
-
     if len(sys.argv) > 1 and sys.argv[1] == "watcher":
+        index_helper()
         unwrap(dashboard)(report=True)
     elif len(sys.argv) > 1 and sys.argv[1] == "updater":
-        with PidFile("labyrinth-bulk-insert") as p:
-            unwrap(bulk_insert)()
+        # Metrics transfer: Redis (short-lived, overwritten in place) ->
+        # Postgres (permanent). Cron fires this every minute; the lock makes
+        # a run that spills past the minute mark hold the next tick back
+        # rather than running two transfers over the same Redis keys.
+        #
+        # Nothing above this point touches the database - `db` is lazy and
+        # index_helper() moved inside the lock - so a waiting process costs
+        # one Redis connection, not a Postgres pool. That matters when a
+        # slow transfer leaves several ticks queued up behind it.
+        try:
+            with single_run(
+                redis.Redis(host=os.environ.get("REDIS_HOST") or "redis"),
+                "labyrinth-bulk-insert",
+            ) as lock:
+                if lock.waited_seconds > 1:
+                    print(
+                        "Waited {:.1f}s for the previous transfer to finish.".format(
+                            lock.waited_seconds
+                        )
+                    )
+                index_helper()
+                unwrap(bulk_insert)()
+        except LockNotAcquired as exc:
+            # Not data loss: the metrics are still in Redis and the next
+            # tick retries. Loud, because a transfer this stuck is a bug.
+            print("Skipping bulk insert - {}".format(exc))
     else:
+        index_helper()
         app.debug = True
         app.config["ENV"] = "development"
         app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 7000)))

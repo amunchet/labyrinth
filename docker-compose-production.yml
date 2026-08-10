@@ -114,6 +114,14 @@ services:
   postgres:
     image: timescale/timescaledb:2.17.2-pg16
     restart: always
+    # This image runs timescaledb-tune on first start, which sets
+    # max_connections=50 - well below Postgres' own default of 100, and low
+    # enough that the stack could exhaust it on a busy minute and start
+    # answering "FATAL: sorry, too many clients already". Pin it explicitly
+    # so the ceiling is a decision in this file rather than a side effect of
+    # the image's autotuner and whatever RAM the host happens to have.
+    # Budget it against POSTGRES_POOL_MAX (see backend/db/postgres_adapter.py).
+    command: postgres -c max_connections=${POSTGRES_MAX_CONNECTIONS:-100}
     networks:
       - labyrinth
     volumes:
