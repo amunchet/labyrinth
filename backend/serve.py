@@ -5,6 +5,7 @@ Labyrinth Web backend
 
 # Permissions scope names
 import functools
+import html
 import os
 import signal
 import sys
@@ -193,9 +194,8 @@ PERM_ADMIN = "admin"
 
 @app.route("/error/<int:code>")
 def error_func(code=401, msg="", command=""):  # pragma: no cover
-    if isinstance(code, int):
-        return "Auth Error {} - {}".format(code, msg), code
-    return "Auth Error", 500
+    status = int(code) if isinstance(code, int) else 500
+    return Response('{"error": "Auth Error"}', status=status, content_type="application/json")
 
 
 requires_auth_read = functools.partial(
@@ -985,7 +985,10 @@ def load_service(name, file_format="json"):
 @requires_auth_admin
 def alertmanager_pass():
     """Returns contents of the password file"""
-    return open("/alertmanager/pass").read(), 200
+    fname = "/alertmanager/pass"
+    if not os.path.exists(fname):
+        return "Password is available in the alertmanager container logs (check installation output).", 200
+    return open(fname).read(), 200
 
 
 @app.route("/alertmanager/", methods=["GET"])
@@ -995,7 +998,10 @@ def alertmanager_load(fname=""):
     """Return contents of configuration file"""
     url = "/alertmanager/alertmanager.yml"
     if fname != "":
-        url = "/alertmanager/{}.yml".format(fname.replace(".yml", ""))
+        safe_fname = secure_filename(fname.replace(".yml", ""))
+        if not safe_fname:
+            return "", 400
+        url = "/alertmanager/{}.yml".format(safe_fname)
     if not os.path.exists(url):
         return "", 200
     return open(url).read(), 200
@@ -2447,6 +2453,7 @@ def read_metric_counts(host):
             default=str,
         ),
         200,
+        {"Content-Type": "application/json"},
     )
 
 
