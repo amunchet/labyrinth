@@ -16,15 +16,23 @@ from typing import Dict, List
 from nmap import PortScannerYield as ps
 
 
+from common.single_run import RedisSingleRunLock, LockNotAcquired
 from common.test import unwrap
 from serve import list_subnet, list_subnets, create_edit_host, list_host, insert_metric
 
-# Redis lock expiration times (in seconds).
-# The global lock prevents multiple finder processes from running simultaneously.
-GLOBAL_LOCK_TIMEOUT_SECONDS = 3600
+# Cross-container "only one finder at a time" lock.  RedisSingleRunLock
+# heartbeats the TTL for as long as this process is alive, so the TTL only has
+# to outlive a crash rather than a full scan.  A plain `ex=` TTL could not:
+# it expired out from under a still-running finder, and the next cron tick
+# then started a second one on top of it.  Every hour, forever.
+GLOBAL_LOCK_KEY = "labyrinth_finder_lock"
+GLOBAL_LOCK_TTL_SECONDS = 120
 # The subnet lock prevents concurrent scans of the same subnet across instances.
 # Set longer than a typical full-port scan to handle slow hosts.
 SUBNET_LOCK_TIMEOUT_SECONDS = 7200
+
+# Worker threads sharing the subnet queue for a single pass.
+SCAN_THREADS = 4
 
 
 def scan(subnet: str, callback_fn, verbose=False) -> List:  # pragma: no cover
@@ -153,6 +161,39 @@ def process_scan(input: Dict) -> Dict:
     return output
 
 
+def scan_all_subnets(subnets, scan_subnet, num_threads=SCAN_THREADS):
+    """Scan every subnet exactly once across a pool of worker threads.
+
+    Returns once the queue is drained.  Deliberately *not* a resident loop:
+    cron re-fires finder every minute, so a worker that re-queued its own
+    subnet turned each tick into a permanently running process holding a
+    database connection pool.  Cron is the scan cadence; this is one pass.
+    """
+    subnet_queue = queue.Queue()
+    for subnet in subnets:
+        subnet_queue.put(subnet)
+
+    def worker():
+        while True:
+            try:
+                subnet = subnet_queue.get_nowait()
+            except queue.Empty:
+                return
+            try:
+                scan_subnet(subnet)
+            except Exception as exc:
+                # One unscannable subnet must not strand the rest of the pass.
+                print("Error scanning {}: {}".format(subnet, exc))
+            finally:
+                subnet_queue.task_done()
+
+    threads = [Thread(target=worker) for _ in range(max(1, num_threads))]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+
 def main():  # pragma: no cover
     """Runs scan and updates database"""
 
@@ -162,12 +203,18 @@ def main():  # pragma: no cover
         output = rclient.get("output-{}".format(subnet)).decode("utf-8")
         rclient.set("output-{}".format(subnet), output + str(msg))
 
-    # Use Redis-based global lock so multiple Docker containers don't duplicate work
-    global_lock_key = "labyrinth_finder_lock"
-    lock_acquired = rclient.set(
-        global_lock_key, "1", nx=True, ex=GLOBAL_LOCK_TIMEOUT_SECONDS
+    # Redis-based global lock so multiple containers don't duplicate work.
+    # wait=0 aborts on contention - the next cron tick retries a minute later,
+    # which is cheaper than parking a blocked process on a database pool.
+    lock = RedisSingleRunLock(
+        rclient,
+        GLOBAL_LOCK_KEY,
+        ttl=GLOBAL_LOCK_TTL_SECONDS,
+        wait=0,
     )
-    if not lock_acquired:
+    try:
+        lock.acquire()
+    except LockNotAcquired:
         print("Another finder instance is already running. Exiting.")
         return
 
@@ -235,37 +282,12 @@ def main():  # pragma: no cover
             finally:
                 rclient.delete(subnet_lock_key)
 
-        # Set up a queue for subnets
-        subnet_queue = queue.Queue()
-
-        # Add all subnets to the queue initially
-        for subnet in subnets:
-            subnet_queue.put(subnet)
-
-        def worker():
-            """Worker thread that scans subnets and continually rescans them."""
-            while True:
-                # Get a subnet from the queue
-                subnet = subnet_queue.get()
-                scan_subnet(subnet)
-                subnet_queue.task_done()  # Mark this subnet as done
-                # Put the subnet back into the queue to scan again
-                subnet_queue.put(subnet)
-
-        # Start a thread pool to process subnets concurrently
-        num_threads = 4  # You can adjust the number of concurrent threads
-        threads = []
-        for _ in range(num_threads):
-            t = Thread(target=worker)
-            t.start()
-            threads.append(t)
-
-        # Keep the main thread alive indefinitely
-        for t in threads:
-            t.join()
+        scan_all_subnets(subnets, scan_subnet)
 
     finally:
-        rclient.delete(global_lock_key)
+        # Reachable now.  The old `t.join()`-forever loop meant this cleanup
+        # never ran, so the lock was only ever released by TTL expiry.
+        lock.release()
 
 
 if __name__ == "__main__":
