@@ -77,3 +77,34 @@ Operational note for deploying this: the stale `labyrinth_finder_lock` key
 written by the old code carries up to a 3600s TTL and its value is not a
 valid token, so delete it once (`redis-cli DEL labyrinth_finder_lock`) after
 restarting the cron container, or the first scan waits up to an hour.
+
+## 2026-08-24 13:05 CDT
+Follow-up to the finder fix above: a `no-mistakes` Python graph query
+(`dependents finder.py --relationship python`) reported `serve.py` as a
+dependent of `finder.py`, which looked backwards — `finder.py` imports
+`serve`, not the reverse. It was right. `serve.py:348` has a *deferred*
+import inside the `/scan/` route:
+
+```python
+@app.route("/scan/")
+def scan():
+    from finder import main
+    executor.submit(main)          # executor = ThreadPoolExecutor(2)
+```
+
+So the never-returning `main()` was not only a cron problem. Every click of
+Scan in the UI permanently consumed one of that gunicorn worker's **two**
+executor threads. Two clicks wedged the pool, after which every later scan
+request in that worker queued forever and silently never ran, while the two
+stuck threads kept nmap-scanning in a tight loop and held the worker's
+database pool. It also explains why `/scan/` would appear dead in a
+long-running deployment: the first immortal finder took the global lock and
+never released it, so every subsequent UI scan aborted on contention forever.
+
+Both are fixed by the same change — `main()` now returns, releasing the
+executor thread and the lock. UI-triggered scans now abort only while a scan
+is genuinely in progress, rather than permanently.
+
+No code change in this entry; the fix above already covers it. Recorded
+because the `/scan/` path is easy to miss when reading `finder.py` alone —
+the import is deferred, so it does not appear in either file's import block.
