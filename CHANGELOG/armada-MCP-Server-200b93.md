@@ -66,3 +66,27 @@ what pulls in `serve`.
 Master already passes `POSTGRES_*` through to the `mcp` service and made the database
 handle lazy, so the credential gap that motivated the dotenv load is narrower now - it
 still matters for `MCP_KEY` and anything else kept in `backend/.env`.
+
+## 2026-08-31 21:40 UTC
+Fixed `421 Invalid Host header`, which made the server unreachable through Caddy - the
+exact thing the previous commits set out to enable.
+
+The MCP SDK enables DNS-rebinding protection by itself whenever FastMCP's own
+`settings.host` is a loopback address, and ours was: `MCP_HOST` is uvicorn's bind
+address, which FastMCP never sees, so its host stayed at the `127.0.0.1` default. The
+resulting allowlist is `127.0.0.1:*`/`localhost:*`/`[::1]:*`, so every request whose
+`Host` is a real domain - which is every request through Caddy - got a 421.
+
+`server.py` now passes `transport_security` explicitly rather than inheriting the
+auto-enable, so the policy no longer depends on what `MCP_HOST` happens to be. The
+check is off by default: it guards unauthenticated loopback servers against malicious
+pages in a browser, while this server is deliberately reachable and guarded by
+`MCP_KEY`. `MCP_ALLOWED_HOSTS` turns it back on scoped to named hosts (comma-separated,
+`host:*` wildcards); `MCP_ALLOWED_ORIGINS` narrows it further and does nothing alone.
+The parsing lives in `auth.py` with the rest of the stdlib-only, testable config.
+
+Worth recording why this got through: the earlier end-to-end checks all ran from inside
+the container against `http://127.0.0.1:8765/mcp`, so the Host header was the one value
+the allowlist accepted. They confirmed the auth matrix and the tool list while being
+blind to the only thing that mattered for external access. The verification now sends
+an explicit non-loopback Host header.

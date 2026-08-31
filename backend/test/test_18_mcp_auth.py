@@ -6,9 +6,12 @@ import json
 import pytest
 
 from ai.mcp.auth import (
+    ALLOWED_HOSTS_ENV,
+    ALLOWED_ORIGINS_ENV,
     MCP_KEY_ENV,
     PreSharedKeyMiddleware,
     extract_presented_key,
+    get_host_allowlists,
     get_mcp_key,
     is_authorized,
 )
@@ -68,6 +71,66 @@ class TestGetMcpKey:
     def test_defaults_to_process_environment(self, monkeypatch):
         monkeypatch.setenv(MCP_KEY_ENV, KEY)
         assert get_mcp_key() == KEY
+
+
+class TestGetHostAllowlists:
+    """
+    These drive the SDK's DNS rebinding check.  Empty hosts means the check
+    stays off - which is the point: FastMCP would otherwise auto-enable it and
+    421 every request that arrives under a real domain through Caddy.
+    """
+
+    def test_unset_means_no_allowlist(self):
+        assert get_host_allowlists({}) == ([], [])
+
+    def test_blank_means_no_allowlist(self):
+        assert get_host_allowlists({ALLOWED_HOSTS_ENV: "   "}) == ([], [])
+
+    def test_single_host(self):
+        hosts, origins = get_host_allowlists(
+            {ALLOWED_HOSTS_ENV: "labyrinth.example.com"}
+        )
+        assert hosts == ["labyrinth.example.com"]
+        assert origins == []
+
+    def test_comma_separated_hosts_are_trimmed(self):
+        hosts, _ = get_host_allowlists(
+            {ALLOWED_HOSTS_ENV: "a.example.com , b.example.com"}
+        )
+        assert hosts == ["a.example.com", "b.example.com"]
+
+    def test_empty_entries_are_dropped(self):
+        hosts, _ = get_host_allowlists(
+            {ALLOWED_HOSTS_ENV: "a.example.com,,  ,b.example.com,"}
+        )
+        assert hosts == ["a.example.com", "b.example.com"]
+
+    def test_wildcard_port_entries_pass_through(self):
+        hosts, _ = get_host_allowlists({ALLOWED_HOSTS_ENV: "localhost:*"})
+        assert hosts == ["localhost:*"]
+
+    def test_origins_are_read_too(self):
+        hosts, origins = get_host_allowlists(
+            {
+                ALLOWED_HOSTS_ENV: "labyrinth.example.com",
+                ALLOWED_ORIGINS_ENV: "https://labyrinth.example.com, https://other.example.com",
+            }
+        )
+        assert hosts == ["labyrinth.example.com"]
+        assert origins == ["https://labyrinth.example.com", "https://other.example.com"]
+
+    def test_origins_alone_leave_the_check_off(self):
+        """Hosts is what enables the check; origins only narrow it."""
+        hosts, origins = get_host_allowlists(
+            {ALLOWED_ORIGINS_ENV: "https://labyrinth.example.com"}
+        )
+        assert hosts == []
+        assert origins == ["https://labyrinth.example.com"]
+
+    def test_defaults_to_process_environment(self, monkeypatch):
+        monkeypatch.setenv(ALLOWED_HOSTS_ENV, "env.example.com")
+        monkeypatch.delenv(ALLOWED_ORIGINS_ENV, raising=False)
+        assert get_host_allowlists() == (["env.example.com"], [])
 
 
 class TestExtractPresentedKey:
