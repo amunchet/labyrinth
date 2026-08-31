@@ -145,8 +145,15 @@ async def mcp_create_or_update_service(service_json: str) -> str:
 @app.tool()
 async def mcp_read_metrics(
     host_key: str, service: str = "", count: int = 50
-) -> Dict[str, Any]:
-    """Read latest metrics for a host (optionally filtered by service)."""
+) -> List[Dict[str, Any]]:
+    """
+    Read latest metrics for a host (optionally filtered by service).
+
+    serve.read_metrics returns a JSON array, and FastMCP builds this tool's
+    output schema from the return annotation and validates against it - so
+    declaring a dict here failed every call, empty result included, with
+    "Input should be a valid dictionary".
+    """
     return client.get_metrics(host_key, service, count)
 
 

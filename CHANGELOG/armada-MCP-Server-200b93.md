@@ -90,3 +90,35 @@ the container against `http://127.0.0.1:8765/mcp`, so the Host header was the on
 the allowlist accepted. They confirmed the auth matrix and the tool list while being
 blind to the only thing that mattered for external access. The verification now sends
 an explicit non-loopback Host header.
+
+## 2026-08-31 21:36 UTC
+Fixed `mcp_read_metrics` failing every call with a response-schema validation error.
+
+`serve.read_metrics` ends in `json.dumps(retval, default=str)` where `retval` is a list
+comprehension over a Mongo cursor, so `client.get_metrics` hands back a list. Both it
+and the tool were annotated `-> Dict[str, Any]`. FastMCP builds each tool's output
+schema from the return annotation and validates the result against it, so the tool
+answered:
+
+```
+Error executing tool mcp_read_metrics: 1 validation error for mcp_read_metricsOutput
+result
+  Input should be a valid dictionary [type=dict_type, input_value=[], input_type=list]
+```
+
+Note `input_value=[]` - this failed even with no metrics to return, so the tool was
+unusable rather than intermittently wrong.
+
+Both annotations are now `List[Dict[str, Any]]`. The other eight tools were audited
+through the live protocol; `mcp_list_hosts` and both `mcp_list_services` variants were
+already correct, so this was the only instance.
+
+It survived earlier testing because `ai/agent_tools.py` wraps the same client call as
+`{"metrics": client.get_metrics(...)}`, so the in-process chat agent receives a dict
+and works; only the MCP tool returns it raw.
+
+Covered by `backend/test/test_18_mcp_metrics_schema.py`. Because `server.py` cannot be
+imported without the `mcp` package, the tool's annotation is pinned by reading the
+source with `ast` - the annotation generates the wire schema, so it is load-bearing
+rather than decoration. Reverting both annotations makes 3 of the 7 tests fail, which
+is the check that they actually cover the bug.

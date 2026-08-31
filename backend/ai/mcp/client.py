@@ -109,7 +109,7 @@ class LabyrinthClient:
 
     def get_metrics(
         self, host_key: str, service: str = "", count: int = 50
-    ) -> Dict[str, Any]:
+    ) -> List[Dict[str, Any]]:
         raw, status = unwrap(serve.read_metrics)(host_key, service, count)
         if status != 200:
             raise RuntimeError(f"read_metrics failed with status {status}")
