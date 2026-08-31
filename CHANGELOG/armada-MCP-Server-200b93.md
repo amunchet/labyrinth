@@ -37,13 +37,32 @@ and the server refuses to start if the key is unset or blank rather than falling
 to open access. Lifespan messages pass through unchecked, or the session manager never
 starts.
 
-`server.py` now calls `load_dotenv(BACKEND_ROOT / ".env")` before importing `serve`.
-The bare `load_dotenv()` in `common/auth.py` reads the working directory, which is
-`/app` in this container rather than `/app/backend`, so in production the Mongo
-credentials were never loaded and `serve.py` would have built a
-`mongodb+srv://None:None@None` URI. `MCP_KEY` can live in `backend/.env` alongside
-them; the dev compose file sets it inline instead.
+`server.py` now loads `backend/.env` itself on startup. The bare `load_dotenv()` in
+`common/auth.py` reads the working directory, which is `/app` in this container rather
+than `/app/backend`, so that file was never picked up here at all. A plain
+`load_dotenv()` would not have been enough either: it leaves variables that are already
+set, and compose substitutes an unset `${MCP_KEY}` as an empty string rather than
+omitting it, so blank is treated as absent. `MCP_KEY` can therefore live in the root
+`.env` (wired through prod compose, matching how `POSTGRES_PASSWORD` is handled) or in
+`backend/.env`; the dev compose file sets it inline.
 
 The middleware is covered by `backend/test/test_18_mcp_auth.py` (23 tests). It is
 deliberately stdlib-only - no Starlette, no `mcp` - so the backend suite can exercise
 it without the MCP runtime installed.
+
+## 2026-08-31 20:35 UTC
+Merged `origin/master` (Mongo -> Postgres migration, the AI agent work, and the
+`LabyrinthClient` extraction into `ai/mcp/client.py`) into the branch and resolved the
+conflicts it created in `server.py`, both env samples, `docker-compose-production.yml`,
+`CLAUDE.md`, and the MCP README.
+
+The three startup and reachability problems were untouched on master, so all of the
+above still applies: `requirements.txt` still pinned `modelcontextprotocol`, the
+Dockerfile still served the non-ASGI `server:app`, and neither Caddyfile had an MCP
+route. `server.py` now takes master's `from ai.mcp.client import LabyrinthClient` in
+place of the inline client, and the dotenv load runs ahead of it since that import is
+what pulls in `serve`.
+
+Master already passes `POSTGRES_*` through to the `mcp` service and made the database
+handle lazy, so the credential gap that motivated the dotenv load is narrower now - it
+still matters for `MCP_KEY` and anything else kept in `backend/.env`.

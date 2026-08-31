@@ -7,6 +7,11 @@
         <small class="text-muted">
           {{ host.ip }} | Type: <b-badge>{{ host.type }}</b-badge>
         </small>
+        <br v-if="host.service" />
+        <small v-if="host.service" class="text-muted">
+          Monitored Service:
+          <b-badge variant="secondary">{{ host.service }}</b-badge>
+        </small>
       </b-col>
       <b-col lg="4" class="text-right">
         <b-button variant="danger" size="sm" @click="confirmDelete">

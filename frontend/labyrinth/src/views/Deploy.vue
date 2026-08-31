@@ -415,6 +415,25 @@
               />
             </b-col>
           </b-row>
+          <b-row
+            class="mt-3"
+            v-if="files_list['totp'] && files_list['totp'].length > 0"
+          >
+            <b-col>
+              <b>2FA / TOTP File</b> (optional - for hosts requiring two-factor
+              authentication):<br />
+              <b-select
+                :options="[
+                  { text: 'None', value: '' },
+                  ...files_list['totp'].map((f) => ({
+                    text: f,
+                    value: f.replace(/\.yml$/, ''),
+                  })),
+                ]"
+                v-model="selected['totp']"
+              />
+            </b-col>
+          </b-row>
         </b-card>
       </b-col>
     </b-row>
@@ -551,6 +570,10 @@
 <script>
 import Helper from "@/helper";
 import styles from "@/assets/variables.scss";
+import {
+  savePlaybookContents,
+  runPlaybookAndPoll,
+} from "@/services/ansibleRunner";
 const { Vault } = require("ansible-vault");
 export default {
   name: "Deploy",
@@ -563,6 +586,7 @@ export default {
         ssh: "",
         become: "",
         other: "",
+        totp: "",
       },
 
       generated_ansible: {},
@@ -644,6 +668,7 @@ export default {
     },
     selected_group: /* istanbul ignore next */ function (val) {
       if (val != "") {
+        this.ips = [];
         this.loadGroupMembers();
       }
     },
@@ -766,14 +791,11 @@ export default {
       this.loadings["save_playbook"] = 1;
       this.$forceUpdate();
       let auth = this.$auth;
-      let formData = new FormData();
-      formData.append("data", this.playbook_contents);
-      Helper.apiPost(
-        "save_ansible_file/",
-        this.selected_playbook.replace(".yml", ""),
-        this.selected["become"].replace(/.yml$/, ""),
+      savePlaybookContents(
         auth,
-        formData
+        this.selected_playbook,
+        this.selected["become"],
+        this.playbook_contents
       )
         .then((res) => {
           this.$store.commit("updateError", res);
@@ -806,90 +828,49 @@ export default {
 
       let auth = this.$auth;
       this.running = true;
+      this.playbook_loaded = false;
       this.playbook_result = "";
       this.playbook_results = [];
 
-      // Prepare data for the API call
-      let data = {
-        hosts: this.ips.length > 0 ? this.ips.join(",") : this.selected_host,
-        playbook: this.selected_playbook.replace(".yml", ""),
-        vault_password: this.vault_password,
-        become_file: this.selected["become"].replace(".yml", ""),
-        ssh_key: this.selected["ssh"],
-      };
-
-      // Use FormData to prepare the request
-      let formData = new FormData();
-      formData.append("data", JSON.stringify(data));
-
       try {
-        // Step 1: Initiate the Ansible Runner job
-        let response = await Helper.apiPost(
-          "ansible_runner", // URL
-          "", // Service (empty string if not needed)
-          "", // Command (empty string if not needed)
-          auth, // Auth object
-          formData, // Data
-          false, // isUpload set to true for multipart/form-data
-          1
+        const { results } = await runPlaybookAndPoll(
+          auth,
+          {
+            hosts:
+              this.ips.length > 0 ? this.ips.join(",") : this.selected_host,
+            playbook: this.selected_playbook,
+            vaultPassword: this.vault_password,
+            becomeFile: this.selected["become"],
+            sshKey: this.selected["ssh"],
+            totpFile: this.selected["totp"] || "",
+          },
+          (logs) => {
+            this.playbook_result = logs.join("\r\n\r\n");
+            this.playbook_results = logs;
+            this.$nextTick(() => {
+              const div = this.$refs.playbookResultDiv;
+              if (div) {
+                div.scrollTop = div.scrollHeight;
+
+                const rect = div.getBoundingClientRect();
+                if (rect.top < 0 || rect.bottom > window.innerHeight) {
+                  div.scrollIntoView({ behavior: "smooth", block: "start" });
+                }
+              }
+            });
+            this.$forceUpdate();
+          }
         );
 
-        // Extract job_id from the response
-        const resp = await response.json();
-        const job_id = resp.job_id;
-        const status = resp.status;
-        if (!job_id || status !== "started") {
-          throw new Error("Failed to start the playbook execution.");
-        }
-
-        // Step 2: Poll for job status and logs
-        let polling = true;
-        let result = "";
-        while (polling) {
-          await new Promise((resolve) => setTimeout(resolve, 2000)); // Poll every 2 seconds
-
-          let statusResponse = await Helper.apiCall(
-            `ansible_status/${job_id}`, // URL
-            "", // Command (empty string if not needed)
-            auth // Auth object
-          );
-
-          const { status, logs, results, error } = statusResponse;
-
-          if (status === "completed") {
-            result = results || "";
-            polling = false;
-          } else if (status === "error") {
-            throw new Error(error || "An error occurred during execution.");
-          } else {
-            // Update logs incrementally
-            this.playbook_result = logs.join("\r\n\r\n");
-          }
-
-          this.playbook_results = logs;
-          this.$nextTick(() => {
-            const div = this.$refs.playbookResultDiv;
-            if (div) {
-              div.scrollTop = div.scrollHeight;
-
-              const rect = div.getBoundingClientRect(); // Get the div's position relative to the viewport
-              if (rect.top < 0 || rect.bottom > window.innerHeight) {
-                div.scrollIntoView({ behavior: "smooth", block: "start" });
-              }
-            }
-          });
-
-          this.$forceUpdate(); // Re-render the component
-        }
-
-        // Final result
-        this.playbook_result = result;
+        this.playbook_result = results;
         this.running = false;
+        this.playbook_loaded = true;
       } catch (error) {
         // Handle any errors
         console.log(error);
         this.$store.commit("updateError", error.message || error);
         this.running = false;
+        this.playbook_loaded = true;
       }
     },
 

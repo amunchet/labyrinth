@@ -9,14 +9,19 @@ The MCP server:
 - Uses `unwrap()` to call Flask handlers directly, bypassing the Auth0 decorators
 - Requires an `MCP_KEY` pre-shared secret on every request instead (see
   [Authentication](#authentication))
-- Shares the same MongoDB and Redis instances as the backend
+- Shares the same database (see `../../db/README.md` and the root
+  `MONGO_MIGRATION.md` - `DB_BACKEND=postgres` by default, `mongo` fallback)
+  and Redis instance as the backend
 - Exposes tools for managing hosts, services, and reading metrics
 - Speaks MCP streamable HTTP at `/mcp`, proxied from outside by Caddy
 
 ## Prerequisites
 - Python 3.11+
-- Access to the same MongoDB/Redis the backend uses (`MONGO_*`, `REDIS_HOST` envs)
-- Dependency: `mcp<2` plus backend requirements. The SDK renamed `FastMCP` to
+- Access to the same database/Redis the backend uses (`DB_BACKEND`,
+  `POSTGRES_*` or `MONGO_*`, `REDIS_HOST` envs)
+- Dependency: `mcp<2` plus backend requirements (this directory's own
+  `requirements.txt` is a separate copy - keep its `pymongo`/`psycopg2` pins in
+  sync with `backend/requirements.txt`). The SDK renamed `FastMCP` to
   `MCPServer` in 2.x and removed `mcp.server.fastmcp`, so the major version is
   pinned.
 
@@ -33,7 +38,9 @@ Environment variables:
   refuses to start without it)
 - `MCP_PORT` (default 8765)
 - `MCP_HOST` (default 0.0.0.0)
-- `MONGO_HOST`, `MONGO_USERNAME`, `MONGO_PASSWORD`
+- `DB_BACKEND` (default `postgres`)
+- `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` (when `DB_BACKEND=postgres`)
+- `MONGO_HOST`, `MONGO_USERNAME`, `MONGO_PASSWORD` (when `DB_BACKEND=mongo`)
 - `REDIS_HOST`
 
 `server.py` loads `backend/.env` explicitly before importing `serve`, so in
@@ -130,11 +137,18 @@ The service runs on port 8765 internally and is accessible to other containers o
 ```bash
 docker build -f backend/ai/mcp/Dockerfile -t labyrinth-mcp .
 docker run --rm -p 8765:8765 \
+  -v "$(pwd)/backend:/app/backend" \
   -e MCP_KEY=some-long-random-secret \
   -e MONGO_HOST=... -e MONGO_USERNAME=... -e MONGO_PASSWORD=... \
   -e REDIS_HOST=redis \
   labyrinth-mcp
 ```
+
+`.env` files are excluded from the build context (root `.dockerignore`) so
+secrets are not baked into an image layer, which is why the bind mount is
+needed - it is how the compose services get `backend/.env` too. Without it,
+pass everything `backend/.env` would have supplied (`AUTH0DOMAIN` included,
+which `common/auth.py` requires at import) as `-e` flags.
 
 ## Tools exposed
 
@@ -205,6 +219,6 @@ Check service example:
 
 - Uses `unwrap()` to call Flask handlers directly, bypassing Auth0 - which is why
   the `MCP_KEY` pre-shared secret is mandatory
-- Host/service operations persist via existing Mongo client in `backend/serve.py`
+- Host/service operations persist via the shared database client in `backend/serve.py` (`serve.db`, see `../../db/README.md`)
 - Services attached to hosts use the `display_name` field
 - No deployment automation - all changes prepare services/metrics for manual deployment

@@ -6,7 +6,19 @@ https://localhost {
 	}
 
 	handle_path /api/* {
-		reverse_proxy backend:7000
+		# Telegraf ingest goes to the Go service; everything else, including
+		# the GET /metrics/... routes the dashboard uses, stays on Flask.
+		@telegraf_ingest {
+			method POST
+			path /metrics /metrics/
+		}
+		handle @telegraf_ingest {
+			reverse_proxy metrics:9000
+		}
+
+		handle {
+			reverse_proxy backend:7000
+		}
 	}
 
 	handle_path /alertmanager/* {

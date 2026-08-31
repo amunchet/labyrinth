@@ -26,6 +26,8 @@ services:
         TZ: ${TZ}
     restart: always
     hostname: backend
+    depends_on:
+      - postgres
     volumes:
       - ./backend/:/src
       - ./alertmanager:/alertmanager
@@ -33,8 +35,38 @@ services:
     networks:
       - labyrinth
     environment:
+      DB_BACKEND: postgres
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-labyrinth}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-labyrinth}
       REDIS_HOST: redis
       PRODUCTION: 1
+
+  # Go Telegraf ingest service - serves POST /api/metrics/.  This is the hot
+  # path: one pipelined Redis round trip per agent flush instead of the Flask
+  # route's connection pool per metric.
+  metrics:
+    build:
+      context: metrics-go
+      args:
+        TZ: ${TZ}
+    restart: always
+    depends_on:
+      - redis
+    volumes:
+      # Same dotenv the Flask backend reads, so TELEGRAF_KEY always matches.
+      - ./backend:/backend:ro
+    networks:
+      - labyrinth
+    environment:
+      REDIS_HOST: redis
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:9000/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   frontend:
     build: ./caddy
@@ -59,7 +91,10 @@ services:
     ports:
       - "443:443"
 
-  # Mongo
+  # Mongo - kept only as documentation of the DB_BACKEND=mongo fallback path.
+  # Production never ran a self-hosted Mongo; point MONGO_HOST/USERNAME/
+  # PASSWORD (in backend/.env, see MONGO_MIGRATION.md) at an external
+  # cluster if you need to roll back to it.
   #  mongo:
   #    image: mongo
   #    restart: always
@@ -71,6 +106,30 @@ services:
   #      MONGO_INITDB_ROOT_USERNAME: root
   #      MONGO_INITDB_ROOT_PASSWORD: temp
   #
+
+  # Postgres/TimescaleDB - the default database backend (DB_BACKEND=postgres).
+  # Unlike Mongo above, this is a real, self-hosted, compose-managed service -
+  # see backend/db/ and MONGO_MIGRATION.md. POSTGRES_PASSWORD must be set in
+  # a root .env file or the deploying shell's environment (see .env.sample).
+  postgres:
+    image: timescale/timescaledb:2.17.2-pg16
+    restart: always
+    # This image runs timescaledb-tune on first start, which sets
+    # max_connections=50 - well below Postgres' own default of 100, and low
+    # enough that the stack could exhaust it on a busy minute and start
+    # answering "FATAL: sorry, too many clients already". Pin it explicitly
+    # so the ceiling is a decision in this file rather than a side effect of
+    # the image's autotuner and whatever RAM the host happens to have.
+    # Budget it against POSTGRES_POOL_MAX (see backend/db/postgres_adapter.py).
+    command: postgres -c max_connections=${POSTGRES_MAX_CONNECTIONS:-100}
+    networks:
+      - labyrinth
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-labyrinth}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-labyrinth}
 
   # Redis
   redis:
@@ -103,21 +162,29 @@ services:
         TZ: ${TZ}
     restart: always
     depends_on:
+      - postgres
       - redis
     networks:
       - labyrinth
     volumes:
       - ./backend:/app/backend
     environment:
+      DB_BACKEND: postgres
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-labyrinth}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-labyrinth}
       REDIS_HOST: redis
       MCP_PORT: 8765
       MCP_HOST: 0.0.0.0
       PRODUCTION: 1
-      # MCP_KEY (the pre-shared secret every request must present) and the
-      # MONGO_* credentials come from backend/.env, which server.py loads
-      # explicitly before importing serve.  The server will not start without
-      # MCP_KEY.  Reached from outside via Caddy's /mcp* route.
-      
+      # Pre-shared secret every MCP request must carry - the server refuses to
+      # start without it.  Set it in the root .env, or leave it unset here and
+      # put it in backend/.env, which server.py loads on startup.  Reached from
+      # outside via Caddy's /mcp* route.
+      MCP_KEY: ${MCP_KEY}
+
   # Scanner and Watcher Cron
   samplecron:
     build:
@@ -126,13 +193,22 @@ services:
       args:
         TZ: ${TZ}
     restart: always
+    depends_on:
+      - postgres
     volumes:
       - ./backend/:/src
       - ./cron:/cron
       - ./alertmanager:/alertmanager
+      - ./backups:/backups
     networks:
       - labyrinth
     environment:
+      DB_BACKEND: postgres
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-labyrinth}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-labyrinth}
       REDIS_HOST: redis
       PRODUCTION: 1
 
