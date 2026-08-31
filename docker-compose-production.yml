@@ -113,6 +113,10 @@ services:
       MCP_PORT: 8765
       MCP_HOST: 0.0.0.0
       PRODUCTION: 1
+      # MCP_KEY (the pre-shared secret every request must present) and the
+      # MONGO_* credentials come from backend/.env, which server.py loads
+      # explicitly before importing serve.  The server will not start without
+      # MCP_KEY.  Reached from outside via Caddy's /mcp* route.
       
   # Scanner and Watcher Cron
   samplecron:

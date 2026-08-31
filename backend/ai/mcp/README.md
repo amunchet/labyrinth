@@ -6,27 +6,111 @@ A Python MCP server that wraps existing backend endpoints (via `unwrap`) to mana
 
 The MCP server:
 - Runs in its own Docker container alongside the backend
-- Uses `unwrap()` to call Flask handlers directly, bypassing auth decorators
+- Uses `unwrap()` to call Flask handlers directly, bypassing the Auth0 decorators
+- Requires an `MCP_KEY` pre-shared secret on every request instead (see
+  [Authentication](#authentication))
 - Shares the same MongoDB and Redis instances as the backend
 - Exposes tools for managing hosts, services, and reading metrics
+- Speaks MCP streamable HTTP at `/mcp`, proxied from outside by Caddy
 
 ## Prerequisites
 - Python 3.11+
 - Access to the same MongoDB/Redis the backend uses (`MONGO_*`, `REDIS_HOST` envs)
-- Dependency: `modelcontextprotocol` plus backend requirements
+- Dependency: `mcp<2` plus backend requirements. The SDK renamed `FastMCP` to
+  `MCPServer` in 2.x and removed `mcp.server.fastmcp`, so the major version is
+  pinned.
 
 ## Run locally
 ```bash
 export PYTHONPATH=$(pwd)/backend
+export MCP_KEY=some-long-random-secret
 pip install -r backend/ai/mcp/requirements.txt
 python backend/ai/mcp/server.py
 ```
 
 Environment variables:
+- `MCP_KEY` (**required** - see [Authentication](#authentication); the server
+  refuses to start without it)
 - `MCP_PORT` (default 8765)
 - `MCP_HOST` (default 0.0.0.0)
 - `MONGO_HOST`, `MONGO_USERNAME`, `MONGO_PASSWORD`
 - `REDIS_HOST`
+
+`server.py` loads `backend/.env` explicitly before importing `serve`, so in
+production `MCP_KEY` and the Mongo credentials can live there alongside
+`TELEGRAF_KEY` rather than being passed through compose.
+
+## Authentication
+
+Every tool call goes through `unwrap()`, which strips the Auth0 decorators off
+the Flask handlers. Nothing else stands between a request and a write to the
+`hosts` or `services` collections, so the server requires a pre-shared secret on
+every HTTP request and refuses to start if `MCP_KEY` is unset or blank.
+
+Present the secret one of three ways:
+
+```
+X-MCP-Key: <MCP_KEY>
+Authorization: Bearer <MCP_KEY>
+Authorization: <MCP_KEY>          # bare form, matching serve.py's TELEGRAF_KEY
+```
+
+Anything else gets `401 {"error": "unauthorized"}`. The check is applied as ASGI
+middleware wrapping the whole app, so a newly added tool cannot end up outside
+it. Comparison is constant-time.
+
+Generate a key with `openssl rand -hex 32`. The development compose file hard-codes
+`MCP_KEY: development`, which is fine for a local stack and must not be used
+anywhere reachable.
+
+## Accessing it from an external system
+
+The container publishes no ports; it is reachable at `mcp:8765` on the
+`labyrinth` Docker network. External access goes through Caddy, which already
+proxies `/mcp*` to it (`caddy/Caddyfile.sample`), so the endpoint is:
+
+```
+https://<your-domain>/mcp
+```
+
+Development uses the same path on the Caddy dev port: `https://localhost:7210/mcp`
+(accept the internal dev CA first).
+
+The transport is MCP streamable HTTP. Registering it with Claude Code:
+
+```bash
+claude mcp add --transport http labyrinth https://<your-domain>/mcp \
+  --header "X-MCP-Key: <MCP_KEY>"
+```
+
+Or in an MCP client config file:
+
+```json
+{
+  "mcpServers": {
+    "labyrinth": {
+      "type": "http",
+      "url": "https://<your-domain>/mcp",
+      "headers": { "X-MCP-Key": "<MCP_KEY>" }
+    }
+  }
+}
+```
+
+Quick check that the secret is being enforced - the first should 401, the
+second should not:
+
+```bash
+curl -i https://<your-domain>/mcp
+curl -i -H "X-MCP-Key: $MCP_KEY" \
+     -H "Accept: application/json, text/event-stream" \
+     -H "Content-Type: application/json" \
+     -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"0"}}}' \
+     https://<your-domain>/mcp
+```
+
+Publishing port 8765 directly instead is possible but serves plaintext HTTP on
+every interface; routing through Caddy keeps TLS and one ingress point.
 
 ## Docker (included in docker-compose)
 
@@ -46,6 +130,7 @@ The service runs on port 8765 internally and is accessible to other containers o
 ```bash
 docker build -f backend/ai/mcp/Dockerfile -t labyrinth-mcp .
 docker run --rm -p 8765:8765 \
+  -e MCP_KEY=some-long-random-secret \
   -e MONGO_HOST=... -e MONGO_USERNAME=... -e MONGO_PASSWORD=... \
   -e REDIS_HOST=redis \
   labyrinth-mcp
@@ -118,7 +203,8 @@ Check service example:
 
 ## Notes
 
-- Uses `unwrap()` to call Flask handlers directly - no HTTP auth required when running inside trusted network
+- Uses `unwrap()` to call Flask handlers directly, bypassing Auth0 - which is why
+  the `MCP_KEY` pre-shared secret is mandatory
 - Host/service operations persist via existing Mongo client in `backend/serve.py`
 - Services attached to hosts use the `display_name` field
 - No deployment automation - all changes prepare services/metrics for manual deployment

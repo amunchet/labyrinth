@@ -14,26 +14,32 @@ import inspect
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from dotenv import load_dotenv
+
 # Make backend modules importable when running from backend/ai/mcp
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.append(str(BACKEND_ROOT))
 
+# serve.py builds its Mongo client at import time, and common/auth.py's bare
+# load_dotenv() only looks in the working directory - which is /app in this
+# container, not /app/backend.  Load the backend's own .env first so the Mongo
+# credentials (and MCP_KEY, if it lives there) are actually present.
+load_dotenv(BACKEND_ROOT / ".env")
+
 from common.test import unwrap  # type: ignore
 import serve  # type: ignore
 
+from ai.mcp.auth import PreSharedKeyMiddleware, get_mcp_key  # type: ignore
+
 try:
-    # Newer MCP versions
     from mcp.server.fastmcp import FastMCP as _FastMCP
-except ImportError:
-    try:
-        # Older MCP versions
-        from mcp.server.fastmcp import FastMCPServer as _FastMCP
-    except ImportError as exc:  # pragma: no cover
-        raise SystemExit(
-            "Unable to import MCP server runtime from `mcp.server.fastmcp` "
-            f"({exc}). Ensure `modelcontextprotocol` is installed with a compatible version."
-        ) from exc
+except ImportError as exc:  # pragma: no cover
+    raise SystemExit(
+        "Unable to import FastMCP from `mcp.server.fastmcp` "
+        f"({exc}). Install the official SDK with `pip install 'mcp<2'` - "
+        "mcp 2.x renamed FastMCP to MCPServer and moved the module."
+    ) from exc
 
 
 class LabyrinthClient:
@@ -203,11 +209,22 @@ async def mcp_read_metrics(
     return client.get_metrics(host_key, service, count)
 
 
+def create_http_app():
+    """
+    Build the ASGI application uvicorn serves.
+
+    FastMCP is not itself an ASGI app - it has no __call__ - so the streamable
+    HTTP transport has to be materialised with streamable_http_app(), which
+    mounts the MCP endpoint at /mcp.  Everything is then wrapped in the
+    pre-shared secret check, so no tool can be reached without the key.
+    """
+    return PreSharedKeyMiddleware(app.streamable_http_app(), get_mcp_key())
+
+
 if __name__ == "__main__":  # pragma: no cover
     import uvicorn
 
     port = int(os.environ.get("MCP_PORT", "8765"))
     host = os.environ.get("MCP_HOST", "0.0.0.0")
-    print(f"Starting Labyrinth MCP server on {host}:{port}")
-    # FastMCP is a Starlette app; serve via uvicorn for proper long-running operation
-    uvicorn.run(app, host=host, port=port, log_level="info")
+    print(f"Starting Labyrinth MCP server on {host}:{port}/mcp")
+    uvicorn.run(create_http_app(), host=host, port=port, log_level="info")

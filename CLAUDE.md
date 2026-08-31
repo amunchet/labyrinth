@@ -15,7 +15,7 @@ Labyrinth is a network analyzer, mapper, and monitor built on NMap, Ansible, and
 - `nginx/` - Reverse proxy with lego for SSL cert management
 - `cron/` - Scheduled jobs (crontab in `cron/cron.d/crontab`) running finder, alive checks, watcher, Proxmox refresh/disk-check, bulk metric writes, AI summaries, level expiry
 - `backend/ai/` - hourly AI summary job (`ai.sh` -> `backend/ai/main.py`) that pulls hosts/services/recent metrics from Mongo, sends them to ChatGPT (`chatgpt_helper.py`) for a plain-English summary, and delivers it by email/Slack (`email_helper.py`, `slack_helper.py`)
-- `backend/ai/mcp/` - standalone MCP server (own Dockerfile, runs as the `mcp` compose service on port 8765) exposing host/service/metric tools via `unwrap()`-wrapped Flask handlers, bypassing HTTP auth for trusted-network agent access
+- `backend/ai/mcp/` - standalone MCP server (own Dockerfile, runs as the `mcp` compose service on port 8765) exposing host/service/metric tools via `unwrap()`-wrapped Flask handlers, bypassing Auth0; guarded instead by an `MCP_KEY` pre-shared secret and reached externally through Caddy's `/mcp*` route
 - MongoDB - primary data store (hosts, subnets, services, metrics, settings, proxmox_clusters)
 - Redis - write cache for metrics + temporary storage (Telegraf configs, scan output, autosave, job status, Proxmox cluster/guest status caches)
 
@@ -40,7 +40,7 @@ Labyrinth is a network analyzer, mapper, and monitor built on NMap, Ansible, and
 ### AI summaries and MCP (`backend/ai/`)
 
 - `cron/ai.sh` runs `backend/ai/main.py` hourly: `process_dashboard()` pulls hosts/services and recent metrics from MongoDB, slims them down, and `main()` sends the result to ChatGPT (`chatgpt_helper.py`) using a prompt template (`initial_prompt.txt`, gitignored - see `initial_prompt.txt.example`) to produce a plain-English network summary, delivered via `email_helper.py`/`slack_helper.py`.
-- `backend/ai/mcp/server.py` is a separate MCP (Model Context Protocol) server, run as its own Docker service (`mcp` in compose files) with its own `Dockerfile`/`requirements.txt`. It shares the backend's MongoDB/Redis and calls `serve.py` route handlers directly via `unwrap()`, so it exposes host/service/metric management tools (`mcp_list_hosts`, `mcp_create_or_update_host`, `mcp_add_service_to_host`, `mcp_list_services`, `mcp_read_metrics`, etc.) without HTTP auth - intended for trusted-network agent access only. Full tool/schema docs in `backend/ai/mcp/README.md`.
+- `backend/ai/mcp/server.py` is a separate MCP (Model Context Protocol) server, run as its own Docker service (`mcp` in compose files) with its own `Dockerfile`/`requirements.txt`. It shares the backend's MongoDB/Redis and calls `serve.py` route handlers directly via `unwrap()`, so it exposes host/service/metric management tools (`mcp_list_hosts`, `mcp_create_or_update_host`, `mcp_add_service_to_host`, `mcp_list_services`, `mcp_read_metrics`, etc.) without Auth0. Because `unwrap()` removes the only authorization the handlers have, every HTTP request must instead carry the `MCP_KEY` pre-shared secret (`X-MCP-Key`, `Authorization: Bearer <key>`, or the bare `Authorization: <key>` form); the check lives in `backend/ai/mcp/auth.py` as ASGI middleware wrapping the whole app, and the server refuses to start if the key is unset. The transport is MCP streamable HTTP mounted at `/mcp`, served by `create_http_app()` (FastMCP itself is not ASGI-callable) and proxied externally by Caddy's `/mcp*` route. Full tool/schema docs in `backend/ai/mcp/README.md`.
 
 ## Development Workflows
 
@@ -120,3 +120,61 @@ docker-compose -f docker-compose-production.yml up --build -d
 - `backend/ai/mcp/server.py` - MCP server exposing host/service/metric tools
 - `cron/run.sh`, `cron/cron.d/crontab` - scheduled job definitions
 - `start_dev.sh` - development environment bootstrap
+
+<!-- BEGIN ARMADA GLOBAL INSTRUCTIONS (managed by Flagship) -->
+## Armada session policy
+
+You are running inside an Armada session. These rules come from the Flagship
+and apply to every session in the fleet. They sit on top of this project's own
+instructions, and they win wherever the two disagree.
+
+- Armada session: `MCP Server`
+- Working branch: `armada/MCP-Server-200b93`
+- Base branch: `master`
+- Session changelog: `CHANGELOG/armada-MCP-Server-200b93.md`
+
+### Commit and push your work
+
+- Commit as soon as a change is coherent on its own. Never end a turn with a
+  dirty working tree, and never wait to be asked to commit.
+- Push to `origin` right after committing, so the branch on the remote always
+  matches what you have locally.
+- This holds even when the working branch is the base branch. Armada sessions
+  are disposable and their history is the only durable record of the work, so
+  committing directly to `master` is expected here, not a mistake.
+- If a push is rejected because the remote moved ahead, pull with rebase and
+  push again. Report the failure only if that still does not resolve it.
+
+### Keep the branch mergeable
+
+- Whenever the working branch is not the base branch, verify the work still
+  merges cleanly into `master` before you consider a task finished.
+- Check without mutating the working tree, for example:
+  `git fetch origin && git merge-tree $(git merge-base HEAD origin/master) HEAD origin/master`
+- If that reports conflicts, resolve them now rather than leaving them for
+  whoever opens the pull request. Rebase or merge the base branch in, fix each
+  conflict on its merits, re-run the tests, then commit and push.
+- If a conflict genuinely needs a human decision, stop and say exactly which
+  files conflict and what the competing changes are.
+
+### Keep the changelog current
+
+- Record what you did in `CHANGELOG/armada-MCP-Server-200b93.md` as part of the same commit that
+  makes the change.
+- The file is scoped to this branch, so it never conflicts with changelogs
+  written by other sessions.
+- Append one entry per meaningful change, newest last, in this shape:
+
+  ```markdown
+  ## 2025-01-31 14:22 UTC
+  Short description of what changed and why.
+  ```
+
+- Use Central Time (US/Chicago), and include both the date and the time. Get them from `date -u`
+  rather than guessing.
+- Describe the change in terms a reviewer would care about. Skip routine
+  mechanics like formatting passes or lint fixes unless they are the point of
+  the work.
+- This per-branch file is yours to maintain. A top-level auto-generated
+  `CHANGELOG.md`, if the project has one, is still off limits.
+<!-- END ARMADA GLOBAL INSTRUCTIONS -->
