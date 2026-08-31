@@ -37,7 +37,9 @@ Environment variables:
 - `MCP_KEY` (**required** - see [Authentication](#authentication); the server
   refuses to start without it)
 - `MCP_PORT` (default 8765)
-- `MCP_HOST` (default 0.0.0.0)
+- `MCP_HOST` (default 0.0.0.0) - uvicorn's bind address
+- `MCP_ALLOWED_HOSTS`, `MCP_ALLOWED_ORIGINS` (both optional - see
+  [Host header checking](#host-header-checking))
 - `DB_BACKEND` (default `postgres`)
 - `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` (when `DB_BACKEND=postgres`)
 - `MONGO_HOST`, `MONGO_USERNAME`, `MONGO_PASSWORD` (when `DB_BACKEND=mongo`)
@@ -69,6 +71,35 @@ it. Comparison is constant-time.
 Generate a key with `openssl rand -hex 32`. The development compose file hard-codes
 `MCP_KEY: development`, which is fine for a local stack and must not be used
 anywhere reachable.
+
+## Host header checking
+
+If a client gets `421 Invalid Host header`, this is the setting behind it.
+
+The MCP SDK has DNS-rebinding protection that it enables automatically whenever
+FastMCP's own `settings.host` is a loopback address - and it is, because
+`MCP_HOST` is uvicorn's bind address, which FastMCP never sees, so its host
+stays at the `127.0.0.1` default. Left alone, that rejects every request whose
+`Host` header is not `127.0.0.1` or `localhost`, which is every request that
+arrives through Caddy under a real domain.
+
+`server.py` therefore passes the policy explicitly instead of inheriting it, so
+it no longer depends on what `MCP_HOST` happens to be. The check is **off by
+default**: it is there to protect unauthenticated servers bound to loopback
+from malicious pages in a browser, whereas this server is deliberately
+reachable and guarded by `MCP_KEY`.
+
+To turn it back on, pin the hosts you serve:
+
+```
+MCP_ALLOWED_HOSTS=labyrinth.example.com
+MCP_ALLOWED_HOSTS=labyrinth.example.com,localhost:*   # comma-separated; host:* allows any port
+```
+
+`MCP_ALLOWED_HOSTS` is what enables the check. `MCP_ALLOWED_ORIGINS` only
+narrows it further and does nothing on its own; when the check is on and that
+list is empty, a request carrying any `Origin` header is refused with `403`,
+which matters for browser-based clients but not for typical agents.
 
 ## Accessing it from an external system
 
