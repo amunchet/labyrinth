@@ -33,10 +33,15 @@ for _name, _value in (dotenv_values(BACKEND_ROOT / ".env") or {}).items():
 
 from ai.mcp.client import LabyrinthClient  # type: ignore
 
-from ai.mcp.auth import PreSharedKeyMiddleware, get_mcp_key  # type: ignore
+from ai.mcp.auth import (  # type: ignore
+    PreSharedKeyMiddleware,
+    get_host_allowlists,
+    get_mcp_key,
+)
 
 try:
     from mcp.server.fastmcp import FastMCP as _FastMCP
+    from mcp.server.transport_security import TransportSecuritySettings
 except ImportError as exc:  # pragma: no cover
     raise SystemExit(
         "Unable to import FastMCP from `mcp.server.fastmcp` "
@@ -45,8 +50,36 @@ except ImportError as exc:  # pragma: no cover
     ) from exc
 
 
+def transport_security():
+    """
+    Decide the SDK's DNS-rebinding policy instead of inheriting its default.
+
+    FastMCP turns that protection on by itself whenever its own settings.host
+    is a loopback address, and ours is: the bind address in MCP_HOST goes to
+    uvicorn, which FastMCP knows nothing about, so its host stays at the
+    "127.0.0.1" default.  Left alone it answers 421 "Invalid Host header" to
+    every request whose Host is not 127.0.0.1 or localhost - which is every
+    request arriving through Caddy under a real domain.
+
+    That check guards unauthenticated servers bound to loopback against
+    malicious pages in the user's browser.  This one is reachable on purpose
+    and guarded by MCP_KEY, so the check is off unless an operator pins an
+    allowlist through MCP_ALLOWED_HOSTS (entries may use `host:*` for any
+    port).  Passing settings explicitly also suppresses the auto-enable, so
+    the policy no longer depends on what MCP_HOST happens to be.
+    """
+    hosts, origins = get_host_allowlists()
+    if not hosts:
+        return TransportSecuritySettings(enable_dns_rebinding_protection=False)
+    return TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=hosts,
+        allowed_origins=origins,
+    )
+
+
 client = LabyrinthClient()
-app = _FastMCP("labyrinth-mcp")
+app = _FastMCP("labyrinth-mcp", transport_security=transport_security())
 
 
 @app.tool()

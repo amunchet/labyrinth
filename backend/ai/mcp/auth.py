@@ -17,6 +17,8 @@ import json
 import os
 
 MCP_KEY_ENV = "MCP_KEY"
+ALLOWED_HOSTS_ENV = "MCP_ALLOWED_HOSTS"
+ALLOWED_ORIGINS_ENV = "MCP_ALLOWED_ORIGINS"
 KEY_HEADER = "x-mcp-key"
 AUTH_HEADER = "authorization"
 BEARER_PREFIX = "bearer "
@@ -38,6 +40,26 @@ def get_mcp_key(environ=None):
             "in backend/.env.".format(MCP_KEY_ENV)
         )
     return key
+
+
+def get_host_allowlists(environ=None):
+    """
+    Read the optional DNS-rebinding allowlists as (hosts, origins).
+
+    Both are comma-separated, and entries may use the SDK's ``host:*`` wildcard
+    to accept any port.  ``MCP_ALLOWED_HOSTS`` is what switches the check on;
+    ``MCP_ALLOWED_ORIGINS`` only narrows it further and does nothing on its own.
+    """
+    environ = os.environ if environ is None else environ
+
+    def split(name):
+        return [
+            item.strip()
+            for item in (environ.get(name) or "").split(",")
+            if item.strip()
+        ]
+
+    return split(ALLOWED_HOSTS_ENV), split(ALLOWED_ORIGINS_ENV)
 
 
 def extract_presented_key(headers):
