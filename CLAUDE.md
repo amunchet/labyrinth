@@ -16,7 +16,7 @@ Labyrinth is a network analyzer, mapper, and monitor built on NMap, Ansible, and
 - `nginx/` - Reverse proxy with lego for SSL cert management
 - `cron/` - Scheduled jobs (crontab in `cron/cron.d/crontab`) running finder, alive checks, watcher, Proxmox refresh/disk-check, EC2 unmatched-instance check, bulk metric writes, AI summaries, level expiry
 - `backend/ai/` - hourly AI summary job (`ai.sh` -> `backend/ai/main.py`, built on `ai_pipeline.py`/`ai_settings.py`) that pulls hosts/services/recent metrics from the database, sends them to ChatGPT (`chatgpt_helper.py`) for a plain-English summary, and delivers it by email/Slack (`email_helper.py`, `slack_helper.py`)
-- `backend/ai/mcp/` - standalone MCP server (own Dockerfile, runs as the `mcp` compose service on port 8765) exposing host/service/metric tools via `unwrap()`-wrapped Flask handlers, bypassing HTTP auth for trusted-network agent access
+- `backend/ai/mcp/` - standalone MCP server (own Dockerfile, runs as the `mcp` compose service on port 8765) exposing host/service/metric tools via `unwrap()`-wrapped Flask handlers, bypassing Auth0; guarded instead by an `MCP_KEY` pre-shared secret and reached externally through Caddy's `/mcp*` route
 - `backend/db/` - database adapter ecosystem (see below) - PostgreSQL/TimescaleDB by default, MongoDB as an explicit fallback
 - PostgreSQL + TimescaleDB - default data store (`DB_BACKEND=postgres`): JSONB tables for hosts/subnets/services/settings/proxmox_clusters/aws_accounts/themes/dashboards, a TimescaleDB hypertable for `metrics`, a plain table for `metrics-latest`. See `MONGO_MIGRATION.md`.
 - MongoDB - fallback data store (`DB_BACKEND=mongo`); prior default, still fully supported
@@ -63,7 +63,7 @@ Labyrinth is a network analyzer, mapper, and monitor built on NMap, Ansible, and
 
 - `cron/ai.sh` runs `backend/ai/main.py` hourly: `ai_pipeline.py`'s `process_dashboard()` pulls hosts/services and recent metrics from the database, slims them down, and `main()` sends the result to ChatGPT (`chatgpt_helper.py`) to produce a plain-English network summary, delivered via `email_helper.py`/`slack_helper.py`.
 - The prompt, model, recipients, subject template, and from-name are configurable under Settings -> AI Alerts (`/ai/settings` routes, stored in the generic `settings` collection/table); `backend/ai/ai_settings.py` reads them with built-in defaults, so `initial_prompt.txt` (gitignored - see `initial_prompt.txt.example`) is now only a fallback. `/ai/test-email` sends either a simple deliverability check or a full dashboard -> ChatGPT -> email run on demand.
-- `backend/ai/mcp/server.py` is a separate MCP (Model Context Protocol) server, run as its own Docker service (`mcp` in compose files) with its own `Dockerfile`/`requirements.txt`. It shares the backend's database/Redis (same `DB_BACKEND` selection, own `backend/ai/mcp/requirements.txt` needs the same driver pins kept in sync with `backend/requirements.txt`) and calls `serve.py` route handlers directly via `unwrap()`, so it exposes host/service/metric management tools (`mcp_list_hosts`, `mcp_create_or_update_host`, `mcp_add_service_to_host`, `mcp_list_services`, `mcp_read_metrics`, etc.) without HTTP auth - intended for trusted-network agent access only. Full tool/schema docs in `backend/ai/mcp/README.md`.
+- `backend/ai/mcp/server.py` is a separate MCP (Model Context Protocol) server, run as its own Docker service (`mcp` in compose files) with its own `Dockerfile`/`requirements.txt`. It shares the backend's database/Redis (same `DB_BACKEND` selection, own `backend/ai/mcp/requirements.txt` needs the same driver pins kept in sync with `backend/requirements.txt`) and calls `serve.py` route handlers directly via `unwrap()`, so it exposes host/service/metric management tools (`mcp_list_hosts`, `mcp_create_or_update_host`, `mcp_add_service_to_host`, `mcp_list_services`, `mcp_read_metrics`, etc.) without Auth0. Because `unwrap()` removes the only authorization the handlers have, every HTTP request must instead carry the `MCP_KEY` pre-shared secret (`X-MCP-Key`, `Authorization: Bearer <key>`, or the bare `Authorization: <key>` form); the check lives in `backend/ai/mcp/auth.py` as ASGI middleware wrapping the whole app, and the server refuses to start if the key is unset. The transport is MCP streamable HTTP mounted at `/mcp`, served by `create_http_app()` (FastMCP itself is not ASGI-callable) and proxied externally by Caddy's `/mcp*` route. Full tool/schema docs in `backend/ai/mcp/README.md`.
 
 ## Development Workflows
 
@@ -176,10 +176,10 @@ You are running inside an Armada session. These rules come from the Flagship
 and apply to every session in the fleet. They sit on top of this project's own
 instructions, and they win wherever the two disagree.
 
-- Armada session: `Too many clients`
-- Working branch: `armada/Too-many-clients-f02b76`
+- Armada session: `MCP Server`
+- Working branch: `armada/MCP-Server-200b93`
 - Base branch: `master`
-- Session changelog: `CHANGELOG/armada-Too-many-clients-f02b76.md`
+- Session changelog: `CHANGELOG/armada-MCP-Server-200b93.md`
 
 ### Commit and push your work
 
@@ -207,7 +207,7 @@ instructions, and they win wherever the two disagree.
 
 ### Keep the changelog current
 
-- Record what you did in `CHANGELOG/armada-Too-many-clients-f02b76.md` as part of the same commit that
+- Record what you did in `CHANGELOG/armada-MCP-Server-200b93.md` as part of the same commit that
   makes the change.
 - The file is scoped to this branch, so it never conflicts with changelogs
   written by other sessions.

@@ -177,6 +177,9 @@ services:
       REDIS_HOST: redis
       MCP_PORT: 8765
       MCP_HOST: 0.0.0.0
+      # Pre-shared secret every MCP request must present.  Fixed for dev; in
+      # production it comes from the root .env or backend/.env.
+      MCP_KEY: development
       TESTBED: 1
 
   # Vulnerable server running on the network

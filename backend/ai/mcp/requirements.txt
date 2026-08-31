@@ -1,4 +1,4 @@
-modelcontextprotocol
+mcp>=1.2,<2
 uvicorn[standard]
 flask==2.*
 flask-cors

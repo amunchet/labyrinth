@@ -179,6 +179,11 @@ services:
       MCP_PORT: 8765
       MCP_HOST: 0.0.0.0
       PRODUCTION: 1
+      # Pre-shared secret every MCP request must carry - the server refuses to
+      # start without it.  Set it in the root .env, or leave it unset here and
+      # put it in backend/.env, which server.py loads on startup.  Reached from
+      # outside via Caddy's /mcp* route.
+      MCP_KEY: ${MCP_KEY}
 
   # Scanner and Watcher Cron
   samplecron:

@@ -1,1 +1,8 @@
 data/**
+
+# Never bake secrets into an image layer.  backend/ai/mcp/Dockerfile is the one
+# Dockerfile that COPYs the repo wholesale, so without this backend/.env - now
+# holding MCP_KEY as well as TELEGRAF_KEY - ends up baked into the mcp image.
+# The mcp service bind-mounts ./backend over /app/backend at runtime, so the
+# real .env is still there where it is needed.
+**/.env

@@ -25,6 +25,13 @@ https://localhost {
 		reverse_proxy alertmanager:9093
 	}
 
+	# MCP server.  handle (not handle_path) so the /mcp prefix survives - that is
+	# where FastMCP's streamable HTTP transport is mounted.  The server enforces
+	# its own pre-shared secret; Caddy only supplies TLS and a single ingress.
+	handle /mcp* {
+		reverse_proxy mcp:8765
+	}
+
 	handle {
 		root * /dist
 		try_files {path} /index.html
