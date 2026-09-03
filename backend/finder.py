@@ -20,6 +20,16 @@ from common.single_run import RedisSingleRunLock, LockNotAcquired
 from common.test import unwrap
 from serve import list_subnet, list_subnets, create_edit_host, list_host, insert_metric
 
+
+def _int_from_env(name, default):
+    """Reads an integer setting from the environment, falling back to `default`"""
+    try:
+        return int(os.environ.get(name) or default)
+    except (TypeError, ValueError):
+        print("Invalid value for {} - using {}".format(name, default))
+        return default
+
+
 # Cross-container "only one finder at a time" lock.  RedisSingleRunLock
 # heartbeats the TTL for as long as this process is alive, so the TTL only has
 # to outlive a crash rather than a full scan.  A plain `ex=` TTL could not:
@@ -28,37 +38,63 @@ from serve import list_subnet, list_subnets, create_edit_host, list_host, insert
 GLOBAL_LOCK_KEY = "labyrinth_finder_lock"
 GLOBAL_LOCK_TTL_SECONDS = 120
 # The subnet lock prevents concurrent scans of the same subnet across instances.
-# Set longer than a typical full-port scan to handle slow hosts.
-SUBNET_LOCK_TIMEOUT_SECONDS = 7200
+# It is heartbeat-extended like the global lock, so - as above - the TTL only
+# has to outlive a crash.  A plain `ex=` TTL had to be guessed longer than the
+# slowest imaginable scan, and a scan that outran the guess both lost its lock
+# mid-scan and then deleted the *next* scan's lock on its way out.
+SUBNET_LOCK_TTL_SECONDS = 120
 
 # Worker threads sharing the subnet queue for a single pass.
-SCAN_THREADS = 4
+SCAN_THREADS = _int_from_env("FINDER_THREADS", 4)
+
+# Scan every port, to catch non-standard services (e.g. MongoDB on 27017).
+#
+# The bounds are not optional at that width.  A `-p-` connect scan against a
+# host that silently drops packets spends the full retry budget on each of
+# 65535 ports; without `-T4 --max-retries 2 --host-timeout` a single firewalled
+# host holds the pass open for hours, and since cron only starts the next pass
+# once this one finishes, the scan interval degrades to a day or worse.
+PORT_SCAN_ARGUMENTS = os.environ.get(
+    "FINDER_NMAP_ARGUMENTS"
+) or "-sT -PU0 -Pn -p- -T4 --max-retries 2 --host-timeout {}".format(
+    os.environ.get("FINDER_HOST_TIMEOUT") or "20m"
+)
+
+# How long the ping sweep is allowed to take before we give up on the subnet
+PING_TIMEOUT_SECONDS = _int_from_env("FINDER_PING_TIMEOUT_SECONDS", 900)
+
+# The per-subnet scan log in Redis is display-only - cap it and let it expire
+OUTPUT_MAX_BYTES = _int_from_env("FINDER_OUTPUT_MAX_BYTES", 250000)
+OUTPUT_TTL_SECONDS = _int_from_env("FINDER_OUTPUT_TTL_SECONDS", 86400)
 
 
-def scan(subnet: str, callback_fn, verbose=False) -> List:  # pragma: no cover
-    """Scans a given subnet"""
-    search = subnet
-    if len(subnet.split(".")) == 3:
-        search += ".0/24"
+def parse_ping_results(ping_output) -> List[str]:
+    """
+    Pulls the addresses of the live hosts out of an nmap ping sweep.
 
-    # Ping version
-    ping_output = subprocess.check_output(
-        ["nmap", "-PE", "-sn", "-T5", "-oX", "-", search]
-    )
+    Returns an empty list when nothing answered.  nmap omits the `host` key
+    entirely in that case, which used to raise `KeyError: 'host'` and cost the
+    subnet its whole pass - an empty or fully firewalled subnet is a normal
+    result, not an error.
+    """
     parsed = xmltodict.parse(ping_output)
 
+    hosts = (parsed.get("nmaprun") or {}).get("host") or []
+
     ## Exactly one alive host will break the process
-    if type(parsed["nmaprun"]["host"]) == type({}):
-        parsed["nmaprun"]["host"] = [parsed["nmaprun"]["host"]]
+    if isinstance(hosts, dict):
+        hosts = [hosts]
 
     arr = []
-    for x in parsed["nmaprun"]["host"]:
-        if "address" in x and "@addr" in x["address"]:
-            arr.append(x["address"]["@addr"])
-        elif type(x["address"]) is list:
+    for x in hosts:
+        address = x.get("address")
+        if isinstance(address, dict):
+            if "@addr" in address:
+                arr.append(address["@addr"])
+        elif isinstance(address, list):
             found = [
                 item["@addr"]
-                for item in x["address"]
+                for item in address
                 if (
                     "@addr" in item
                     and "." in item["@addr"]
@@ -68,22 +104,45 @@ def scan(subnet: str, callback_fn, verbose=False) -> List:  # pragma: no cover
             if found:
                 arr.append(found[0])
 
+    return arr
+
+
+def scan(subnet: str, callback_fn, verbose=False) -> List:  # pragma: no cover
+    """Scans a given subnet"""
+    search = subnet
+    if len(subnet.split(".")) == 3:
+        search += ".0/24"
+
+    # Ping version
+    try:
+        ping_output = subprocess.check_output(
+            ["nmap", "-PE", "-sn", "-T5", "-oX", "-", search],
+            timeout=PING_TIMEOUT_SECONDS,
+        )
+    except (subprocess.SubprocessError, OSError) as exc:
+        callback_fn("\nPing sweep failed for {}: {}\n".format(subnet, exc))
+        return []
+
+    arr = parse_ping_results(ping_output)
+
     print(arr)
-    search = " ".join(arr)
+    callback_fn(" ".join(arr) + "\n\n" + f"Hosts Count:{len(arr)}")
+
+    # nmap errors out when handed an empty target list, and there is nothing to do
+    if not arr:
+        callback_fn("\nNo live hosts found.\n")
+        return []
 
     scanner = ps()
     results = []
 
-    arguments = "-sT -PU0 -Pn -p-"  # Scan all ports to catch non-standard services (e.g. MongoDB on 27017)
-    callback_fn(search + "\n\n" + f"Hosts Count:{len(arr)}")
-
-    for line in scanner.scan(hosts=search, arguments=arguments):
+    for line in scanner.scan(hosts=" ".join(arr), arguments=PORT_SCAN_ARGUMENTS):
         if verbose:
             callback_fn(str(line))
-        if line[1]["nmap"]["scanstats"]["uphosts"] != "0":
-            callback_fn(
-                "\n" + str(line[0]) + ": " + str(line[1]["nmap"]["scanstats"]) + "\n"
-            )
+
+        scanstats = ((line[1] or {}).get("nmap") or {}).get("scanstats") or {}
+        if scanstats.get("uphosts", "0") != "0":
+            callback_fn("\n" + str(line[0]) + ": " + str(scanstats) + "\n")
             callback_fn("*")
             results.append(line[1])
         else:
@@ -200,8 +259,22 @@ def main():  # pragma: no cover
     rclient = redis.Redis(host=(os.environ.get("REDIS_HOST") or "redis"))
 
     def update_redis(msg, subnet):
-        output = rclient.get("output-{}".format(subnet)).decode("utf-8")
-        rclient.set("output-{}".format(subnet), output + str(msg))
+        """
+        Appends to the subnet's scan log.
+
+        Called from deep inside the scan, so it must never raise - a blip here
+        used to abort the subnet's whole pass.  APPEND also avoids re-writing
+        the entire log on every progress tick, and the TTL stops abandoned
+        subnets' logs living in Redis forever.
+        """
+        key = "output-{}".format(subnet)
+        try:
+            if rclient.strlen(key) > OUTPUT_MAX_BYTES:
+                rclient.set(key, "...[truncated]...\n")
+            rclient.append(key, str(msg))
+            rclient.expire(key, OUTPUT_TTL_SECONDS)
+        except Exception as exc:
+            print("Unable to write scan output for {}: {}".format(subnet, exc))
 
     # Redis-based global lock so multiple containers don't duplicate work.
     # wait=0 aborts on contention - the next cron tick retries a minute later,
@@ -237,17 +310,23 @@ def main():  # pragma: no cover
             except Exception as exc:
                 print(f"Could not read subnet data for {subnet}: {exc}")
 
-            # Acquire per-subnet Redis lock to prevent concurrent scans of the same subnet
-            subnet_lock_key = "scan_lock_{}".format(subnet)
-            subnet_lock = rclient.set(
-                subnet_lock_key, "1", nx=True, ex=SUBNET_LOCK_TIMEOUT_SECONDS
+            # Acquire per-subnet Redis lock to prevent concurrent scans of the
+            # same subnet.  wait=0: another instance already has this subnet in
+            # hand, so move on to the next one rather than block a worker.
+            subnet_lock = RedisSingleRunLock(
+                rclient,
+                "scan_lock_{}".format(subnet),
+                ttl=SUBNET_LOCK_TTL_SECONDS,
+                wait=0,
             )
-            if not subnet_lock:
+            try:
+                subnet_lock.acquire()
+            except LockNotAcquired:
                 print(f"Subnet {subnet} is already being scanned. Skipping.")
                 return
 
             try:
-                rclient.set("output-{}".format(subnet), "")
+                rclient.delete("output-{}".format(subnet))
                 update_redis("\nStarting {}".format(subnet), subnet)
                 results = scan(subnet, lambda x: update_redis(x, subnet))
 
@@ -280,7 +359,7 @@ def main():  # pragma: no cover
 
                 update_redis("Finished.\n", subnet)
             finally:
-                rclient.delete(subnet_lock_key)
+                subnet_lock.release()
 
         scan_all_subnets(subnets, scan_subnet)
 

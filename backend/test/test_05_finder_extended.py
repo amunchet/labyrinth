@@ -268,3 +268,98 @@ class TestFinderGlobalLock:
     def test_lock_key_is_stable(self):
         """Renaming this would let old and new finders run side by side."""
         assert finder.GLOBAL_LOCK_KEY == "labyrinth_finder_lock"
+
+
+def _ping_xml(hosts_xml):
+    return (
+        '<?xml version="1.0"?><nmaprun scanner="nmap">' + hosts_xml + "</nmaprun>"
+    ).encode("utf-8")
+
+
+class TestParsePingResults:
+    """Tests for pulling live hosts out of an nmap ping sweep."""
+
+    def test_no_hosts_returns_empty_list(self):
+        """nmap omits `host` entirely when nothing answers - that is not an error."""
+        assert finder.parse_ping_results(_ping_xml("")) == []
+
+    def test_single_host_is_not_treated_as_a_dict_of_fields(self):
+        """xmltodict collapses a lone host into a dict rather than a list."""
+        xml = _ping_xml('<host><address addr="192.168.0.5" addrtype="ipv4"/></host>')
+        assert finder.parse_ping_results(xml) == ["192.168.0.5"]
+
+    def test_multiple_hosts(self):
+        xml = _ping_xml(
+            '<host><address addr="192.168.0.5" addrtype="ipv4"/></host>'
+            '<host><address addr="192.168.0.6" addrtype="ipv4"/></host>'
+        )
+        assert finder.parse_ping_results(xml) == ["192.168.0.5", "192.168.0.6"]
+
+    def test_host_with_mac_and_ipv4_prefers_ipv4(self):
+        xml = _ping_xml(
+            "<host>"
+            '<address addr="192.168.0.7" addrtype="ipv4"/>'
+            '<address addr="02:42:C0:A8:00:07" addrtype="mac"/>'
+            "</host>"
+        )
+        assert finder.parse_ping_results(xml) == ["192.168.0.7"]
+
+    def test_host_with_only_ipv6_is_skipped(self):
+        xml = _ping_xml(
+            "<host>"
+            '<address addr="fe80::1" addrtype="ipv6"/>'
+            '<address addr="02:42:C0:A8:00:08" addrtype="mac"/>'
+            "</host>"
+        )
+        assert finder.parse_ping_results(xml) == []
+
+    def test_host_without_address_is_skipped(self):
+        xml = _ping_xml('<host><status state="up"/></host>')
+        assert finder.parse_ping_results(xml) == []
+
+    def test_host_with_address_but_no_addr_attribute_is_skipped(self):
+        xml = _ping_xml('<host><address addrtype="ipv4"/></host>')
+        assert finder.parse_ping_results(xml) == []
+
+
+class TestIntFromEnv:
+    """Tests for the environment helper backing the scan tunables."""
+
+    def test_reads_value(self, monkeypatch):
+        monkeypatch.setenv("FINDER_TEST_VALUE", "42")
+        assert finder._int_from_env("FINDER_TEST_VALUE", 7) == 42
+
+    def test_missing_falls_back(self, monkeypatch):
+        monkeypatch.delenv("FINDER_TEST_VALUE", raising=False)
+        assert finder._int_from_env("FINDER_TEST_VALUE", 7) == 7
+
+    def test_invalid_falls_back(self, monkeypatch):
+        monkeypatch.setenv("FINDER_TEST_VALUE", "not-a-number")
+        assert finder._int_from_env("FINDER_TEST_VALUE", 7) == 7
+
+
+class TestScanArguments:
+    """A `-p-` scan must be bounded, or one host stalls the whole pass."""
+
+    def test_still_scans_every_port(self):
+        assert "-p-" in finder.PORT_SCAN_ARGUMENTS
+
+    def test_has_a_host_timeout(self):
+        assert "--host-timeout" in finder.PORT_SCAN_ARGUMENTS
+
+    def test_caps_retries(self):
+        assert "--max-retries" in finder.PORT_SCAN_ARGUMENTS
+
+    def test_ping_sweep_is_bounded(self):
+        assert finder.PING_TIMEOUT_SECONDS > 0
+
+
+class TestSubnetLock:
+    """The per-subnet lock must not expire under, or outlive, its own scan."""
+
+    def test_guessed_hour_long_ttl_is_gone(self):
+        """A guessed TTL both expired mid-scan and deleted the next scan's lock."""
+        assert not hasattr(finder, "SUBNET_LOCK_TIMEOUT_SECONDS")
+
+    def test_ttl_only_has_to_outlive_a_crash(self):
+        assert finder.SUBNET_LOCK_TTL_SECONDS <= 300

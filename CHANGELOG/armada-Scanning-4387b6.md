@@ -8,27 +8,44 @@
 Entries are appended newest last, each stamped with the UTC date and time.
 
 ## 2026-09-03 14:56 CDT
-Fixed port scanning stalling out and scan results going missing.
+First pass at the scanning fixes, written against the pre-merge base. Master
+had since landed its own scanning rework (one-pass finder, Redis run locks), so
+most of this was superseded by the merge below; only the fixes master had not
+already made were carried forward.
 
-`finder.py`: worker threads could die on any exception raised outside the small
-per-host `try/except` (an empty subnet made the ping parser raise `KeyError:
-'host'`, and a missing Redis output key made the progress callback raise
-`AttributeError`). A dead worker never requeued its subnet, so subnets leaked out
-of the queue one at a time until the survivors blocked forever on an empty queue
-while still holding the `labyrinth-finder` pid file - which meant cron could
-never start a replacement and scanning stopped entirely until the container was
-restarted. Workers now always requeue in a `finally`, the ping sweep tolerates a
-subnet with no live hosts, and the progress callback can no longer raise. The
-port scan also gained `-T4 --max-retries 2 --host-timeout 15m` so one firewalled
-host can't hold a 2500-port connect scan open for hours, plus a rescan delay, a
-capped/expiring Redis scan log, and a max process lifetime so a wedged run heals
-itself on the next cron tick. `/scan/` now runs a single pass instead of
-submitting the never-returning loop into the backend's two-thread executor.
+## 2026-09-03 15:09 CDT
+Merged `master` and re-applied the scanning fixes that master had not already
+made.
 
-`serve.py` (`bulk_insert`): the Redis-to-Mongo throttle was keyed on the host's
-IP, so the first metric series drained for a host suppressed every *other* series
-for that host in the same pass. With Telegraf posting many series per host, the
-finder's `open_ports` metric usually lost that race and expired out of Redis
-unwritten - the reason port data only refreshed about once a day. The throttle is
-now per metric series. Also fixed `bulk_insert` aborting the whole batch on a
-metric with no tags, an expired key, or unparseable JSON.
+`finder.py`:
+- The all-ports scan (`-sT -PU0 -Pn -p-`) had no timing template, retry cap, or
+  host timeout. A host that silently drops packets spends the full retry budget
+  on each of 65535 ports, so a single firewalled host held the pass open for
+  hours - and since a pass, not cron, is the scan cadence (cron ticks are
+  no-ops while the run lock is held), that is what stretched the interval
+  between rescans out to about a day. Now `-T4 --max-retries 2 --host-timeout
+  20m`, with the whole argument string env-overridable.
+- The ping sweep raised `KeyError: 'host'` on a subnet where nothing answered
+  and handed nmap an empty target list when the sweep found nobody, either of
+  which cost the subnet its entire pass. Parsing moved into a tested
+  `parse_ping_results`, the sweep got a timeout, and an empty subnet is now a
+  normal empty result.
+- `update_redis` did `rclient.get(key).decode()` and blew up on a missing key
+  from inside the scan callback, aborting the subnet. It now appends (rather
+  than rewriting the whole log each tick), is capped, carries a TTL, and never
+  raises.
+- The per-subnet lock was a plain `set(nx, ex=7200)` deleted unconditionally in
+  a `finally`. A scan longer than the guessed TTL lost its lock mid-scan and
+  then deleted the *next* scan's lock on its way out. It now uses the same
+  heartbeat-extended `RedisSingleRunLock` as the global lock.
+
+`serve.py`:
+- `bulk_insert` keyed its Redis-to-database throttle on the host's IP, so the
+  first metric series drained for a host suppressed every *other* series for
+  that host in the same pass. With Telegraf posting many series per host, the
+  finder's `open_ports` metric usually lost that race and expired out of Redis
+  unwritten - port data reaching the dashboard roughly once a day even when
+  scans completed. The throttle is now per metric series.
+- `bulk_insert` also lost the whole batch to a metric with no tags (the guard
+  ran after the dereference), an expired key, or unparseable JSON; each is now
+  skipped individually. `read_redis` had the same expired-key crash.

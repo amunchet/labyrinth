@@ -147,7 +147,15 @@ docker-compose -f docker-compose-production.yml up --build -d
 - Background execution via `run_ansible_background()`; job status and streamed results (`{job_id}_log`) live in Redis.
 
 **Network scanning:**
-- `backend/finder.py` runs an nmap ping + service-detection scan (`-sT -PU0 -Pn`), stores results in Redis (`output-{subnet}`), and updates the `hosts` collection/table with discovered IPs/MACs. Triggered via `/scan/` or the cron job.
+- `backend/finder.py` runs an nmap ping sweep (`parse_ping_results`) followed by an all-ports scan of whatever answered, streams progress into Redis (`output-{subnet}`, appended, capped, TTL'd), and updates the `hosts` collection/table with discovered IPs/MACs. Triggered via `/scan/` or the cron job.
+- `main()` is one pass, not a resident loop: cron re-fires it every minute and the `labyrinth_finder_lock` Redis lock (`common/single_run.py`, heartbeat-extended) makes all but the first tick a no-op. **Cron is not the scan cadence - a pass is.** However long a pass takes is how often a host's ports get rescanned, so anything that makes a pass slow directly degrades the scan interval.
+- `PORT_SCAN_ARGUMENTS` keeps `-p-` (needed to catch non-standard services) but must stay bounded by `-T4 --max-retries 2 --host-timeout`. Without those, one host that silently drops packets spends the full retry budget on each of 65535 ports and holds the whole pass open for hours.
+- Both the global and per-subnet locks use `RedisSingleRunLock`, so their TTLs only have to outlive a crash. Don't go back to a plain `set(..., ex=N)`: a scan that outran the guessed TTL lost its lock mid-scan *and* deleted the next scan's lock on the way out.
+- Tunables (env vars, defaults in `finder.py`): `FINDER_NMAP_ARGUMENTS`, `FINDER_HOST_TIMEOUT`, `FINDER_PING_TIMEOUT_SECONDS`, `FINDER_THREADS`, `FINDER_OUTPUT_MAX_BYTES`, `FINDER_OUTPUT_TTL_SECONDS`.
+
+**Metric write cache (`insert_metric`/`metrics-go` -> `bulk_insert`):**
+- `bulk_insert` throttles writes **per metric series**, keyed on the Redis metric key (`last_metric_METRIC-...`), spaced by `METRICS_LATEST_MIN_INTERVAL` / `METRICS_HISTORY_MIN_INTERVAL`. Do not key the throttle on the host IP: that lets the first series drained for a host suppress every other series for that host in the same pass, which silently drops slow-moving metrics such as the finder's `open_ports` before their 120s Redis entry expires.
+- `metrics-latest` rows age out after 36000s (a Mongo TTL index; emulated by a sweep in `bulk_insert` on Postgres) and the dashboard judges `open_ports` with `stale_time=10000`, so a subnet has to be fully rescanned inside ~2.8 hours or its port services report stale.
 
 ## Key Files
 - `backend/serve.py` - all API endpoints
