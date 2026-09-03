@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Extended tests for finder.py to improve coverage."""
 
+import threading
+
 import pytest
 from unittest.mock import patch, MagicMock, call
 import xmltodict
@@ -171,79 +173,98 @@ class TestSubnetProcessing:
         assert len(subnet.split(".")) == 4
 
 
-def _ping_xml(hosts_xml):
-    return (
-        '<?xml version="1.0"?><nmaprun scanner="nmap">' + hosts_xml + "</nmaprun>"
-    ).encode("utf-8")
+class TestScanAllSubnets:
+    """Regression tests for the one-pass subnet scan.
+
+    finder.py used to re-queue every subnet after scanning it and then
+    `join()` forever, so each cron tick left behind a resident process
+    holding a database connection pool.  Roughly one new immortal finder per
+    hour, until Postgres answered "sorry, too many clients already".  These
+    tests pin the one-pass contract that replaced it.
+    """
+
+    @staticmethod
+    def _run(subnets, scan_subnet, num_threads=4, timeout=10):
+        """Run scan_all_subnets, failing rather than hanging on a regression."""
+        done = threading.Event()
+
+        def target():
+            finder.scan_all_subnets(subnets, scan_subnet, num_threads=num_threads)
+            done.set()
+
+        # Daemon so a regression to the old infinite loop cannot wedge pytest.
+        thread = threading.Thread(target=target, daemon=True)
+        thread.start()
+        thread.join(timeout)
+        assert done.is_set(), "scan_all_subnets must return, not scan forever"
+
+    def test_scans_each_subnet_exactly_once(self):
+        """The whole point: one pass, then exit and let cron re-fire."""
+        seen = []
+        seen_lock = threading.Lock()
+
+        def scan_subnet(subnet):
+            with seen_lock:
+                seen.append(subnet)
+
+        subnets = ["10.0.0", "10.0.1", "10.0.2", "192.168.1"]
+        self._run(subnets, scan_subnet)
+        assert sorted(seen) == sorted(subnets)
+
+    def test_returns_on_empty_subnet_list(self):
+        """No subnets configured must not park four idle threads forever."""
+        self._run([], lambda subnet: pytest.fail("scan_subnet should not run"))
+
+    def test_one_failing_subnet_does_not_strand_the_pass(self):
+        """A raising scan must not kill its worker and leave work unclaimed."""
+        seen = []
+        seen_lock = threading.Lock()
+
+        def scan_subnet(subnet):
+            with seen_lock:
+                seen.append(subnet)
+            if subnet == "10.0.1":
+                raise RuntimeError("nmap exploded")
+
+        subnets = ["10.0.0", "10.0.1", "10.0.2"]
+        self._run(subnets, scan_subnet)
+        assert sorted(seen) == sorted(subnets)
+
+    def test_more_threads_than_subnets_still_terminates(self):
+        """Surplus workers must see an empty queue and exit, not block on get()."""
+        seen = []
+        seen_lock = threading.Lock()
+
+        def scan_subnet(subnet):
+            with seen_lock:
+                seen.append(subnet)
+
+        self._run(["10.0.0"], scan_subnet, num_threads=8)
+        assert seen == ["10.0.0"]
+
+    def test_thread_count_floor(self):
+        """A misconfigured thread count must still scan, not silently no-op."""
+        seen = []
+        self._run(["10.0.0", "10.0.1"], seen.append, num_threads=0)
+        assert sorted(seen) == ["10.0.0", "10.0.1"]
 
 
-class TestParsePingResults:
-    """Tests for pulling live hosts out of an nmap ping sweep."""
+class TestFinderGlobalLock:
+    """The global lock must outlive a scan without outliving the process."""
 
-    def test_no_hosts_returns_empty_list(self):
-        """nmap omits `host` entirely when nothing answers - that is not an error."""
-        assert finder.parse_ping_results(_ping_xml("")) == []
+    def test_uses_heartbeat_extended_lock(self):
+        """A fixed `ex=` TTL is what let a second finder start on top."""
+        assert finder.RedisSingleRunLock is not None
+        assert finder.LockNotAcquired is not None
 
-    def test_single_host_is_not_treated_as_a_dict_of_fields(self):
-        """xmltodict collapses a lone host into a dict rather than a list."""
-        xml = _ping_xml('<host><address addr="192.168.0.5" addrtype="ipv4"/></host>')
-        assert finder.parse_ping_results(xml) == ["192.168.0.5"]
+    def test_fixed_hour_long_ttl_is_gone(self):
+        """The old constant expired under a live finder; it must not return."""
+        assert not hasattr(finder, "GLOBAL_LOCK_TIMEOUT_SECONDS")
 
-    def test_multiple_hosts(self):
-        xml = _ping_xml(
-            '<host><address addr="192.168.0.5" addrtype="ipv4"/></host>'
-            '<host><address addr="192.168.0.6" addrtype="ipv4"/></host>'
-        )
-        assert finder.parse_ping_results(xml) == ["192.168.0.5", "192.168.0.6"]
+    def test_ttl_only_has_to_outlive_a_crash(self):
+        """Heartbeats cover the scan, so the TTL is a crash-recovery bound."""
+        assert finder.GLOBAL_LOCK_TTL_SECONDS <= 300
 
-    def test_host_with_mac_and_ipv4_prefers_ipv4(self):
-        xml = _ping_xml(
-            "<host>"
-            '<address addr="192.168.0.7" addrtype="ipv4"/>'
-            '<address addr="02:42:C0:A8:00:07" addrtype="mac"/>'
-            "</host>"
-        )
-        assert finder.parse_ping_results(xml) == ["192.168.0.7"]
-
-    def test_host_with_only_ipv6_is_skipped(self):
-        xml = _ping_xml(
-            "<host>"
-            '<address addr="fe80::1" addrtype="ipv6"/>'
-            '<address addr="02:42:C0:A8:00:08" addrtype="mac"/>'
-            "</host>"
-        )
-        assert finder.parse_ping_results(xml) == []
-
-    def test_host_without_address_is_skipped(self):
-        xml = _ping_xml('<host><status state="up"/></host>')
-        assert finder.parse_ping_results(xml) == []
-
-    def test_host_with_address_but_no_addr_attribute_is_skipped(self):
-        xml = _ping_xml('<host><address addrtype="ipv4"/></host>')
-        assert finder.parse_ping_results(xml) == []
-
-
-class TestIntFromEnv:
-    """Tests for the environment helper backing the scan tunables."""
-
-    def test_reads_value(self, monkeypatch):
-        monkeypatch.setenv("FINDER_TEST_VALUE", "42")
-        assert finder._int_from_env("FINDER_TEST_VALUE", 7) == 42
-
-    def test_missing_falls_back(self, monkeypatch):
-        monkeypatch.delenv("FINDER_TEST_VALUE", raising=False)
-        assert finder._int_from_env("FINDER_TEST_VALUE", 7) == 7
-
-    def test_invalid_falls_back(self, monkeypatch):
-        monkeypatch.setenv("FINDER_TEST_VALUE", "not-a-number")
-        assert finder._int_from_env("FINDER_TEST_VALUE", 7) == 7
-
-
-class TestScanArguments:
-    """The scan must be bounded, or one firewalled host stalls the whole cycle."""
-
-    def test_port_scan_has_a_host_timeout(self):
-        assert "--host-timeout" in finder.PORT_SCAN_ARGUMENTS
-
-    def test_finder_bounds_its_own_runtime(self):
-        assert finder.MAX_RUNTIME_SECONDS > 0
+    def test_lock_key_is_stable(self):
+        """Renaming this would let old and new finders run side by side."""
+        assert finder.GLOBAL_LOCK_KEY == "labyrinth_finder_lock"

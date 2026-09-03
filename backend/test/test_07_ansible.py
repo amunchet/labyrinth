@@ -222,6 +222,9 @@ def test_run_ansible():
     assert "run" in x
     assert y == "install"
 
+    # Verify vault password file is written
+    assert os.path.exists("{}/vault.pass".format(x))
+
     # Check failing SSH key
     try:
         x = run_ansible(
@@ -234,5 +237,54 @@ def test_run_ansible():
         assert False
     except Exception:
         assert True
+
+    # Check valid SSH key is copied to env/ssh_key
+    if not os.path.exists("/src/uploads/ssh"):  # pragma: no cover
+        os.makedirs("/src/uploads/ssh")
+
+    sample_key_src = "/src/test/ansible/sample_key"
+    sample_key_dest = "/src/uploads/ssh/sample_key"
+    if not os.path.exists(sample_key_dest):
+        shutil.copy(sample_key_src, sample_key_dest)
+
+    x, y = run_ansible(
+        hosts="sampleclient",
+        playbook="install",
+        become_file="vault",
+        vault_password="test",
+        ssh_key_file="sample_key",
+    )
+    assert os.path.exists("{}/env/ssh_key".format(x))
+
+    # Check failing TOTP file
+    try:
+        x = run_ansible(
+            hosts="sampleclient",
+            playbook="install",
+            become_file="vault",
+            vault_password="test",
+            totp_file="nonexistent_totp",
+        )
+        assert False
+    except Exception:
+        assert True
+
+    # Check valid TOTP file is copied to vars
+    if not os.path.exists("/src/uploads/totp"):  # pragma: no cover
+        os.makedirs("/src/uploads/totp")
+
+    sample_totp_src = "/src/test/sample_encrypted_file"
+    sample_totp_dest = "/src/uploads/totp/sample_totp.yml"
+    if not os.path.exists(sample_totp_dest):
+        shutil.copy(sample_totp_src, sample_totp_dest)
+
+    x, y = run_ansible(
+        hosts="sampleclient",
+        playbook="install",
+        become_file="vault",
+        vault_password="test",
+        totp_file="sample_totp",
+    )
+    assert os.path.exists("{}/vars/sample_totp.yml".format(x))
 
     assert not os.path.exists("/vault.pass")
