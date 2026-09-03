@@ -512,6 +512,219 @@ def test_bulk_insert_timestamp_handling(setup):
         a.close()
 
 
+def test_bulk_insert_skips_expired_key(setup):
+    """A METRIC-* key that expires between the KEYS and the GET must not abort the run."""
+    with patch("redis.Redis") as mock_redis:
+        instance = MagicMock()
+        mock_redis.return_value = instance
+        instance.keys.return_value = [b"METRIC-gone"]
+        instance.get.return_value = None
+
+        with serve.app.test_request_context("/bulk_insert/", method="GET"):
+            resp = unwrap(serve.bulk_insert)()
+
+    assert resp[1] == 200
+
+
+def test_bulk_insert_skips_metric_without_tags(setup):
+    """A metric with no tags used to raise a KeyError and lose the whole batch."""
+    a = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
+    try:
+        a.set("METRIC-no-tags", json.dumps({"name": "cpu", "value": 1}))
+        a.set(
+            "METRIC-"
+            + json.dumps({"name": "mem", "tags": {"ip": "192.168.9.9"}}, default=str),
+            json.dumps(
+                {
+                    "name": "mem",
+                    "tags": {"ip": "192.168.9.9"},
+                    "fields": {"used": 1},
+                    "timestamp": datetime.datetime.now().timestamp(),
+                },
+                default=str,
+            ),
+        )
+
+        with serve.app.test_request_context("/bulk_insert/", method="GET"):
+            resp = unwrap(serve.bulk_insert)()
+
+        assert resp[1] == 200
+        # The well-formed metric still made it through
+        assert (
+            serve.mongo_client["labyrinth"]["metrics-latest"].count_documents(
+                {"name": "mem"}
+            )
+            == 1
+        )
+    finally:
+        a.close()
+
+
+def test_bulk_insert_skips_unparseable_metric(setup):
+    """Garbage in Redis is skipped rather than aborting the batch."""
+    a = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
+    try:
+        a.set("METRIC-garbage", "not json at all")
+
+        with serve.app.test_request_context("/bulk_insert/", method="GET"):
+            resp = unwrap(serve.bulk_insert)()
+
+        assert resp[1] == 200
+    finally:
+        a.close()
+
+
+def test_bulk_insert_throttles_per_series_not_per_host(setup):
+    """
+    Two different metric series on the same host must both be written.
+
+    The throttle used to be keyed on the host's IP alone, so the first series
+    processed for a host silently suppressed every other series for that host -
+    which is how slow-moving metrics such as `open_ports` went missing.
+    """
+    a = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
+    try:
+        now = datetime.datetime.now().timestamp()
+        for name in ["cpu", "open_ports"]:
+            tags = {"ip": "192.168.5.5", "host": "shared", "name": name}
+            key = "METRIC-" + json.dumps({"name": name, "tags": tags}, default=str)
+            a.set(
+                key,
+                json.dumps(
+                    {
+                        "name": name,
+                        "tags": tags,
+                        "fields": {"ports": [22]},
+                        "timestamp": now,
+                    },
+                    default=str,
+                ),
+            )
+
+        with serve.app.test_request_context("/bulk_insert/", method="GET"):
+            resp = unwrap(serve.bulk_insert)()
+
+        assert resp[1] == 200
+
+        latest = serve.mongo_client["labyrinth"]["metrics-latest"]
+        assert latest.count_documents({"name": "cpu"}) == 1
+        assert latest.count_documents({"name": "open_ports"}) == 1
+
+        history = serve.mongo_client["labyrinth"]["metrics"]
+        assert history.count_documents({"name": "cpu"}) == 1
+        assert history.count_documents({"name": "open_ports"}) == 1
+    finally:
+        a.close()
+
+
+def test_bulk_insert_still_throttles_a_repeated_series(setup):
+    """The same series inside the throttle window is not written twice."""
+    a = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
+    try:
+        tags = {"ip": "192.168.5.6", "host": "repeat", "name": "cpu"}
+        key = "METRIC-" + json.dumps({"name": "cpu", "tags": tags}, default=str)
+        payload = json.dumps(
+            {
+                "name": "cpu",
+                "tags": tags,
+                "fields": {"value": 1},
+                "timestamp": datetime.datetime.now().timestamp(),
+            },
+            default=str,
+        )
+
+        for _ in range(2):
+            a.set(key, payload)
+            with serve.app.test_request_context("/bulk_insert/", method="GET"):
+                resp = unwrap(serve.bulk_insert)()
+            assert resp[1] == 200
+
+        assert (
+            serve.mongo_client["labyrinth"]["metrics"].count_documents({"name": "cpu"})
+            == 1
+        )
+    finally:
+        a.close()
+
+
+def test_bulk_insert_recovers_from_corrupt_throttle_value(setup):
+    """A junk throttle value in Redis is treated as "never written"."""
+    a = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
+    try:
+        tags = {"ip": "192.168.5.7", "host": "corrupt", "name": "cpu"}
+        key = "METRIC-" + json.dumps({"name": "cpu", "tags": tags}, default=str)
+        a.set(
+            key,
+            json.dumps(
+                {
+                    "name": "cpu",
+                    "tags": tags,
+                    "fields": {"value": 1},
+                    "timestamp": datetime.datetime.now().timestamp(),
+                },
+                default=str,
+            ),
+        )
+        a.set("last_metric_" + key, "not-a-timestamp")
+
+        with serve.app.test_request_context("/bulk_insert/", method="GET"):
+            resp = unwrap(serve.bulk_insert)()
+
+        assert resp[1] == 200
+        assert (
+            serve.mongo_client["labyrinth"]["metrics"].count_documents({"name": "cpu"})
+            == 1
+        )
+    finally:
+        a.close()
+
+
+def test_bulk_insert_handles_string_keys(setup):
+    """A Redis client configured to decode responses hands back str keys."""
+    with patch("redis.Redis") as mock_redis:
+        instance = MagicMock()
+        mock_redis.return_value = instance
+        instance.keys.return_value = ["METRIC-str-key"]
+        instance.get.side_effect = [
+            json.dumps({"name": "cpu", "tags": {"ip": "1.2.3.4"}}),
+            None,
+        ]
+
+        with serve.app.test_request_context("/bulk_insert/", method="GET"):
+            resp = unwrap(serve.bulk_insert)()
+
+    assert resp[1] == 200
+
+
+def test_int_from_env_reads_value(monkeypatch):
+    monkeypatch.setenv("SERVE_TEST_VALUE", "31")
+    assert serve._int_from_env("SERVE_TEST_VALUE", 5) == 31
+
+
+def test_int_from_env_missing_falls_back(monkeypatch):
+    monkeypatch.delenv("SERVE_TEST_VALUE", raising=False)
+    assert serve._int_from_env("SERVE_TEST_VALUE", 5) == 5
+
+
+def test_int_from_env_invalid_falls_back(monkeypatch):
+    monkeypatch.setenv("SERVE_TEST_VALUE", "nonsense")
+    assert serve._int_from_env("SERVE_TEST_VALUE", 5) == 5
+
+
+def test_read_redis_skips_expired_key(setup):
+    """A scan-output key that expires mid-listing is skipped, not crashed on."""
+    with patch("redis.Redis") as mock_redis:
+        instance = MagicMock()
+        mock_redis.return_value = instance
+        instance.keys.return_value = [b"output-192.168.1", b"output-192.168.2"]
+        instance.get.side_effect = [None, b"scan log"]
+
+        resp = unwrap(serve.read_redis)()
+
+    assert resp[1] == 200
+    assert json.loads(resp[0]) == {"192.168.2": "scan log"}
+
+
 # ---------------------------------------------------------------------------
 # Disk Space Endpoints - Line Coverage: 2250-2300
 # ---------------------------------------------------------------------------

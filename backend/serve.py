@@ -52,6 +52,26 @@ executor = ThreadPoolExecutor(2)
 
 TELEGRAF_KEY = os.environ.get("TELEGRAF_KEY") or "TEST"
 
+
+def _int_from_env(name, default):
+    """Reads an integer setting from the environment, falling back to `default`"""
+    try:
+        return int(os.environ.get(name) or default)
+    except (TypeError, ValueError):
+        return default
+
+
+# How long an incoming metric sits in the Redis write cache waiting for `bulk_insert`
+METRIC_CACHE_TTL = _int_from_env("METRIC_CACHE_TTL_SECONDS", 120)
+
+# Minimum spacing between writes of the *same* metric series (name + tags).
+# These are per-series, not per-host: keying the throttle on the host alone meant
+# the first series processed for a host suppressed every other series for that
+# host in the same pass, so slow-moving metrics such as `open_ports` were
+# routinely dropped before their Redis entry expired.
+METRICS_LATEST_MIN_INTERVAL = _int_from_env("METRICS_LATEST_MIN_INTERVAL", 15)
+METRICS_HISTORY_MIN_INTERVAL = _int_from_env("METRICS_HISTORY_MIN_INTERVAL", 120)
+
 # Error message constants
 ERROR_INVALID_JSON_BODY = "Invalid JSON body"
 ERROR_INVALID_CLUSTER_ID = "Invalid cluster ID"
@@ -345,7 +365,9 @@ def scan():  # pragma: no cover
 
     from finder import main
 
-    executor.submit(main)
+    # A single pass only - `main()` in its looping form never returns, so it would
+    # permanently occupy one of this executor's two worker threads.
+    executor.submit(main, False)
     return "Scan Started.", 200
 
 
@@ -835,7 +857,11 @@ def read_redis():
     # Get each one, then send it out properly
     retval = {}
     for key in keys:
-        retval[key.decode("utf-8").split("-")[1]] = a.get(key).decode("utf-8")
+        value = a.get(key)
+        if value is None:
+            # Expired between the KEYS and the GET
+            continue
+        retval[key.decode("utf-8").split("-")[1]] = value.decode("utf-8")
 
     return json.dumps(retval, default=str), 200
 
@@ -2047,15 +2073,14 @@ def insert_metric(inp=""):
     if "metrics" not in data:  # pragma: no cover
         return "Invalid data", 421
 
+    a = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
+
     for item in data["metrics"]:
 
         if "tags" in item and "name" in item:
 
-            a = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
-
             name = json.dumps({"name": item["name"], "tags": item["tags"]}, default=str)
-            a.set(f"METRIC-{name}", json.dumps(item, default=str))
-            a.expire(f"METRIC-{name}", 120)
+            a.set(f"METRIC-{name}", json.dumps(item, default=str), ex=METRIC_CACHE_TTL)
 
     return "Success", 200
 
@@ -2076,12 +2101,33 @@ def bulk_insert():
     metrics = a.keys(pattern="METRIC-*")
     for metric in metrics:
         print("Inserting", metric)
-        item = json.loads(a.get(metric))
-        print("Item:", item)
-        last_time = a.get("last_metric_{}".format(item["tags"]["ip"]))
 
-        if "tags" not in item or "name" not in item:
+        raw = a.get(metric)
+        if raw is None:
+            # Expired between the KEYS and the GET
             continue
+
+        try:
+            item = json.loads(raw)
+        except (TypeError, ValueError):
+            print("Unparseable metric - skipping", metric)
+            continue
+
+        print("Item:", item)
+
+        if not isinstance(item, dict) or "tags" not in item or "name" not in item:
+            continue
+
+        # Throttle per metric series, not per host.  The Redis key already
+        # uniquely identifies name + tags, so reuse it.
+        throttle_key = "last_metric_{}".format(
+            metric.decode("utf-8") if isinstance(metric, bytes) else metric
+        )
+        last_time = a.get(throttle_key)
+        try:
+            last_time = float(last_time) if last_time else None
+        except (TypeError, ValueError):
+            last_time = None
 
         if "timestamp" in item:
             try:
@@ -2094,24 +2140,21 @@ def bulk_insert():
             item["tags"]["labyrinth_name"] = item["name"]
             item["tags"]["agent_name"] = socket.gethostname()
 
-        try:
-            if last_time and (time.time() - float(last_time)) <= 15:
-                pass
-            else:
-                """
-                mongo_client["labyrinth"]["metrics-latest"].replace_one(
+        if last_time and (time.time() - last_time) <= METRICS_LATEST_MIN_INTERVAL:
+            pass
+        else:
+            """
+            mongo_client["labyrinth"]["metrics-latest"].replace_one(
+                {"tags": item["tags"], "name": item["name"]}, item, upsert=True
+            )
+            """
+            metrics_latest_updates.append(
+                pymongo.ReplaceOne(
                     {"tags": item["tags"], "name": item["name"]}, item, upsert=True
                 )
-                """
-                metrics_latest_updates.append(
-                    pymongo.ReplaceOne(
-                        {"tags": item["tags"], "name": item["name"]}, item, upsert=True
-                    )
-                )
-        except Exception:
-            raise Exception(item)
+            )
 
-        if last_time and (time.time() - float(last_time)) <= 120:
+        if last_time and (time.time() - last_time) <= METRICS_HISTORY_MIN_INTERVAL:
             pass
         else:
 
@@ -2120,7 +2163,11 @@ def bulk_insert():
             """
             metrics_updates.append(pymongo.InsertOne(item))
 
-            a.set("last_metric_{}".format(item["tags"]["ip"]), time.time())
+            a.set(
+                throttle_key,
+                time.time(),
+                ex=max(METRICS_HISTORY_MIN_INTERVAL * 10, 3600),
+            )
 
     # Bulk writes
     if metrics_latest_updates:

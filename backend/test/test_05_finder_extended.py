@@ -169,3 +169,81 @@ class TestSubnetProcessing:
         subnet = "192.168.1.100"
         # Has 4 octets
         assert len(subnet.split(".")) == 4
+
+
+def _ping_xml(hosts_xml):
+    return (
+        '<?xml version="1.0"?><nmaprun scanner="nmap">' + hosts_xml + "</nmaprun>"
+    ).encode("utf-8")
+
+
+class TestParsePingResults:
+    """Tests for pulling live hosts out of an nmap ping sweep."""
+
+    def test_no_hosts_returns_empty_list(self):
+        """nmap omits `host` entirely when nothing answers - that is not an error."""
+        assert finder.parse_ping_results(_ping_xml("")) == []
+
+    def test_single_host_is_not_treated_as_a_dict_of_fields(self):
+        """xmltodict collapses a lone host into a dict rather than a list."""
+        xml = _ping_xml('<host><address addr="192.168.0.5" addrtype="ipv4"/></host>')
+        assert finder.parse_ping_results(xml) == ["192.168.0.5"]
+
+    def test_multiple_hosts(self):
+        xml = _ping_xml(
+            '<host><address addr="192.168.0.5" addrtype="ipv4"/></host>'
+            '<host><address addr="192.168.0.6" addrtype="ipv4"/></host>'
+        )
+        assert finder.parse_ping_results(xml) == ["192.168.0.5", "192.168.0.6"]
+
+    def test_host_with_mac_and_ipv4_prefers_ipv4(self):
+        xml = _ping_xml(
+            "<host>"
+            '<address addr="192.168.0.7" addrtype="ipv4"/>'
+            '<address addr="02:42:C0:A8:00:07" addrtype="mac"/>'
+            "</host>"
+        )
+        assert finder.parse_ping_results(xml) == ["192.168.0.7"]
+
+    def test_host_with_only_ipv6_is_skipped(self):
+        xml = _ping_xml(
+            "<host>"
+            '<address addr="fe80::1" addrtype="ipv6"/>'
+            '<address addr="02:42:C0:A8:00:08" addrtype="mac"/>'
+            "</host>"
+        )
+        assert finder.parse_ping_results(xml) == []
+
+    def test_host_without_address_is_skipped(self):
+        xml = _ping_xml('<host><status state="up"/></host>')
+        assert finder.parse_ping_results(xml) == []
+
+    def test_host_with_address_but_no_addr_attribute_is_skipped(self):
+        xml = _ping_xml('<host><address addrtype="ipv4"/></host>')
+        assert finder.parse_ping_results(xml) == []
+
+
+class TestIntFromEnv:
+    """Tests for the environment helper backing the scan tunables."""
+
+    def test_reads_value(self, monkeypatch):
+        monkeypatch.setenv("FINDER_TEST_VALUE", "42")
+        assert finder._int_from_env("FINDER_TEST_VALUE", 7) == 42
+
+    def test_missing_falls_back(self, monkeypatch):
+        monkeypatch.delenv("FINDER_TEST_VALUE", raising=False)
+        assert finder._int_from_env("FINDER_TEST_VALUE", 7) == 7
+
+    def test_invalid_falls_back(self, monkeypatch):
+        monkeypatch.setenv("FINDER_TEST_VALUE", "not-a-number")
+        assert finder._int_from_env("FINDER_TEST_VALUE", 7) == 7
+
+
+class TestScanArguments:
+    """The scan must be bounded, or one firewalled host stalls the whole cycle."""
+
+    def test_port_scan_has_a_host_timeout(self):
+        assert "--host-timeout" in finder.PORT_SCAN_ARGUMENTS
+
+    def test_finder_bounds_its_own_runtime(self):
+        assert finder.MAX_RUNTIME_SECONDS > 0
