@@ -1264,7 +1264,10 @@ def test_refresh_proxmox_disk_space_flags_ignored_qemu_vms(setup, monkeypatch):
         }
     )
     serve.db["labyrinth"]["settings"].insert_one(
-        {"name": proxmox_helper.QEMU_AGENT_IGNORE_SETTING, "value": "cluster-ignore/101"}
+        {
+            "name": proxmox_helper.QEMU_AGENT_IGNORE_SETTING,
+            "value": "cluster-ignore/101",
+        }
     )
 
     monkeypatch.setattr(serve.proxmox_helper, "get_redis_client", lambda: FakeRedis())

@@ -2015,9 +2015,7 @@ def test_collect_disk_issues_ignore_list_does_not_hide_real_disk_usage():
     assert issues[0]["percentage"] == 95.0
 
 
-def test_gather_all_disk_issues_applies_ignore_list_from_settings(
-    setup, monkeypatch
-):
+def test_gather_all_disk_issues_applies_ignore_list_from_settings(setup, monkeypatch):
     """The scheduled check (and the full test email, which shares this code)
     reads the ignore list from the settings collection automatically."""
     helper = proxmox_disk_check.proxmox_helper
