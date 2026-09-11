@@ -79,6 +79,9 @@ def get_disk_alert_settings(db) -> Dict:
     return {
         "threshold_percent": threshold_percent,
         "recipients": recipient_list,
+        # VMs whose missing QEMU guest agent should NOT be alerted on. Rare,
+        # explicit opt-out (e.g. a macOS guest) - see proxmox_helper.
+        "qemu_agent_ignore_list": proxmox_helper.get_qemu_agent_ignore_list(db),
     }
 
 
@@ -92,14 +95,25 @@ def calculate_percentage(used: int, total: int) -> float:
         return 0
 
 
-def collect_disk_issues(cluster_data: Dict, threshold_percent: float) -> List[Dict]:
+def collect_disk_issues(
+    cluster_data: Dict, threshold_percent: float, qemu_agent_ignore_list=None
+) -> List[Dict]:
     """
     Extract all disk usage issues from Proxmox cluster data.
     Returns list of dicts with disk name, used, total, percentage, type.
+
+    ``qemu_agent_ignore_list`` (parsed via
+    ``proxmox_helper.parse_qemu_agent_ignore_list``) names VMs whose
+    missing/unresponsive QEMU guest agent must not be reported.
     """
     issues = []
     cluster_name = cluster_data.get("cluster_name", "unknown")
     host = cluster_data.get("host", "unknown")
+
+    if qemu_agent_ignore_list:
+        proxmox_helper.apply_qemu_agent_ignore_list(
+            cluster_data, qemu_agent_ignore_list
+        )
 
     # Check storage (datastores)
     for node in cluster_data.get("nodes", []):
@@ -182,6 +196,14 @@ def _collect_vm_issues(node, cluster_name, host, node_name, threshold_percent):
         # entire cluster look "clean" when its VMs simply couldn't be
         # measured.
         if vm.get("qemu_guest_agent_warning_inferred"):
+            # Explicit opt-out from Settings (proxmox_qemu_agent_ignore_vms):
+            # this guest is known not to run the QEMU agent, so the warning
+            # is expected and must not generate an email. Nothing else about
+            # the VM is checked either - with disk reported as 0 there is no
+            # usable measurement to threshold against.
+            if vm.get("qemu_guest_agent_ignored"):
+                continue
+
             # Distinguish a genuinely missing/non-functional guest agent from
             # a live status check that failed with no Redis fallback left to
             # cover for it (see proxmox_helper._add_vm_info) - the latter
@@ -315,6 +337,7 @@ def gather_all_disk_issues(
     db = db or get_mongo_client()
     clusters = list(db["labyrinth"]["proxmox_clusters"].find({}))
     redis_client = redis_client or proxmox_helper.get_redis_client()
+    qemu_agent_ignore_list = proxmox_helper.get_qemu_agent_ignore_list(db)
 
     all_issues = []
     cluster_errors = []
@@ -337,7 +360,13 @@ def gather_all_disk_issues(
             )
             continue
 
-        all_issues.extend(collect_disk_issues(cluster_data, threshold_percent))
+        all_issues.extend(
+            collect_disk_issues(
+                cluster_data,
+                threshold_percent,
+                qemu_agent_ignore_list=qemu_agent_ignore_list,
+            )
+        )
 
     return all_issues, cluster_errors
 

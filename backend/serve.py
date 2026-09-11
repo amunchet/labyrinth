@@ -2244,6 +2244,9 @@ def get_proxmox_disk_space():
     try:
         clusters = list(mongo_client["labyrinth"]["proxmox_clusters"].find({}))
         redis_client = proxmox_helper.get_redis_client()
+        qemu_agent_ignore_list = proxmox_helper.get_qemu_agent_ignore_list(
+            mongo_client
+        )
 
         result = {"proxmox_hosts": []}
 
@@ -2252,6 +2255,7 @@ def get_proxmox_disk_space():
                 cluster,
                 redis_client=redis_client,
             )
+            proxmox_helper.apply_qemu_agent_ignore_list(data, qemu_agent_ignore_list)
             result["proxmox_hosts"].append(data)
 
         return json.dumps(result, default=str), 200
@@ -2270,13 +2274,18 @@ def refresh_proxmox_disk_space():
     try:
         clusters = list(mongo_client["labyrinth"]["proxmox_clusters"].find({}))
         redis_client = proxmox_helper.get_redis_client()
+        qemu_agent_ignore_list = proxmox_helper.get_qemu_agent_ignore_list(
+            mongo_client
+        )
 
-        result = {
-            "proxmox_hosts": proxmox_helper.refresh_proxmox_cluster_cache(
-                clusters,
-                redis_client=redis_client,
-            )
-        }
+        refreshed = proxmox_helper.refresh_proxmox_cluster_cache(
+            clusters,
+            redis_client=redis_client,
+        )
+        for data in refreshed:
+            proxmox_helper.apply_qemu_agent_ignore_list(data, qemu_agent_ignore_list)
+
+        result = {"proxmox_hosts": refreshed}
 
         return json.dumps(result, default=str), 200
     except Exception as e:
@@ -2398,11 +2407,19 @@ def get_disk_space_settings():
         recipients_list = _parse_recipients_setting(recipients_setting)
         threshold_percent = _parse_threshold_setting(threshold_setting)
         proxmox_tag = tag_setting.get("value") if tag_setting else "Proxmox"
+        qemu_agent_ignore_list = proxmox_helper.get_qemu_agent_ignore_list(
+            mongo_client
+        )
 
         result = {
             "proxmox_tag": proxmox_tag,
             "disk_space_alert_threshold": threshold_percent,
             "disk_space_alert_recipients": recipients_list,
+            # Normalized entries (as typed, whitespace stripped) so the UI can
+            # round-trip the setting without re-parsing.
+            "proxmox_qemu_agent_ignore_vms": [
+                entry["raw"] for entry in qemu_agent_ignore_list
+            ],
             "clusters": [],
             "unconfigured_proxmox_hosts": [],
         }

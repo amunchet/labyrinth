@@ -1152,3 +1152,133 @@ def test_get_vm_guest_fsinfo_returns_none_when_everything_fails(monkeypatch):
     monkeypatch.setattr(client, "get_vm_guest_df", lambda node, vmid: None)
 
     assert client.get_vm_guest_fsinfo("node-a", "101") is None
+
+
+# ---------------------------------------------------------------------------
+# QEMU guest agent ignore list surfaced through the API
+# ---------------------------------------------------------------------------
+
+
+def test_disk_space_settings_returns_qemu_agent_ignore_list(setup):
+    """The settings endpoint round-trips the ignore list as normalized entries
+    (and an empty list when the setting was never saved)."""
+    resp = unwrap(serve.get_disk_space_settings)()
+    assert resp[1] == 200
+    assert json.loads(resp[0])["proxmox_qemu_agent_ignore_vms"] == []
+
+    serve.mongo_client["labyrinth"]["settings"].insert_one(
+        {
+            "name": proxmox_helper.QEMU_AGENT_IGNORE_SETTING,
+            "value": " macos-vm ,\nlab/105,,",
+        }
+    )
+
+    resp = unwrap(serve.get_disk_space_settings)()
+    assert resp[1] == 200
+    assert json.loads(resp[0])["proxmox_qemu_agent_ignore_vms"] == [
+        "macos-vm",
+        "lab/105",
+    ]
+
+
+def _ignore_list_vm_payload():
+    return {
+        "nodes": [
+            {
+                "name": "pve-node",
+                "storage": [],
+                "containers": [],
+                "vms": [
+                    {
+                        "id": 101,
+                        "name": "macos-vm",
+                        "status": "running",
+                        "maxdisk": 10737418240,
+                        "disk": 0,
+                    },
+                    {
+                        "id": 102,
+                        "name": "linux-vm",
+                        "status": "running",
+                        "maxdisk": 10737418240,
+                        "disk": 0,
+                    },
+                ],
+            }
+        ]
+    }
+
+
+def test_get_proxmox_disk_space_flags_ignored_qemu_vms(setup, monkeypatch):
+    """VMs on the ignore list are flagged for the UI, but their underlying
+    warning fields are left intact so nothing about the data is hidden."""
+    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one(
+        {
+            "name": "cluster-ignore",
+            "host": "10.5.5.6",
+            "user": "root@pam",
+            "token_id": "token-ignore",
+            "token_secret": "secret-ignore",
+            "verify_ssl": False,
+        }
+    )
+    serve.mongo_client["labyrinth"]["settings"].insert_one(
+        {"name": proxmox_helper.QEMU_AGENT_IGNORE_SETTING, "value": "macos-vm"}
+    )
+
+    fake_redis = FakeRedis()
+    monkeypatch.setattr(serve.proxmox_helper, "get_redis_client", lambda: fake_redis)
+    monkeypatch.setattr(
+        serve.proxmox_helper,
+        "get_proxmox_disk_data",
+        lambda host_ip, cluster_config, redis_client=None: _ignore_list_vm_payload(),
+    )
+
+    response = unwrap(serve.get_proxmox_disk_space)()
+    assert response[1] == 200
+
+    vms = json.loads(response[0])["proxmox_hosts"][0]["nodes"][0]["vms"]
+    assert vms[0]["name"] == "macos-vm"
+    assert vms[0]["qemu_guest_agent_ignored"] is True
+    assert vms[0]["qemu_guest_agent_warning_inferred"] is True
+    assert vms[1]["name"] == "linux-vm"
+    assert vms[1]["qemu_guest_agent_ignored"] is False
+    assert vms[1]["qemu_guest_agent_warning_inferred"] is True
+
+    # The flag is a read-time annotation: the cached payload must not carry
+    # it, so changing the setting takes effect without a cache refresh.
+    cached = list(fake_redis.store.values())[0]
+    if isinstance(cached, bytes):
+        cached = cached.decode("utf-8")
+    cached_vm = json.loads(cached)["nodes"][0]["vms"][0]
+    assert "qemu_guest_agent_ignored" not in cached_vm
+
+
+def test_refresh_proxmox_disk_space_flags_ignored_qemu_vms(setup, monkeypatch):
+    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one(
+        {
+            "name": "cluster-ignore",
+            "host": "10.5.5.7",
+            "user": "root@pam",
+            "token_id": "token-ignore",
+            "token_secret": "secret-ignore",
+            "verify_ssl": False,
+        }
+    )
+    serve.mongo_client["labyrinth"]["settings"].insert_one(
+        {"name": proxmox_helper.QEMU_AGENT_IGNORE_SETTING, "value": "cluster-ignore/101"}
+    )
+
+    monkeypatch.setattr(serve.proxmox_helper, "get_redis_client", lambda: FakeRedis())
+    monkeypatch.setattr(
+        serve.proxmox_helper,
+        "get_proxmox_disk_data",
+        lambda host_ip, cluster_config, redis_client=None: _ignore_list_vm_payload(),
+    )
+
+    response = unwrap(serve.refresh_proxmox_disk_space)()
+    assert response[1] == 200
+
+    vms = json.loads(response[0])["proxmox_hosts"][0]["nodes"][0]["vms"]
+    assert vms[0]["qemu_guest_agent_ignored"] is True
+    assert vms[1]["qemu_guest_agent_ignored"] is False

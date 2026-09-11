@@ -1735,3 +1735,233 @@ def test_check_and_alert_disk_space_general_error(setup, monkeypatch, capsys):
 
     captured = capsys.readouterr()
     assert "Error in disk check" in captured.out or "Database error" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# QEMU guest agent ignore list (Settings -> proxmox_qemu_agent_ignore_vms)
+# ---------------------------------------------------------------------------
+
+
+def test_parse_qemu_agent_ignore_list_handles_strings_lists_and_scoping():
+    """Entries may be comma or newline separated, optionally scoped with
+    ``cluster/``; blanks are dropped and matching is case-insensitive."""
+    helper = proxmox_disk_check.proxmox_helper
+
+    parsed = helper.parse_qemu_agent_ignore_list(
+        " MacOS-VM , 105\nProd-PVE/Sonoma,, / ,prod/  \n"
+    )
+    assert parsed == [
+        {"raw": "MacOS-VM", "cluster": None, "target": "macos-vm"},
+        {"raw": "105", "cluster": None, "target": "105"},
+        {"raw": "Prod-PVE/Sonoma", "cluster": "prod-pve", "target": "sonoma"},
+    ]
+
+    assert helper.parse_qemu_agent_ignore_list(["vm-a", None, " 7 "]) == [
+        {"raw": "vm-a", "cluster": None, "target": "vm-a"},
+        {"raw": "7", "cluster": None, "target": "7"},
+    ]
+
+    assert helper.parse_qemu_agent_ignore_list(None) == []
+    assert helper.parse_qemu_agent_ignore_list("") == []
+    assert helper.parse_qemu_agent_ignore_list(42) == []
+
+
+def test_is_vm_qemu_agent_ignored_matches_name_vmid_and_cluster_scope():
+    helper = proxmox_disk_check.proxmox_helper
+    ignore_list = helper.parse_qemu_agent_ignore_list(
+        "macos-vm, 105, prod-pve/windows-box, prod-pve/200"
+    )
+
+    # Unscoped name / VMID match on any cluster.
+    assert helper.is_vm_qemu_agent_ignored(
+        {"id": 1, "name": "MacOS-VM"}, "lab", ignore_list
+    )
+    assert helper.is_vm_qemu_agent_ignored({"id": 105, "name": "x"}, None, ignore_list)
+
+    # Scoped entries only match their own cluster (case-insensitively).
+    assert helper.is_vm_qemu_agent_ignored(
+        {"id": 2, "name": "windows-box"}, "Prod-PVE", ignore_list
+    )
+    assert helper.is_vm_qemu_agent_ignored(
+        {"id": 200, "name": "other"}, "prod-pve", ignore_list
+    )
+    assert not helper.is_vm_qemu_agent_ignored(
+        {"id": 2, "name": "windows-box"}, "lab", ignore_list
+    )
+    assert not helper.is_vm_qemu_agent_ignored(
+        {"id": 200, "name": "other"}, "lab", ignore_list
+    )
+
+    # No match / empty list.
+    assert not helper.is_vm_qemu_agent_ignored(
+        {"id": 3, "name": "linux-vm"}, "lab", ignore_list
+    )
+    assert not helper.is_vm_qemu_agent_ignored({"id": 105, "name": "x"}, "lab", [])
+    assert not helper.is_vm_qemu_agent_ignored({}, "lab", ignore_list)
+
+
+def test_apply_qemu_agent_ignore_list_flags_every_vm():
+    helper = proxmox_disk_check.proxmox_helper
+    payload = {
+        "cluster_name": "cluster-a",
+        "nodes": [
+            {
+                "vms": [
+                    {"id": 301, "name": "vm-missing-agent"},
+                    {"id": 302, "name": "vm-fine"},
+                ],
+                "containers": [{"id": 900, "name": "ct"}],
+            },
+            {"vms": None},
+        ],
+    }
+
+    helper.apply_qemu_agent_ignore_list(
+        payload, helper.parse_qemu_agent_ignore_list("vm-missing-agent")
+    )
+
+    vms = payload["nodes"][0]["vms"]
+    assert vms[0]["qemu_guest_agent_ignored"] is True
+    assert vms[1]["qemu_guest_agent_ignored"] is False
+    # Containers are untouched - the QEMU agent only applies to VMs.
+    assert "qemu_guest_agent_ignored" not in payload["nodes"][0]["containers"][0]
+
+
+def test_get_qemu_agent_ignore_list_reads_setting_and_tolerates_db_errors(setup):
+    helper = proxmox_disk_check.proxmox_helper
+
+    assert helper.get_qemu_agent_ignore_list(serve.mongo_client) == []
+
+    serve.mongo_client["labyrinth"]["settings"].insert_one(
+        {"name": helper.QEMU_AGENT_IGNORE_SETTING, "value": "macos-vm, lab/105"}
+    )
+    parsed = helper.get_qemu_agent_ignore_list(serve.mongo_client)
+    assert [e["raw"] for e in parsed] == ["macos-vm", "lab/105"]
+
+    class BrokenDB:
+        def __getitem__(self, _):
+            raise RuntimeError("mongo down")
+
+    assert helper.get_qemu_agent_ignore_list(BrokenDB()) == []
+
+
+def test_get_disk_alert_settings_includes_qemu_agent_ignore_list(setup):
+    helper = proxmox_disk_check.proxmox_helper
+    serve.mongo_client["labyrinth"]["settings"].insert_one(
+        {"name": helper.QEMU_AGENT_IGNORE_SETTING, "value": "macos-vm"}
+    )
+
+    settings = proxmox_disk_check.get_disk_alert_settings(serve.mongo_client)
+
+    assert settings["qemu_agent_ignore_list"] == [
+        {"raw": "macos-vm", "cluster": None, "target": "macos-vm"}
+    ]
+
+
+def test_collect_disk_issues_skips_ignored_missing_qemu_agent_vm():
+    """A VM on the ignore list must not produce a vm_qemu_missing issue, so a
+    cluster whose only warning is that VM comes back clean - while a VM that
+    is NOT on the list is still reported as before."""
+    helper = proxmox_disk_check.proxmox_helper
+    cluster_data = _cluster_data_with_missing_qemu_agent("cluster-a", "10.1.1.1")
+    cluster_data["nodes"][0]["vms"].append(
+        {
+            "id": 302,
+            "name": "vm-also-missing",
+            "status": "running",
+            "maxdisk": 10737418240,
+            "disk": 0,
+            "qemu_guest_agent_installed": False,
+            "qemu_guest_agent_warning_inferred": True,
+        }
+    )
+
+    issues = proxmox_disk_check.collect_disk_issues(
+        cluster_data,
+        threshold_percent=80,
+        qemu_agent_ignore_list=helper.parse_qemu_agent_ignore_list(
+            "cluster-a/vm-missing-agent"
+        ),
+    )
+
+    assert [i["name"] for i in issues] == ["vm-also-missing"]
+    assert issues[0]["type"] == "vm_qemu_missing"
+
+    # The ignore flag is annotated on the payload for downstream consumers.
+    vms = cluster_data["nodes"][0]["vms"]
+    assert vms[0]["qemu_guest_agent_ignored"] is True
+    assert vms[1]["qemu_guest_agent_ignored"] is False
+
+
+def test_collect_disk_issues_ignore_list_does_not_hide_real_disk_usage():
+    """Ignoring the QEMU warning must not suppress a genuine over-threshold
+    reading for the same VM if one is available (e.g. agent came back)."""
+    helper = proxmox_disk_check.proxmox_helper
+    cluster_data = {
+        "cluster_name": "cluster-a",
+        "host": "10.1.1.1",
+        "nodes": [
+            {
+                "name": "node-a",
+                "storage": [],
+                "vms": [
+                    {
+                        "id": 301,
+                        "name": "macos-vm",
+                        "status": "running",
+                        "maxdisk": 1000,
+                        "disk": 950,
+                        "qemu_guest_agent_installed": True,
+                        "qemu_guest_agent_warning_inferred": False,
+                    }
+                ],
+                "containers": [],
+            }
+        ],
+    }
+
+    issues = proxmox_disk_check.collect_disk_issues(
+        cluster_data,
+        threshold_percent=80,
+        qemu_agent_ignore_list=helper.parse_qemu_agent_ignore_list("macos-vm"),
+    )
+
+    assert len(issues) == 1
+    assert issues[0]["type"] == "vm"
+    assert issues[0]["percentage"] == 95.0
+
+
+def test_gather_all_disk_issues_applies_ignore_list_from_settings(
+    setup, monkeypatch
+):
+    """The scheduled check (and the full test email, which shares this code)
+    reads the ignore list from the settings collection automatically."""
+    helper = proxmox_disk_check.proxmox_helper
+    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one(
+        {
+            "name": "cluster-2",
+            "host": "10.1.1.2",
+            "user": "root@pam",
+            "token_id": "token-2",
+            "token_secret": "secret-2",
+            "verify_ssl": False,
+        }
+    )
+    serve.mongo_client["labyrinth"]["settings"].insert_one(
+        {"name": helper.QEMU_AGENT_IGNORE_SETTING, "value": "vm-missing-agent"}
+    )
+
+    monkeypatch.setattr(
+        helper,
+        "get_proxmox_disk_data_cached",
+        lambda cluster, redis_client=None: _cluster_data_with_missing_qemu_agent(
+            "cluster-2", cluster["host"]
+        ),
+    )
+
+    issues, errors = proxmox_disk_check.gather_all_disk_issues(
+        80, db=serve.mongo_client, redis_client=object()
+    )
+
+    assert errors == []
+    assert issues == []
