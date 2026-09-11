@@ -18,7 +18,7 @@ def teardown():
     """
     Removes all stored settings
     """
-    serve.mongo_client["labyrinth"]["settings"].delete_many({})
+    serve.db["labyrinth"]["settings"].delete_many({})
     temp_file = "/public/icons/test.svg"
     if os.path.exists(temp_file):
         os.remove(temp_file)

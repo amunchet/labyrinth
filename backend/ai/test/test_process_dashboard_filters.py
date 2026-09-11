@@ -30,7 +30,9 @@ def test_ignores_non_monitored_hosts_and_warning_host_level():
         }
     ]
     out = json.loads(app_main.process_dashboard(data))
-    assert out == [["kept", ["svc", {"state": False}]]]
+    assert out == [
+        {"host": "kept", "failing": ["svc", {"state": False}], "all_services": ["svc"]}
+    ]
 
 
 def test_ignores_services_set_to_warning_level_for_host():
@@ -56,7 +58,13 @@ def test_ignores_services_set_to_warning_level_for_host():
         }
     ]
     out = json.loads(app_main.process_dashboard(data))
-    assert out == [["app-1", ["svc_real_fail", {"state": False}]]]
+    assert out == [
+        {
+            "host": "app-1",
+            "failing": ["svc_real_fail", {"state": False}],
+            "all_services": ["svc_ok_as_warning", "svc_real_fail"],
+        }
+    ]
 
 
 def test_ignores_new_host_and_open_closed_ports_failures():
@@ -81,4 +89,10 @@ def test_ignores_new_host_and_open_closed_ports_failures():
         }
     ]
     out = json.loads(app_main.process_dashboard(data))
-    assert out == [["10.0.0.9", ["real", {"state": False}]]]
+    assert out == [
+        {
+            "host": "10.0.0.9",
+            "failing": ["real", {"state": False}],
+            "all_services": ["real"],
+        }
+    ]

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Extended tests for finder.py to improve coverage."""
 
+import threading
+
 import pytest
 from unittest.mock import patch, MagicMock, call
 import xmltodict
@@ -169,3 +171,100 @@ class TestSubnetProcessing:
         subnet = "192.168.1.100"
         # Has 4 octets
         assert len(subnet.split(".")) == 4
+
+
+class TestScanAllSubnets:
+    """Regression tests for the one-pass subnet scan.
+
+    finder.py used to re-queue every subnet after scanning it and then
+    `join()` forever, so each cron tick left behind a resident process
+    holding a database connection pool.  Roughly one new immortal finder per
+    hour, until Postgres answered "sorry, too many clients already".  These
+    tests pin the one-pass contract that replaced it.
+    """
+
+    @staticmethod
+    def _run(subnets, scan_subnet, num_threads=4, timeout=10):
+        """Run scan_all_subnets, failing rather than hanging on a regression."""
+        done = threading.Event()
+
+        def target():
+            finder.scan_all_subnets(subnets, scan_subnet, num_threads=num_threads)
+            done.set()
+
+        # Daemon so a regression to the old infinite loop cannot wedge pytest.
+        thread = threading.Thread(target=target, daemon=True)
+        thread.start()
+        thread.join(timeout)
+        assert done.is_set(), "scan_all_subnets must return, not scan forever"
+
+    def test_scans_each_subnet_exactly_once(self):
+        """The whole point: one pass, then exit and let cron re-fire."""
+        seen = []
+        seen_lock = threading.Lock()
+
+        def scan_subnet(subnet):
+            with seen_lock:
+                seen.append(subnet)
+
+        subnets = ["10.0.0", "10.0.1", "10.0.2", "192.168.1"]
+        self._run(subnets, scan_subnet)
+        assert sorted(seen) == sorted(subnets)
+
+    def test_returns_on_empty_subnet_list(self):
+        """No subnets configured must not park four idle threads forever."""
+        self._run([], lambda subnet: pytest.fail("scan_subnet should not run"))
+
+    def test_one_failing_subnet_does_not_strand_the_pass(self):
+        """A raising scan must not kill its worker and leave work unclaimed."""
+        seen = []
+        seen_lock = threading.Lock()
+
+        def scan_subnet(subnet):
+            with seen_lock:
+                seen.append(subnet)
+            if subnet == "10.0.1":
+                raise RuntimeError("nmap exploded")
+
+        subnets = ["10.0.0", "10.0.1", "10.0.2"]
+        self._run(subnets, scan_subnet)
+        assert sorted(seen) == sorted(subnets)
+
+    def test_more_threads_than_subnets_still_terminates(self):
+        """Surplus workers must see an empty queue and exit, not block on get()."""
+        seen = []
+        seen_lock = threading.Lock()
+
+        def scan_subnet(subnet):
+            with seen_lock:
+                seen.append(subnet)
+
+        self._run(["10.0.0"], scan_subnet, num_threads=8)
+        assert seen == ["10.0.0"]
+
+    def test_thread_count_floor(self):
+        """A misconfigured thread count must still scan, not silently no-op."""
+        seen = []
+        self._run(["10.0.0", "10.0.1"], seen.append, num_threads=0)
+        assert sorted(seen) == ["10.0.0", "10.0.1"]
+
+
+class TestFinderGlobalLock:
+    """The global lock must outlive a scan without outliving the process."""
+
+    def test_uses_heartbeat_extended_lock(self):
+        """A fixed `ex=` TTL is what let a second finder start on top."""
+        assert finder.RedisSingleRunLock is not None
+        assert finder.LockNotAcquired is not None
+
+    def test_fixed_hour_long_ttl_is_gone(self):
+        """The old constant expired under a live finder; it must not return."""
+        assert not hasattr(finder, "GLOBAL_LOCK_TIMEOUT_SECONDS")
+
+    def test_ttl_only_has_to_outlive_a_crash(self):
+        """Heartbeats cover the scan, so the TTL is a crash-recovery bound."""
+        assert finder.GLOBAL_LOCK_TTL_SECONDS <= 300
+
+    def test_lock_key_is_stable(self):
+        """Renaming this would let old and new finders run side by side."""
+        assert finder.GLOBAL_LOCK_KEY == "labyrinth_finder_lock"

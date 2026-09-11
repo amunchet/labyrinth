@@ -21,4 +21,6 @@ USER appuser
 
 EXPOSE 8765
 
-CMD ["uvicorn", "backend.ai.mcp.server:app", "--host", "0.0.0.0", "--port", "8765"]
+# --factory because create_http_app() applies the pre-shared secret check and
+# materialises the ASGI app; FastMCP itself is not ASGI-callable.
+CMD ["sh", "-c", "exec uvicorn ai.mcp.server:create_http_app --factory --host ${MCP_HOST:-0.0.0.0} --port ${MCP_PORT:-8765}"]

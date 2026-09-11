@@ -5,16 +5,18 @@ gunicorn
 gevent
 python-dotenv
 python-jose
-pymongo[srv]
+pymongo[srv]>=4.6,<5
+psycopg2-binary>=2.9,<3
 python-nmap
 ansi2html
-redis
+redis>=5.0,<9
 pid
 ansible
 ansible-runner
 pyyaml
 pillow
 xmltodict
+anthropic
 
 # Development tools
 pytest

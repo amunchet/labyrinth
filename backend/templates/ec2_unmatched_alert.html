@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>EC2 Unmatched Instance Alert</title>
+    <style>
+        body { font-family: Arial, sans-serif; color: #000; background-color: #fff; }
+        .header { background-color: #d9534f; color: #fff; padding: 20px; border-radius: 5px; }
+        .summary { margin: 20px 0; }
+        .issue-group { margin: 20px 0; }
+        .issue-group h3 { color: #8B0000; border-bottom: 2px solid #d9534f; padding-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: #f5f5f5; font-weight: bold; color: #000; }
+        .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; color: #333; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>⚠️ EC2 Unmatched Instance Alert</h1>
+    </div>
+
+    <div class="summary">
+        <p><strong>Unmatched Instances Found:</strong> {{ instances|length }}</p>
+        <p><strong>Generated:</strong> {{ timestamp }}</p>
+    </div>
+
+    {% if instances %}
+    <div class="issue-group">
+        <h3>💻 EC2 Instances Without a Matching Labyrinth Host</h3>
+        <p style="color: #666; font-size: 13px; margin-top: -5px;">
+            These EC2 instances could not be matched to an existing Labyrinth
+            host by IP or hostname, so they are not currently being monitored.
+        </p>
+        <table>
+            <tr>
+                <th>Account</th>
+                <th>Region</th>
+                <th>Instance</th>
+                <th>State</th>
+                <th>Private IP</th>
+                <th>Public IP</th>
+                <th>Launch Time</th>
+            </tr>
+            {% for instance in instances %}
+            <tr>
+                <td>{{ instance.account_name }}</td>
+                <td>{{ instance.region }}</td>
+                <td>{{ instance.name }} ({{ instance.instance_id }})</td>
+                <td>{{ instance.state }}</td>
+                <td>{{ instance.private_ip or "—" }}</td>
+                <td>{{ instance.public_ip or "—" }}</td>
+                <td>{{ instance.launch_time or "—" }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% else %}
+    <p>All EC2 instances are currently matched to a Labyrinth host.</p>
+    {% endif %}
+
+    <div class="footer">
+        <p>This is an automated alert from Labyrinth EC2 Monitoring.</p>
+        <p>Add these instances to Labyrinth (or update their tags/hostnames so they match an existing host) to begin monitoring them.</p>
+    </div>
+</body>
+</html>

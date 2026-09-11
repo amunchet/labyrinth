@@ -23,7 +23,15 @@ receivers:
 route:
   group_by:
   - alertname
-  group_interval: 5m
+  # How long to wait before sending the first notification for a new group of alerts.
+  # Increase to batch up alerts that fire at the same time (e.g. 1m, 5m).
   group_wait: 30s
+  # How long to wait before sending a notification about new alerts added to an
+  # already-firing group. Lower values mean faster notification of new issues within
+  # an existing incident.
+  group_interval: 5m
   receiver: dev.mails
-  repeat_interval: 1h
+  # How long to wait before re-sending a notification for an alert that is still firing.
+  # Set to a longer value (e.g. 4h, 12h, 24h) to avoid repeated alert emails for
+  # ongoing known issues. Set shorter (e.g. 1h) if you want frequent reminders.
+  repeat_interval: 4h

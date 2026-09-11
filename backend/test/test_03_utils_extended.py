@@ -12,9 +12,9 @@ import utils
 @pytest.fixture
 def setup():
     """Sets up tests by clearing relevant collections."""
-    serve.mongo_client["labyrinth"]["hosts"].delete_many({})
+    serve.db["labyrinth"]["hosts"].delete_many({})
     yield "Setting up..."
-    serve.mongo_client["labyrinth"]["hosts"].delete_many({})
+    serve.db["labyrinth"]["hosts"].delete_many({})
     return "Done"
 
 
@@ -28,7 +28,7 @@ class TestUpdateServiceExpireDates:
 
     def test_update_service_expire_dates_no_expire_field(self, setup):
         """Test with hosts that don't have expire date field."""
-        coll = serve.mongo_client["labyrinth"]["hosts"]
+        coll = serve.db["labyrinth"]["hosts"]
         coll.insert_one(
             {
                 "_id": "test_1",
@@ -42,7 +42,7 @@ class TestUpdateServiceExpireDates:
 
     def test_update_service_expire_dates_none_expire_value(self, setup):
         """Test with hosts that have None as expire date."""
-        coll = serve.mongo_client["labyrinth"]["hosts"]
+        coll = serve.db["labyrinth"]["hosts"]
         coll.insert_one(
             {
                 "_id": "test_1",
@@ -61,7 +61,7 @@ class TestUpdateServiceExpireDates:
 
     def test_update_service_expire_dates_future_date(self, setup):
         """Test with hosts that have future expire date."""
-        coll = serve.mongo_client["labyrinth"]["hosts"]
+        coll = serve.db["labyrinth"]["hosts"]
         future_date = "2099-12-31T23:59:59"
 
         coll.insert_one(
@@ -82,7 +82,7 @@ class TestUpdateServiceExpireDates:
 
     def test_update_service_expire_dates_past_date(self, setup):
         """Test with hosts that have expired date."""
-        coll = serve.mongo_client["labyrinth"]["hosts"]
+        coll = serve.db["labyrinth"]["hosts"]
         past_date = "2020-01-01T00:00:00"
 
         coll.insert_one(
@@ -104,7 +104,7 @@ class TestUpdateServiceExpireDates:
 
     def test_update_service_expire_dates_with_timezone(self, setup):
         """Test with expire date containing timezone info."""
-        coll = serve.mongo_client["labyrinth"]["hosts"]
+        coll = serve.db["labyrinth"]["hosts"]
         past_date = "2020-01-01T00:00:00+00:00"
 
         coll.insert_one(
@@ -121,7 +121,7 @@ class TestUpdateServiceExpireDates:
 
     def test_update_service_expire_dates_invalid_format(self, setup):
         """Test with invalid date format (should be skipped)."""
-        coll = serve.mongo_client["labyrinth"]["hosts"]
+        coll = serve.db["labyrinth"]["hosts"]
         invalid_date = "not a valid date"
 
         coll.insert_one(
@@ -142,7 +142,7 @@ class TestUpdateServiceExpireDates:
 
     def test_update_service_expire_dates_mixed_dates(self, setup):
         """Test with multiple hosts, some expired, some not."""
-        coll = serve.mongo_client["labyrinth"]["hosts"]
+        coll = serve.db["labyrinth"]["hosts"]
 
         # Expired document
         coll.insert_one(
@@ -190,7 +190,7 @@ class TestUpdateServiceExpireDates:
 
     def test_update_service_expire_dates_datetime_object(self, setup):
         """Test with datetime string (function expects strings)."""
-        coll = serve.mongo_client["labyrinth"]["hosts"]
+        coll = serve.db["labyrinth"]["hosts"]
         past_date_str = "2020-01-01T00:00:00"
 
         coll.insert_one(
@@ -207,7 +207,7 @@ class TestUpdateServiceExpireDates:
 
     def test_update_service_expire_dates_multiple_expired(self, setup):
         """Test with multiple expired documents."""
-        coll = serve.mongo_client["labyrinth"]["hosts"]
+        coll = serve.db["labyrinth"]["hosts"]
 
         past_date = "2020-01-01T00:00:00"
         for i in range(5):
@@ -225,7 +225,7 @@ class TestUpdateServiceExpireDates:
 
     def test_update_service_expire_dates_date_with_seconds(self, setup):
         """Test with precise date including seconds."""
-        coll = serve.mongo_client["labyrinth"]["hosts"]
+        coll = serve.db["labyrinth"]["hosts"]
 
         # One day ago
         past_date = datetime.now().replace(year=datetime.now().year - 1)
@@ -245,7 +245,7 @@ class TestUpdateServiceExpireDates:
 
     def test_update_service_expire_dates_preserves_other_fields(self, setup):
         """Test that other fields are preserved when expire date is removed."""
-        coll = serve.mongo_client["labyrinth"]["hosts"]
+        coll = serve.db["labyrinth"]["hosts"]
 
         coll.insert_one(
             {
@@ -270,7 +270,7 @@ class TestUpdateServiceExpireDates:
 
     def test_update_service_expire_dates_edge_case_exactly_now(self, setup):
         """Test with date exactly at current time (edge case)."""
-        coll = serve.mongo_client["labyrinth"]["hosts"]
+        coll = serve.db["labyrinth"]["hosts"]
 
         # Very recent time
         now = datetime.now()
@@ -292,7 +292,7 @@ class TestUpdateServiceExpireDates:
     @patch("builtins.print")
     def test_update_service_expire_dates_prints_deletion(self, mock_print, setup):
         """Test that function prints when deleting expired entries."""
-        coll = serve.mongo_client["labyrinth"]["hosts"]
+        coll = serve.db["labyrinth"]["hosts"]
 
         coll.insert_one(
             {

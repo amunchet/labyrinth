@@ -17,6 +17,7 @@ RUN   apt-get update && apt-get -y install python3 \
         git \
         cron \
         iputils-ping \
+        postgresql-client \
 	tzdata
 
 

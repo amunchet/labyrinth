@@ -16,13 +16,29 @@ RUN   apt-get update && apt-get -y install python3 \
         git \
         iputils-ping \
         wget \
+        curl \
+        gnupg \
 	tzdata
 
 
 # influxdata-archive.key GPG Fingerprint: 24C975CBA61A024EE1B631787C3D57159FC2F927
-RUN mkdir -p /etc/apt/keyrings && wget -q https://repos.influxdata.com/influxdata-archive.key
-RUN gpg --show-keys --with-fingerprint --with-colons ./influxdata-archive.key 2>&1 | grep -q '^fpr:.*24C975CBA61A024EE1B631787C3D57159FC2F927:$' && cat influxdata-archive.key | gpg --dearmor | tee /etc/apt/keyrings/influxdata-archive.gpg > /dev/null
-RUN echo 'deb [signed-by=/etc/apt/keyrings/influxdata-archive.gpg] https://repos.influxdata.com/debian stable main' | tee /etc/apt/sources.list.d/influxdata.list
+RUN mkdir -p /etc/apt/keyrings \
+    && curl -fsSL https://repos.influxdata.com/influxdata-archive.key \
+        -o /tmp/influxdata-archive.key \
+    && actual_fingerprint="$( \
+        gpg --batch --show-keys --with-colons /tmp/influxdata-archive.key \
+        | awk -F: '$1 == "fpr" { print $10; exit }' \
+    )" \
+    && echo "InfluxData key fingerprint: ${actual_fingerprint}" \
+    && test "${actual_fingerprint}" = "24C975CBA61A024EE1B631787C3D57159FC2F927" \
+    && gpg --batch --yes \
+        --dearmor \
+        --output /etc/apt/keyrings/influxdata-archive.gpg \
+        /tmp/influxdata-archive.key \
+    && rm /tmp/influxdata-archive.key
+
+RUN echo 'deb [signed-by=/etc/apt/keyrings/influxdata-archive.gpg] https://repos.influxdata.com/debian stable main' \
+    > /etc/apt/sources.list.d/influxdata.list
 
 RUN apt update && apt -y install telegraf
 

@@ -69,5 +69,5 @@ else
         cp alertmanager/alertmanager.yml.development alertmanager/alertmanager.yml
     fi
 
-    docker compose -f docker-compose-development.yml up --build -d mongo redis backend alertmanager
+    docker compose -f docker-compose-development.yml up --build -d mongo postgres redis backend alertmanager
 fi

@@ -22,3 +22,15 @@ so the Disk Space page swaps the warning icon for a muted "ignored" marker.
 "QEMU Guest Agent Exceptions" card on Settings > Disk Space > Proxmox Clusters,
 gated behind an "I understand" button and a confirm dialog, with Clear All
 deleting the setting outright. Backend + frontend tests added; no schema change.
+
+## 2026-09-11 15:13 CDT
+Merged `origin/master` (Postgres/TimescaleDB migration, last-known-good disk
+readings, MCP changes) into this branch and resolved the conflicts. In
+`_collect_vm_issues` master's last-known-good handling now runs first (a real
+over-threshold reading is still reported as a stale `vm` issue even for a
+listed VM), then the Settings opt-out skips the `vm_qemu_missing` issue, then
+the existing missing-agent reporting. Updated the new ignore-list call sites and
+tests to `serve.db` (master renamed `mongo_client`). Verified against a scratch
+TimescaleDB: 1018 backend tests pass at 95.14% coverage (the two
+`test_01_alertmanager` failures need a live alertmanager and fail identically on
+pristine master here); 192 frontend unit tests pass and lint is clean.
