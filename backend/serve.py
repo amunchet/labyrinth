@@ -63,6 +63,24 @@ executor = ThreadPoolExecutor(2)
 
 TELEGRAF_KEY = os.environ.get("TELEGRAF_KEY") or "TEST"
 
+
+def _int_from_env(name, default):
+    """Reads an integer setting from the environment, falling back to `default`"""
+    try:
+        return int(os.environ.get(name) or default)
+    except (TypeError, ValueError):
+        return default
+
+
+# Minimum spacing between writes of the *same* metric series (name + tags) in
+# `bulk_insert`.  Per-series, not per-host: keyed on the host alone, the first
+# series drained for a host suppressed every *other* series for that host in
+# the same pass, so a host reporting many series only ever persisted one of
+# them per window - which is how the finder's `open_ports` metric kept expiring
+# out of Redis unwritten.
+METRICS_LATEST_MIN_INTERVAL = _int_from_env("METRICS_LATEST_MIN_INTERVAL", 15)
+METRICS_HISTORY_MIN_INTERVAL = _int_from_env("METRICS_HISTORY_MIN_INTERVAL", 120)
+
 # Error message constants
 ERROR_INVALID_JSON_BODY = "Invalid JSON body"
 ERROR_INVALID_CLUSTER_ID = "Invalid cluster ID"
@@ -843,7 +861,11 @@ def read_redis():
     # Get each one, then send it out properly
     retval = {}
     for key in keys:
-        retval[key.decode("utf-8").split("-")[1]] = a.get(key).decode("utf-8")
+        value = a.get(key)
+        if value is None:
+            # Expired between the KEYS and the GET
+            continue
+        retval[key.decode("utf-8").split("-")[1]] = value.decode("utf-8")
 
     return json.dumps(retval, default=str), 200
 
@@ -2491,12 +2513,35 @@ def bulk_insert():
     metrics = a.keys(pattern="METRIC-*")
     for metric in metrics:
         print("Inserting", metric)
-        item = json.loads(a.get(metric))
-        print("Item:", item)
-        last_time = a.get("last_metric_{}".format(item["tags"]["ip"]))
 
-        if "tags" not in item or "name" not in item:
+        raw = a.get(metric)
+        if raw is None:
+            # Expired between the KEYS and the GET
             continue
+
+        try:
+            item = json.loads(raw)
+        except (TypeError, ValueError):
+            print("Unparseable metric - skipping", metric)
+            continue
+
+        print("Item:", item)
+
+        # Guard before dereferencing: a metric with no tags used to raise a
+        # KeyError here and lose the entire batch, not just its own row.
+        if not isinstance(item, dict) or "tags" not in item or "name" not in item:
+            continue
+
+        # Throttle per metric series.  The Redis key already uniquely
+        # identifies name + tags, so reuse it rather than the host's IP.
+        throttle_key = "last_metric_{}".format(
+            metric.decode("utf-8") if isinstance(metric, bytes) else metric
+        )
+        last_time = a.get(throttle_key)
+        try:
+            last_time = float(last_time) if last_time else None
+        except (TypeError, ValueError):
+            last_time = None
 
         if "timestamp" in item:
             try:
@@ -2508,24 +2553,21 @@ def bulk_insert():
             item["tags"]["labyrinth_name"] = item["name"]
             item["tags"]["agent_name"] = socket.gethostname()
 
-        try:
-            if last_time and (time.time() - float(last_time)) <= 15:
-                pass
-            else:
-                """
-                db["labyrinth"]["metrics-latest"].replace_one(
+        if last_time and (time.time() - last_time) <= METRICS_LATEST_MIN_INTERVAL:
+            pass
+        else:
+            """
+            db["labyrinth"]["metrics-latest"].replace_one(
+                {"tags": item["tags"], "name": item["name"]}, item, upsert=True
+            )
+            """
+            metrics_latest_updates.append(
+                db_base.ReplaceOne(
                     {"tags": item["tags"], "name": item["name"]}, item, upsert=True
                 )
-                """
-                metrics_latest_updates.append(
-                    db_base.ReplaceOne(
-                        {"tags": item["tags"], "name": item["name"]}, item, upsert=True
-                    )
-                )
-        except Exception:
-            raise Exception(item)
+            )
 
-        if last_time and (time.time() - float(last_time)) <= 120:
+        if last_time and (time.time() - last_time) <= METRICS_HISTORY_MIN_INTERVAL:
             pass
         else:
 
@@ -2534,7 +2576,11 @@ def bulk_insert():
             """
             metrics_updates.append(db_base.InsertOne(item))
 
-            a.set("last_metric_{}".format(item["tags"]["ip"]), time.time())
+            a.set(
+                throttle_key,
+                time.time(),
+                ex=max(METRICS_HISTORY_MIN_INTERVAL * 10, 3600),
+            )
 
     # Bulk writes
     if metrics_latest_updates:
