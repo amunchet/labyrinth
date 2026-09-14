@@ -110,6 +110,92 @@
             </b-button>
           </b-card>
 
+          <!-- QEMU Guest Agent exceptions (rare, explicit opt-out) -->
+          <b-card class="mb-4 text-left text-start" border-variant="warning">
+            <b-card-title>
+              <font-awesome-icon
+                icon="exclamation-triangle"
+                class="text-warning mr-1"
+              />
+              QEMU Guest Agent Exceptions
+            </b-card-title>
+            <b-card-sub-title>
+              VMs that will <strong>not</strong> be reported when their QEMU
+              guest agent does not respond
+            </b-card-sub-title>
+
+            <b-alert show variant="warning" class="small mt-3 mb-3">
+              <strong>Use only in very exceptional cases.</strong> A VM listed
+              here will be excluded from "missing QEMU guest agent" email alerts
+              and the warning will be hidden on the Disk Space page. Its disk
+              usage <em>cannot be measured</em> while the agent is unavailable,
+              so it will never trigger a disk-space alert either. This is meant
+              for guests that genuinely cannot run the agent (e.g. a macOS VM) -
+              not as a way to silence a real problem. Install the QEMU guest
+              agent instead whenever possible (see the Documentation tab).
+            </b-alert>
+
+            <b-button
+              v-if="!showQemuIgnoreEditor && qemuIgnoreEntries.length === 0"
+              variant="outline-warning"
+              size="sm"
+              @click="showQemuIgnoreEditor = true"
+            >
+              I understand - add an exception
+            </b-button>
+
+            <div v-if="showQemuIgnoreEditor || qemuIgnoreEntries.length > 0">
+              <div v-if="qemuIgnoreEntries.length > 0" class="mb-3">
+                <div class="small text-muted mb-1">Currently ignored:</div>
+                <b-badge
+                  v-for="entry in qemuIgnoreEntries"
+                  :key="entry"
+                  variant="warning"
+                  class="mr-1 mb-1 qemu-ignore-badge"
+                >
+                  {{ entry }}
+                </b-badge>
+              </div>
+
+              <b-form @submit.prevent="saveQemuIgnoreList">
+                <b-form-group
+                  label="Ignored VMs (one per line, or comma-separated):"
+                  label-for="qemu-ignore-vms"
+                  description="Enter a VM name or VMID. Prefix with the cluster name to limit it to one cluster, e.g. prod-pve/macos-vm or prod-pve/105. Names are matched case-insensitively."
+                >
+                  <b-form-textarea
+                    id="qemu-ignore-vms"
+                    v-model="qemuIgnoreText"
+                    rows="3"
+                    placeholder="macos-vm&#10;prod-pve/105"
+                  ></b-form-textarea>
+                </b-form-group>
+
+                <b-button
+                  variant="warning"
+                  type="submit"
+                  :disabled="savingQemuIgnoreList"
+                >
+                  <b-spinner
+                    small
+                    v-if="savingQemuIgnoreList"
+                    class="mr-2"
+                  ></b-spinner>
+                  Save Exceptions
+                </b-button>
+                <b-button
+                  v-if="qemuIgnoreEntries.length > 0"
+                  variant="outline-secondary"
+                  class="ml-2"
+                  :disabled="savingQemuIgnoreList"
+                  @click="clearQemuIgnoreList"
+                >
+                  Clear All
+                </b-button>
+              </b-form>
+            </div>
+          </b-card>
+
           <!-- Add / Edit Cluster -->
           <b-card class="mb-4 text-left text-start">
             <b-card-title>
@@ -467,6 +553,10 @@ export default {
       savingAlertSettings: false,
       sendingSimpleTest: false,
       sendingFullTest: false,
+      qemuIgnoreEntries: [],
+      qemuIgnoreText: "",
+      showQemuIgnoreEditor: false,
+      savingQemuIgnoreList: false,
       availableHosts: [],
       hostSearch: "",
       selectedHostId: "",
@@ -572,6 +662,12 @@ export default {
         )
           ? data.disk_space_alert_recipients.join(", ")
           : "";
+        this.qemuIgnoreEntries = Array.isArray(
+          data.proxmox_qemu_agent_ignore_vms
+        )
+          ? data.proxmox_qemu_agent_ignore_vms
+          : [];
+        this.qemuIgnoreText = this.qemuIgnoreEntries.join("\n");
 
         let hostsResponse = await Helper.apiCall("hosts", "disk-check", auth);
         let hostsData = this.parseMaybeJSON(hostsResponse);
@@ -713,6 +809,79 @@ export default {
       } finally {
         this.sendingSimpleTest = false;
         this.sendingFullTest = false;
+      }
+    },
+
+    parseQemuIgnoreText(text) {
+      return (text || "")
+        .split(/[,\n]/)
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0);
+    },
+
+    async saveQemuIgnoreList() {
+      const entries = this.parseQemuIgnoreText(this.qemuIgnoreText);
+
+      if (entries.length > 0) {
+        const confirmed = confirm(
+          "Ignore missing QEMU guest agent warnings for:\n\n" +
+            entries.join("\n") +
+            "\n\nThese VMs will NOT appear in disk-space alert emails while " +
+            "their agent is unavailable, and their disk usage cannot be " +
+            "checked. Continue?"
+        );
+        if (!confirmed) return;
+      }
+
+      await this.persistQemuIgnoreList(entries);
+    },
+
+    async clearQemuIgnoreList() {
+      if (
+        !confirm(
+          "Remove all QEMU guest agent exceptions? Missing-agent warnings " +
+            "will be emailed and shown again for every VM."
+        )
+      ) {
+        return;
+      }
+      await this.persistQemuIgnoreList([]);
+    },
+
+    async persistQemuIgnoreList(entries) {
+      this.savingQemuIgnoreList = true;
+      try {
+        const auth = this.$auth;
+        if (entries.length === 0) {
+          // Removing the setting entirely is cleaner than storing "" and
+          // makes the backend fall back to its "nothing ignored" default.
+          await Helper.apiDelete(
+            "settings",
+            "proxmox_qemu_agent_ignore_vms",
+            auth
+          );
+        } else {
+          const formData = new FormData();
+          formData.append("name", "proxmox_qemu_agent_ignore_vms");
+          formData.append("value", entries.join(", "));
+          await Helper.apiPost("settings", "", "", auth, formData);
+        }
+
+        this.qemuIgnoreEntries = entries;
+        this.qemuIgnoreText = entries.join("\n");
+        this.showQemuIgnoreEditor = entries.length > 0;
+        this.successMessage =
+          entries.length > 0
+            ? "QEMU guest agent exceptions saved (" +
+              entries.length +
+              " VM" +
+              (entries.length === 1 ? "" : "s") +
+              " ignored)."
+            : "QEMU guest agent exceptions cleared.";
+      } catch (err) {
+        this.errorMessage = err.message;
+      } finally {
+        this.savingQemuIgnoreList = false;
       }
     },
 
@@ -904,6 +1073,10 @@ export default {
 .disk-space-settings {
   b-card {
     margin-bottom: 1rem;
+  }
+  .qemu-ignore-badge {
+    font-size: 0.85rem;
+    font-weight: normal;
   }
 }
 </style>

@@ -51,6 +51,7 @@ Labyrinth is a network analyzer, mapper, and monitor built on NMap, Ansible, and
   - Per-VM/LXC guest status fallback cache (`proxmox-guest-status:{cluster}:{node}:{vm|lxc}:{vmid}`, `PROXMOX_GUEST_STATUS_CACHE_TTL_SECONDS`, default 2 hours) - when a live `get_vm_status`/`get_container_status` call fails, the last known-good status is reused instead of treating the guest as having zero disk usage. This exists specifically to avoid false-positive "missing QEMU guest agent" alerts caused by a single transient API failure.
 - `collect_disk_issues` in `proxmox_disk_check.py` turns cluster payloads into threshold-based issues (datastore/vm/container) and always surfaces VMs whose QEMU guest agent is inferred missing, regardless of threshold - a running VM with `maxdisk > 0` and `disk == 0` is a real "we can't measure this" case, not a clean bill of health.
 - Email alerts render via Jinja2 (`backend/templates/disk_space_alert.html`, autoescaped) through `email_helper`.
+- Exceptional opt-out: the `proxmox_qemu_agent_ignore_vms` setting (Settings > Disk Space > "QEMU Guest Agent Exceptions") lists VMs by name/VMID (optionally `cluster/target`) whose missing-agent warning must be suppressed - `proxmox_helper.apply_qemu_agent_ignore_list` flags them with `qemu_guest_agent_ignored` at read time (never in the Redis cache), `collect_disk_issues` skips their `vm_qemu_missing` issue, and the UI shows a muted marker instead of the warning icon. Meant only for guests that cannot run the agent (e.g. macOS).
 
 ### Telegraf ingest and per-client counters (`metrics-go/`, `backend/ingest_counters.py`)
 
@@ -176,10 +177,13 @@ You are running inside an Armada session. These rules come from the Flagship
 and apply to every session in the fleet. They sit on top of this project's own
 instructions, and they win wherever the two disagree.
 
-- Armada session: `MCP Server`
-- Working branch: `armada/MCP-Server-200b93`
+- Armada session: `Ignore proxmox host`
+- Working branch: `armada/Ignore-proxmox-host-4eab7c`
 - Base branch: `master`
-- Session changelog: `CHANGELOG/armada-MCP-Server-200b93.md`
+- Session changelog: `CHANGELOG/armada-Ignore-proxmox-host-4eab7c.md`
+
+### Prefer Frontend -> Backend -> Database changes
+Prefer to change frontend issues only if possible.  If needed, backend changes are preferable to database schema modifications.  Sometimes all are needed, but prefer frontend only when possible - and when it would not compromise functionality or data integrity.
 
 ### Commit and push your work
 
@@ -207,7 +211,7 @@ instructions, and they win wherever the two disagree.
 
 ### Keep the changelog current
 
-- Record what you did in `CHANGELOG/armada-MCP-Server-200b93.md` as part of the same commit that
+- Record what you did in `CHANGELOG/armada-Ignore-proxmox-host-4eab7c.md` as part of the same commit that
   makes the change.
 - The file is scoped to this branch, so it never conflicts with changelogs
   written by other sessions.
