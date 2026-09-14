@@ -378,6 +378,107 @@ def enrich_qemu_flags(payload: Dict) -> Dict:
     return payload
 
 
+# Name of the ``labyrinth.settings`` entry holding the list of VMs whose
+# missing/unresponsive QEMU guest agent should be ignored. This is an
+# escape hatch for the rare guest that genuinely cannot run the agent (e.g. a
+# macOS VM) - it is NOT a way to silence a real problem, which is why it is
+# tucked away in Settings behind explicit warnings.
+QEMU_AGENT_IGNORE_SETTING = "proxmox_qemu_agent_ignore_vms"
+
+
+def parse_qemu_agent_ignore_list(raw) -> List[Dict]:
+    """Parse the QEMU-agent ignore setting into structured entries.
+
+    Accepts a comma/newline separated string or a list of strings. Each
+    entry names a VM by *name* or *VMID*, optionally scoped to one cluster
+    with ``cluster/`` (e.g. ``macos-vm``, ``105``, ``prod-pve/macos-vm``,
+    ``prod-pve/105``). Names and cluster names match case-insensitively;
+    VMIDs match exactly.
+    """
+    if raw is None:
+        return []
+
+    if isinstance(raw, str):
+        candidates = re.split(r"[,\n]", raw)
+    elif isinstance(raw, (list, tuple, set)):
+        candidates = [str(x) for x in raw if x is not None]
+    else:
+        return []
+
+    entries = []
+    for candidate in candidates:
+        candidate = str(candidate).strip()
+        if not candidate:
+            continue
+
+        cluster = None
+        target = candidate
+        if "/" in candidate:
+            cluster, target = candidate.split("/", 1)
+            cluster = cluster.strip() or None
+            target = target.strip()
+        if not target:
+            continue
+
+        entries.append(
+            {
+                "raw": candidate,
+                "cluster": cluster.lower() if cluster else None,
+                "target": target.lower(),
+            }
+        )
+
+    return entries
+
+
+def is_vm_qemu_agent_ignored(vm: Dict, cluster_name, ignore_list) -> bool:
+    """Return True when ``vm`` matches an entry in the parsed ignore list."""
+    if not ignore_list:
+        return False
+
+    vm_name = str(vm.get("name") or "").strip().lower()
+    vm_id = str(vm.get("id") if vm.get("id") is not None else "").strip().lower()
+    cluster_name = str(cluster_name or "").strip().lower()
+
+    for entry in ignore_list:
+        if entry.get("cluster") and entry["cluster"] != cluster_name:
+            continue
+        target = entry.get("target")
+        if target and (target == vm_name or target == vm_id):
+            return True
+
+    return False
+
+
+def apply_qemu_agent_ignore_list(payload: Dict, ignore_list) -> Dict:
+    """Flag VMs in a cluster payload that are on the QEMU-agent ignore list.
+
+    Sets ``qemu_guest_agent_ignored`` on every VM so consumers (the alert
+    email and the disk-space UI) can suppress the "missing guest agent"
+    warning for those VMs while leaving the underlying measurements intact.
+    Applied at read time (never persisted into the Redis cache) so a settings
+    change takes effect immediately.
+    """
+    cluster_name = payload.get("cluster_name")
+    for node in payload.get("nodes", []) or []:
+        for vm in node.get("vms", []) or []:
+            vm["qemu_guest_agent_ignored"] = is_vm_qemu_agent_ignored(
+                vm, cluster_name, ignore_list
+            )
+    return payload
+
+
+def get_qemu_agent_ignore_list(db) -> List[Dict]:
+    """Load and parse the QEMU-agent ignore list from ``labyrinth.settings``."""
+    try:
+        setting = db["labyrinth"]["settings"].find_one(
+            {"name": QEMU_AGENT_IGNORE_SETTING}
+        )
+    except Exception:
+        return []
+    return parse_qemu_agent_ignore_list(setting.get("value") if setting else None)
+
+
 def format_proxmox_cluster_payload(cluster: Dict, data: Optional[Dict]) -> Dict:
     """Normalize cluster payload shape and attach cluster metadata."""
     payload = dict(data or {})
