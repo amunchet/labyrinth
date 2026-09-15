@@ -2,11 +2,13 @@
 """
 Auto discovery finder
 """
+import collections
 import time
 import json
 import os
-import queue
+import signal
 import subprocess
+import threading
 import xmltodict
 from threading import Thread
 
@@ -44,8 +46,34 @@ GLOBAL_LOCK_TTL_SECONDS = 120
 # mid-scan and then deleted the *next* scan's lock on its way out.
 SUBNET_LOCK_TTL_SECONDS = 120
 
-# Worker threads sharing the subnet queue for a single pass.
+# Cap on how many subnets are scanned at the same time.  Every subnet gets
+# its own worker, but only this many may be inside nmap at once; the rest
+# queue for a slot in the order they asked.  0 removes the cap.
 SCAN_THREADS = _int_from_env("FINDER_THREADS", 4)
+
+# Pause between one scan of a subnet finishing and the next one starting.
+# The floor cron used to impose between passes; it stops an empty subnet
+# spinning its ping sweep back to back.
+RESCAN_DELAY_SECONDS = _int_from_env("FINDER_RESCAN_DELAY_SECONDS", 60)
+
+# Pause before retrying a subnet that was skipped (do_not_scan, or another
+# finder instance had it locked).
+RETRY_DELAY_SECONDS = _int_from_env("FINDER_RETRY_DELAY_SECONDS", 60)
+
+# How often the resident finder re-reads the subnet list, so subnets added
+# or removed in the UI start/stop scanning without a restart.
+SUBNET_REFRESH_SECONDS = _int_from_env("FINDER_SUBNET_REFRESH_SECONDS", 60)
+
+# The resident finder recycles itself after this long: it hands the global
+# lock back so the next cron tick starts a fresh process, then lets its
+# in-flight scans finish.  Bounds how long a wedged worker can hold a subnet
+# and how long a python-nmap process gets to accumulate state.  0 disables.
+MAX_RUNTIME_SECONDS = _int_from_env("FINDER_MAX_RUNTIME_SECONDS", 21600)
+
+# How long a recycling/stopping finder waits for in-flight scans before
+# exiting anyway.  Longer than any legitimate scan (the dashboard marks port
+# data stale after ~2.8h), so only a genuinely hung worker gets cut off.
+SHUTDOWN_GRACE_SECONDS = _int_from_env("FINDER_SHUTDOWN_GRACE_SECONDS", 7200)
 
 # Scan every port, to catch non-standard services (e.g. MongoDB on 27017).
 #
@@ -220,41 +248,175 @@ def process_scan(input: Dict) -> Dict:
     return output
 
 
-def scan_all_subnets(subnets, scan_subnet, num_threads=SCAN_THREADS):
-    """Scan every subnet exactly once across a pool of worker threads.
-
-    Returns once the queue is drained.  Deliberately *not* a resident loop:
-    cron re-fires finder every minute, so a worker that re-queued its own
-    subnet turned each tick into a permanently running process holding a
-    database connection pool.  Cron is the scan cadence; this is one pass.
+class ScanSlots:
     """
-    subnet_queue = queue.Queue()
-    for subnet in subnets:
-        subnet_queue.put(subnet)
+    FIFO-fair bound on how many subnets scan at once.
 
-    def worker():
-        while True:
-            try:
-                subnet = subnet_queue.get_nowait()
-            except queue.Empty:
+    A plain Semaphore would do the bounding, but not the fairness: with more
+    subnets than slots, the worker that just finished re-asks immediately and
+    could keep winning the race against subnets that have been waiting.  Slots
+    are handed out in the order they were requested, so a fast subnet cycles
+    through while a slow one holds its slot, and nobody starves.
+
+    `limit <= 0` means unlimited.
+    """
+
+    def __init__(self, limit):
+        self._unlimited = limit <= 0
+        self._free = limit
+        self._cond = threading.Condition()
+        self._waiting = collections.deque()
+
+    def acquire(self, stop_event):
+        """Blocks until a slot is ours.  Returns False if `stop_event` fired first."""
+        if self._unlimited:
+            return True
+        ticket = object()
+        with self._cond:
+            self._waiting.append(ticket)
+            while True:
+                # Checked before a free slot is taken, not only while waiting
+                # for one: a stop that lands as the slot frees must still win.
+                if stop_event.is_set():
+                    self._waiting.remove(ticket)
+                    self._cond.notify_all()
+                    return False
+                if self._free > 0 and self._waiting[0] is ticket:
+                    break
+                self._cond.wait(1.0)
+            self._waiting.popleft()
+            self._free -= 1
+            self._cond.notify_all()
+            return True
+
+    def release(self):
+        if self._unlimited:
+            return
+        with self._cond:
+            self._free += 1
+            self._cond.notify_all()
+
+
+def scan_subnets(
+    list_subnets_fn,
+    scan_subnet,
+    loop=True,
+    stop_event=None,
+    num_threads=SCAN_THREADS,
+    rescan_delay=RESCAN_DELAY_SECONDS,
+    retry_delay=RETRY_DELAY_SECONDS,
+    refresh_interval=SUBNET_REFRESH_SECONDS,
+    max_runtime=MAX_RUNTIME_SECONDS,
+    shutdown_grace=SHUTDOWN_GRACE_SECONDS,
+    on_recycle=None,
+):
+    """
+    Scans every subnet on its own worker thread.
+
+    With `loop` set (the cron job) each worker rescans its subnet as soon as
+    the previous scan finishes, so a subnet's rescan interval is however long
+    *its own* scan takes - a five-minute subnet no longer waits for a
+    two-hour subnet before it gets another look.  `list_subnets_fn` is re-read
+    every `refresh_interval` seconds: new subnets get a worker, removed ones
+    retire after their current scan.  After `max_runtime` seconds (or when
+    `stop_event` is set) `on_recycle` is called - main() uses it to hand the
+    global lock back so the next cron tick can start a fresh finder straight
+    away - and in-flight scans are given `shutdown_grace` seconds to finish.
+
+    With `loop` unset (the `/scan/` endpoint) each subnet is scanned exactly
+    once and the call returns when the last one finishes, so it doesn't park
+    forever in the backend's thread pool.
+
+    `scan_subnet` returns True if it scanned and False if it skipped (the
+    subnet is flagged do_not_scan, or another instance had it locked); a skip
+    is retried after `retry_delay` rather than `rescan_delay`.  A raising
+    `scan_subnet` only costs that subnet that one scan.
+    """
+    stop_event = stop_event or threading.Event()
+    slots = ScanSlots(num_threads)
+    workers = {}
+
+    def worker(subnet, retired):
+        while not stop_event.is_set() and not retired.is_set():
+            if not slots.acquire(stop_event):
                 return
             try:
-                scan_subnet(subnet)
+                scanned = scan_subnet(subnet)
             except Exception as exc:
-                # One unscannable subnet must not strand the rest of the pass.
+                # One unscannable subnet must not kill its own worker, let
+                # alone anybody else's.
                 print("Error scanning {}: {}".format(subnet, exc))
+                scanned = False
             finally:
-                subnet_queue.task_done()
+                slots.release()
+            if not loop:
+                return
+            stop_event.wait(rescan_delay if scanned else retry_delay)
 
-    threads = [Thread(target=worker) for _ in range(max(1, num_threads))]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
+    def refresh():
+        try:
+            wanted = list(list_subnets_fn())
+        except Exception as exc:
+            print("Could not list subnets: {}".format(exc))
+            return
+        for subnet in list(workers):
+            if subnet not in wanted:
+                print("Subnet {} removed - retiring its worker".format(subnet))
+                workers.pop(subnet)[1].set()
+        for subnet in wanted:
+            if subnet in workers:
+                continue
+            retired = threading.Event()
+            # Daemon: a hung worker must not keep a recycled finder alive
+            # forever - the whole point of recycling is that it can't.
+            thread = Thread(
+                target=worker,
+                args=(subnet, retired),
+                name="finder-{}".format(subnet),
+                daemon=True,
+            )
+            workers[subnet] = (thread, retired)
+            thread.start()
+
+    refresh()
+
+    if not loop:
+        for thread, _ in list(workers.values()):
+            thread.join()
+        return
+
+    deadline = time.monotonic() + max_runtime if max_runtime > 0 else None
+    while not stop_event.is_set():
+        if deadline is not None and time.monotonic() >= deadline:
+            print("Finder has run for {}s - recycling".format(max_runtime))
+            stop_event.set()
+            break
+        stop_event.wait(refresh_interval)
+        if not stop_event.is_set():
+            refresh()
+
+    if on_recycle is not None:
+        on_recycle()
+
+    grace_until = time.monotonic() + shutdown_grace
+    for thread, _ in list(workers.values()):
+        thread.join(max(0.0, grace_until - time.monotonic()))
+    stragglers = [name for name, (t, _) in workers.items() if t.is_alive()]
+    if stragglers:
+        print("Giving up on unfinished scans: {}".format(", ".join(stragglers)))
 
 
-def main():  # pragma: no cover
-    """Runs scan and updates database"""
+def main(loop=True, stop_event=None):  # pragma: no cover
+    """
+    Runs scan and updates database
+
+    With `loop` set the process stays resident and every subnet rescans as
+    soon as its previous scan finishes; that is how the cron job runs it, and
+    the global lock makes every later cron tick a no-op until this process
+    recycles.  `loop=False` scans each subnet once and returns - what the
+    `/scan/` endpoint needs so it doesn't permanently occupy a worker in the
+    backend's thread pool.
+    """
 
     rclient = redis.Redis(host=(os.environ.get("REDIS_HOST") or "redis"))
 
@@ -292,12 +454,13 @@ def main():  # pragma: no cover
         return
 
     try:
-        # List each subnet
-        subnets = json.loads(unwrap(list_subnets)()[0])
+
+        def current_subnets():
+            return json.loads(unwrap(list_subnets)()[0])
 
         def scan_subnet(subnet):
             """
-            Scans a subnet
+            Scans a subnet.  Returns True if it did, False if it was skipped.
             """
             # Check do_not_scan flag on the subnet document
             try:
@@ -306,7 +469,7 @@ def main():  # pragma: no cover
                     "do_not_scan", False
                 ):
                     print(f"Skipping {subnet}: do_not_scan flag is set")
-                    return
+                    return False
             except Exception as exc:
                 print(f"Could not read subnet data for {subnet}: {exc}")
 
@@ -323,7 +486,7 @@ def main():  # pragma: no cover
                 subnet_lock.acquire()
             except LockNotAcquired:
                 print(f"Subnet {subnet} is already being scanned. Skipping.")
-                return
+                return False
 
             try:
                 rclient.delete("output-{}".format(subnet))
@@ -358,16 +521,30 @@ def main():  # pragma: no cover
                         update_redis("\nException occurred: " + str(exc), subnet)
 
                 update_redis("Finished.\n", subnet)
+                return True
             finally:
                 subnet_lock.release()
 
-        scan_all_subnets(subnets, scan_subnet)
+        scan_subnets(
+            current_subnets,
+            scan_subnet,
+            loop=loop,
+            stop_event=stop_event,
+            # Hand the lock back *before* draining: the next cron tick then
+            # starts a fresh finder immediately and picks up every subnet
+            # this one isn't still inside (the per-subnet locks keep the two
+            # apart), so recycling never pauses scanning.
+            on_recycle=lock.release,
+        )
 
     finally:
-        # Reachable now.  The old `t.join()`-forever loop meant this cleanup
-        # never ran, so the lock was only ever released by TTL expiry.
         lock.release()
 
 
 if __name__ == "__main__":
-    main()
+    stop = threading.Event()
+    # A container stop should let in-flight scans finish rather than orphan
+    # half-written results; only the main thread may install handlers.
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(sig, lambda *_: stop.set())
+    main(stop_event=stop)
