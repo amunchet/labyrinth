@@ -365,7 +365,9 @@ def scan():  # pragma: no cover
 
     from finder import main
 
-    executor.submit(main)
+    # One pass only: the resident cron finder is the thing that scans
+    # continuously, and a loop here would occupy an executor thread forever.
+    executor.submit(main, False)
     return "Scan Started.", 200
 
 
