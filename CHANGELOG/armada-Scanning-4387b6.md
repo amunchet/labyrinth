@@ -49,3 +49,34 @@ made.
 - `bulk_insert` also lost the whole batch to a metric with no tags (the guard
   ran after the dereference), an expired key, or unparseable JSON; each is now
   skipped individually. `read_redis` had the same expired-key crash.
+
+## 2026-09-15 15:17 CDT
+Each subnet now rescans continuously on its own, instead of every subnet
+waiting for the slowest one before any of them gets another look.
+
+`finder.py` used to be one pass per cron tick: scan every subnet once, exit,
+and let the next tick start over. Since a pass only ended when its *slowest*
+subnet finished, a five-minute subnet was rescanned as often as a two-hour
+subnet. The finder is now a resident process (`scan_subnets(loop=True)`):
+every subnet gets its own worker thread that rescans as soon as its previous
+scan finishes (after `FINDER_RESCAN_DELAY_SECONDS`, default 60s - the floor
+cron used to impose). `FINDER_THREADS` still caps how many subnets are inside
+nmap at once, via a FIFO-fair `ScanSlots` so a fast subnet cycles through
+without starving the queue (`0` = uncapped).
+
+The resident design was previously removed because a fixed 3600s lock TTL
+let a new immortal finder start every hour; the heartbeat-extended
+`labyrinth_finder_lock` from the earlier fix is what makes a single resident
+finder safe now - later cron ticks exit immediately. The process re-reads the
+subnet list every minute (new subnets start, removed ones retire after their
+current scan), and recycles itself after `FINDER_MAX_RUNTIME_SECONDS` (6h):
+it hands the global lock back *before* draining so the next tick starts a
+fresh finder with no gap, then gives in-flight scans
+`FINDER_SHUTDOWN_GRACE_SECONDS` (2h) to finish; the per-subnet locks keep the
+two processes off the same subnet. SIGTERM/SIGINT trigger the same drain.
+`/scan/` runs `main(loop=False)` - one scan of each subnet - so it still
+cannot park forever in the backend's executor.
+
+Verified with the full backend suite against Postgres (1045 passed, coverage
+95.28%); the only failures were `test_01_alertmanager`, which needs a live
+alertmanager the throwaway test container did not have.

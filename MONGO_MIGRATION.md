@@ -187,7 +187,7 @@ Demand is `POSTGRES_POOL_MAX` per *process*, not per container:
 |---|---|
 | `backend` | 8 gunicorn workers |
 | `mcp` | 1 |
-| `cron` | up to ~4 overlapping on the same minute (finder, bulk_write, proxmox_refresh x2) |
+| `cron` | up to ~4 overlapping on the same minute (finder, bulk_write, proxmox_refresh x2); the finder is resident, and briefly two of them while one recycles (see `FINDER_MAX_RUNTIME_SECONDS`) |
 
 At the previous hardcoded pool max of 5 that is `13 x 5 = 65` against an
 effective ~47 (50 minus `superuser_reserved_connections`) - i.e. the stack
