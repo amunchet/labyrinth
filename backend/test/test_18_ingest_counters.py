@@ -342,9 +342,10 @@ def test_read_metric_counts_route_resolves_the_host(hosts_collection, monkeypatc
 
     monkeypatch.setattr(ingest_counters, "read_counts", fake_read)
 
-    body, status = unwrap(serve.read_metric_counts)("172.19.0.2")
+    body, status, headers = unwrap(serve.read_metric_counts)("172.19.0.2")
 
     assert status == 200
+    assert headers.get("Content-Type") == "application/json"
     assert json.loads(body)["requests"] == 7
     # The host record supplies the MAC even though it was looked up by IP.
     assert captured == {
@@ -363,7 +364,7 @@ def test_read_metric_counts_route_for_an_unknown_host(hosts_collection, monkeypa
 
     monkeypatch.setattr(ingest_counters, "read_counts", fake_read)
 
-    body, status = unwrap(serve.read_metric_counts)("10.9.9.9")
+    body, status, headers = unwrap(serve.read_metric_counts)("10.9.9.9")
 
     assert status == 200
     assert json.loads(body)["found"] is False

@@ -50,13 +50,6 @@ def write_yml(yml, filename="/src/webconfig.yml"):
         f.write(yaml.dump(yml))
 
 
-def write_pass(password, filename="/src/pass"):
-    """
-    Writes out the randomly generated password for labyrinth UI to show to admins
-    """
-    with open(filename, "w") as f:
-        f.write(password)
-
 if __name__ == '__main__':
     print("Starting alertmanager password installer...")
 
@@ -64,5 +57,5 @@ if __name__ == '__main__':
     yml = load_yml()
     yml = add_password_if_not_present(yml, password)
     write_yml(yml)
-    write_pass(password)
+    print("Alertmanager password set.")
     print("Done")
