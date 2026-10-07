@@ -114,9 +114,12 @@
         <div class="mr-auto">
           <h4 class="mb-0">{{ current.name }}</h4>
           <small class="text-muted">{{ current.address }}</small>
-          <div class="notes small" v-if="current.notes">
-            {{ current.notes }}
-          </div>
+          <!-- v-text: pre-wrap would otherwise show the template's indentation -->
+          <div
+            class="notes small"
+            v-if="current.notes"
+            v-text="current.notes"
+          />
         </div>
         <b-button
           size="sm"
@@ -785,6 +788,17 @@ export default {
 }
 .notes {
   white-space: pre-wrap;
+}
+/* App.vue styles every .nav-item as a navbar tile on small screens; keep this
+   page's location pills and tabs plain */
+@media screen and (max-width: 991px) {
+  .nav-item {
+    border: 0;
+    background-color: transparent;
+    min-width: 0;
+    float: none;
+    margin: 0;
+  }
 }
 .filter {
   max-width: 20rem;

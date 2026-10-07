@@ -98,3 +98,9 @@ with no subnet, and every saved host has an `ip` key. Deploy-by-tag
 (`/tags/<tag>`) also skips IP-less devices instead of returning "" (or
 raising on hosts saved without an `ip` key) as a deploy target. Regression
 tests cover both.
+
+## 2026-10-07 16:44 CDT (21:44 UTC)
+Locations page polish found while building the look-and-feel preview: location
+notes no longer pick up the template's indentation (they are rendered with
+`white-space: pre-wrap`), and on phones the location pills and Map/Racks/Devices
+tabs stay plain instead of inheriting App.vue's global mobile navbar-tile style.
