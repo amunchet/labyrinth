@@ -27,6 +27,8 @@ Environment variables:
 - `MCP_HOST` (default 0.0.0.0)
 - `MONGO_HOST`, `MONGO_USERNAME`, `MONGO_PASSWORD`
 - `REDIS_HOST`
+- `LABYRINTH_URL` - public base URL of the Labyrinth UI (e.g. `https://labyrinth.example.com`), used to build Deploy page deep links; without it links are relative (`/deploy?request=...`)
+- The container mounts `backend/uploads` read-only at `/src/uploads` so it can read playbooks and become files
 
 ## Docker (included in docker-compose)
 
@@ -67,6 +69,24 @@ docker run --rm -p 8765:8765 \
 
 ### Metrics
 - `mcp_read_metrics(host_key, service, count)` - Read latest metrics for a host
+
+### Ansible Deployments
+- `mcp_list_playbooks` / `mcp_get_playbook(name)` - List / read saved playbooks
+- `mcp_list_become_files` - List vault-encrypted become files a deployment can use
+- `mcp_prepare_deployment(hosts, playbook, become_file, playbook_content, ssh_key, notes)` - Stage a deployment and get a `deploy_url` deep link
+- `mcp_get_deployment_request(request_id)` - A staged deployment plus the runs launched from it
+- `mcp_list_deployments(limit)` - Recent runs, newest first (no logs)
+- `mcp_get_deployment(job_id, log_tail)` - One run's status, outcome, per-host stats, failed tasks and log tail
+
+The MCP server never runs playbooks itself. The intended hand-off is:
+
+1. The agent writes a playbook and calls `mcp_prepare_deployment` with the target hosts (IPs or MACs), a playbook name, a become file, and optionally the generated `playbook_content`.
+2. A human opens the returned `deploy_url`. The Deploy page arrives pre-filled, shows the generated playbook for review, and only needs the vault password. If content was staged, it's saved (validated, with the become file injected into `vars_files`) right before the run. **A staged playbook overwrites any existing playbook of the same name.**
+3. The agent polls `mcp_get_deployment_request(request_id)` until a run shows `status` `completed`/`error`, then reads `mcp_get_deployment(job_id)` for failures and logs.
+
+Every run, MCP-staged or not, is recorded in the Mongo `ansible_runs` collection: `status` (`queued`/`running`/`completed`/`error`), `outcome` (`success` only when the play recap shows no failed or unreachable hosts), `stats`, `failures`, and the log tail (capped at ~1MB). Staged deployments live in `ansible_requests`.
+
+Deploy deep links also work without staging: `/deploy?ips=10.0.0.5,10.0.0.6&playbook=<name>&become=<file>[&ssh=<key>]`. The Deploy page has a "Copy deploy link" button that builds one from the current selection.
 
 ## Host Schema
 

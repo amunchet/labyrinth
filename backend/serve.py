@@ -1397,21 +1397,35 @@ def save_ansible_file(fname, inp_data="", vars_file=""):
 
 # Ansible runner
 
+# Cap on stored log characters per run, keeping the tail (the play recap lives there)
+ANSIBLE_LOG_LIMIT = 1_000_000
+
 
 def run_ansible_background(job_id, data):
-    """Run Ansible in the background and store results in Redis."""
+    """Run Ansible in the background, streaming logs to Redis and recording the outcome in Mongo."""
     redis_client = redis.Redis(host=os.environ.get("REDIS_HOST"))
-    RUN_DIR, playbook = ansible_helper.run_ansible(
-        data["hosts"],
-        data["playbook"],
-        data["vault_password"],
-        data["become_file"],
-        ssh_key_file=data.get("ssh_key", ""),
-    )
-
-    redis_client.hset(job_id, "status", "running")
+    runs = mongo_client["labyrinth"]["ansible_runs"]
+    RUN_DIR = None
+    results = []
+    failures = []
+    stats = None
+    final = {}
 
     try:
+        RUN_DIR, playbook = ansible_helper.run_ansible(
+            data["hosts"],
+            data["playbook"],
+            data["vault_password"],
+            data["become_file"],
+            ssh_key_file=data.get("ssh_key", ""),
+        )
+
+        redis_client.hset(job_id, "status", "running")
+        runs.update_one(
+            {"job_id": job_id},
+            {"$set": {"status": "running", "started_at": utc_now()}},
+        )
+
         thread, runner = ansible_runner.run_async(
             private_data_dir=RUN_DIR,
             playbook=f"{playbook}.yml",
@@ -1419,28 +1433,91 @@ def run_ansible_background(job_id, data):
             quiet=True,
         )
 
-        results = []
         while thread.is_alive():
             for event in runner.events:
                 stdout = event.get("stdout", "")
                 if stdout:
                     results.append(stdout)
                     redis_client.rpush(f"{job_id}_log", stdout)
+
+                event_data = event.get("event_data", {})
+                if event.get("event") in (
+                    "runner_on_failed",
+                    "runner_on_unreachable",
+                ) and not event_data.get("ignore_errors"):
+                    res = event_data.get("res", {})
+                    failures.append(
+                        {
+                            "host": event_data.get("host"),
+                            "task": event_data.get("task"),
+                            "event": event["event"],
+                            "msg": str(res.get("msg") or res.get("stderr") or "")[
+                                :2000
+                            ],
+                        }
+                    )
+                elif event.get("event") == "playbook_on_stats":
+                    stats = {
+                        key: event_data.get(key, {})
+                        for key in (
+                            "ok",
+                            "changed",
+                            "failures",
+                            "dark",
+                            "skipped",
+                            "rescued",
+                            "ignored",
+                        )
+                    }
             time.sleep(0.1)
 
         redis_client.hset(job_id, "status", "completed")
         redis_client.hset(job_id, "results", json.dumps(results))
 
+        # No recap means the play never really ran (syntax error, vault failure, etc.)
+        succeeded = stats is not None and not stats["failures"] and not stats["dark"]
+        final = {"status": "completed", "outcome": "success" if succeeded else "failed"}
+
     except Exception as e:
         redis_client.hset(job_id, "status", "error")
         redis_client.hset(job_id, "error", str(e))
+        final = {"status": "error", "outcome": "failed", "error": str(e)}
 
     finally:
-        if "vault.pass" in os.listdir(RUN_DIR):
-            os.remove(f"{RUN_DIR}/vault.pass")
-        if os.path.exists("/vault.pass"):
-            os.remove("/vault.pass")
-        shutil.rmtree(RUN_DIR)
+        logs = []
+        size = 0
+        for line in reversed(results):
+            size += len(line)
+            if size > ANSIBLE_LOG_LIMIT:
+                break
+            logs.append(line)
+        logs.reverse()
+
+        runs.update_one(
+            {"job_id": job_id},
+            {
+                "$set": {
+                    **final,
+                    "finished_at": utc_now(),
+                    "stats": stats,
+                    "failures": failures,
+                    "logs": logs,
+                    "logs_truncated": len(logs) < len(results),
+                }
+            },
+        )
+
+        if RUN_DIR:
+            if "vault.pass" in os.listdir(RUN_DIR):
+                os.remove(f"{RUN_DIR}/vault.pass")
+            if os.path.exists("/vault.pass"):
+                os.remove("/vault.pass")
+            shutil.rmtree(RUN_DIR)
+
+
+def utc_now():
+    """Current UTC time as an ISO string, the format stored on ansible runs/requests."""
+    return datetime.datetime.now(datetime.timezone.utc).isoformat()
 
 
 @app.route("/ansible_runner/", methods=["POST"])
@@ -1461,6 +1538,28 @@ def run_ansible_endpoint(inp_data=""):
 
     job_id = f"ansible_job_{uuid.uuid4()}"
     redis_client.hset(job_id, "status", "queued")
+
+    hosts = data["hosts"]
+    if isinstance(hosts, str):
+        hosts = [x.strip() for x in hosts.split(",") if x.strip()]
+
+    request_id = data.get("request_id") or None
+    mongo_client["labyrinth"]["ansible_runs"].insert_one(
+        {
+            "job_id": job_id,
+            "request_id": request_id,
+            "playbook": data["playbook"],
+            "hosts": hosts,
+            "become_file": data["become_file"],
+            "ssh_key": data.get("ssh_key", ""),
+            "status": "queued",
+            "created_at": utc_now(),
+        }
+    )
+    if request_id:
+        mongo_client["labyrinth"]["ansible_requests"].update_one(
+            {"request_id": request_id}, {"$push": {"job_ids": job_id}}
+        )
 
     # Start the process
     process = Process(target=run_ansible_background, args=(job_id, data))
@@ -1487,6 +1586,112 @@ def get_ansible_status(job_id):
         "logs": [log.decode("utf-8") for log in logs],
         "results": json.loads(results.decode("utf-8")) if results else None,
     }, 200
+
+
+@app.route("/ansible_runs/")
+@app.route("/ansible_runs/<int:limit>")
+@requires_auth_admin
+def list_ansible_runs(limit=25):
+    """Recent ansible runs, newest first, without their logs."""
+    runs = (
+        mongo_client["labyrinth"]["ansible_runs"]
+        .find({}, {"_id": 0, "logs": 0})
+        .sort("created_at", pymongo.DESCENDING)
+        .limit(limit)
+    )
+    return json.dumps(list(runs)), 200
+
+
+@app.route("/ansible_run/<job_id>")
+@requires_auth_admin
+def get_ansible_run(job_id):
+    """Full record of one ansible run; unfinished runs carry their live Redis log."""
+    run = mongo_client["labyrinth"]["ansible_runs"].find_one(
+        {"job_id": job_id}, {"_id": 0}
+    )
+    if not run:
+        return "Run not found", 404
+
+    if run["status"] in ("queued", "running"):
+        redis_client = redis.Redis(host=os.environ.get("REDIS_HOST"))
+        run["logs"] = [
+            x.decode("utf-8") for x in redis_client.lrange(f"{job_id}_log", 0, -1)
+        ]
+    return json.dumps(run), 200
+
+
+@app.route("/ansible_request/", methods=["POST"])
+@requires_auth_admin
+def create_ansible_request(inp_data=""):
+    """
+    Stages a deployment (playbook, hosts, become file) for a human to launch from
+    the Deploy page with just the vault password.  An optional `playbook_content`
+    carries a not-yet-saved playbook that the Deploy page saves before running.
+    """
+    if inp_data:
+        data = inp_data
+    else:  # pragma: no cover
+        data = request.form.get("data")
+        if not data:
+            return "Invalid data", 481
+    data = json.loads(data)
+
+    playbook = secure_filename(data.get("playbook", "")).replace(".yml", "")
+    become_file = secure_filename(data.get("become_file", "")).replace(".yml", "")
+    hosts = data.get("hosts", [])
+    if isinstance(hosts, str):
+        hosts = [x.strip() for x in hosts.split(",") if x.strip()]
+    content = data.get("playbook_content", "")
+
+    if not playbook or not become_file or not hosts:
+        return "playbook, become_file and hosts are required", 482
+
+    if "{}.yml".format(become_file) not in os.listdir("/src/uploads/become"):
+        return "Become file not found: {}".format(escape(become_file)), 483
+
+    playbook_exists = "{}.yml".format(playbook) in os.listdir("/src/uploads/ansible")
+    if content:
+        try:
+            yaml.safe_load(content)
+        except yaml.YAMLError as exc:
+            return "YAML Read Error: {}".format(escape(exc)), 471
+    elif not playbook_exists:
+        return "Playbook not found: {}".format(escape(playbook)), 484
+
+    request_id = str(uuid.uuid4())
+    mongo_client["labyrinth"]["ansible_requests"].insert_one(
+        {
+            "request_id": request_id,
+            "playbook": playbook,
+            "playbook_content": content,
+            "overwrites_playbook": bool(content) and playbook_exists,
+            "hosts": hosts,
+            "become_file": become_file,
+            "ssh_key": data.get("ssh_key", ""),
+            "notes": data.get("notes", ""),
+            "created_at": utc_now(),
+            "job_ids": [],
+        }
+    )
+    return {"request_id": request_id, "path": f"/deploy?request={request_id}"}, 200
+
+
+@app.route("/ansible_request/<request_id>")
+@requires_auth_admin
+def get_ansible_request(request_id):
+    """A staged deployment along with summaries of the runs launched from it."""
+    found = mongo_client["labyrinth"]["ansible_requests"].find_one(
+        {"request_id": request_id}, {"_id": 0}
+    )
+    if not found:
+        return "Request not found", 404
+
+    found["runs"] = list(
+        mongo_client["labyrinth"]["ansible_runs"]
+        .find({"request_id": request_id}, {"_id": 0, "logs": 0})
+        .sort("created_at", pymongo.ASCENDING)
+    )
+    return json.dumps(found), 200
 
 
 @app.route("/mac/<old_mac>/<new_mac>/")

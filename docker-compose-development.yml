@@ -119,6 +119,8 @@ services:
       - labyrinth
     volumes:
       - ./backend:/app/backend
+      # Read-only: MCP reads playbooks/become files; the Deploy page does the writing
+      - ./backend/uploads:/src/uploads:ro
     environment:
       MONGO_USERNAME: root
       MONGO_PASSWORD: temp
@@ -126,6 +128,8 @@ services:
       REDIS_HOST: redis
       MCP_PORT: 8765
       MCP_HOST: 0.0.0.0
+      # Public base URL used to build Deploy page deep links
+      LABYRINTH_URL: ${LABYRINTH_URL:-https://localhost:7210}
       TESTBED: 1
 
   # Vulnerable server running on the network

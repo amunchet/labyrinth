@@ -130,6 +130,49 @@ class LabyrinthClient:
             raise RuntimeError(f"read_metrics failed with status {status}")
         return json.loads(raw)
 
+    def list_files(self, file_type: str) -> List[str]:
+        raw, status = unwrap(serve.list_directory)(file_type)
+        if status != 200:
+            raise RuntimeError(f"list_directory failed with status {status}")
+        return json.loads(raw)
+
+    def get_playbook(self, name: str) -> str:
+        raw, _ = unwrap(serve.get_ansible_file)(name)
+        return raw
+
+    def prepare_deployment(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        # Hosts may be given as MACs; the deploy page and inventory want IPs
+        hosts = []
+        for key in data["hosts"]:
+            host = self.get_host(key)
+            hosts.append(host["ip"] if host and host.get("ip") else key)
+        data["hosts"] = hosts
+
+        raw, status = unwrap(serve.create_ansible_request)(json.dumps(data))
+        if status != 200:
+            raise RuntimeError(f"create_ansible_request failed ({status}): {raw}")
+        base = os.environ.get("LABYRINTH_URL", "").rstrip("/")
+        return {**raw, "hosts": hosts, "deploy_url": base + raw["path"]}
+
+    def get_deployment_request(self, request_id: str) -> Dict[str, Any]:
+        raw, status = unwrap(serve.get_ansible_request)(request_id)
+        if status != 200:
+            raise ValueError("Deployment request not found")
+        return json.loads(raw)
+
+    def list_deployments(self, limit: int = 25) -> List[Dict[str, Any]]:
+        raw, _ = unwrap(serve.list_ansible_runs)(limit)
+        return json.loads(raw)
+
+    def get_deployment(self, job_id: str, log_tail: int = 200) -> Dict[str, Any]:
+        raw, status = unwrap(serve.get_ansible_run)(job_id)
+        if status != 200:
+            raise ValueError("Deployment run not found")
+        run = json.loads(raw)
+        if log_tail > 0:
+            run["logs"] = run.get("logs", [])[-log_tail:]
+        return run
+
 
 client = LabyrinthClient()
 app = _FastMCP("labyrinth-mcp")
@@ -201,6 +244,76 @@ async def mcp_read_metrics(
 ) -> Dict[str, Any]:
     """Read latest metrics for a host (optionally filtered by service)."""
     return client.get_metrics(host_key, service, count)
+
+
+@app.tool()
+async def mcp_list_playbooks() -> List[str]:
+    """List saved Ansible playbooks (filenames) available on the Deploy page."""
+    return client.list_files("ansible")
+
+
+@app.tool()
+async def mcp_get_playbook(name: str) -> str:
+    """Read the YAML contents of a saved Ansible playbook."""
+    return client.get_playbook(name)
+
+
+@app.tool()
+async def mcp_list_become_files() -> List[str]:
+    """List the vault-encrypted become/credential files a deployment can use."""
+    return client.list_files("become")
+
+
+@app.tool()
+async def mcp_prepare_deployment(
+    hosts: str,
+    playbook: str,
+    become_file: str,
+    playbook_content: str = "",
+    ssh_key: str = "",
+    notes: str = "",
+) -> Dict[str, Any]:
+    """
+    Stage an Ansible deployment and return a deep link to the Deploy page.
+
+    hosts: comma-separated IPs or MACs.  playbook: playbook name (without .yml).
+    become_file: one of mcp_list_become_files.  playbook_content: optional new
+    playbook YAML; the Deploy page saves it under `playbook` (overwriting any
+    existing file of that name) before running.  Nothing runs until a human
+    opens deploy_url and enters the vault password.  Read results back with
+    mcp_get_deployment_request / mcp_get_deployment.
+    """
+    return client.prepare_deployment(
+        {
+            "hosts": [x.strip() for x in hosts.split(",") if x.strip()],
+            "playbook": playbook,
+            "become_file": become_file,
+            "playbook_content": playbook_content,
+            "ssh_key": ssh_key,
+            "notes": notes,
+        }
+    )
+
+
+@app.tool()
+async def mcp_get_deployment_request(request_id: str) -> Dict[str, Any]:
+    """A staged deployment plus summaries (status, outcome, stats, failures) of runs launched from it."""
+    return client.get_deployment_request(request_id)
+
+
+@app.tool()
+async def mcp_list_deployments(limit: int = 25) -> List[Dict[str, Any]]:
+    """Recent Ansible runs, newest first, without logs."""
+    return client.list_deployments(limit)
+
+
+@app.tool()
+async def mcp_get_deployment(job_id: str, log_tail: int = 200) -> Dict[str, Any]:
+    """
+    Full result of one Ansible run: status, outcome, per-host stats, failed tasks,
+    and the last `log_tail` log lines (0 for all).  Running jobs include live logs.
+    """
+    return client.get_deployment(job_id, log_tail)
 
 
 if __name__ == "__main__":  # pragma: no cover

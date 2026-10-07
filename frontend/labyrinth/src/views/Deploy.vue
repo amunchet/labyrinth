@@ -245,6 +245,69 @@
         </b-row>
       </b-container>
     </b-modal>
+    <b-row v-if="deep_link">
+      <b-col>
+        <b-card border-variant="primary" class="text-left">
+          <h4>Prepared Deployment</h4>
+          <p v-if="deep_link.notes">{{ deep_link.notes }}</p>
+          <ul>
+            <li>
+              Hosts: <b>{{ ips.join(", ") }}</b>
+            </li>
+            <li>
+              Playbook: <b>{{ selected_playbook }}</b>
+              <span v-if="deep_link.playbook_content">
+                (generated - saved before deploying)</span
+              >
+            </li>
+            <li>
+              Become file: <b>{{ selected["become"] }}</b>
+            </li>
+          </ul>
+          <b-alert
+            show
+            variant="warning"
+            v-if="
+              deep_link.playbook_content &&
+              (files_list['ansible'] || []).includes(selected_playbook)
+            "
+          >
+            Deploying will overwrite the existing playbook
+            <b>{{ selected_playbook }}</b
+            >.
+          </b-alert>
+          <b-button
+            variant="link"
+            class="p-0 mb-2"
+            v-b-toggle.deep_link_playbook
+          >
+            Review playbook
+          </b-button>
+          <b-collapse id="deep_link_playbook">
+            <pre class="deep_link_playbook">{{ playbook_contents }}</pre>
+          </b-collapse>
+          <b-form @submit.prevent="deployDeepLink()">
+            Vault Password:<br />
+            <b-input
+              autofocus
+              :state="vault_password != ''"
+              type="password"
+              v-model="vault_password"
+            />
+            <b-button
+              type="submit"
+              size="lg"
+              class="mt-3"
+              style="width: 100%"
+              variant="primary"
+              :disabled="running || !vault_password"
+            >
+              <b-spinner small v-if="running" /> Deploy
+            </b-button>
+          </b-form>
+        </b-card>
+      </b-col>
+    </b-row>
     <b-row>
       <b-col>
         <b-card no-body>
@@ -528,6 +591,14 @@
             @click="runPlaybook()"
             >Deploy to host<span v-if="ips.length != 0">s</span></b-button
           >
+          <b-button
+            variant="link"
+            class="float-right"
+            v-if="!isTesting"
+            @click="copyDeployLink()"
+          >
+            <font-awesome-icon icon="link" size="1x" />&nbsp; Copy deploy link
+          </b-button>
           <hr />
           <div
             class="playbook_result mb-4"
@@ -610,6 +681,9 @@ export default {
         },
       ],
       manual_ips: false,
+
+      // Deployment prepared via link (?request=<id> or ?ips=&playbook=&become=)
+      deep_link: null,
     };
   },
   watch: {
@@ -736,6 +810,14 @@ export default {
     loadPlaybook: /* istanbul ignore next */ function () {
       let auth = this.$auth;
       let loadings = this.loadings;
+      if (
+        this.deep_link?.playbook_content &&
+        this.selected_playbook == this.deep_link.playbook + ".yml"
+      ) {
+        // Generated playbook not saved yet - show the staged version
+        this.playbook_contents = this.deep_link.playbook_content;
+        return;
+      }
       this.loadings["playbook"] = 1;
       Helper.apiCall("get_ansible_file", this.selected_playbook, auth)
         .then((res) => {
@@ -768,7 +850,7 @@ export default {
       let auth = this.$auth;
       let formData = new FormData();
       formData.append("data", this.playbook_contents);
-      Helper.apiPost(
+      return Helper.apiPost(
         "save_ansible_file/",
         this.selected_playbook.replace(".yml", ""),
         this.selected["become"].replace(/.yml$/, ""),
@@ -779,6 +861,7 @@ export default {
           this.$store.commit("updateError", res);
           this.loadings["save_playbook"] = 0;
           this.loadPlaybook();
+          return true;
         })
         .catch((e) => {
           this.loadings["save_playbook"] = 0;
@@ -792,6 +875,7 @@ export default {
           } else {
             this.$store.commit("updateError", e);
           }
+          return false;
         });
     },
 
@@ -816,6 +900,7 @@ export default {
         vault_password: this.vault_password,
         become_file: this.selected["become"].replace(".yml", ""),
         ssh_key: this.selected["ssh"],
+        request_id: this.deep_link?.request_id || "",
       };
 
       // Use FormData to prepare the request
@@ -890,6 +975,72 @@ export default {
         console.log(error);
         this.$store.commit("updateError", error.message || error);
         this.running = false;
+      }
+    },
+
+    loadDeepLink: /* istanbul ignore next */ async function () {
+      const query = this.$route.query;
+      let link = {
+        hosts: query.ips?.split(",").filter((x) => x != "") || [],
+        playbook: query.playbook || "",
+        become_file: query.become || "",
+        ssh_key: query.ssh || "",
+      };
+      if (query.request) {
+        link = await Helper.apiCall(
+          "ansible_request",
+          query.request,
+          this.$auth
+        );
+      }
+
+      if (link.hosts.length > 0) {
+        this.manual_ips = true;
+      }
+      this.ips = link.hosts;
+      if (!link.playbook || !link.become_file) {
+        return;
+      }
+
+      this.deep_link = link;
+      link.playbook = link.playbook.replace(/.yml$/, "");
+      this.selected["become"] = link.become_file.replace(/.yml$/, "") + ".yml";
+      this.selected["ssh"] = link.ssh_key;
+      this.selected_playbook = link.playbook + ".yml";
+    },
+
+    deployDeepLink: /* istanbul ignore next */ async function () {
+      if (!this.vault_password || this.running) {
+        return;
+      }
+      const content = this.deep_link.playbook_content;
+      if (content) {
+        // Once saved, the file on disk (with vars_files injected) is the source of truth
+        this.deep_link.playbook_content = "";
+        if (!(await this.savePlaybook())) {
+          this.deep_link.playbook_content = content;
+          return;
+        }
+      }
+      this.runPlaybook();
+    },
+
+    copyDeployLink: /* istanbul ignore next */ async function () {
+      const params = new URLSearchParams({
+        ips: (this.ips.length > 0 ? this.ips : [this.selected_host]).join(","),
+        playbook: this.selected_playbook.replace(/.yml$/, ""),
+        become: this.selected["become"].replace(/.yml$/, ""),
+      });
+      if (this.selected["ssh"]) {
+        params.set("ssh", this.selected["ssh"]);
+      }
+      const url = `${window.location.origin}/deploy?${params}`;
+      try {
+        await navigator.clipboard.writeText(url);
+        this.$store.commit("updateError", "Deploy link copied: " + url);
+      } catch (e) {
+        // Clipboard needs a secure context; still hand over the link
+        this.$store.commit("updateError", "Deploy link: " + url);
       }
     },
 
@@ -1023,12 +1174,7 @@ export default {
 
       this.loadHosts();
 
-      const ips =
-        this.$route.query.ips?.split(",").filter((x) => x != "") || [];
-      if (ips.length > 0) {
-        this.manual_ips = true;
-      }
-      this.ips = ips;
+      await this.loadDeepLink();
     } catch (e) {
       this.$store.commit("updateError", e);
     }
@@ -1069,6 +1215,13 @@ pre {
 .playbook_result div {
   margin-top: 0.5rem;
   margin-bottom: 0.5rem;
+}
+.deep_link_playbook {
+  white-space: pre;
+  max-height: 400px;
+  overflow: auto;
+  background-color: lightgrey;
+  padding: 1rem !important;
 }
 .text-underline {
   font-weight: bold;
