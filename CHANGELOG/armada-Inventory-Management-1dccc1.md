@@ -88,3 +88,13 @@ update would otherwise have been rejected as a duplicate name), registers the
 editors, nav, routes and Settings keep both sides (Clone, ingest counters,
 Do-not-scan, Problems page, AI Alerts). Backend suite passes on Postgres (the
 inventory tests also on the Mongo fallback); frontend lint/tests/build pass.
+
+## 2026-10-07 16:21 CDT (21:21 UTC)
+Found in self-review: a device saved without an IP but with a subnet (e.g. an
+IP cleared on an existing host, or an MCP call) would have crashed the whole
+dashboard - and with it `/inventory/` and alerting - because the dashboard
+orders a subnet's hosts by last octet. IP-less devices are now always stored
+with no subnet, and every saved host has an `ip` key. Deploy-by-tag
+(`/tags/<tag>`) also skips IP-less devices instead of returning "" (or
+raising on hosts saved without an `ip` key) as a deploy target. Regression
+tests cover both.

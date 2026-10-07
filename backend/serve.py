@@ -486,19 +486,24 @@ def create_edit_host(inp=""):
     host.pop("_live", None)
 
     hosts = db["labyrinth"]["hosts"]
+    host["ip"] = str(host.get("ip") or "").strip()
 
     # The MAC is the host key.  Like the finder, fall back to the IP when it
     # is unknown; IP-less devices (e.g. unmanaged switches) get a generated
     # key.  A blank key would make every blank-MAC host overwrite the last.
     if not host.get("mac"):
-        if host.get("ip"):
+        if host["ip"]:
             # Re-key a legacy blank-MAC copy of this host rather than duplicate it
             hosts.delete_many({"mac": "", "ip": host["ip"]})
-        host["mac"] = host.get("ip") or "device-" + uuid.uuid4().hex[:12]
+        host["mac"] = host["ip"] or "device-" + uuid.uuid4().hex[:12]
 
-    if host.get("ip") and not host.get("subnet"):
+    # A device without an IP belongs to no subnet: the dashboard orders a
+    # subnet's hosts by their last octet, which an empty IP would crash
+    if not host["ip"]:
+        host["subnet"] = ""
+    elif not host.get("subnet"):
         host["subnet"] = ".".join(host["ip"].split(".")[:3])
-    subnet = host.get("subnet", "")
+    subnet = host["subnet"]
 
     if hosts.find_one({"mac": host["mac"]}):
         hosts.delete_one({"mac": host["mac"]})
@@ -731,11 +736,12 @@ def list_tags():
 def list_tag_members(tag):
     """
     Lists IPs of all hosts that have a given tag (cross-subnet)
+        - IP-less inventory devices are skipped: these are deploy targets
     """
     ips = []
     for host in db["labyrinth"]["hosts"].find({}):
         raw = host.get("tags", "")
-        if raw:
+        if raw and host.get("ip"):
             host_tags = [t.strip() for t in raw.split(",")]
             if tag in host_tags:
                 ips.append(host["ip"])

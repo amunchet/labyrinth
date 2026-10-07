@@ -220,6 +220,41 @@ def test_ip_less_devices_get_unique_keys(setup):
     assert db["subnets"].count_documents({}) == 0
 
 
+def test_ip_less_device_never_joins_a_subnet(setup):
+    """
+    A device without an IP stays out of subnets, so the dashboard - which
+    orders a subnet's hosts by last octet - keeps working
+        - e.g. an IP cleared on an existing host, or an MCP call with a subnet but no IP
+    """
+    make_host(ip="10.0.0.5", mac="AA", group="servers")
+    make_host(mac="SW", host="Old switch", subnet="10.0.0", group="servers")
+    host = get_host("SW")
+    assert (host["ip"], host["subnet"]) == ("", "")
+
+    a = unwrap(serve.dashboard)()
+    assert a[1] == 200
+    [subnet] = json.loads(a[0])
+    assert [x["mac"] for x in subnet["groups"][0]["hosts"]] == ["AA"]
+
+
+def test_host_saved_without_ip_or_mac_keys(setup):
+    """Callers like the MCP may omit keys entirely; stored hosts still have them"""
+    a = unwrap(serve.create_edit_host)({"host": "Patch panel", "tags": "plant"})
+    assert a[1] == 200
+    host = db["hosts"].find_one({"host": "Patch panel"})
+    assert host["ip"] == "" and host["subnet"] == ""
+    assert host["mac"].startswith("device-")
+
+
+def test_tag_members_skip_ip_less_devices(setup):
+    """Deploy-by-tag gets IPs to run against; label-only devices have none"""
+    make_host(ip="10.0.0.5", mac="AA", tags="plant, plc")
+    make_host(host="Unmanaged switch", tags="plant")
+    unwrap(serve.create_edit_host)({"host": "MCP device", "tags": "plant"})
+    a = unwrap(serve.list_tag_members)("plant")
+    assert json.loads(a[0]) == ["10.0.0.5"]
+
+
 def test_blank_mac_is_keyed_by_ip(setup):
     """Hosts without a known MAC are keyed by IP (as the finder does), subnet derived"""
     make_host(ip="10.1.2.3", host="plc-gate")
