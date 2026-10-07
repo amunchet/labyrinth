@@ -2,20 +2,27 @@
 """
 Checks hosts alive
 
-This will be very similar to `finder.py`
+Every host with an IP is pinged (or TCP-connected to when it has a
+`check_alive_port`), and the result is recorded in the Redis `alive` hash
+(IP -> JSON) so maps and the inventory can show live reachability for anything
+IP-reachable, not only hosts with Telegraf metrics.  Monitored hosts that are
+down are also sent to Alertmanager.
 """
 import json
+import os
 import platform
 import subprocess
 import socket
+import time
+
+import redis
 
 import watcher
 
-from pid import PidFile
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
 
-from common.test import unwrap
-from serve import list_hosts
+ALIVE_KEY = "alive"
 
 
 def ping(host):
@@ -47,43 +54,64 @@ def check_port(host, port):
         return False
 
 
+def check_host(host):
+    """
+    Checks one host and returns its alive record
+        - A `check_alive_port` (stored as text by the UI) means a TCP check instead of ping
+        - An unusable port marks only this host down, with the reason, instead of failing every check
+    """
+    port = str(host.get("check_alive_port") or "").strip()
+    result = {"method": "port" if port else "ping", "port": port, "error": ""}
+    if not port:
+        result["up"] = ping(host["ip"])
+    elif port.isdigit():
+        result["up"] = check_port(host["ip"], int(port))
+    else:
+        result["up"] = False
+        result["error"] = "Invalid check port: {}".format(port)
+    result["checked"] = time.time()
+    return result
+
+
 def check_all_hosts():  # pragma: no cover
     """
-    Pulls in all hosts and checks them all
+    Checks every host with an IP in parallel, records the results and alerts
+    for monitored hosts that are down
     """
-    # Pid check
-    with PidFile("labyrinth-alive") as p:
-        # Load list of all hosts
-        # List each subnet
-        hosts = json.loads(unwrap(list_hosts)()[0])
+    # Imported here so serve can import this module for on-demand checks
+    from pid import PidFile
+    from common.test import unwrap
+    from serve import list_hosts
 
-        for host in hosts:
-            # Alert if alerting is set on the host and it's down
-            if "ip" not in host:
-                continue
+    with PidFile("labyrinth-alive"):
+        hosts = [x for x in json.loads(unwrap(list_hosts)()[0]) if x.get("ip")]
 
-            host_name = host["ip"]
+        with ThreadPoolExecutor(32) as pool:
+            results = list(pool.map(check_host, hosts))
 
-            alive_type = "Ping Check"
-            if "check_alive_port" in host and "check_alive_port" != "":
-                alive_type = "Port Check"
+        # Replace the whole hash atomically so removed hosts drop out
+        rc = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
+        pipe = rc.pipeline()
+        pipe.delete(ALIVE_KEY)
+        if hosts:
+            pipe.hset(
+                ALIVE_KEY,
+                mapping={h["ip"]: json.dumps(r) for h, r in zip(hosts, results)},
+            )
+        pipe.execute()
 
-            if "monitor" in host and host["monitor"]:
-                if alive_type == "Ping Check":
-                    result = ping(host_name)
-                else:
-                    result = check_port(host_name, host["check_alive_port"])
-
-                summary = "{} did not respond to {}.".format(host_name, alive_type)
-
-                if not result:
-                    watcher.send_alert(
-                        "Check Alive",
-                        alive_type,
-                        host_name,
-                        summary=summary,
-                        severity="warning",
-                    )
+        for host, result in zip(hosts, results):
+            if str(host.get("monitor")).lower() == "true" and not result["up"]:
+                alive_type = (
+                    "Port Check" if result["method"] == "port" else "Ping Check"
+                )
+                watcher.send_alert(
+                    "Check Alive",
+                    alive_type,
+                    host["ip"],
+                    summary="{} did not respond to {}.".format(host["ip"], alive_type),
+                    severity="warning",
+                )
 
 
 if __name__ == "__main__":  # pragma: no cover

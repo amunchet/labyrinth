@@ -21,6 +21,7 @@ import yaml
 
 import metrics as mc
 import watcher
+import alive
 
 import shutil
 import services as svcs
@@ -458,22 +459,38 @@ def create_edit_host(inp=""):
     else:  # pragma: no cover
         return "Invalid data", 443
 
-    if "mac" not in host:  # pragma: no cover
-        return "Invalid data", 407
+    try:
+        _clean_inventory_fields(host)
+    except ValueError as e:
+        return str(e), 407
 
-    subnet = host["subnet"]
-    if subnet == "":  # pragma: no cover
-        return "No subnet", 418
+    # Computed by /inventory/; a client saving a device back must not persist it
+    host.pop("_live", None)
 
-    if mongo_client["labyrinth"]["hosts"].find_one({"mac": host["mac"]}):
-        mongo_client["labyrinth"]["hosts"].delete_one({"mac": host["mac"]})
+    hosts = mongo_client["labyrinth"]["hosts"]
 
-    if not mongo_client["labyrinth"]["subnets"].find_one({"subnet": subnet}):
+    # The MAC is the host key.  Like the finder, fall back to the IP when it
+    # is unknown; IP-less devices (e.g. unmanaged switches) get a generated
+    # key.  A blank key would make every blank-MAC host overwrite the last.
+    if not host.get("mac"):
+        if host.get("ip"):
+            # Re-key a legacy blank-MAC copy of this host rather than duplicate it
+            hosts.delete_many({"mac": "", "ip": host["ip"]})
+        host["mac"] = host.get("ip") or "device-" + uuid.uuid4().hex[:12]
+
+    if host.get("ip") and not host.get("subnet"):
+        host["subnet"] = ".".join(host["ip"].split(".")[:3])
+    subnet = host.get("subnet", "")
+
+    if hosts.find_one({"mac": host["mac"]}):
+        hosts.delete_one({"mac": host["mac"]})
+
+    if subnet and not mongo_client["labyrinth"]["subnets"].find_one({"subnet": subnet}):
         mongo_client["labyrinth"]["subnets"].insert_one(
             {"subnet": subnet, "origin": {}, "links": {}}
         )
 
-    mongo_client["labyrinth"]["hosts"].insert_one(host)
+    hosts.insert_one(host)
     return "Success", 200
 
 
@@ -526,12 +543,19 @@ def _host_matches_tag(host, normalized_tag):
 @app.route("/host/<host>", methods=["DELETE"])
 @requires_auth_write
 def delete_host(host):
-    """Deletes a host"""
-    result = mongo_client["labyrinth"]["hosts"].delete_one(
+    """Deletes a host, dropping uplinks and map placements that pointed at it"""
+    found = mongo_client["labyrinth"]["hosts"].find_one_and_delete(
         {"$or": [{"mac": host}, {"ip": host}]}
     )
-    if not result.deleted_count:
+    if not found:
         return "Not found", 407
+    mongo_client["labyrinth"]["hosts"].update_many(
+        {"uplink": found["mac"]}, {"$unset": {"uplink": "", "link_type": ""}}
+    )
+    mongo_client["labyrinth"]["dashboards"].update_many(
+        {"placements.key": found["mac"]},
+        {"$pull": {"placements": {"key": found["mac"]}}},
+    )
     return "Success", 200
 
 
@@ -1539,6 +1563,8 @@ def index_helper():  # pragma: no cover
     mongo_client["labyrinth"]["hosts"].create_index("ip")
     mongo_client["labyrinth"]["hosts"].create_index("mac")
     mongo_client["labyrinth"]["hosts"].create_index("subnet")
+    mongo_client["labyrinth"]["hosts"].create_index("location")
+    mongo_client["labyrinth"]["locations"].create_index("name_key")
     mongo_client["labyrinth"]["settings"].create_index("name")
     mongo_client["labyrinth"]["proxmox_clusters"].create_index("name")
     mongo_client["labyrinth"]["aws_accounts"].create_index("name")
@@ -1923,6 +1949,491 @@ def custom_dashboard_image_upload(override=""):
 
     shutil.move("/tmp/{}".format(filename), "/src/uploads/images/{}".format(filename))
     return "Success", 200
+
+
+## Locations and inventory
+#
+# Hosts double as the device inventory: any host, including IP-less "label"
+# devices such as unmanaged switches, may carry the optional fields below.  A
+# location is a site/building (with optional racks); hosts, subnets and maps
+# (custom dashboards) refer to it by name.
+
+INVENTORY_FIELDS = {
+    "device_type": str,
+    "location": str,
+    "rack": str,
+    "rack_unit": int,
+    "rack_height": int,
+    "vendor": str,
+    "model": str,
+    "serial": str,
+    "uplink": str,
+    "link_type": str,
+    "proxmox_node": str,
+    "proxmox_vmid": int,
+}
+DEVICE_TYPES = [
+    "server",
+    "vm",
+    "lxc",
+    "pc",
+    "laptop",
+    "switch",
+    "router",
+    "firewall",
+    "ap",
+    "bridge",
+    "plc",
+    "iot",
+    "camera",
+    "printer",
+    "phone",
+    "ups",
+    "storage",
+    "patch-panel",
+    "other",
+]
+LINK_TYPES = ["ethernet", "fiber", "wireless", "vpn"]
+
+
+def _clean_inventory_fields(doc):
+    """
+    Coerces any inventory fields in `doc` to their types in place and drops
+    blank ones, so the rack/map views can trust them.  Raises ValueError.
+    """
+    for field, kind in INVENTORY_FIELDS.items():
+        if field not in doc:
+            continue
+        value = doc[field]
+        if isinstance(value, str):
+            value = value.strip()
+        if value in ("", None):
+            del doc[field]
+            continue
+
+        try:
+            value = kind(value)
+        except (TypeError, ValueError):
+            raise ValueError("{} must be a whole number".format(field))
+        if field == "device_type" and value not in DEVICE_TYPES:
+            raise ValueError("Unknown device type: {}".format(value))
+        if field == "link_type" and value not in LINK_TYPES:
+            raise ValueError("Unknown link type: {}".format(value))
+        if field in ("rack_unit", "rack_height") and value < 1:
+            raise ValueError("{} must be 1 or more".format(field))
+        doc[field] = value
+
+
+@app.route("/locations/")
+@requires_auth_read
+def list_locations():
+    """Lists all locations (sites/buildings) with their racks"""
+    return (
+        json.dumps(
+            list(mongo_client["labyrinth"]["locations"].find({}, sort=[("name", 1)])),
+            default=str,
+        ),
+        200,
+    )
+
+
+@app.route("/location/", methods=["POST"])
+@requires_auth_write
+def create_edit_location(inp=""):
+    """
+    Creates a location, or updates one when `_id` is given
+        - Names are unique (case-insensitive) and stored by name on hosts, subnets and maps,
+          so a rename is carried over to all of them
+        - A rack sent with `previous_name` was renamed and keeps its hosts; hosts in racks
+          that no longer exist are un-racked
+    """
+    if inp != "":
+        data = inp
+    else:  # pragma: no cover
+        data = json.loads(request.form.get("data"))
+
+    name = str(data.get("name") or "").strip()
+    if not name or "/" in name:
+        return "A location needs a name without '/'", 407
+
+    racks = []
+    renamed_racks = {}
+    for rack in data.get("racks") or []:
+        if not isinstance(rack, dict):
+            return "Racks must be objects with a name and units", 407
+        rack_name = str(rack.get("name") or "").strip()
+        try:
+            units = int(rack.get("units") or 42)
+        except (TypeError, ValueError):
+            return "Rack units must be a whole number", 407
+        if not rack_name or not 1 <= units <= 60:
+            return "Each rack needs a name and 1-60 units", 407
+        racks.append({"name": rack_name, "units": units})
+        if rack.get("previous_name") and rack["previous_name"] != rack_name:
+            renamed_racks[str(rack["previous_name"])] = rack_name
+    if len({x["name"] for x in racks}) != len(racks):
+        return "Rack names must be unique within a location", 409
+
+    doc = {
+        "name": name,
+        "name_key": name.casefold(),
+        "address": str(data.get("address") or "").strip(),
+        "notes": str(data.get("notes") or ""),
+        "racks": racks,
+    }
+
+    db = mongo_client["labyrinth"]
+    clash = db["locations"].find_one({"name_key": doc["name_key"]})
+
+    if not data.get("_id"):
+        if clash:
+            return "A location with that name already exists", 409
+        return (
+            json.dumps({"_id": str(db["locations"].insert_one(doc).inserted_id)}),
+            200,
+        )
+
+    try:
+        object_id = _validate_object_id(str(data["_id"]))
+    except ValueError:
+        return "Invalid location ID", 400
+    existing = db["locations"].find_one({"_id": object_id})
+    if not existing:
+        return "Location not found", 404
+    if clash and clash["_id"] != object_id:
+        return "A location with that name already exists", 409
+
+    db["locations"].replace_one({"_id": object_id}, doc)
+    if existing["name"] != name:
+        for collection in ["hosts", "subnets", "dashboards"]:
+            db[collection].update_many(
+                {"location": existing["name"]}, {"$set": {"location": name}}
+            )
+    for previous, new in renamed_racks.items():
+        db["hosts"].update_many(
+            {"location": name, "rack": previous}, {"$set": {"rack": new}}
+        )
+    db["hosts"].update_many(
+        {
+            "location": name,
+            "rack": {"$exists": True, "$nin": [x["name"] for x in racks]},
+        },
+        {"$unset": {"rack": "", "rack_unit": ""}},
+    )
+    return json.dumps({"_id": str(object_id)}), 200
+
+
+@app.route("/location/<location_id>", methods=["DELETE"])
+@requires_auth_write
+def delete_location(location_id):
+    """Deletes a location; its hosts, subnets and maps become unassigned, not deleted"""
+    try:
+        object_id = _validate_object_id(location_id)
+    except ValueError:
+        return "Invalid location ID", 400
+
+    db = mongo_client["labyrinth"]
+    found = db["locations"].find_one_and_delete({"_id": object_id})
+    if not found:
+        return "Location not found", 404
+
+    db["hosts"].update_many(
+        {"location": found["name"]},
+        {"$unset": {"location": "", "rack": "", "rack_unit": ""}},
+    )
+    db["subnets"].update_many({"location": found["name"]}, {"$unset": {"location": ""}})
+    db["dashboards"].update_many(
+        {"location": found["name"]}, {"$set": {"location": ""}}
+    )
+    return "Success", 200
+
+
+@app.route("/host/<host>/inventory", methods=["POST"])
+@requires_auth_write
+def update_host_inventory(host, inp=""):
+    """
+    Updates only the inventory fields of a host (by MAC/key or IP), leaving its
+    monitoring setup untouched.  Blank values clear a field.
+        - The location, rack and uplink must exist; moving to another location
+          without naming a rack un-racks the host
+    """
+    if inp != "":
+        data = dict(inp)
+    else:  # pragma: no cover
+        data = json.loads(request.form.get("data"))
+
+    unknown = [x for x in data if x not in INVENTORY_FIELDS]
+    if unknown:
+        return "Unknown inventory field(s): {}".format(", ".join(unknown)), 407
+
+    hosts = mongo_client["labyrinth"]["hosts"]
+    found = hosts.find_one({"$or": [{"mac": host}, {"ip": host}]})
+    if not found:
+        return "Host not found", 404
+
+    cleared = [x for x in data if data[x] in ("", None)]
+    try:
+        _clean_inventory_fields(data)
+    except ValueError as e:
+        return str(e), 407
+
+    location = data.get(
+        "location", "" if "location" in cleared else found.get("location")
+    )
+    if location != found.get("location") and "rack" not in data:
+        cleared += ["rack"]
+    if "rack" in cleared:
+        cleared += ["rack_unit"]
+    cleared = sorted(set(x for x in cleared if x not in data))
+    rack = "" if "rack" in cleared else data.get("rack", found.get("rack"))
+
+    if location:
+        found_location = mongo_client["labyrinth"]["locations"].find_one(
+            {"name": location}
+        )
+        if not found_location:
+            return "Unknown location: {}".format(location), 404
+        if rack and rack not in [x["name"] for x in found_location.get("racks", [])]:
+            return "Unknown rack for {}: {}".format(location, rack), 404
+    elif rack:
+        return "A rack needs a location", 407
+
+    if data.get("uplink"):
+        if data["uplink"] == found["mac"]:
+            return "A device cannot uplink to itself", 407
+        if not hosts.find_one({"mac": data["uplink"]}):
+            return "Unknown uplink device: {}".format(data["uplink"]), 404
+
+    update = {}
+    if data:
+        update["$set"] = data
+    if cleared:
+        update["$unset"] = {x: "" for x in cleared}
+    if update:
+        hosts.update_one({"_id": found["_id"]}, update)
+    return json.dumps(hosts.find_one({"_id": found["_id"]}), default=str), 200
+
+
+@app.route("/alive/check/<host>")
+@requires_auth_write
+def alive_check(host):
+    """
+    Checks one host's reachability right now (e.g. just after it was added)
+    and records it, instead of waiting for the next alive cron run
+    """
+    found = mongo_client["labyrinth"]["hosts"].find_one(
+        {"$or": [{"mac": host}, {"ip": host}]}
+    )
+    if not found or not found.get("ip"):
+        return "Host not found, or it has no IP to check", 404
+
+    result = alive.check_host(found)
+    redis.Redis(host=os.environ.get("REDIS_HOST") or "redis").hset(
+        alive.ALIVE_KEY, found["ip"], json.dumps(result)
+    )
+    return json.dumps(result), 200
+
+
+@app.route("/inventory/")
+@requires_auth_read
+def inventory():
+    """
+    Hosts viewed as a physical/virtual inventory (location maps, racks, the MCP)
+        - Each host gains a `_live` block: its effective type and location (explicit,
+          else inherited from its Proxmox node, else from its subnet), its last
+          reachability check, a service summary, and a rolled-up `status`
+        - `proxmox` is the cached node -> VM/LXC tree, with nodes and guests matched
+          to hosts by explicit proxmox_node/proxmox_vmid, else by short hostname
+    """
+    db = mongo_client["labyrinth"]
+    hosts = list(db["hosts"].find({}))
+    by_key = {x["mac"]: x for x in hosts}
+
+    def short_name(name):
+        return str(name or "").strip().lower().split(".")[0]
+
+    by_name = {}
+    explicit = {"proxmox_node": {}, "proxmox_vmid": {}}
+    for host in hosts:
+        host["_live"] = {"key": host["mac"], "proxmox": None, "parent": ""}
+        if short_name(host.get("host")):
+            by_name.setdefault(short_name(host.get("host")), host)
+        for field in explicit:
+            if host.get(field) not in ("", None):
+                explicit[field].setdefault(str(host[field]), []).append(host)
+
+    rc = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
+
+    # Proxmox: physical nodes and the VMs/LXCs on them, from the refresh cache
+    proxmox = []
+    for cluster in db["proxmox_clusters"].find({}):
+        cluster_names = {"", str(cluster["_id"]), str(cluster.get("name"))}
+
+        def match(field, value, name):
+            for host in explicit[field].get(str(value), []):
+                if str(host.get("proxmox_cluster") or "") in cluster_names:
+                    return host
+            return by_name.get(short_name(name))
+
+        payload = proxmox_helper.get_cached_proxmox_disk_data(
+            cluster, redis_client=rc
+        ) or {"error": "No cached Proxmox data yet"}
+        nodes = []
+        for node in payload.get("nodes") or []:
+            node_host = match("proxmox_node", node.get("name"), node.get("name"))
+            if node_host:
+                node_host["_live"]["proxmox"] = {
+                    "cluster": cluster.get("name"),
+                    "node": node.get("name"),
+                    "kind": "node",
+                    "status": node.get("status"),
+                }
+            guests = []
+            for kind, items in (
+                ("vm", node.get("vms")),
+                ("lxc", node.get("containers")),
+            ):
+                for guest in items or []:
+                    guest_host = match(
+                        "proxmox_vmid", guest.get("id"), guest.get("name")
+                    )
+                    if guest_host is node_host:
+                        guest_host = None
+                    if guest_host:
+                        guest_host["_live"]["proxmox"] = {
+                            "cluster": cluster.get("name"),
+                            "node": node.get("name"),
+                            "vmid": guest.get("id"),
+                            "kind": kind,
+                            "status": guest.get("status"),
+                        }
+                        guest_host["_live"]["parent"] = (
+                            node_host["mac"] if node_host else ""
+                        )
+                    guests.append(
+                        {
+                            "vmid": guest.get("id"),
+                            "name": guest.get("name"),
+                            "kind": kind,
+                            "status": guest.get("status"),
+                            "disk": guest.get("disk"),
+                            "maxdisk": guest.get("maxdisk"),
+                            "mem": guest.get("mem"),
+                            "maxmem": guest.get("maxmem"),
+                            "host_key": guest_host["mac"] if guest_host else "",
+                        }
+                    )
+            nodes.append(
+                {
+                    "name": node.get("name"),
+                    "status": node.get("status"),
+                    "host_key": node_host["mac"] if node_host else "",
+                    "guests": guests,
+                }
+            )
+        proxmox.append(
+            {
+                "cluster": cluster.get("name"),
+                "error": payload.get("error"),
+                "nodes": nodes,
+            }
+        )
+
+    # Judged services, as shown on the main dashboard
+    judged = {}
+    for subnet in json.loads(unwrap(dashboard)()[0]):
+        for group in subnet.get("groups", []):
+            for host in group.get("hosts", []):
+                judged[host["mac"]] = host
+
+    subnet_locations = {
+        x["subnet"]: x["location"]
+        for x in db["subnets"].find({"location": {"$nin": ["", None]}})
+    }
+    alive_records = {
+        k.decode(): json.loads(v) for k, v in rc.hgetall(alive.ALIVE_KEY).items()
+    }
+
+    for host in hosts:
+        live = host["_live"]
+        if host.get("location"):
+            live["location"], live["location_source"] = host["location"], "explicit"
+        elif subnet_locations.get(host.get("subnet")):
+            live["location"] = subnet_locations[host["subnet"]]
+            live["location_source"] = "subnet"
+        else:
+            live["location"], live["location_source"] = "", ""
+
+        kind = (live["proxmox"] or {}).get("kind")
+        live["type"] = host.get("device_type") or {
+            "node": "server",
+            "vm": "vm",
+            "lxc": "lxc",
+        }.get(kind, "")
+
+        # A stale record (alive cron not running) says nothing about now
+        record = alive_records.get(host.get("ip") or "")
+        if record and time.time() - record.get("checked", 0) > 600:
+            record = None
+        live["alive"] = record
+
+        services = None
+        if host["mac"] in judged:
+            judged_host = judged[host["mac"]]
+            warning_services = {
+                x.get("service")
+                for x in judged_host.get("service_levels") or []
+                if x and x.get("level") == "warning"
+            }
+            services = {"ok": 0, "warning": 0, "failed": 0, "failing": []}
+            for service in judged_host.get("services") or []:
+                if service["state"] is True:
+                    services["ok"] += 1
+                    continue
+                services["failing"].append(service["name"])
+                if (
+                    service["state"] == -1
+                    or judged_host.get("service_level") == "warning"
+                    or service["name"] in warning_services
+                ):
+                    services["warning"] += 1
+                else:
+                    services["failed"] += 1
+        live["services"] = services
+
+        # Hosts that drop pings but report healthy metrics are still up
+        healthy_metrics = services and services["ok"] and not services["failed"]
+        if not host.get("ip"):
+            live["status"] = "none"
+        elif record and not record["up"] and not healthy_metrics:
+            live["status"] = "down"
+        elif services and services["failed"]:
+            live["status"] = "error"
+        elif services and services["warning"]:
+            live["status"] = "warning"
+        elif (record and record["up"]) or (services and services["ok"]):
+            live["status"] = "up"
+        else:
+            live["status"] = "unknown"
+
+    # VMs and LXCs sit wherever their Proxmox node physically is
+    for host in hosts:
+        parent = by_key.get(host["_live"]["parent"])
+        if parent and not host.get("location") and parent["_live"]["location"]:
+            host["_live"]["location"] = parent["_live"]["location"]
+            host["_live"]["location_source"] = "proxmox"
+
+    return (
+        json.dumps(
+            {
+                "locations": list(db["locations"].find({}, sort=[("name", 1)])),
+                "devices": hosts,
+                "proxmox": proxmox,
+            },
+            default=str,
+        ),
+        200,
+    )
 
 
 # Metric
