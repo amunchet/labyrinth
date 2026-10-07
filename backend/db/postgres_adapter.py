@@ -40,7 +40,6 @@ _JSONB_TABLE_INDEXES = {
     "aws_accounts": [("name", False)],
     "themes": [("name", False)],
     "dashboards": [("name", False)],
-    "ai_chat_sessions": [("updated_at", False)],
 }
 
 _METRICS_TABLES = ("metrics", "metrics_latest")
@@ -72,8 +71,8 @@ def _connection_dsn():
 #
 # At the old hardcoded maxconn=5 that is 8*5 + 5 + 4*5 = 65 > 47, i.e. the
 # stack could exhaust the server without a single leak. Sync gunicorn workers
-# serve one request at a time and need exactly one connection; the headroom
-# above 1 is for the AI chat background threads. 13*2 = 26 leaves real room.
+# serve one request at a time and need exactly one connection; 13*2 = 26
+# leaves real room.
 _DEFAULT_POOL_MIN = 1
 _DEFAULT_POOL_MAX = 2
 

@@ -66,8 +66,8 @@ _shared_lock = threading.Lock()
 def get_shared_client():
     """The one client this process should use, built on first call.
 
-    Thread-safe: gunicorn workers run AI chat turns on background threads,
-    so two threads can race here on the very first database touch.
+    Thread-safe: two threads (e.g. a background job thread and a request)
+    can race here on the very first database touch.
     """
     global _shared_client
     if _shared_client is None:
