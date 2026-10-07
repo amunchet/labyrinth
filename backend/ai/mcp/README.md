@@ -210,11 +210,11 @@ which `common/auth.py` requires at import) as `-e` flags.
 
 The MCP server never runs playbooks itself. The intended hand-off is:
 
-1. The agent writes a playbook and calls `mcp_prepare_deployment` with the target hosts (IPs or MACs), a playbook name, a become file, and optionally the generated `playbook_content`. Generated content is held to the same rules as AI chat drafts (`ansible_helper.validate_ai_playbook`): `hosts: all`/`clients` only, no `vars_files`, no cleartext passwords, no target hosts embedded in the YAML. It may replace an earlier *generated* playbook of the same name, never one a human wrote.
+1. The agent writes a playbook and calls `mcp_prepare_deployment` with the target hosts (IPs or MACs), a playbook name, a become file, and optionally the generated `playbook_content`. Generated content must pass `ansible_helper.validate_ai_playbook`: `hosts: all`/`clients` only, no `vars_files`, no cleartext passwords, no target hosts embedded in the YAML. It may replace an earlier *generated* playbook of the same name, never one a human wrote.
 2. A human opens the returned `deploy_url`. The Deploy page shows a "Prepared Deployment" card with the hosts, become file, notes and the playbook for review, and asks only for the vault password. On Deploy, the backend saves the staged content (become file attached to `vars_files`, checked with `ansible-playbook --check`) and starts the run, so what runs is exactly what was staged.
 3. The agent polls `mcp_get_deployment_request(request_id)` until a run shows `status` `completed`/`error`, then reads `mcp_get_deployment(job_id)` for failures and logs.
 
-Every run (Deploy page, AI chat, or MCP-staged) is recorded in the `ansible_runs` collection/table: `status` (`queued`/`running`/`completed`/`error`), `outcome` (`success` only when the play recap shows no failed or unreachable hosts), `stats`, `failures`, and the log tail (capped at ~1MB). Staged deployments live in `ansible_requests`. Vault passwords are never stored.
+Every run (Deploy page or MCP-staged) is recorded in the `ansible_runs` collection/table: `status` (`queued`/`running`/`completed`/`error`), `outcome` (`success` only when the play recap shows no failed or unreachable hosts), `stats`, `failures`, and the log tail (capped at ~1MB). Staged deployments live in `ansible_requests`. Vault passwords are never stored.
 
 Deploy deep links also work without staging: `/deploy?ips=10.0.0.5,10.0.0.6&playbook=<name>&become=<file>[&ssh=<key>]`. The Deploy page has a "Copy deploy link" button that builds one from the current selection.
 

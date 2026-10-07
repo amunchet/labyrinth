@@ -1,10 +1,6 @@
 """
-Shared thin wrapper around existing backend functions using unwrap.
-
-Extracted so both the standalone MCP server (mcp/server.py, its own Docker
-service) and the in-process chat agent (backend/ai/agent_tools.py, which runs
-inside the same process as serve.py) can reuse the same host/service/metric
-tool implementations instead of maintaining two copies.
+Thin wrapper around existing backend functions using unwrap, backing the
+host/service/metric tools of the standalone MCP server (mcp/server.py).
 """
 
 import json

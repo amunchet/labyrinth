@@ -1743,3 +1743,48 @@ def test_get_proxmox_disk_data_vm_status_fails_with_no_cache_available(mock_redi
     assert vm["_status_live_check_failed"] is True
     assert vm["_status_cache_key"] == "proxmox-guest-status:cluster-123:node-a:vm:100"
     assert vm["qemu_guest_agent_warning_inferred"] is True
+
+
+def test_get_guest_disk_info_skips_read_only_image_root():
+    """Appliance OSes like Home Assistant OS mount a read-only squashfs/erofs
+    image at "/", which is always ~100% full. That must not be reported as
+    the VM's disk usage."""
+    client = Mock()
+    client.get_vm_guest_fsinfo.return_value = {
+        "result": [
+            {
+                "mountpoint": "/",
+                "type": "squashfs",
+                "used-bytes": 100,
+                "total-bytes": 100,
+            },
+            {
+                "mountpoint": "/mnt/data",
+                "type": "ext4",
+                "used-bytes": 10,
+                "total-bytes": 1000,
+            },
+        ]
+    }
+
+    disk, maxdisk, info = proxmox_helper._get_guest_disk_info(
+        client, "pve5", 118, 0, 1000, True, True
+    )
+
+    assert (disk, maxdisk) == (0, 1000)
+    assert info == client.get_vm_guest_fsinfo.return_value
+
+
+def test_get_guest_disk_info_uses_writable_root():
+    client = Mock()
+    client.get_vm_guest_fsinfo.return_value = {
+        "result": [
+            {"mountpoint": "/", "type": "ext4", "used-bytes": 400, "total-bytes": 1000}
+        ]
+    }
+
+    disk, maxdisk, _ = proxmox_helper._get_guest_disk_info(
+        client, "pve5", 101, 0, 1000, True, True
+    )
+
+    assert (disk, maxdisk) == (400, 1000)

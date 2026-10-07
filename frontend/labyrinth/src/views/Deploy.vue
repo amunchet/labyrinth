@@ -655,12 +655,6 @@
 <script>
 import Helper from "@/helper";
 import styles from "@/assets/variables.scss";
-import {
-  savePlaybookContents,
-  startPlaybook,
-  pollAnsibleJob,
-  runPlaybookAndPoll,
-} from "@/services/ansibleRunner";
 const { Vault } = require("ansible-vault");
 export default {
   name: "Deploy",
@@ -884,11 +878,14 @@ export default {
       this.loadings["save_playbook"] = 1;
       this.$forceUpdate();
       let auth = this.$auth;
-      savePlaybookContents(
+      let formData = new FormData();
+      formData.append("data", this.playbook_contents);
+      Helper.apiPost(
+        "save_ansible_file/",
+        this.selected_playbook.replace(".yml", ""),
+        this.selected["become"].replace(/.yml$/, ""),
         auth,
-        this.selected_playbook,
-        this.selected["become"],
-        this.playbook_contents
+        formData
       )
         .then((res) => {
           this.$store.commit("updateError", res);
@@ -910,6 +907,47 @@ export default {
         });
     },
 
+    // Starts an ansible run (POST /ansible_runner/) and returns its job_id
+    startAnsibleJob: /* istanbul ignore next */ async function (data) {
+      let formData = new FormData();
+      formData.append("data", JSON.stringify(data));
+      const response = await Helper.apiPost(
+        "ansible_runner",
+        "",
+        "",
+        this.$auth,
+        formData,
+        false,
+        1
+      );
+      const resp = await response.json();
+      if (!resp.job_id || resp.status !== "started") {
+        throw new Error("Failed to start the playbook execution.");
+      }
+      return resp.job_id;
+    },
+
+    // Polls a run until it finishes, passing the accumulated log lines to onLog
+    pollAnsibleJob: /* istanbul ignore next */ async function (job_id, onLog) {
+      let status = "";
+      let results = "";
+      while (status !== "completed") {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const resp = await Helper.apiCall(
+          `ansible_status/${job_id}`,
+          "",
+          this.$auth
+        );
+        onLog(resp.logs || []);
+        if (resp.status === "error") {
+          throw new Error(resp.error || "An error occurred during execution.");
+        }
+        status = resp.status;
+        results = resp.results || "";
+      }
+      return results;
+    },
+
     runPlaybook: /* istanbul ignore next */ async function () {
       if (this.selected["become"] === "") {
         this.$store.commit(
@@ -919,43 +957,43 @@ export default {
         return false;
       }
 
-      let auth = this.$auth;
       this.running = true;
       this.playbook_loaded = false;
       this.playbook_result = "";
       this.playbook_results = [];
 
+      // Prepare data for the API call
+      let data = {
+        hosts: this.ips.length > 0 ? this.ips.join(",") : this.selected_host,
+        playbook: this.selected_playbook.replace(".yml", ""),
+        vault_password: this.vault_password,
+        become_file: this.selected["become"].replace(".yml", ""),
+        ssh_key: this.selected["ssh"],
+        totp_file: this.selected["totp"] || "",
+      };
+
       try {
-        const { results } = await runPlaybookAndPoll(
-          auth,
-          {
-            hosts:
-              this.ips.length > 0 ? this.ips.join(",") : this.selected_host,
-            playbook: this.selected_playbook,
-            vaultPassword: this.vault_password,
-            becomeFile: this.selected["become"],
-            sshKey: this.selected["ssh"],
-            totpFile: this.selected["totp"] || "",
-          },
-          (logs) => {
-            this.playbook_result = logs.join("\r\n\r\n");
-            this.playbook_results = logs;
-            this.$nextTick(() => {
-              const div = this.$refs.playbookResultDiv;
-              if (div) {
-                div.scrollTop = div.scrollHeight;
+        const job_id = await this.startAnsibleJob(data);
+        const result = await this.pollAnsibleJob(job_id, (logs) => {
+          this.playbook_result = logs.join("\r\n\r\n");
+          this.playbook_results = logs;
+          this.$nextTick(() => {
+            const div = this.$refs.playbookResultDiv;
+            if (div) {
+              div.scrollTop = div.scrollHeight;
 
-                const rect = div.getBoundingClientRect();
-                if (rect.top < 0 || rect.bottom > window.innerHeight) {
-                  div.scrollIntoView({ behavior: "smooth", block: "start" });
-                }
+              const rect = div.getBoundingClientRect(); // Get the div's position relative to the viewport
+              if (rect.top < 0 || rect.bottom > window.innerHeight) {
+                div.scrollIntoView({ behavior: "smooth", block: "start" });
               }
-            });
-            this.$forceUpdate();
-          }
-        );
+            }
+          });
 
-        this.playbook_result = results;
+          this.$forceUpdate(); // Re-render the component
+        });
+
+        // Final result
+        this.playbook_result = result;
         this.running = false;
         this.playbook_loaded = true;
       } catch (error) {
@@ -1032,15 +1070,15 @@ export default {
           );
           job_id = (await response.json()).job_id;
         } else {
-          job_id = await startPlaybook(auth, {
+          job_id = await this.startAnsibleJob({
             hosts: link.hosts.join(","),
             playbook: link.playbook,
-            vaultPassword: this.vault_password,
-            becomeFile: link.become_file,
-            sshKey: link.ssh_key,
+            vault_password: this.vault_password,
+            become_file: link.become_file,
+            ssh_key: link.ssh_key,
           });
         }
-        await pollAnsibleJob(auth, job_id, (logs) => {
+        await this.pollAnsibleJob(job_id, (logs) => {
           this.deep_link_logs = logs;
         });
       } catch (e) {

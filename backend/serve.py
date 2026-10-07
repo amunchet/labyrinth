@@ -6,7 +6,6 @@ Labyrinth Web backend
 # Permissions scope names
 import functools
 import os
-import signal
 import sys
 import json
 import socket
@@ -32,8 +31,7 @@ import proxmox_disk_check
 import aws_helper
 import ec2_unmatched_check
 
-from ai.ai_settings import get_ai_alert_settings, get_ai_chat_settings
-from ai.skills import SKILLS, normalize_skill_ids
+from ai.ai_settings import get_ai_alert_settings
 from ai.ai_pipeline import send_simple_test_email, send_full_test_email
 
 from db import shared_db
@@ -1502,12 +1500,6 @@ def run_ansible_background(job_id, data):
 
         redis_client.hset(job_id, "status", "completed")
         redis_client.hset(job_id, "results", json.dumps(results))
-        if data.get("session_id"):
-            from ai import chat_store
-
-            chat_store.update_deployment(
-                data["session_id"], "completed", logs=results, results=results
-            )
 
         # No recap means the play never really ran (syntax error, vault failure, etc.)
         succeeded = stats is not None and not stats["failures"] and not stats["dark"]
@@ -1516,10 +1508,6 @@ def run_ansible_background(job_id, data):
     except Exception as e:
         redis_client.hset(job_id, "status", "error")
         redis_client.hset(job_id, "error", str(e))
-        if data.get("session_id"):
-            from ai import chat_store
-
-            chat_store.update_deployment(data["session_id"], "error", error=str(e))
         final = {"status": "error", "outcome": "failed", "error": str(e)}
 
     finally:
@@ -1564,7 +1552,6 @@ def start_ansible_job(job_id, data):
         {
             "job_id": job_id,
             "request_id": data.get("request_id", ""),
-            "session_id": data.get("session_id", ""),
             "playbook": data["playbook"],
             "hosts": hosts,
             "become_file": data["become_file"],
@@ -1769,7 +1756,6 @@ def deploy_ansible_request(request_id, inp_data=""):
                 staged["playbook"],
                 staged["playbook_content"],
                 staged["become_file"],
-                vault_password=data["vault_password"],
                 forbidden_hosts=staged["hosts"],
             )
         except (ValueError, OSError):
@@ -1799,335 +1785,6 @@ def deploy_ansible_request(request_id, inp_data=""):
             "totp_file": data.get("totp_file") or staged.get("totp_file", ""),
         },
     )
-    return {"job_id": job_id, "status": "started"}, 200
-
-
-# AI chat: investigate -> review a controller-scoped draft -> deploy and monitor.
-
-
-@app.route("/ai_chat/providers", methods=["GET"])
-@app.route("/ai_chat/providers/", methods=["GET"])
-@requires_auth_admin
-def ai_chat_providers():
-    """Returns the LLM providers that currently have their env vars configured."""
-    from ai.providers import factory
-
-    return json.dumps(factory.list_available_providers()), 200
-
-
-@app.route("/ai_chat/skills", methods=["GET"])
-@app.route("/ai_chat/skills/", methods=["GET"])
-@requires_auth_read
-def ai_chat_skills():
-    from ai import skills
-
-    settings = get_ai_chat_settings(db)
-    return json.dumps({"skills": skills.SKILLS, "enabled": settings["skills"]}), 200
-
-
-@app.route("/ai_chat/settings", methods=["GET"])
-@app.route("/ai_chat/settings/", methods=["GET"])
-@requires_auth_read
-def ai_chat_settings():
-    return json.dumps(get_ai_chat_settings(db)), 200
-
-
-@app.route("/ai_chat/settings", methods=["POST"])
-@app.route("/ai_chat/settings/", methods=["POST"])
-@requires_auth_admin
-def save_ai_chat_settings():
-    data = request.get_json(silent=True)
-    if data is None:
-        try:
-            data = json.loads(request.get_data(as_text=True) or "{}")
-        except (TypeError, ValueError, json.JSONDecodeError):
-            return {"error": ERROR_INVALID_JSON_BODY}, 400
-
-    values = {
-        "ai_chat_prompt": data.get("prompt"),
-        "ai_chat_skills": ",".join(normalize_skill_ids(data.get("skills"))),
-        "ai_chat_max_iterations": data.get("max_iterations"),
-    }
-    settings_collection = db["labyrinth"]["settings"]
-    for name, value in values.items():
-        if value is None:
-            continue
-        settings_collection.delete_one({"name": name})
-        settings_collection.insert_one({"name": name, "value": value})
-    return json.dumps(get_ai_chat_settings(db)), 200
-
-
-@app.route("/ai_chat/session/", methods=["POST"])
-@requires_auth_admin
-def ai_chat_create_session(inp_data=""):
-    """Creates a new AI chat session.
-
-    Body: {provider, become_file, ssh_key, vault_password}. The become file /
-    ssh key / vault password are chosen once here by the human (same as the
-    Deploy page) and reused server-side for every diagnostic tool call the
-    agent makes in this session - the model never sees or picks credentials.
-    """
-    if inp_data:
-        data = inp_data
-    else:  # pragma: no cover
-        data = request.form.get("data")
-        if not data:
-            return "Invalid data", 481
-
-    data = json.loads(data)
-    required_keys = ["provider", "become_file"]
-    if not all(key in data for key in required_keys):
-        return "Invalid data", 482
-
-    from ai import chat_store
-
-    chat_settings = get_ai_chat_settings(db)
-    skill_ids = normalize_skill_ids(data.get("skills", chat_settings["skills"]))
-    target_hosts = data.get("target_hosts", [])
-    if isinstance(target_hosts, str):
-        target_hosts = [
-            host.strip() for host in target_hosts.split(",") if host.strip()
-        ]
-    if not isinstance(target_hosts, list):
-        return "Invalid target_hosts", 482
-    target_hosts = [str(host).strip() for host in target_hosts if str(host).strip()]
-
-    session_id = chat_store.create_session(
-        data["provider"],
-        data["become_file"],
-        ssh_key=data.get("ssh_key", ""),
-        vault_password=data.get("vault_password", ""),
-    )
-    try:
-        chat_store.configure_session(
-            session_id,
-            prompt=data.get("prompt", chat_settings["prompt"]),
-            skill_ids=skill_ids,
-            target_hosts=target_hosts,
-            title=data.get("title", ""),
-            max_iterations=chat_settings["max_iterations"],
-        )
-    except Exception:
-        # Redis-only legacy sessions can still be created if the management
-        # database is temporarily unavailable; they remain visible until TTL.
-        pass
-    return {"session_id": session_id}, 200
-
-
-@app.route("/ai_chat/message/<session_id>", methods=["POST"])
-@requires_auth_admin
-def ai_chat_message(session_id, inp_data=""):
-    """Starts an agent turn for a session. Body: {message}.
-
-    Returns immediately with a turn_id; the agentic loop (several sequential
-    LLM calls plus tool dispatch) runs in a background process and reports
-    into Redis, polled via /ai_chat/turn/<session_id>. Running it inline used
-    to outlive gunicorn's request timeout, which killed the worker mid-turn
-    and left dangling tool_calls that poisoned the rest of the session.
-    """
-    if inp_data:
-        data = inp_data
-    else:  # pragma: no cover
-        data = request.form.get("data")
-        if not data:
-            return "Invalid data", 481
-
-    data = json.loads(data)
-    if "message" not in data:
-        return "Invalid data", 482
-
-    from ai import chat_agent
-    from ai import chat_store
-
-    if not chat_store.get_session(session_id):
-        return {"error": "Session not found"}, 404
-
-    current = chat_store.get_turn(session_id)
-    if current and current.get("status") in ("queued", "running"):
-        return {"error": "A turn is already running", "turn": current}, 409
-
-    turn_id = str(uuid.uuid4())
-    chat_store.start_turn(session_id, turn_id, data["message"])
-
-    process = Process(
-        target=chat_agent.run_turn_background,
-        args=(session_id, data["message"], turn_id),
-    )
-    process.start()
-    chat_store.update_turn(session_id, pid=str(process.pid))
-
-    return {"turn_id": turn_id, "status": "started"}, 200
-
-
-@app.route("/ai_chat/turn/<session_id>", methods=["GET"])
-@app.route("/ai_chat/turn/<session_id>/", methods=["GET"])
-@requires_auth_admin
-def ai_chat_turn_status(session_id):
-    """Returns the current turn's status/result, for polling by any client."""
-    from ai import chat_store
-
-    turn = chat_store.get_turn(session_id)
-    if not turn:
-        return {"error": "No turn found"}, 404
-
-    turn.pop("traceback", None)
-    return turn, 200
-
-
-@app.route("/ai_chat/turn/<session_id>", methods=["DELETE"])
-@app.route("/ai_chat/turn/<session_id>/", methods=["DELETE"])
-@requires_auth_admin
-def ai_chat_turn_cancel(session_id):
-    """Cancels the in-flight turn for a session."""
-    from ai import chat_agent
-    from ai import chat_store
-
-    turn = chat_store.get_turn(session_id)
-    if not turn:
-        return {"error": "No turn found"}, 404
-
-    chat_store.request_cancel(session_id)
-
-    # The loop checks the cancel flag between steps; if it's parked in a
-    # provider HTTP call that could be a while, so kill the worker too.
-    pid = turn.get("pid")
-    if pid:
-        try:
-            os.kill(int(pid), signal.SIGTERM)
-        except (ProcessLookupError, ValueError, PermissionError):
-            pass
-
-    chat_store.update_turn(
-        session_id, status="cancelled", reply=chat_agent.CANCELLED_REPLY
-    )
-    return {"status": "cancelled"}, 200
-
-
-@app.route("/ai_chat/sessions", methods=["GET"])
-@app.route("/ai_chat/sessions/", methods=["GET"])
-@requires_auth_admin
-def ai_chat_sessions():
-    """Lists live chat sessions so another client can pick one up and resume."""
-    from ai import chat_store
-
-    return json.dumps(chat_store.list_sessions()), 200
-
-
-@app.route("/ai_chat/history/<session_id>", methods=["GET"])
-@requires_auth_admin
-def ai_chat_history(session_id):
-    """Returns the stored message history for a chat session (reload after refresh)."""
-    from ai import chat_store
-
-    session = chat_store.get_durable_session(session_id)
-    if not session:
-        return {"error": "Session not found"}, 404
-
-    return json.dumps(chat_store.get_durable_history(session_id)), 200
-
-
-@app.route("/ai_chat/session/<session_id>", methods=["GET"])
-@requires_auth_admin
-def ai_chat_session(session_id):
-    """Return non-secret metadata and the retained draft for one session."""
-    from ai import chat_store
-
-    session = chat_store.get_durable_session(session_id)
-    if not session:
-        return {"error": "Session not found"}, 404
-    session = dict(session)
-    session["credentials_active"] = bool(chat_store.get_session(session_id))
-    session.pop("messages", None)
-    session.pop("vault_password", None)
-    session.pop("become_file", None)
-    session.pop("ssh_key", None)
-    session["session_id"] = str(escape(session_id))
-    session["draft"] = chat_store.get_durable_draft(session_id)
-    return session, 200
-
-
-@app.route("/ai_chat/session/<session_id>", methods=["DELETE"])
-@requires_auth_admin
-def ai_chat_discard(session_id):
-    """Discards a chat session's config, history, and any unapproved draft."""
-    from ai import chat_store
-
-    turn = chat_store.get_turn(session_id)
-    if turn and turn.get("status") in ("queued", "running"):
-        chat_store.request_cancel(session_id)
-        try:
-            os.kill(int(turn.get("pid")), signal.SIGTERM)
-        except (TypeError, ValueError, ProcessLookupError, PermissionError):
-            pass
-    chat_store.discard_session(session_id)
-    return "Success", 200
-
-
-@app.route("/ai_chat/deploy/<session_id>", methods=["POST"])
-@requires_auth_admin
-def ai_chat_deploy(session_id):
-    """Persist a reviewed draft, then start it against human-selected hosts."""
-    from ai import chat_store
-
-    session = chat_store.get_session(session_id)
-    if not session:
-        return {
-            "error": "Session credentials expired; start a new session before deploying."
-        }, 409
-    data = request.get_json(silent=True)
-    if data is None:
-        try:
-            data = json.loads(request.get_data(as_text=True) or "{}")
-        except (TypeError, ValueError, json.JSONDecodeError):
-            return {"error": ERROR_INVALID_JSON_BODY}, 400
-
-    hosts = data.get("hosts", [])
-    if isinstance(hosts, str):
-        hosts = [host.strip() for host in hosts.split(",") if host.strip()]
-    if not hosts or not isinstance(hosts, list):
-        return {"error": "Select at least one deployment host."}, 482
-    yaml_content = data.get("yaml", "")
-    filename = secure_filename(data.get("filename", "ai_reviewed_playbook")).replace(
-        ".yml", ""
-    )
-    if not yaml_content or not filename:
-        return {"error": "A reviewed playbook is required."}, 482
-    scope_error = ansible_helper.validate_ai_playbook(
-        yaml_content, forbidden_hosts=session.get("target_hosts", [])
-    )
-    if scope_error:
-        return {"error": scope_error}, 482
-
-    try:
-        result = ansible_helper.persist_reviewed_playbook(
-            filename,
-            yaml_content,
-            session.get("become_file", ""),
-            vault_password=session.get("vault_password", ""),
-            forbidden_hosts=session.get("target_hosts", []),
-        )
-    except (ValueError, OSError):
-        return {"error": "Unable to persist reviewed playbook."}, 482
-    if not result[0]:
-        return {
-            "error": "Playbook validation failed",
-            "stdout": str(result[1]),
-            "stderr": str(result[2]),
-        }, 482
-
-    job_id = f"ansible_job_{uuid.uuid4()}"
-    payload = {
-        "session_id": session_id,
-        "hosts": hosts,
-        "playbook": filename,
-        "vault_password": session.get("vault_password", ""),
-        "become_file": session.get("become_file", ""),
-        "ssh_key": session.get("ssh_key", ""),
-        "totp_file": data.get("totp_file", ""),
-    }
-    chat_store.clear_draft(session_id)
-    chat_store.set_deployment(session_id, job_id, hosts)
-    start_ansible_job(job_id, payload)
     return {"job_id": job_id, "status": "started"}, 200
 
 

@@ -14,31 +14,24 @@ Ansible helper functions
 
 """
 import os
-import shlex
 import subprocess
 import shutil
 import uuid
-import yaml
 
 import ansi2html
 import ansible_runner
+import yaml
 
 from werkzeug.utils import secure_filename
 from typing import List
 
 
-def check_file(filename, file_type, raw="", persist=True, vault_password=""):
+def check_file(filename, file_type, raw=""):
     """
     Verifies the file uploaded is a valid file of the specified type
-
-    :param persist - when False, validates (e.g. `ansible-playbook --check`) without
-        writing the result into /src/uploads/<file_type>/. Used to validate a
-        chat-drafted playbook before it has been reviewed/approved.
     """
     retval = False
     temp_file = "/tmp/{}".format(str(uuid.uuid1()))
-    if not os.path.exists("/tmp"):  # pragma: no cover
-        os.makedirs("/tmp")
 
     filename = secure_filename(filename)
     file_type = secure_filename(file_type)
@@ -56,30 +49,19 @@ def check_file(filename, file_type, raw="", persist=True, vault_password=""):
         with open(temp_file, "w") as f:
             f.write(raw)
 
-        command = ["ansible-playbook", temp_file, "--check"]
-        password_path = ""
-        if vault_password:
-            password_path = "{}.vault.pass".format(temp_file)
-            fd = os.open(password_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-            with os.fdopen(fd, "w") as password_file:
-                password_file.write(vault_password)
-            command.extend(["--vault-password-file", password_path])
-        try:
-            x = subprocess.run(command, capture_output=True)
-        finally:
-            if password_path and os.path.exists(password_path):
-                os.remove(password_path)
+        x = subprocess.run(
+            ["ansible-playbook", temp_file, "--check"],
+            capture_output=True,
+        )
         if x.returncode >= 4:
             retval = False
         else:
             retval = True
 
-        if retval and persist:
+        if retval:
             if not os.path.exists("/src/uploads/ansible"):  # pragma: no cover
                 os.makedirs("/src/uploads/ansible")
             shutil.move(temp_file, "/src/uploads/ansible/{}.yml".format(filename))
-        elif os.path.exists(temp_file):
-            os.remove(temp_file)
 
         return [retval, x.stdout, x.stderr]
 
@@ -135,11 +117,11 @@ def check_file(filename, file_type, raw="", persist=True, vault_password=""):
 
 
 def validate_ai_playbook(raw, forbidden_hosts=None):
-    """Reject unsafe model-generated playbook structure before Ansible runs it.
+    """Reject unsafe agent-generated playbook structure before Ansible runs it.
 
-    Deployment scope is supplied by the human inventory at approval time. The
-    model may target only the controller's generic groups and may not embed
-    credentials or a concrete IP/hostname in the playbook.
+    Used for playbooks staged through the MCP server.  Deployment scope comes
+    from the staged host list, so the playbook may target only the generic
+    groups and may not embed credentials or a concrete IP/hostname.
     """
     try:
         docs = list(yaml.safe_load_all(raw))
@@ -201,27 +183,25 @@ def validate_ai_playbook(raw, forbidden_hosts=None):
     return None
 
 
-def persist_reviewed_playbook(
-    filename, raw, vars_file, vault_password="", forbidden_hosts=None
-):
-    """Attach encrypted become vars and persist a reviewed AI playbook."""
-    filename = secure_filename(filename).replace(".yml", "")
-    parsed = list(yaml.safe_load_all(raw))
+def persist_reviewed_playbook(filename, raw, vars_file, forbidden_hosts=None):
+    """Attach the encrypted become vars and save a validated agent-generated playbook."""
     validation_error = validate_ai_playbook(raw, forbidden_hosts=forbidden_hosts)
     if validation_error:
         raise ValueError(validation_error)
-    for play in parsed:
-        encrypted_path = "/src/uploads/become/{}.yml".format(
-            secure_filename(vars_file).replace(".yml", "")
-        )
-        play["vars_files"] = [encrypted_path]
-    prepared = yaml.safe_dump_all(parsed, sort_keys=False)
+    # Each YAML document of a playbook is a list of plays
+    plays = []
+    for doc in yaml.safe_load_all(raw):
+        plays.extend(doc if isinstance(doc, list) else [doc])
+    for play in plays:
+        play["vars_files"] = [
+            "/src/uploads/become/{}.yml".format(
+                secure_filename(vars_file).replace(".yml", "")
+            )
+        ]
     return check_file(
-        filename,
+        secure_filename(filename).replace(".yml", ""),
         "ansible",
-        raw=prepared,
-        persist=True,
-        vault_password=vault_password,
+        raw=yaml.safe_dump(plays, sort_keys=False),
     )
 
 
@@ -332,79 +312,3 @@ def run_ansible(
     # Run ansible and return HTML
 
     return RUN_DIR, playbook
-
-
-def run_adhoc(
-    hosts: List, argv: List[str], vault_password: str, become_file: str, ssh_key_file=""
-):
-    """
-    Synchronously runs a single ad-hoc command (Ansible's `command` module) against
-    `hosts` and returns its captured output. Used for short-lived read-only diagnostics
-    (disk usage, docker status, logs) - unlike `run_ansible`, this does not go through
-    `ansible_runner.run_async`/background job/Redis log streaming, since the command
-    is expected to complete quickly.
-
-    :param hosts - hosts to run the command against
-    :param argv - argv list for the command module (e.g. ["df", "-h"]); never a shell
-        string, so there is no shell interpolation regardless of argument content
-    :param vault_password - temporary vault password to store
-    :param become_file - Encrypted vault file that contains the become password
-    :param ssh_key_file - SSH key to use for hosts
-    """
-    RUN_DIR = "/run/{}".format(uuid.uuid1())
-    BECOME_DIR = "/src/uploads/become"
-
-    if not os.path.exists("/run"):  # pragma: no cover
-        os.mkdir("/run")
-
-    os.makedirs(RUN_DIR)
-
-    folders = ["inventory", "project", "vars", "env"]
-    for folder in folders:
-        os.makedirs("{}/{}".format(RUN_DIR, folder))
-
-    # Hosts
-    if type(hosts) == str:
-        parsed_hosts = hosts.split(",")
-    else:
-        parsed_hosts = hosts
-
-    with open("{}/inventory/hosts".format(RUN_DIR), "w") as f:
-        f.write("[clients]\n")
-        for host in parsed_hosts:
-            f.write(f"{host}\n")
-
-    # Become file
-    old_become = "{}/{}.yml".format(BECOME_DIR, become_file)
-    if "{}.yml".format(become_file) not in os.listdir(BECOME_DIR):
-        raise Exception("Become file not found" + str(old_become))
-
-    shutil.copy(old_become, "{}/vars/{}.yml".format(RUN_DIR, become_file))
-
-    # Write vault password to a restrictive temp file (required by ansible-runner)
-    vault_pass_path = "{}/vault.pass".format(RUN_DIR)
-    fd = os.open(vault_pass_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w") as f:
-        f.write(vault_password)
-
-    module_args = " ".join(shlex.quote(a) for a in argv)
-
-    try:
-        result = ansible_runner.run(
-            private_data_dir=RUN_DIR,
-            host_pattern="clients",
-            module="command",
-            module_args=module_args,
-            cmdline="--vault-password-file ../vault.pass",
-            quiet=True,
-        )
-        stdout_lines = [event.get("stdout", "") for event in result.events]
-        return {
-            "status": result.status,
-            "rc": result.rc,
-            "stdout": "\n".join(line for line in stdout_lines if line),
-        }
-    finally:
-        if os.path.exists("{}/vault.pass".format(RUN_DIR)):
-            os.remove("{}/vault.pass".format(RUN_DIR))
-        shutil.rmtree(RUN_DIR)

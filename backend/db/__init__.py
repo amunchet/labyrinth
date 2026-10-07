@@ -66,8 +66,8 @@ _shared_lock = threading.Lock()
 def get_shared_client():
     """The one client this process should use, built on first call.
 
-    Thread-safe: gunicorn workers run AI chat turns on background threads,
-    so two threads can race here on the very first database touch.
+    Thread-safe: two threads (e.g. a background job thread and a request)
+    can race here on the very first database touch.
     """
     global _shared_client
     if _shared_client is None:
@@ -101,7 +101,7 @@ atexit.register(close_shared_client)
 def _forget_shared_client():
     """Drop, without closing, a client inherited across fork().
 
-    Background jobs (ansible runs, AI chat turns) are forked from a worker that
+    Background jobs (ansible runs) are forked from a worker that
     may already hold a pool. Its sockets belong to the parent, so the child must
     not use them - or close them, which would end the parent's sessions too.
     The child builds its own client on first use instead.
