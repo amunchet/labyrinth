@@ -7,6 +7,10 @@
           <DiskSpaceView />
         </b-tab>
 
+        <b-tab title="Telegraf Check" lazy>
+          <TelegrafCheckView />
+        </b-tab>
+
         <!-- Settings Tab -->
         <b-tab title="Settings" lazy>
           <DiskSpaceSettings />
@@ -19,12 +23,14 @@
 <script>
 import DiskSpaceView from "@/components/DiskSpace/DiskSpaceView";
 import DiskSpaceSettings from "@/components/DiskSpace/DiskSpaceSettings";
+import TelegrafCheckView from "@/components/DiskSpace/TelegrafCheckView";
 
 export default {
   name: "DiskSpace",
   components: {
     DiskSpaceView,
     DiskSpaceSettings,
+    TelegrafCheckView,
   },
 };
 </script>

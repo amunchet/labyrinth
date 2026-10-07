@@ -2329,6 +2329,129 @@ def refresh_proxmox_disk_space():
         return json.dumps({"error": "Failed to refresh disk space data"}), 500
 
 
+@app.route("/disk-space/proxmox/telegraf-check", methods=["GET"])
+@app.route("/disk-space/proxmox/telegraf-check/", methods=["GET"])
+@requires_auth_read
+def get_proxmox_telegraf_check():
+    """
+    Check that every Proxmox VM/LXC maps to a monitored Labyrinth host that is
+    actively reporting Telegraf metrics.
+    """
+    try:
+        stale_minutes = int(request.args.get("stale_minutes", 15))
+        cutoff = datetime.datetime.now() - datetime.timedelta(minutes=stale_minutes)
+
+        hosts = list(db["labyrinth"]["hosts"].find({}))
+        clusters = list(db["labyrinth"]["proxmox_clusters"].find({}))
+        redis_client = proxmox_helper.get_redis_client()
+
+        # Most recent Telegraf metric per reporting IP / hostname
+        last_seen = {}
+        for item in db["labyrinth"]["metrics-latest"].find({}):
+            stamp = item.get("timestamp")
+            if not isinstance(stamp, datetime.datetime):
+                continue
+            for field in ["ip", "host"]:
+                key = _normalize_match_string((item.get("tags") or {}).get(field))
+                if key and stamp > last_seen.get(key, datetime.datetime.min):
+                    last_seen[key] = stamp
+
+        result = {"clusters": [], "guests": [], "errors": []}
+
+        for cluster in clusters:
+            data = proxmox_helper.get_proxmox_disk_data_cached(
+                cluster, redis_client=redis_client
+            )
+            cluster_name = cluster.get("name")
+            result["clusters"].append(
+                {"_id": str(cluster.get("_id")), "name": cluster_name}
+            )
+            if data.get("error"):
+                result["errors"].append(
+                    {"cluster_name": cluster_name, "error": data.get("error")}
+                )
+                continue
+
+            for node in data.get("nodes", []):
+                for kind, key in [("vm", "vms"), ("lxc", "containers")]:
+                    for guest in node.get(key, []):
+                        names = set()
+                        name = _normalize_match_string(guest.get("name"))
+                        if name:
+                            names.add(name)
+                            names.add(name.split(".")[0])
+
+                        matches = [
+                            m
+                            for m in (
+                                aws_helper._build_host_match(h, set(), names)
+                                for h in hosts
+                            )
+                            if m
+                        ]
+                        monitored = any(
+                            _truthy_monitor_value(m.get("monitor"))
+                            or m.get("service_count", 0) > 0
+                            for m in matches
+                        )
+
+                        telegraf_last_seen = None
+                        for m in matches:
+                            for value in [m.get("ip"), m.get("host")]:
+                                seen = last_seen.get(_normalize_match_string(value))
+                                if seen and (
+                                    telegraf_last_seen is None
+                                    or seen > telegraf_last_seen
+                                ):
+                                    telegraf_last_seen = seen
+                        telegraf_reporting = bool(
+                            telegraf_last_seen and telegraf_last_seen >= cutoff
+                        )
+
+                        running = str(guest.get("status") or "").lower() == "running"
+                        if not running:
+                            status = "stopped"
+                        elif not matches:
+                            status = "unmatched"
+                        elif not monitored:
+                            status = "not_monitored"
+                        elif not telegraf_reporting:
+                            status = "no_telegraf"
+                        else:
+                            status = "ok"
+
+                        result["guests"].append(
+                            {
+                                "cluster_name": cluster_name,
+                                "node": node.get("name"),
+                                "type": kind,
+                                "id": guest.get("id"),
+                                "name": guest.get("name"),
+                                "status": guest.get("status"),
+                                "labyrinth_matches": matches,
+                                "matched": bool(matches),
+                                "monitoring_enabled": monitored,
+                                "telegraf_last_seen": telegraf_last_seen,
+                                "telegraf_reporting": telegraf_reporting,
+                                "check_status": status,
+                            }
+                        )
+
+        result["summary"] = {
+            "cluster_count": len(clusters),
+            "guest_count": len(result["guests"]),
+            "stale_minutes": stale_minutes,
+        }
+        for status in ["ok", "unmatched", "not_monitored", "no_telegraf", "stopped"]:
+            result["summary"][f"{status}_count"] = len(
+                [g for g in result["guests"] if g["check_status"] == status]
+            )
+
+        return json.dumps(result, default=str), 200
+    except Exception as e:
+        return json.dumps({"error": "Failed to run Telegraf check"}), 500
+
+
 @app.route("/disk-space/manual", methods=["GET"])
 @requires_auth_read
 def get_manual_disk_space():
