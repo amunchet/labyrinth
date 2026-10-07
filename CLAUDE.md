@@ -188,10 +188,13 @@ You are running inside an Armada session. These rules come from the Flagship
 and apply to every session in the fleet. They sit on top of this project's own
 instructions, and they win wherever the two disagree.
 
-- Armada session: `Scanning`
-- Working branch: `armada/Scanning-4387b6`
+- Armada session: `Bugfix - ignored proxmox item`
+- Working branch: `armada/Bugfix---ignored-proxmox-item-fedaff`
 - Base branch: `master`
-- Session changelog: `CHANGELOG/armada-Scanning-4387b6.md`
+- Session changelog: `CHANGELOG/armada-Bugfix---ignored-proxmox-item-fedaff.md`
+
+### Prefer Frontend -> Backend -> Database changes
+Prefer to change frontend issues only if possible.  If needed, backend changes are preferable to database schema modifications.  Sometimes all are needed, but prefer frontend only when possible - and when it would not compromise functionality or data integrity.
 
 ### Commit and push your work
 
@@ -219,7 +222,7 @@ instructions, and they win wherever the two disagree.
 
 ### Keep the changelog current
 
-- Record what you did in `CHANGELOG/armada-Scanning-4387b6.md` as part of the same commit that
+- Record what you did in `CHANGELOG/armada-Bugfix---ignored-proxmox-item-fedaff.md` as part of the same commit that
   makes the change.
 - The file is scoped to this branch, so it never conflicts with changelogs
   written by other sessions.
@@ -237,4 +240,48 @@ instructions, and they win wherever the two disagree.
   the work.
 - This per-branch file is yours to maintain. A top-level auto-generated
   `CHANGELOG.md`, if the project has one, is still off limits.
+
+### Coding style
+
+When writing, modifying, refactoring, or reviewing code, follow the shared
+`code-style` skill. Its rules apply unless this project's instructions
+explicitly require otherwise.
+
+### Report pull requests and reviews to Armada
+
+The Flagship learns about pull requests and reviews only from files in
+`.armada/` at the workspace root. Whichever skill or command you used, do this:
+
+- **After opening a pull request**, write `.armada/pr.json`:
+
+  ```json
+  {"schema": 1, "number": 0, "url": "<pull request or compare url>",
+   "head_branch": "armada/Bugfix---ignored-proxmox-item-fedaff", "base_branch": "master",
+   "head_sha": "<git rev-parse HEAD>", "ready_for_review": true,
+   "written_at": "<date -u +%Y-%m-%dT%H:%M:%SZ>"}
+  ```
+
+  `gh pr view --json number,url,headRefOid` supplies the real number, url and
+  sha. Without a number, `url` alone is enough.
+
+- **After reviewing the branch**, whatever else the review produced, write the
+  report a human reads to `.armada/review.md` and the verdict to
+  `.armada/review.json`:
+
+  ```json
+  {"schema": 1, "reviewer": "self", "pr_number": 0, "head_sha": "<sha>",
+   "base_branch": "master", "verdict": "comment",
+   "recommended_level": 2, "summary": "One paragraph.",
+   "findings": [{"severity": "medium", "file": "path.py", "line": 12,
+                 "title": "Short title", "detail": "What is wrong and why."}],
+   "tests": {"command": "<test command>", "ran": true, "passed": true,
+             "output_tail": "last few lines"},
+   "reviewed_at": "<date -u +%Y-%m-%dT%H:%M:%SZ>"}
+  ```
+
+  `verdict` is `approve`, `request_changes`, `comment` or `failed`; `severity`
+  is `high`, `medium`, `low` or `nit`; `reviewer` is `self` for your own work
+  and `agent` for someone else's.
+
+`.armada/` is not part of the repo - never commit it.
 <!-- END ARMADA GLOBAL INSTRUCTIONS -->
