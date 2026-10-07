@@ -2,7 +2,7 @@
 # Basic utility functions that don't belong in serve
 import serve
 from datetime import datetime, timezone
-from pymongo import UpdateOne
+from db.base import UpdateOne
 
 
 def update_service_expire_dates():
@@ -11,7 +11,7 @@ def update_service_expire_dates():
     - If a host's date is expired, then remove it (delete `service_level_expire_date` and `service_level`).
     """
 
-    coll = serve.mongo_client["labyrinth"]["hosts"]
+    coll = serve.db["labyrinth"]["hosts"]
 
     # Find all docs where the field is present
     hosts_with_expire_date = list(

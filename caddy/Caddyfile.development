@@ -6,11 +6,30 @@ https://localhost {
 	}
 
 	handle_path /api/* {
-		reverse_proxy backend:7000
+		# Telegraf ingest goes to the Go service; everything else, including
+		# the GET /metrics/... routes the dashboard uses, stays on Flask.
+		@telegraf_ingest {
+			method POST
+			path /metrics /metrics/
+		}
+		handle @telegraf_ingest {
+			reverse_proxy metrics:9000
+		}
+
+		handle {
+			reverse_proxy backend:7000
+		}
 	}
 
 	handle_path /alertmanager/* {
 		reverse_proxy alertmanager:9093
+	}
+
+	# MCP server.  handle (not handle_path) so the /mcp prefix survives - that is
+	# where FastMCP's streamable HTTP transport is mounted.  The server enforces
+	# its own pre-shared secret; Caddy only supplies TLS and a single ingress.
+	handle /mcp* {
+		reverse_proxy mcp:8765
 	}
 
 	handle {

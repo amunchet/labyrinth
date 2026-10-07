@@ -29,7 +29,7 @@ def tearDown():
     if os.path.exists("/tmp/broken.jpg"):
         os.remove("/tmp/broken.jpg")
 
-    serve.mongo_client["labyrinth"]["dashboards"].delete_many({})
+    serve.db["labyrinth"]["dashboards"].delete_many({})
 
 
 @pytest.fixture
@@ -57,13 +57,13 @@ def test_create_edit_custom_dashboard(setup):
         - All images
         - Plugins (Services, hosts, etc.)
     """
-    a = serve.mongo_client["labyrinth"]["dashboards"].find({"name": "TESTTEST"})
+    a = serve.db["labyrinth"]["dashboards"].find({"name": "TESTTEST"})
     assert not list(a)
 
     a = unwrap(serve.create_edit_custom_dashboard)("TESTTEST", data=SAMPLE_DASHBOARD)
     assert a[1] == 200
 
-    a = serve.mongo_client["labyrinth"]["dashboards"].find({"name": "TESTTEST"})
+    a = serve.db["labyrinth"]["dashboards"].find({"name": "TESTTEST"})
     assert len(list(a)) == 1
 
     # Check that we edit on the same name, not create new
@@ -73,7 +73,7 @@ def test_create_edit_custom_dashboard(setup):
     a = unwrap(serve.create_edit_custom_dashboard)("TESTTEST", data=temp)
     assert a[1] == 200
 
-    a = list(serve.mongo_client["labyrinth"]["dashboards"].find({"name": "TESTTEST"}))
+    a = list(serve.db["labyrinth"]["dashboards"].find({"name": "TESTTEST"}))
     assert len(a) == 1
     print(a)
     assert a[0]["components"][0]["rotation"] == "vertical"

@@ -91,10 +91,6 @@ describe("Deploy.vue", () => {
   });
 
   describe("deep links", () => {
-    const withQuery = (query) => {
-      wrapper.vm.$route = { query };
-    };
-
     beforeEach(() => {
       // $route is read-only on the instance; shadow it for these tests
       Object.defineProperty(wrapper.vm, "$route", {
@@ -107,32 +103,46 @@ describe("Deploy.vue", () => {
       jest.restoreAllMocks();
     });
 
-    test("query params prefill hosts, playbook and become file", async () => {
-      // The selected_playbook watcher loads the playbook from the backend
-      jest.spyOn(Helper, "apiCall").mockResolvedValue("");
-      withQuery({
-        ips: "10.0.0.5,10.0.0.6",
-        playbook: "patch.yml",
-        become: "creds",
-      });
+    test("query params prepare a deployment of a saved playbook", async () => {
+      const api = jest
+        .spyOn(Helper, "apiCall")
+        .mockResolvedValue("- hosts: all\n");
+      wrapper.vm.$route = {
+        query: {
+          ips: "10.0.0.5,10.0.0.6",
+          playbook: "patch.yml",
+          become: "creds.yml",
+        },
+      };
       await wrapper.vm.loadDeepLink();
 
-      expect(wrapper.vm.deep_link).not.toBeNull();
-      expect(wrapper.vm.manual_ips).toBe(true);
-      expect(wrapper.vm.ips).toEqual(["10.0.0.5", "10.0.0.6"]);
-      expect(wrapper.vm.selected_playbook).toBe("patch.yml");
-      expect(wrapper.vm.selected["become"]).toBe("creds.yml");
+      expect(wrapper.vm.deep_link).toMatchObject({
+        hosts: ["10.0.0.5", "10.0.0.6"],
+        playbook: "patch",
+        become_file: "creds",
+        generated: false,
+      });
+      expect(api).toHaveBeenCalledWith(
+        "get_ansible_file",
+        "patch",
+        expect.anything()
+      );
+      expect(wrapper.vm.deep_link_playbook).toBe("- hosts: all\n");
+      // The manual deploy form is left alone
+      expect(wrapper.vm.manual_ips).toBe(false);
+      expect(wrapper.vm.ips).toEqual([]);
     });
 
     test("ips alone keep the plain multi-IP flow", async () => {
-      withQuery({ ips: "10.0.0.5" });
+      wrapper.vm.$route = { query: { ips: "10.0.0.5" } };
       await wrapper.vm.loadDeepLink();
 
       expect(wrapper.vm.deep_link).toBeNull();
+      expect(wrapper.vm.manual_ips).toBe(true);
       expect(wrapper.vm.ips).toEqual(["10.0.0.5"]);
     });
 
-    test("staged request shows the generated playbook without loading from disk", async () => {
+    test("staged request shows the generated playbook for review", async () => {
       const content = "- hosts: all\n  tasks: []\n";
       const api = jest.spyOn(Helper, "apiCall").mockResolvedValue({
         request_id: "req-1",
@@ -141,22 +151,21 @@ describe("Deploy.vue", () => {
         become_file: "creds",
         ssh_key: "",
         notes: "Patch nginx",
+        generated: true,
         playbook_content: content,
+        runs: [],
       });
-      withQuery({ request: "req-1" });
+      wrapper.vm.$route = { query: { request: "req-1" } };
       await wrapper.vm.loadDeepLink();
 
+      expect(api).toHaveBeenCalledTimes(1);
       expect(api).toHaveBeenCalledWith(
         "ansible_request",
         "req-1",
         expect.anything()
       );
-      expect(wrapper.vm.ips).toEqual(["10.0.0.7"]);
-      expect(wrapper.vm.selected_playbook).toBe("ai_patch.yml");
-
-      wrapper.vm.loadPlaybook();
-      expect(wrapper.vm.playbook_contents).toBe(content);
-      expect(api).toHaveBeenCalledTimes(1);
+      expect(wrapper.vm.deep_link.request_id).toBe("req-1");
+      expect(wrapper.vm.deep_link_playbook).toBe(content);
     });
   });
 });

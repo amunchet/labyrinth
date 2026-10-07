@@ -159,4 +159,154 @@ describe("DiskSpaceSettings.vue", () => {
       expect(wrapper.vm.clusters.length).toBeGreaterThanOrEqual(0);
     }
   });
+
+  describe("QEMU guest agent exceptions", () => {
+    let confirmSpy;
+
+    beforeEach(() => {
+      confirmSpy = jest.spyOn(window, "confirm").mockReturnValue(true);
+    });
+
+    afterEach(() => {
+      confirmSpy.mockRestore();
+    });
+
+    test("loads the ignore list from settings", async () => {
+      Helper.apiCall.mockReset();
+      Helper.apiCall
+        .mockResolvedValueOnce({
+          clusters: [],
+          disk_space_alert_recipients: [],
+          disk_space_alert_threshold: 80,
+          proxmox_qemu_agent_ignore_vms: ["macos-vm", "prod-pve/105"],
+        })
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce({ manual_hosts: [] });
+
+      wrapper = mount(DiskSpaceSettings, {
+        mocks: { $auth: config.mocks["$auth"] },
+      });
+      // mounted() kicks off loadSettings(); let the mocked calls settle.
+      await new Promise((r) => setTimeout(r, 50));
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.vm.qemuIgnoreEntries).toEqual([
+        "macos-vm",
+        "prod-pve/105",
+      ]);
+      expect(wrapper.vm.qemuIgnoreText).toBe("macos-vm\nprod-pve/105");
+      expect(wrapper.text()).toContain("QEMU Guest Agent Exceptions");
+      expect(wrapper.text()).toContain("Currently ignored:");
+    });
+
+    test("editor is hidden behind an explicit acknowledgement when empty", async () => {
+      wrapper = mount(DiskSpaceSettings, {
+        mocks: { $auth: config.mocks["$auth"] },
+      });
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.find("#qemu-ignore-vms").exists()).toBe(false);
+      wrapper.vm.showQemuIgnoreEditor = true;
+      await wrapper.vm.$nextTick();
+      expect(wrapper.find("#qemu-ignore-vms").exists()).toBe(true);
+    });
+
+    test("parses comma and newline separated entries", () => {
+      wrapper = mount(DiskSpaceSettings, {
+        mocks: { $auth: config.mocks["$auth"] },
+      });
+
+      expect(
+        wrapper.vm.parseQemuIgnoreText(" macos-vm ,\n prod-pve/105,, \n")
+      ).toEqual(["macos-vm", "prod-pve/105"]);
+      expect(wrapper.vm.parseQemuIgnoreText("")).toEqual([]);
+    });
+
+    test("saves entries via the settings API after confirmation", async () => {
+      Helper.apiPost.mockResolvedValue("Success");
+
+      wrapper = mount(DiskSpaceSettings, {
+        mocks: { $auth: config.mocks["$auth"] },
+      });
+      wrapper.vm.qemuIgnoreText = "macos-vm\nprod-pve/105";
+      await wrapper.vm.saveQemuIgnoreList();
+
+      expect(confirmSpy).toHaveBeenCalled();
+      expect(Helper.apiPost).toHaveBeenCalledTimes(1);
+      const formData = Helper.apiPost.mock.calls[0][4];
+      expect(formData.get("name")).toBe("proxmox_qemu_agent_ignore_vms");
+      expect(formData.get("value")).toBe("macos-vm, prod-pve/105");
+      expect(wrapper.vm.qemuIgnoreEntries).toEqual([
+        "macos-vm",
+        "prod-pve/105",
+      ]);
+      expect(wrapper.vm.successMessage).toContain("2 VMs ignored");
+    });
+
+    test("does nothing when the confirmation is declined", async () => {
+      confirmSpy.mockReturnValue(false);
+
+      wrapper = mount(DiskSpaceSettings, {
+        mocks: { $auth: config.mocks["$auth"] },
+      });
+      wrapper.vm.qemuIgnoreText = "macos-vm";
+      await wrapper.vm.saveQemuIgnoreList();
+
+      expect(Helper.apiPost).not.toHaveBeenCalled();
+      expect(Helper.apiDelete).not.toHaveBeenCalled();
+    });
+
+    test("saving an empty list deletes the setting", async () => {
+      Helper.apiDelete.mockResolvedValue("Success");
+
+      wrapper = mount(DiskSpaceSettings, {
+        mocks: { $auth: config.mocks["$auth"] },
+      });
+      wrapper.vm.qemuIgnoreEntries = ["macos-vm"];
+      wrapper.vm.qemuIgnoreText = "";
+      await wrapper.vm.saveQemuIgnoreList();
+
+      expect(Helper.apiPost).not.toHaveBeenCalled();
+      expect(Helper.apiDelete).toHaveBeenCalledWith(
+        "settings",
+        "proxmox_qemu_agent_ignore_vms",
+        expect.anything()
+      );
+      expect(wrapper.vm.qemuIgnoreEntries).toEqual([]);
+      expect(wrapper.vm.successMessage).toContain("cleared");
+    });
+
+    test("clear all asks for confirmation then deletes the setting", async () => {
+      Helper.apiDelete.mockResolvedValue("Success");
+
+      wrapper = mount(DiskSpaceSettings, {
+        mocks: { $auth: config.mocks["$auth"] },
+      });
+      wrapper.vm.qemuIgnoreEntries = ["macos-vm"];
+      wrapper.vm.qemuIgnoreText = "macos-vm";
+
+      confirmSpy.mockReturnValueOnce(false);
+      await wrapper.vm.clearQemuIgnoreList();
+      expect(Helper.apiDelete).not.toHaveBeenCalled();
+
+      await wrapper.vm.clearQemuIgnoreList();
+      expect(Helper.apiDelete).toHaveBeenCalledTimes(1);
+      expect(wrapper.vm.qemuIgnoreEntries).toEqual([]);
+      expect(wrapper.vm.qemuIgnoreText).toBe("");
+    });
+
+    test("surfaces API errors when saving fails", async () => {
+      Helper.apiPost.mockRejectedValue(new Error("Save failed"));
+
+      wrapper = mount(DiskSpaceSettings, {
+        mocks: { $auth: config.mocks["$auth"] },
+      });
+      wrapper.vm.qemuIgnoreText = "macos-vm";
+      await wrapper.vm.saveQemuIgnoreList();
+
+      expect(wrapper.vm.errorMessage).toBe("Save failed");
+      expect(wrapper.vm.savingQemuIgnoreList).toBe(false);
+    });
+  });
 });

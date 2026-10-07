@@ -1,5 +1,5 @@
 """
-Ansible run history (Mongo `ansible_runs`) and staged deployment requests
+Ansible run history (`ansible_runs`) and staged deployment requests
 (`ansible_requests`) that the MCP server reads back and the Deploy page deep-links to.
 """
 
@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import serve
+from ai.mcp.client import LabyrinthClient
 from common.test import unwrap
 
 
@@ -33,8 +34,8 @@ class FakeRedis:
 
 @pytest.fixture
 def db():
-    runs = serve.mongo_client["labyrinth"]["ansible_runs"]
-    requests = serve.mongo_client["labyrinth"]["ansible_requests"]
+    runs = serve.db["labyrinth"]["ansible_runs"]
+    requests = serve.db["labyrinth"]["ansible_requests"]
     runs.delete_many({})
     requests.delete_many({})
     yield runs, requests
@@ -99,10 +100,8 @@ def _stats(failures=None, dark=None):
     )
 
 
-def test_endpoint_records_queued_run_and_links_request(db, fake_redis):
-    runs, requests = db
-    requests.insert_one({"request_id": "req-1", "job_ids": []})
-
+def test_endpoint_records_queued_run(db, fake_redis):
+    runs, _ = db
     with patch("serve.Process") as process:
         resp, status = unwrap(serve.run_ansible_endpoint)(
             json.dumps(
@@ -111,7 +110,6 @@ def test_endpoint_records_queued_run_and_links_request(db, fake_redis):
                     "playbook": "pb",
                     "vault_password": "secret",
                     "become_file": "creds",
-                    "request_id": "req-1",
                 }
             )
         )
@@ -121,9 +119,8 @@ def test_endpoint_records_queued_run_and_links_request(db, fake_redis):
     run = runs.find_one({"job_id": resp["job_id"]})
     assert run["status"] == "queued"
     assert run["hosts"] == ["10.0.0.5", "10.0.0.6"]
-    assert run["request_id"] == "req-1"
     assert "secret" not in json.dumps(run, default=str)
-    assert requests.find_one({"request_id": "req-1"})["job_ids"] == [resp["job_id"]]
+    assert fake_redis.hget(resp["job_id"], "status") == b"queued"
 
 
 def test_background_success_records_stats_and_logs(db, fake_redis):
@@ -191,6 +188,59 @@ def test_background_failed_tasks_marked_failed(db, fake_redis):
         ("10.0.0.5", "install nginx", "No package matching 'nginx'"),
         ("10.0.0.6", "Gathering Facts", "ssh timeout"),
     ]
+
+
+def test_background_reports_back_to_ai_chat_session(db, fake_redis):
+    """AI chat deployments keep updating their session alongside the run record."""
+    runs, _ = db
+    runs.insert_one({"job_id": "job-chat", "status": "queued"})
+    with patch("ai.chat_store.update_deployment") as update:
+        thread = MagicMock()
+        thread.is_alive.side_effect = [True, False]
+        runner = MagicMock()
+        runner.events = [_event("ok"), _stats()]
+        with patch(
+            "serve.ansible_helper.run_ansible", return_value=("/tmp/RUN_DIR_C", "pb")
+        ), patch(
+            "serve.ansible_runner.run_async", return_value=(thread, runner)
+        ), patch(
+            "serve.os.listdir", return_value=[]
+        ), patch(
+            "serve.shutil.rmtree"
+        ), patch(
+            "serve.time.sleep"
+        ):
+            serve.run_ansible_background(
+                "job-chat",
+                {
+                    "hosts": "h",
+                    "playbook": "pb",
+                    "vault_password": "pw",
+                    "become_file": "creds",
+                    "session_id": "sess-1",
+                },
+            )
+        update.assert_called_once_with(
+            "sess-1",
+            "completed",
+            logs=["ok", "PLAY RECAP"],
+            results=["ok", "PLAY RECAP"],
+        )
+
+        update.reset_mock()
+        with patch("serve.ansible_helper.run_ansible", side_effect=Exception("boom")):
+            serve.run_ansible_background(
+                "job-chat",
+                {
+                    "hosts": "h",
+                    "playbook": "pb",
+                    "vault_password": "pw",
+                    "become_file": "creds",
+                    "session_id": "sess-1",
+                },
+            )
+        update.assert_called_once_with("sess-1", "error", error="boom")
+    assert runs.find_one({"job_id": "job-chat"})["status"] == "error"
 
 
 def test_background_without_recap_is_failed(db, fake_redis):
@@ -292,25 +342,40 @@ def test_create_request_for_existing_playbook(db, uploads):
     assert found["hosts"] == ["10.0.0.5", "10.0.0.6"]
     assert found["become_file"] == "creds"
     assert found["playbook_content"] == ""
-    assert found["overwrites_playbook"] is False
+    assert found["generated"] is False
+
+
+GENERATED = "- hosts: all\n  tasks:\n    - ping:\n"
 
 
 def test_create_request_with_generated_playbook(db, uploads):
     _, requests = db
-    content = "- hosts: all\n  tasks:\n    - ping:\n"
-
     resp, status = unwrap(serve.create_ansible_request)(
-        _request(playbook="ai_new.yml", playbook_content=content)
+        _request(playbook="ai_new.yml", playbook_content=GENERATED)
     )
     assert status == 200
     found = requests.find_one({"request_id": resp["request_id"]})
     assert found["playbook"] == "ai_new"
-    assert found["playbook_content"] == content
-    assert found["overwrites_playbook"] is False
+    assert found["playbook_content"] == GENERATED
+    assert found["generated"] is True
 
-    resp, _ = unwrap(serve.create_ansible_request)(_request(playbook_content=content))
-    found = requests.find_one({"request_id": resp["request_id"]})
-    assert found["overwrites_playbook"] is True
+
+def test_generated_content_never_replaces_a_human_playbook(db, uploads):
+    _, requests = db
+    # existing.yml is on disk and was not generated
+    assert (
+        unwrap(serve.create_ansible_request)(_request(playbook_content=GENERATED))[1]
+        == 409
+    )
+
+    # ...but a playbook an earlier request generated may be revised
+    requests.insert_one(
+        {"request_id": "old", "playbook": "existing", "generated": True}
+    )
+    assert (
+        unwrap(serve.create_ansible_request)(_request(playbook_content=GENERATED))[1]
+        == 200
+    )
 
 
 @pytest.mark.parametrize(
@@ -321,6 +386,22 @@ def test_create_request_with_generated_playbook(db, uploads):
         ({"become_file": "nope"}, 483),
         ({"playbook": "missing"}, 484),
         ({"playbook": "new", "playbook_content": "a: [unclosed"}, 471),
+        # AI chat draft rules: targets come from `hosts`, credentials from the become file
+        ({"playbook": "new", "playbook_content": "- hosts: 10.0.0.5\n"}, 471),
+        (
+            {
+                "playbook": "new",
+                "playbook_content": "- hosts: all\n  vars_files: [x.yml]\n",
+            },
+            471,
+        ),
+        (
+            {
+                "playbook": "new",
+                "playbook_content": "- hosts: all\n  tasks:\n    - shell: ping 10.0.0.5\n",
+            },
+            471,
+        ),
     ],
 )
 def test_create_request_rejects_bad_input(db, uploads, overrides, code):
@@ -351,3 +432,154 @@ def test_get_request_includes_runs(db, uploads):
     assert "logs" not in found["runs"][0]
 
     assert unwrap(serve.get_ansible_request)("missing")[1] == 404
+
+
+def _deploy(request_id, **data):
+    return unwrap(serve.deploy_ansible_request)(request_id, json.dumps(data))
+
+
+def test_deploy_generated_request_saves_then_runs(db, fake_redis, uploads):
+    runs, _ = db
+    resp, _ = unwrap(serve.create_ansible_request)(
+        _request(playbook="ai_new", playbook_content=GENERATED, ssh_key="key")
+    )
+    request_id = resp["request_id"]
+
+    with patch(
+        "serve.ansible_helper.persist_reviewed_playbook",
+        return_value=[True, b"", b""],
+    ) as persist, patch("serve.Process") as process:
+        out, status = _deploy(request_id, vault_password="pw")
+    assert status == 200
+
+    # Exactly the staged content is saved, with the staged credentials file
+    persist.assert_called_once_with(
+        "ai_new",
+        GENERATED,
+        "creds",
+        vault_password="pw",
+        forbidden_hosts=["10.0.0.5"],
+    )
+    job = process.call_args.kwargs["args"][1]
+    assert job["playbook"] == "ai_new"
+    assert job["hosts"] == ["10.0.0.5"]
+    assert job["ssh_key"] == "key"
+    assert job["vault_password"] == "pw"
+
+    run = runs.find_one({"job_id": out["job_id"]})
+    assert run["request_id"] == request_id
+    assert run["status"] == "queued"
+
+    found = json.loads(unwrap(serve.get_ansible_request)(request_id)[0])
+    assert [r["job_id"] for r in found["runs"]] == [out["job_id"]]
+
+
+def test_deploy_existing_playbook_request_skips_save(db, fake_redis, uploads):
+    resp, _ = unwrap(serve.create_ansible_request)(_request())
+    with patch("serve.ansible_helper.persist_reviewed_playbook") as persist, patch(
+        "serve.Process"
+    ):
+        assert _deploy(resp["request_id"], vault_password="pw")[1] == 200
+    persist.assert_not_called()
+
+
+def test_deploy_request_refuses_bad_input(db, fake_redis, uploads):
+    runs, _ = db
+    resp, _ = unwrap(serve.create_ansible_request)(
+        _request(playbook="ai_new", playbook_content=GENERATED)
+    )
+    request_id = resp["request_id"]
+
+    with patch("serve.Process") as process:
+        assert _deploy(request_id)[1] == 482
+        assert _deploy("missing", vault_password="pw")[1] == 404
+        with patch(
+            "serve.ansible_helper.persist_reviewed_playbook",
+            return_value=[False, b"out", b"ERROR! Decryption failed"],
+        ):
+            body, status = _deploy(request_id, vault_password="wrong")
+        assert status == 471
+        assert "Decryption failed" in json.loads(body)["stderr"]
+        with patch(
+            "serve.ansible_helper.persist_reviewed_playbook",
+            side_effect=ValueError("bad"),
+        ):
+            assert _deploy(request_id, vault_password="pw")[1] == 482
+    process.assert_not_called()
+    assert runs.count_documents({}) == 0
+
+
+def test_ai_chat_deploy_is_recorded(db, fake_redis):
+    """Runs started from AI chat land in the same history, tagged with their session."""
+    runs, _ = db
+    session = {
+        "become_file": "creds",
+        "vault_password": "pw",
+        "target_hosts": [],
+    }
+    with serve.app.test_request_context(
+        json={"hosts": ["10.0.0.5"], "yaml": GENERATED, "filename": "chat_pb"}
+    ), patch("ai.chat_store.get_session", return_value=session), patch(
+        "ai.chat_store.clear_draft"
+    ), patch(
+        "ai.chat_store.set_deployment"
+    ) as set_deployment, patch(
+        "serve.ansible_helper.persist_reviewed_playbook",
+        return_value=[True, b"", b""],
+    ), patch(
+        "serve.Process"
+    ):
+        out, status = unwrap(serve.ai_chat_deploy)("sess-1")
+    assert status == 200
+    set_deployment.assert_called_once_with("sess-1", out["job_id"], ["10.0.0.5"])
+
+    run = runs.find_one({"job_id": out["job_id"]})
+    assert run["session_id"] == "sess-1"
+    assert run["playbook"] == "chat_pb"
+
+
+def test_mcp_prepare_deployment_resolves_macs_and_links(db, uploads, monkeypatch):
+    _, requests = db
+    hosts = serve.db["labyrinth"]["hosts"]
+    hosts.delete_many({"mac": "AA:BB:CC:00:00:01"})
+    hosts.insert_one({"mac": "AA:BB:CC:00:00:01", "ip": "10.9.9.9"})
+    monkeypatch.setenv("LABYRINTH_URL", "https://lab.example/")
+    try:
+        result = LabyrinthClient().prepare_deployment(
+            {
+                "hosts": ["AA:BB:CC:00:00:01", "10.0.0.1"],
+                "playbook": "ai_new",
+                "become_file": "creds",
+                "playbook_content": GENERATED,
+            }
+        )
+    finally:
+        hosts.delete_many({"mac": "AA:BB:CC:00:00:01"})
+
+    assert result["hosts"] == ["10.9.9.9", "10.0.0.1"]
+    assert result["deploy_url"] == "https://lab.example/deploy?request={}".format(
+        result["request_id"]
+    )
+    assert requests.find_one({"request_id": result["request_id"]})["hosts"] == [
+        "10.9.9.9",
+        "10.0.0.1",
+    ]
+
+    with pytest.raises(RuntimeError, match="483"):
+        LabyrinthClient().prepare_deployment(
+            {"hosts": ["10.0.0.1"], "playbook": "existing", "become_file": "nope"}
+        )
+
+
+def test_mcp_get_deployment_trims_logs(db, fake_redis):
+    runs, _ = db
+    runs.insert_one(
+        {"job_id": "j-logs", "status": "completed", "logs": [str(i) for i in range(5)]}
+    )
+    client = LabyrinthClient()
+    assert client.get_deployment("j-logs", log_tail=2)["logs"] == ["3", "4"]
+    assert len(client.get_deployment("j-logs", log_tail=0)["logs"]) == 5
+    with pytest.raises(ValueError):
+        client.get_deployment("missing")
+    with pytest.raises(ValueError):
+        client.get_deployment_request("missing")

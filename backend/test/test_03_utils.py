@@ -10,7 +10,7 @@ TEST_HOST_PREFIX = "testutils_"  # used to ensure we only clean up what we creat
 
 
 def _hosts_coll():
-    return serve.mongo_client["labyrinth"]["hosts"]
+    return serve.db["labyrinth"]["hosts"]
 
 
 def _cleanup_test_hosts():

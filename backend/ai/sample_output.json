@@ -1,8 +1,7 @@
 [
-  [
-    "old-website",
-    [
-      
+  {
+    "host": "old-website",
+    "failing": [
       "aws-internal-super-server",
       {
         "state": false,
@@ -60,12 +59,12 @@
           }
         }
       }
-    ]
-  ],
-  [
-    "website-backup.ds1.example.com",
-    [
-      
+    ],
+    "all_services": ["aws-internal-super-server", "aws-internal"]
+  },
+  {
+    "host": "website-backup.ds1.example.com",
+    "failing": [
       "website.backup",
       {
         "state": false,
@@ -116,11 +115,12 @@
           }
         }
       }
-    ]
-  ],
-  [
-    "fredrick",
-    [
+    ],
+    "all_services": ["website.backup", "website-admin.backup"]
+  },
+  {
+    "host": "fredrick",
+    "failing": [
       "cpu",
       {
         "state": false,
@@ -138,7 +138,7 @@
           "tags": { "host": "fredrick", "ip": "10.0.0.216" }
         }
       }
-    ]
-  ]
-  
+    ],
+    "all_services": ["cpu"]
+  }
 ]
