@@ -1,7 +1,4 @@
-// TEMPLATE FILE - Copy this file
 import { config, shallowMount } from "@vue/test-utils";
-
-//import { render } from '@vue/server-test-utils'
 
 import Vue from "vue";
 import store from "@/store";
@@ -19,46 +16,14 @@ config.mocks["$auth"] = {
   getAccessToken: function () {},
 };
 
-config.mocks["loaded"] = true;
-
 let wrapper;
+
+const device = (key, location) => ({ _live: { key, location } });
 
 beforeEach(() => {
   wrapper = shallowMount(Instance, {
-    propsData: {
-      options: [
-        "All",
-        "utopiany",
-        "rousingr",
-        "cunningh",
-        "papayawi",
-        "elegantc",
-        "tidyseri",
-        "quirkyco",
-      ],
-      onChange() {
-        //console.log('select changed')
-      },
-    },
     store,
-    methods: {},
-    stubs: [
-      "font-awesome-icon",
-      "b-modal",
-      "b-button",
-      "b-select",
-      "b-input",
-      "b-row",
-      "b-col",
-      "b-table",
-      "b-tab",
-      "b-tabs",
-      "b-spinner",
-      "b-container",
-      "b-textarea",
-      "b-avatar",
-      "b-form-file",
-    ],
+    stubs: ["b-container", "b-select", "router-link", "LocationMap"],
   });
 });
 
@@ -71,47 +36,63 @@ describe("CustomDashboardsView.vue", () => {
     expect(wrapper.isVueInstance).toBeTruthy();
   });
 
-  test("computed_filtered_data", async () => {
-    wrapper.vm.$data.selected_dashboard = {
-      components: [
-        {
-          name: "test_name",
-          subnet: "255.255.255",
-        },
-        {
-          name: "second_name",
-          subnet: "255.255.254",
-        },
+  test("offers every map plus a board for locations without a map", async () => {
+    wrapper.setData({
+      maps: [
+        { name: "Floor 1", location: "Plant" },
+        { name: "Campus", location: "" },
       ],
-    };
-    wrapper.vm.$data.full_data = [
-      {
-        subnet: "255.255.255",
-        ip: "test_name",
+      inventory: {
+        locations: [{ name: "Plant" }, { name: "Warehouse" }],
+        devices: [],
       },
-      {
-        subnet: "255.255.254",
-        ip: "second_name",
-      },
-      {
-        subnet: "123.123.123",
-        ip: "NOTSEEN",
-      },
-    ];
-
-    await wrapper.vm.$forceUpdate();
-    expect(wrapper.vm.computed_filtered_data).toStrictEqual([
-      {
-        ip: "test_name",
-        subnet: "255.255.255",
-      },
-      {
-        ip: "second_name",
-        subnet: "255.255.254",
-      },
+    });
+    expect(wrapper.vm.options).toStrictEqual([
+      { value: "map:Floor 1", text: "Plant – Floor 1" },
+      { value: "map:Campus", text: "Campus" },
+      { value: "board:Warehouse", text: "Warehouse (board)" },
     ]);
   });
 
-  test("generateHostStyle", () => {});
-  test("generateBackgroundImage", () => {});
+  test("defaults to the default map, then any map, then a board", async () => {
+    wrapper.setData({
+      inventory: { locations: [{ name: "Warehouse" }], devices: [] },
+    });
+    expect(wrapper.vm.choice).toStrictEqual({ map: "", location: "Warehouse" });
+
+    wrapper.setData({ maps: [{ name: "Floor 1", location: "Plant" }] });
+    expect(wrapper.vm.choice).toStrictEqual({
+      map: "Floor 1",
+      location: "Plant",
+    });
+
+    wrapper.setData({
+      maps: [
+        { name: "Floor 1", location: "Plant" },
+        { name: "Floor 2", location: "Plant", default: true },
+      ],
+    });
+    expect(wrapper.vm.choice.map).toBe("Floor 2");
+
+    // An explicit choice wins, and a stale one (map deleted) falls back
+    wrapper.setData({ selected: "board:Warehouse" });
+    expect(wrapper.vm.choice.location).toBe("Warehouse");
+    wrapper.setData({ selected: "map:Gone" });
+    expect(wrapper.vm.choice.map).toBe("Floor 2");
+  });
+
+  test("shows the chosen location's devices; a location-less map gets all", async () => {
+    let devices = [device("a", "Plant"), device("b", "Warehouse")];
+    wrapper.setData({
+      maps: [
+        { name: "Floor 1", location: "Plant", default: true },
+        { name: "Campus", location: "" },
+      ],
+      inventory: { locations: [], devices: devices },
+    });
+    expect(wrapper.vm.devices.map((x) => x._live.key)).toStrictEqual(["a"]);
+
+    wrapper.setData({ selected: "map:Campus" });
+    expect(wrapper.vm.devices).toHaveLength(2);
+  });
 });

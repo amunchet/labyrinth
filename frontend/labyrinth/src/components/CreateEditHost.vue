@@ -2,7 +2,11 @@
   <b-modal id="create_edit_host" title="Create/Edit Host" size="lg">
     <template #modal-footer="{ cancel }">
       <div style="width: 100%">
-        <b-button class="float-left" variant="danger" @click="deleteHost()"
+        <b-button
+          v-if="!isNew"
+          class="float-left"
+          variant="danger"
+          @click="deleteHost()"
           >Delete</b-button
         >
         <b-button class="float-right ml-2" variant="primary" @click="saveHost()"
@@ -32,16 +36,15 @@
         <b-col>
           <b-input
             v-model="host.ip"
-            :state="
-              !$v.host.ip.$invalid && (inp_host != '' || !all_ips.has(host.ip))
-            "
+            :state="host.ip ? !$v.host.ip.$invalid && !duplicate_ip : null"
             placeholder="E.g. 192.168.0.1"
           />
-          <span
-            v-if="inp_host == '' && all_ips && all_ips.has(host.ip)"
-            class="text-danger"
-          >
+          <span v-if="duplicate_ip" class="text-danger">
             Error: IP Address already exists!
+          </span>
+          <span v-else-if="!host.ip" class="text-small">
+            Leave blank for a device without an IP (e.g. an unmanaged switch):
+            it is labelled on maps and racks, but not monitored.
           </span>
         </b-col>
       </b-row>
@@ -89,6 +92,27 @@
           </span>
         </b-col>
       </b-row>
+      <b-row>
+        <b-col>Proxmox node / VM ID</b-col>
+        <b-col>
+          <div class="d-flex">
+            <b-input
+              v-model="host.proxmox_node"
+              placeholder="Node name"
+              class="mr-1"
+            />
+            <b-input
+              v-model="host.proxmox_vmid"
+              type="number"
+              placeholder="VM/LXC ID"
+            />
+          </div>
+          <span class="text-small">
+            Only needed when the hostname differs from the Proxmox node or
+            VM/LXC name; otherwise they are matched automatically.
+          </span>
+        </b-col>
+      </b-row>
 
       <b-row
         ><b-col>Subnet</b-col
@@ -123,6 +147,81 @@
         <b-col> Notes</b-col>
         <b-col>
           <b-textarea style="min-height: 100px" v-model="host.notes" />
+        </b-col>
+      </b-row>
+
+      <hr />
+      <h5>Inventory &amp; Location</h5>
+      <b-row>
+        <b-col>Device type</b-col>
+        <b-col>
+          <b-select v-model="host.device_type" :options="device_type_options" />
+        </b-col>
+      </b-row>
+      <b-row>
+        <b-col>Location</b-col>
+        <b-col>
+          <b-select
+            v-model="host.location"
+            :options="location_options"
+            @change="host.rack = ''"
+          />
+        </b-col>
+      </b-row>
+      <b-row v-if="host.location && rack_options.length > 1">
+        <b-col>Rack</b-col>
+        <b-col>
+          <b-select v-model="host.rack" :options="rack_options" />
+          <div class="d-flex mt-1" v-if="host.rack">
+            <b-input
+              v-model.number="host.rack_unit"
+              type="number"
+              min="1"
+              placeholder="Bottom U"
+              class="mr-1"
+            />
+            <b-input
+              v-model.number="host.rack_height"
+              type="number"
+              min="1"
+              placeholder="Height (U)"
+            />
+          </div>
+        </b-col>
+      </b-row>
+      <b-row>
+        <b-col>Vendor / model</b-col>
+        <b-col>
+          <div class="d-flex">
+            <b-input v-model="host.vendor" placeholder="Vendor" class="mr-1" />
+            <b-input v-model="host.model" placeholder="Model" />
+          </div>
+        </b-col>
+      </b-row>
+      <b-row>
+        <b-col>Serial</b-col>
+        <b-col><b-input v-model="host.serial" /></b-col>
+      </b-row>
+      <b-row>
+        <b-col>Uplink</b-col>
+        <b-col>
+          <v-select
+            v-model="host.uplink"
+            label="text"
+            :reduce="(x) => x.value"
+            :options="uplink_options"
+            placeholder="Device it connects up to"
+          />
+          <b-select
+            v-if="host.uplink"
+            v-model="host.link_type"
+            :options="link_type_options"
+            class="mt-1"
+          />
+          <span class="text-small">
+            E.g. a switch's core switch, or the bridge at the far end of a
+            building-to-building link. Uplinks are drawn on maps.
+          </span>
         </b-col>
       </b-row>
     </b-container>
@@ -432,8 +531,6 @@
 import Helper from "@/helper";
 import Checks from "@/views/Checks";
 
-import { required } from "vuelidate/lib/validators";
-
 export default {
   name: "CreateEditHost",
   components: {
@@ -457,6 +554,19 @@ export default {
         icon: "",
         services: [],
         class: "",
+        // Inventory fields (blank ones are dropped by the backend on save)
+        device_type: "",
+        location: "",
+        rack: "",
+        rack_unit: "",
+        rack_height: "",
+        vendor: "",
+        model: "",
+        serial: "",
+        uplink: "",
+        link_type: "",
+        proxmox_node: "",
+        proxmox_vmid: "",
       },
       new_port: "",
       new_service: "",
@@ -471,23 +581,35 @@ export default {
 
       services: [],
       icons: [],
+      locations: [],
+      all_hosts: [],
     };
   },
   watch: {
     inp_host: function (val) {
-      if (val == "") {
-        this.isNew = true;
-        this.host = JSON.parse(JSON.stringify(this.safe_host));
-        this.metrics = [];
-      } else {
-        this.isNew = false;
-        this.host = val;
-        try {
+      // Edit a copy so Cancel leaves the caller's data alone.  Every field
+      // exists up front so the form stays reactive, and raw host documents
+      // (services as plain names) look like dashboard ones.  A host without
+      // a MAC/key is new (e.g. "Add device" with a preset location).
+      let host = Object.assign(
+        JSON.parse(JSON.stringify(this.safe_host)),
+        JSON.parse(JSON.stringify(val || {}))
+      );
+      host.services = (host.services || []).map((x) =>
+        typeof x === "string" ? { name: x, state: "" } : x
+      );
+      delete host._live;
+      this.host = host;
+      this.isNew = !host.mac;
+      this.metrics = [];
+      try {
+        this.loadLookups();
+        if (!this.isNew) {
           this.loadMetrics();
           this.loadServices();
-        } catch (e) {
-          this.$store.commit("updateError", e);
         }
+      } catch (e) {
+        this.$store.commit("updateError", e);
       }
     },
   },
@@ -527,6 +649,15 @@ export default {
         })
         .catch((e) => this.$store.commit("updateError", e));
     },
+    loadLookups: /* istanbul ignore next */ function () {
+      let auth = this.$auth;
+      Helper.apiCall("locations", "", auth)
+        .then((res) => (this.locations = res))
+        .catch((e) => this.$store.commit("updateError", e));
+      Helper.apiCall("hosts", "", auth)
+        .then((res) => (this.all_hosts = res))
+        .catch((e) => this.$store.commit("updateError", e));
+    },
     loadMetrics: /* istanbul ignore next */ function () {
       let auth = this.$auth;
       Helper.apiCall("metrics", this.host.mac, auth)
@@ -550,7 +681,15 @@ export default {
         return -1;
       }
 
-      if (this.inp_host == "" && this.all_ips.has(this.host.ip)) {
+      if (!this.host.ip && !this.host.host) {
+        this.$store.commit(
+          "updateError",
+          "Error: Give the device a name or an IP."
+        );
+        return -1;
+      }
+
+      if (this.duplicate_ip) {
         this.$store.commit("updateError", "Error: IP Address already exists.");
         return -1;
       }
@@ -563,6 +702,13 @@ export default {
           this.$emit("update");
           this.$store.commit("updateError", res);
           this.$bvModal.hide("create_edit_host");
+          if (host.ip) {
+            // Show its reachability now instead of after the next alive run.
+            // Best effort: needs write access, and the cron catches up anyway.
+            Helper.apiCall("alive/check", host.ip, auth)
+              .then(() => this.$emit("update"))
+              .catch(() => {});
+          }
         })
         .catch((e) => {
           this.$store.commit("updateError", e);
@@ -606,6 +752,44 @@ export default {
     }
   },
   computed: {
+    duplicate_ip() {
+      return (
+        this.isNew &&
+        !!this.host.ip &&
+        !!this.all_ips &&
+        this.all_ips.has(this.host.ip)
+      );
+    },
+    device_type_options() {
+      return [{ value: "", text: "Not set" }].concat(
+        Object.keys(Helper.deviceTypes).map((x) => ({
+          value: x,
+          text: Helper.deviceTypes[x].label,
+        }))
+      );
+    },
+    location_options() {
+      return [{ value: "", text: "From its subnet / Proxmox node" }].concat(
+        this.locations.map((x) => x.name)
+      );
+    },
+    rack_options() {
+      let location = this.locations.find((x) => x.name == this.host.location);
+      return [{ value: "", text: "Not in a rack" }].concat(
+        location ? location.racks.map((x) => x.name) : []
+      );
+    },
+    uplink_options() {
+      return this.all_hosts
+        .filter((x) => x.mac != this.host.mac)
+        .map((x) => ({
+          value: x.mac,
+          text: (x.host || x.ip || x.mac) + (x.ip ? " (" + x.ip + ")" : ""),
+        }));
+    },
+    link_type_options() {
+      return [{ value: "", text: "Link type" }].concat(Helper.linkTypes);
+    },
     parsedTags() {
       const raw = (this.host && this.host.tags) || "";
       return raw
@@ -616,13 +800,13 @@ export default {
   },
   validations: {
     host: {
+      // Both optional: IP-less devices (e.g. unmanaged switches) are labelled
+      // but not monitored, and the backend derives the subnet from the IP
       ip: {
-        required,
-        ipValidation: (val) => Helper.validateIP(val),
+        ipValidation: (val) => !val || Helper.validateIP(val),
       },
       subnet: {
-        required,
-        ipValidation: (val) => Helper.validateIP(val, 3),
+        ipValidation: (val) => !val || Helper.validateIP(val, 3),
       },
     },
   },

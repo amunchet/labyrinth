@@ -56,6 +56,21 @@
         </b-select>
       </b-col>
     </b-row>
+    <b-row>
+      <b-col>Location</b-col>
+      <b-col>
+        <b-select
+          v-model="subnet.location"
+          :options="[
+            { value: '', text: 'None' },
+            ...locations.map((x) => x.name),
+          ]"
+        />
+        <small class="text-muted">
+          Hosts in this subnet without a location of their own appear there.
+        </small>
+      </b-col>
+    </b-row>
     <hr />
 
     <h6>Origin</h6>
@@ -139,6 +154,7 @@ export default {
         },
       },
       icons: [],
+      locations: [],
       isNew: true,
     };
   },
@@ -172,6 +188,15 @@ export default {
               value: x,
             };
           });
+        })
+        .catch((e) => {
+          this.$store.commit("updateError", e);
+        });
+    },
+    loadLocations: /* istanbul ignore next */ function () {
+      Helper.apiCall("locations", "", this.$auth)
+        .then((res) => {
+          this.locations = res;
         })
         .catch((e) => {
           this.$store.commit("updateError", e);
@@ -231,6 +256,7 @@ export default {
         this.isNew = true;
         this.subnet = {
           subnet: "",
+          location: "",
           origin: {
             ip: "",
             icon: "",
@@ -242,6 +268,11 @@ export default {
             color: "",
           },
         };
+      }
+      try {
+        this.loadLocations();
+      } catch (e) {
+        this.$store.commit("updateError", e);
       }
     },
   },

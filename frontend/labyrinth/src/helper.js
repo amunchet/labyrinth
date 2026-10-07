@@ -8,6 +8,30 @@ const devel_port = "8101";
 const local_backend = "https://network.north.altamontco.com/api/"
 const devel_port = ""
 */
+
+// Inventory device types (keys match the backend's DEVICE_TYPES)
+const deviceTypes = {
+  server: { label: "Server", icon: "server" },
+  vm: { label: "Virtual machine", icon: "cloud" },
+  lxc: { label: "LXC container", icon: "cube" },
+  pc: { label: "PC", icon: "desktop" },
+  laptop: { label: "Laptop", icon: "laptop" },
+  switch: { label: "Switch", icon: "network-wired" },
+  router: { label: "Router", icon: "route" },
+  firewall: { label: "Firewall", icon: "shield-alt" },
+  ap: { label: "Access point", icon: "wifi" },
+  bridge: { label: "Wireless bridge", icon: "broadcast-tower" },
+  plc: { label: "PLC / controller", icon: "microchip" },
+  iot: { label: "IoT device", icon: "plug" },
+  camera: { label: "Camera", icon: "video" },
+  printer: { label: "Printer", icon: "print" },
+  phone: { label: "Phone", icon: "phone" },
+  ups: { label: "UPS", icon: "car-battery" },
+  storage: { label: "Storage / NAS", icon: "hdd" },
+  "patch-panel": { label: "Patch panel", icon: "grip-lines" },
+  other: { label: "Other", icon: "question-circle" },
+};
+
 export default {
   name: "Helper",
   capitalize: function (string) {
@@ -58,6 +82,25 @@ export default {
       return hours + ":" + minutes + ":" + seconds;
     }
     return [year, month, day].join("-");
+  },
+
+  deviceTypes,
+  linkTypes: ["ethernet", "fiber", "wireless", "vpn"],
+  // Rolled-up device status from /inventory/ (`_live.status`)
+  deviceStatuses: {
+    up: { label: "Up", variant: "success" },
+    down: { label: "Unreachable", variant: "danger" },
+    error: { label: "Failing services", variant: "danger" },
+    warning: { label: "Warning", variant: "warning" },
+    unknown: { label: "Not checked yet", variant: "secondary" },
+    none: { label: "No IP (not monitored)", variant: "light" },
+  },
+  deviceIcon(device) {
+    let type = deviceTypes[device._live ? device._live.type : ""];
+    return type ? type.icon : "circle";
+  },
+  deviceName(device) {
+    return device.host || device.ip || device.mac;
   },
 
   listColors: function () {

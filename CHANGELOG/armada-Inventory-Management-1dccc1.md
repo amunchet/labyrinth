@@ -44,3 +44,28 @@ over MCP no longer requires a MAC (IP-keyed or generated), but refuses to
 shadow a host already known by MAC. The MCP image now installs `ping`, which
 the on-demand check needs. TCP reachability checks now time out after 2s; a
 dead host previously held a check open for the OS connect timeout (~2 min).
+
+## 2026-10-07 15:24 CDT (20:24 UTC)
+New Locations page (nav: Locations) for buildings/sites, replacing the old
+Settings > Custom Dashboards editor:
+- Map tab: floor plans (uploaded images) with every device as a live status
+  marker (up / unreachable / failing / warning / unchecked / no IP), placed by
+  drag and drop at percentage positions so maps scale to any screen; uplinks
+  between placed devices are drawn (fiber and wireless prominent, routine
+  ethernet subtle); servers flag problems on their VMs/LXCs. A location with no
+  floor plan yet automatically shows a board of all its devices. Maps saved by
+  the old editor are converted when opened.
+- Racks tab: rack elevations with drag-and-drop U placement, overlap warnings,
+  and the Proxmox VMs/LXCs on a selected server with their host status.
+- Devices tab: filterable list; the Unassigned view assigns devices to a
+  location. Subnets can also be given a location (subnet editor) so all their
+  hosts land there.
+- The host editor gained an Inventory & Location section (type, location,
+  rack/U, vendor/model/serial, uplink + link type, Proxmox node/VM ID), accepts
+  devices without an IP, edits a copy (Cancel no longer leaks edits), and
+  checks reachability right after saving.
+- Home shows the default map (or a location board) with live status and now
+  also on mobile.
+Verified in headless Chromium against the real backend (auth bypassed in a
+local-only harness): every view and the drag/drop, upload, create and assign
+flows, with no console errors.
