@@ -69,3 +69,8 @@ Settings > Custom Dashboards editor:
 Verified in headless Chromium against the real backend (auth bypassed in a
 local-only harness): every view and the drag/drop, upload, create and assign
 flows, with no console errors.
+
+## 2026-10-07 15:31 CDT (20:31 UTC)
+Documented locations, maps, racks and live reachability in the README (for
+users) and CLAUDE.md (data model, `/inventory/` semantics, alive cron, MCP
+tools).
