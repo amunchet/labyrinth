@@ -82,9 +82,11 @@ def test_create_edit_custom_dashboard(setup):
 def test_list_and_delete_custom_dashboards(setup):
     """
     Lists all custom dashboards
+        - An empty list is a normal state, not an error (the UI must load it)
     """
     a = unwrap(serve.list_custom_dashboards)()
-    assert a[1] == 404
+    assert a[1] == 200
+    assert json.loads(a[0]) == []
 
     test_create_edit_custom_dashboard(setup)
 
@@ -108,8 +110,8 @@ def test_list_and_delete_custom_dashboards(setup):
     assert a[1] == 200
 
     a = unwrap(serve.list_custom_dashboards)()
-
-    assert a[1] == 404
+    assert a[1] == 200
+    assert json.loads(a[0]) == []
 
 
 # Images

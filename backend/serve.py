@@ -1818,8 +1818,8 @@ def list_custom_dashboards(dashboard=""):
     if dashboard:
         criteria = {"name": dashboard}
     a = list(mongo_client["labyrinth"]["dashboards"].find(criteria))
-    if not a:
-        return "No Dashboards created yet.", 404
+    if dashboard and not a:
+        return "Dashboard not found", 404
     return json.dumps(a, default=str), 200
 
 

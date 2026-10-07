@@ -168,14 +168,14 @@ export default {
     console.log(raw);
 
     return auth.getAccessToken().then((accessToken) => {
+      // `isUpload` is kept for existing callers, but no Content-Type is set:
+      // fetch adds the multipart boundary itself, and a hand-set
+      // "multipart/form-data" header without one leaves the server unable to
+      // find the uploaded file.
       let headers = {
         Authorization: `Bearer ${accessToken}`,
         Email: profile,
       };
-
-      if (isUpload == true) {
-        headers["Content-Type"] = "multipart/form-data";
-      }
 
       return fetch(full_url + service + "/" + command, {
         method: "POST",
