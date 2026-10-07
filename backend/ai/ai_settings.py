@@ -92,4 +92,3 @@ def get_ai_alert_settings(db) -> dict:
         ),
         "from_name": _value("ai_alert_from_name", DEFAULT_AI_ALERT_FROM_NAME),
     }
-
