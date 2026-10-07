@@ -105,9 +105,9 @@ def test_close_shared_client_is_idempotent():
 
 
 def test_concurrent_first_use_builds_exactly_one_client():
-    """Gunicorn workers run AI chat on background threads, so two threads
-    can reach the very first database touch at the same time. The
-    double-checked lock must yield one client, not two pools."""
+    """Two threads in one process can reach the very first database touch
+    at the same time. The double-checked lock must yield one client, not
+    two pools."""
     db_pkg.close_shared_client()
     try:
         clients = []
