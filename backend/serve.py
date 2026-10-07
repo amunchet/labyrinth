@@ -2,6 +2,7 @@
 """
 Labyrinth Web backend
 """
+
 # Permissions scope names
 import functools
 import os
@@ -22,21 +23,29 @@ import yaml
 import metrics as mc
 import watcher
 import alive
+import ingest_counters
 
 import shutil
 import services as svcs
 import proxmox_helper
 import proxmox_disk_check
 import aws_helper
+import ec2_unmatched_check
+
+from ai.ai_settings import get_ai_alert_settings
+from ai.ai_pipeline import send_simple_test_email, send_full_test_email
+
+from db import shared_db
+from db import base as db_base
 
 from common import auth
 from common.test import unwrap
+from common.single_run import single_run, LockNotAcquired
 from flask import Flask, request, Response, send_file
 from markupsafe import escape
 from werkzeug.utils import secure_filename
 from flask_cors import CORS
 from PIL import Image
-from pid import PidFile
 
 import uuid
 from multiprocessing import Process
@@ -52,6 +61,24 @@ executor = ThreadPoolExecutor(2)
 
 
 TELEGRAF_KEY = os.environ.get("TELEGRAF_KEY") or "TEST"
+
+
+def _int_from_env(name, default):
+    """Reads an integer setting from the environment, falling back to `default`"""
+    try:
+        return int(os.environ.get(name) or default)
+    except (TypeError, ValueError):
+        return default
+
+
+# Minimum spacing between writes of the *same* metric series (name + tags) in
+# `bulk_insert`.  Per-series, not per-host: keyed on the host alone, the first
+# series drained for a host suppressed every *other* series for that host in
+# the same pass, so a host reporting many series only ever persisted one of
+# them per window - which is how the finder's `open_ports` metric kept expiring
+# out of Redis unwritten.
+METRICS_LATEST_MIN_INTERVAL = _int_from_env("METRICS_LATEST_MIN_INTERVAL", 15)
+METRICS_HISTORY_MIN_INTERVAL = _int_from_env("METRICS_HISTORY_MIN_INTERVAL", 120)
 
 # Error message constants
 ERROR_INVALID_JSON_BODY = "Invalid JSON body"
@@ -201,24 +228,15 @@ requires_auth_admin = functools.partial(
 requires_header = functools.partial(_requires_header, permission=TELEGRAF_KEY)
 
 
-# Mongo Access
-if os.getenv("GITHUB") or os.getenv("TESTBED"):
-    mongo_client = pymongo.MongoClient(
-        "mongodb://{}:{}@{}".format(
-            os.environ.get("MONGO_USERNAME"),
-            os.environ.get("MONGO_PASSWORD"),
-            os.environ.get("MONGO_HOST"),
-        )
-    )
-
-else:  # pragma: no cover
-    mongo_client = pymongo.MongoClient(
-        "mongodb+srv://{}:{}@{}".format(
-            os.environ.get("MONGO_USERNAME"),
-            os.environ.get("MONGO_PASSWORD"),
-            os.environ.get("MONGO_HOST"),
-        )
-    )
+# Database Access - pluggable adapter ecosystem, defaults to Postgres/
+# TimescaleDB, DB_BACKEND=mongo keeps the original MongoDB path available.
+# See backend/db/ and MONGO_MIGRATION.md.
+#
+# Lazy on purpose. finder.py, alive.py and `serve.py updater` all `import
+# serve` purely to reuse route handlers, and several of them then exit
+# immediately on a contended lock. An eager client made every one of those
+# imports open a Postgres pool and run the bootstrap DDL first.
+db = shared_db()
 
 # Route definitions
 
@@ -346,7 +364,9 @@ def scan():  # pragma: no cover
 
     from finder import main
 
-    executor.submit(main)
+    # One pass only: the resident cron finder is the thing that scans
+    # continuously, and a loop here would occupy an executor thread forever.
+    executor.submit(main, False)
     return "Scan Started.", 200
 
 
@@ -361,7 +381,7 @@ def list_subnets():
     """
     return (
         json.dumps(
-            [x["subnet"] for x in mongo_client["labyrinth"]["subnets"].find({})],
+            [x["subnet"] for x in db["labyrinth"]["subnets"].find({})],
             default=str,
         ),
         200,
@@ -372,7 +392,7 @@ def list_subnets():
 @requires_auth_read
 def list_subnet(subnet=""):
     """List contents of a given subnet"""
-    x = [x for x in mongo_client["labyrinth"]["subnets"].find({"subnet": subnet})]
+    x = [x for x in db["labyrinth"]["subnets"].find({"subnet": subnet})]
     if not x:
         return "No subnet found", 404
     if len(x) > 1:  # pragma: no cover
@@ -395,10 +415,10 @@ def create_edit_subnet(inp=""):
     if "subnet" not in subnet or subnet["subnet"] == "":  # pragma: no cover
         return "Invalid data", 407
 
-    if mongo_client["labyrinth"]["subnets"].find_one({"subnet": subnet["subnet"]}):
-        mongo_client["labyrinth"]["subnets"].delete_one({"subnet": subnet["subnet"]})
+    if db["labyrinth"]["subnets"].find_one({"subnet": subnet["subnet"]}):
+        db["labyrinth"]["subnets"].delete_one({"subnet": subnet["subnet"]})
 
-    mongo_client["labyrinth"]["subnets"].insert_one(subnet)
+    db["labyrinth"]["subnets"].insert_one(subnet)
     return "Success", 200
 
 
@@ -406,7 +426,7 @@ def create_edit_subnet(inp=""):
 @requires_auth_write
 def delete_subnet(subnet):
     """Deletes a subnet"""
-    result = mongo_client["labyrinth"]["subnets"].delete_one({"subnet": subnet})
+    result = db["labyrinth"]["subnets"].delete_one({"subnet": subnet})
     if not result.deleted_count:
         return "Not found", 407
     return "Success", 200
@@ -428,7 +448,7 @@ def create_edit_link(subnet="", link=""):
     else:  # pragma: no cover
         return "Invalid", 417
 
-    mongo_client["labyrinth"]["subnets"].update_one(
+    db["labyrinth"]["subnets"].update_one(
         {"subnet": data["subnet"]}, {"$set": {"links": data["link"]}}
     )
     return "Success", 200
@@ -441,9 +461,7 @@ def create_edit_link(subnet="", link=""):
 @requires_auth_read
 def list_host(host=""):
     return (
-        json.dumps(
-            mongo_client["labyrinth"]["hosts"].find_one({"mac": host}), default=str
-        ),
+        json.dumps(db["labyrinth"]["hosts"].find_one({"mac": host}), default=str),
         200,
     )
 
@@ -467,7 +485,7 @@ def create_edit_host(inp=""):
     # Computed by /inventory/; a client saving a device back must not persist it
     host.pop("_live", None)
 
-    hosts = mongo_client["labyrinth"]["hosts"]
+    hosts = db["labyrinth"]["hosts"]
 
     # The MAC is the host key.  Like the finder, fall back to the IP when it
     # is unknown; IP-less devices (e.g. unmanaged switches) get a generated
@@ -485,8 +503,8 @@ def create_edit_host(inp=""):
     if hosts.find_one({"mac": host["mac"]}):
         hosts.delete_one({"mac": host["mac"]})
 
-    if subnet and not mongo_client["labyrinth"]["subnets"].find_one({"subnet": subnet}):
-        mongo_client["labyrinth"]["subnets"].insert_one(
+    if subnet and not db["labyrinth"]["subnets"].find_one({"subnet": subnet}):
+        db["labyrinth"]["subnets"].insert_one(
             {"subnet": subnet, "origin": {}, "links": {}}
         )
 
@@ -499,9 +517,7 @@ def create_edit_host(inp=""):
 def list_hosts():
     """Lists all hosts"""
     return (
-        json.dumps(
-            [x for x in mongo_client["labyrinth"]["hosts"].find({})], default=str
-        ),
+        json.dumps([x for x in db["labyrinth"]["hosts"].find({})], default=str),
         200,
     )
 
@@ -513,7 +529,7 @@ def list_hosts_by_tag(tag):
     normalized_tag = str(tag).strip().lower()
     matching_hosts = []
 
-    for host in mongo_client["labyrinth"]["hosts"].find({}):
+    for host in db["labyrinth"]["hosts"].find({}):
         if _host_matches_tag(host, normalized_tag):
             matching_hosts.append(host)
 
@@ -544,16 +560,17 @@ def _host_matches_tag(host, normalized_tag):
 @requires_auth_write
 def delete_host(host):
     """Deletes a host, dropping uplinks and map placements that pointed at it"""
-    found = mongo_client["labyrinth"]["hosts"].find_one_and_delete(
-        {"$or": [{"mac": host}, {"ip": host}]}
-    )
+    found = db["labyrinth"]["hosts"].find_one({"$or": [{"mac": host}, {"ip": host}]})
     if not found:
         return "Not found", 407
-    mongo_client["labyrinth"]["hosts"].update_many(
+    db["labyrinth"]["hosts"].delete_one({"_id": found["_id"]})
+    db["labyrinth"]["hosts"].update_many(
         {"uplink": found["mac"]}, {"$unset": {"uplink": "", "link_type": ""}}
     )
-    mongo_client["labyrinth"]["dashboards"].update_many(
-        {"placements.key": found["mac"]},
+    # Only maps that have placements: $pull would give the old editor's maps
+    # (which have `components`) an empty `placements` list
+    db["labyrinth"]["dashboards"].update_many(
+        {"placements": {"$exists": True}},
         {"$pull": {"placements": {"key": found["mac"]}}},
     )
     return "Success", 200
@@ -566,12 +583,10 @@ def host_group_rename(ip, group=""):
     """
     Changes the specific host's group name
     """
-    found = mongo_client["labyrinth"]["hosts"].find_one({"ip": ip})
+    found = db["labyrinth"]["hosts"].find_one({"ip": ip})
     if not found:
         return "Not found", 498
-    mongo_client["labyrinth"]["hosts"].update_many(
-        {"ip": ip}, {"$set": {"group": group}}
-    )
+    db["labyrinth"]["hosts"].update_many({"ip": ip}, {"$set": {"group": group}})
     return "Success", 200
 
 
@@ -589,7 +604,7 @@ def list_subnets_groups(subnet):
         for y in set(
             [
                 x["group"]
-                for x in mongo_client["labyrinth"]["hosts"].find({"subnet": subnet})
+                for x in db["labyrinth"]["hosts"].find({"subnet": subnet})
                 if "group" in x
             ]
         )
@@ -608,7 +623,7 @@ def list_subnets_group_members(subnet, group):
         for y in set(
             [
                 x["ip"]
-                for x in mongo_client["labyrinth"]["hosts"].find(
+                for x in db["labyrinth"]["hosts"].find(
                     {"subnet": subnet, "group": group}
                 )
                 if "group" in x
@@ -625,7 +640,7 @@ def group_monitor(subnet, name, status):
     Changes the monitoring option for all memebers of the group
     """
 
-    mongo_client["labyrinth"]["hosts"].update_many(
+    db["labyrinth"]["hosts"].update_many(
         {"subnet": subnet, "group": name},
         {"$set": {"monitor": str(status).lower() == "true"}},
     )
@@ -638,7 +653,7 @@ def group_rename(subnet, name, new_name):
     """
     Changes name for all members of the group
     """
-    mongo_client["labyrinth"]["hosts"].update_many(
+    db["labyrinth"]["hosts"].update_many(
         {"subnet": subnet, "group": name}, {"$set": {"group": new_name}}
     )
     return "Success", 200
@@ -651,7 +666,7 @@ def group_icon(subnet, name, new_icon):
     Change icons
     """
 
-    mongo_client["labyrinth"]["hosts"].update_many(
+    db["labyrinth"]["hosts"].update_many(
         {"subnet": subnet, "group": name}, {"$set": {"icon": new_icon}}
     )
     return "Success", 200
@@ -663,11 +678,11 @@ def group_add_service(subnet, name, new_service):
     """
     Add Service to all members (check if already have it)
     """
-    a = mongo_client["labyrinth"]["hosts"].find({"subnet": subnet, "group": name})
+    a = db["labyrinth"]["hosts"].find({"subnet": subnet, "group": name})
     for x in [x for x in a]:
         if new_service not in x["services"]:
             temp = x["services"] + [new_service]
-            mongo_client["labyrinth"]["hosts"].update_one(
+            db["labyrinth"]["hosts"].update_one(
                 {"subnet": subnet, "group": name, "ip": x["ip"]},
                 {"$set": {"services": temp}},
             )
@@ -680,11 +695,11 @@ def group_delete_service(subnet, name, new_service):
     """
     Deletes Service to all members (check if already have it)
     """
-    a = mongo_client["labyrinth"]["hosts"].find({"subnet": subnet, "group": name})
+    a = db["labyrinth"]["hosts"].find({"subnet": subnet, "group": name})
     for x in [x for x in a]:
         if new_service in x["services"]:
             temp = [y for y in x["services"] if y != new_service]
-            mongo_client["labyrinth"]["hosts"].update_one(
+            db["labyrinth"]["hosts"].update_one(
                 {"subnet": subnet, "group": name, "ip": x["ip"]},
                 {"$set": {"services": temp}},
             )
@@ -701,7 +716,7 @@ def list_tags():
     Lists all unique tags across all hosts (cross-subnet)
     """
     all_tags = set()
-    for host in mongo_client["labyrinth"]["hosts"].find({}):
+    for host in db["labyrinth"]["hosts"].find({}):
         raw = host.get("tags", "")
         if raw:
             for tag in raw.split(","):
@@ -718,7 +733,7 @@ def list_tag_members(tag):
     Lists IPs of all hosts that have a given tag (cross-subnet)
     """
     ips = []
-    for host in mongo_client["labyrinth"]["hosts"].find({}):
+    for host in db["labyrinth"]["hosts"].find({}):
         raw = host.get("tags", "")
         if raw:
             host_tags = [t.strip() for t in raw.split(",")]
@@ -734,10 +749,33 @@ def update_host_tags(ip, tags=""):
     """
     Updates the tags for a given host (by IP). Tags is a comma-delimited string.
     """
-    found = mongo_client["labyrinth"]["hosts"].find_one({"ip": ip})
+    found = db["labyrinth"]["hosts"].find_one({"ip": ip})
     if not found:
         return "Not found", 498
-    mongo_client["labyrinth"]["hosts"].update_many({"ip": ip}, {"$set": {"tags": tags}})
+    db["labyrinth"]["hosts"].update_many({"ip": ip}, {"$set": {"tags": tags}})
+    return "Success", 200
+
+
+@app.route("/host_service_level/<ip>/<service>/")
+@app.route("/host_service_level/<ip>/<service>/<level>/")
+@requires_auth_write
+def update_host_service_level(ip, service, level=""):
+    """
+    Sets (or clears, if level isn't "warning"/"error") the reporting level
+    override for a single service on a host, without touching the rest of
+    the host document.
+    """
+    found = db["labyrinth"]["hosts"].find_one({"ip": ip})
+    if not found:
+        return "Not found", 498
+    db["labyrinth"]["hosts"].update_many(
+        {"ip": ip}, {"$pull": {"service_levels": {"service": service}}}
+    )
+    if level in ("warning", "error"):
+        db["labyrinth"]["hosts"].update_many(
+            {"ip": ip},
+            {"$push": {"service_levels": {"service": service, "level": level}}},
+        )
     return "Success", 200
 
 
@@ -754,7 +792,7 @@ def list_services(all=""):
             json.dumps(
                 [
                     x["display_name"]
-                    for x in mongo_client["labyrinth"]["services"].find({})
+                    for x in db["labyrinth"]["services"].find({})
                     if "display_name" in x
                 ],
                 default=str,
@@ -763,9 +801,7 @@ def list_services(all=""):
         )
     else:
         return (
-            json.dumps(
-                [x for x in mongo_client["labyrinth"]["services"].find({})], default=str
-            ),
+            json.dumps([x for x in db["labyrinth"]["services"].find({})], default=str),
             200,
         )
 
@@ -776,12 +812,7 @@ def read_service(name):
     """Reads a given service"""
     return (
         json.dumps(
-            [
-                x
-                for x in mongo_client["labyrinth"]["services"].find(
-                    {"display_name": name}
-                )
-            ],
+            [x for x in db["labyrinth"]["services"].find({"display_name": name})],
             default=str,
         ),
         200,
@@ -805,20 +836,18 @@ def create_edit_service(service=""):
     if "_id" in data:
         del data["_id"]
 
-    if "display_name" not in data:
-        data["display_name"] = ""
+    if "display_name" not in data or not data["display_name"]:
+        data["display_name"] = data.get("name", "")
 
-    if [
+    if data["display_name"] and [
         x
-        for x in mongo_client["labyrinth"]["services"].find(
+        for x in db["labyrinth"]["services"].find(
             {"display_name": data["display_name"]}
         )
     ]:
-        mongo_client["labyrinth"]["services"].delete_one(
-            {"display_name": data["display_name"]}
-        )
+        db["labyrinth"]["services"].delete_one({"display_name": data["display_name"]})
 
-    mongo_client["labyrinth"]["services"].insert_one(data)
+    db["labyrinth"]["services"].insert_one(data)
 
     return "Success", 200
 
@@ -833,10 +862,10 @@ def delete_service(name):
     """
     name = secure_filename(name)
     # Delete Service
-    mongo_client["labyrinth"]["services"].delete_one({"display_name": name})
+    db["labyrinth"]["services"].delete_one({"display_name": name})
 
     # Check for hosts that had the service
-    mongo_client["labyrinth"]["hosts"].update_many(
+    db["labyrinth"]["hosts"].update_many(
         {"services": {"$in": [name]}}, {"$pull": {"services": name}}
     )
     # Check if snippet exists
@@ -859,7 +888,11 @@ def read_redis():
     # Get each one, then send it out properly
     retval = {}
     for key in keys:
-        retval[key.decode("utf-8").split("-")[1]] = a.get(key).decode("utf-8")
+        value = a.get(key)
+        if value is None:
+            # Expired between the KEYS and the GET
+            continue
+        retval[key.decode("utf-8").split("-")[1]] = value.decode("utf-8")
 
     return json.dumps(retval, default=str), 200
 
@@ -1129,13 +1162,10 @@ def get_setting(setting=""):
     Returns given settings
     """
     if setting == "":
-        z = [
-            {x["name"]: x["value"]}
-            for x in mongo_client["labyrinth"]["settings"].find({})
-        ]
+        z = [{x["name"]: x["value"]} for x in db["labyrinth"]["settings"].find({})]
         return json.dumps(z, default=str), 200
     else:
-        a = mongo_client["labyrinth"]["settings"].find_one({"name": setting})
+        a = db["labyrinth"]["settings"].find_one({"name": setting})
 
         if a:
             return a["value"], 200
@@ -1154,12 +1184,10 @@ def save_setting(name="", value=""):
     else:  # pragma: no cover
         return "Invalid", 497
 
-    if mongo_client["labyrinth"]["settings"].find_one({"name": parsed_name}):
-        mongo_client["labyrinth"]["settings"].delete_one({"name": parsed_name})
+    if db["labyrinth"]["settings"].find_one({"name": parsed_name}):
+        db["labyrinth"]["settings"].delete_one({"name": parsed_name})
 
-    mongo_client["labyrinth"]["settings"].insert_one(
-        {"name": parsed_name, "value": parsed_value}
-    )
+    db["labyrinth"]["settings"].insert_one({"name": parsed_name, "value": parsed_value})
 
     return "Success", 200
 
@@ -1170,8 +1198,8 @@ def delete_setting(setting):
     """
     Deletes a setting
     """
-    if mongo_client["labyrinth"]["settings"].find_one({"name": setting}):
-        mongo_client["labyrinth"]["settings"].delete_one({"name": setting})
+    if db["labyrinth"]["settings"].find_one({"name": setting}):
+        db["labyrinth"]["settings"].delete_one({"name": setting})
 
     return "Success", 200
 
@@ -1264,18 +1292,18 @@ def list_themes():
     defaults_file = "/src/common/default_colors.json"
     # Check if the defaults exist - create if not
 
-    themes = list(mongo_client["labyrinth"]["themes"].find({}))
+    themes = list(db["labyrinth"]["themes"].find({}))
     if len(themes) < 3:
         with open(defaults_file) as f:
             defaults = json.load(f)
             for item in defaults:
-                mongo_client["labyrinth"]["themes"].insert_one(item)
+                db["labyrinth"]["themes"].insert_one(item)
 
     #  Return all of them
     return (
         json.dumps(
             sorted(
-                list(mongo_client["labyrinth"]["themes"].find({})),
+                list(db["labyrinth"]["themes"].find({})),
                 key=lambda x: x["name"],
             ),
             default=str,
@@ -1297,9 +1325,9 @@ def create_edit_theme(data=""):
     if "name" not in data:
         return "Invalid data", 485
 
-    mongo_client["labyrinth"]["themes"].delete_one({"name": data["name"]})
+    db["labyrinth"]["themes"].delete_one({"name": data["name"]})
 
-    mongo_client["labyrinth"]["themes"].insert_one(data)
+    db["labyrinth"]["themes"].insert_one(data)
     return "Success", 200
 
 
@@ -1309,7 +1337,7 @@ def delete_theme(theme_name):
     """
     Deletes a theme
     """
-    mongo_client["labyrinth"]["themes"].delete_one({"name": theme_name})
+    db["labyrinth"]["themes"].delete_one({"name": theme_name})
     return "Success", 200
 
 
@@ -1425,17 +1453,17 @@ def save_ansible_file(fname, inp_data="", vars_file=""):
 def run_ansible_background(job_id, data):
     """Run Ansible in the background and store results in Redis."""
     redis_client = redis.Redis(host=os.environ.get("REDIS_HOST"))
-    RUN_DIR, playbook = ansible_helper.run_ansible(
-        data["hosts"],
-        data["playbook"],
-        data["vault_password"],
-        data["become_file"],
-        ssh_key_file=data.get("ssh_key", ""),
-    )
-
-    redis_client.hset(job_id, "status", "running")
-
+    RUN_DIR = None
     try:
+        RUN_DIR, playbook = ansible_helper.run_ansible(
+            data["hosts"],
+            data["playbook"],
+            data["vault_password"],
+            data["become_file"],
+            ssh_key_file=data.get("ssh_key", ""),
+            totp_file=data.get("totp_file", ""),
+        )
+        redis_client.hset(job_id, "status", "running")
         thread, runner = ansible_runner.run_async(
             private_data_dir=RUN_DIR,
             playbook=f"{playbook}.yml",
@@ -1460,11 +1488,10 @@ def run_ansible_background(job_id, data):
         redis_client.hset(job_id, "error", str(e))
 
     finally:
-        if "vault.pass" in os.listdir(RUN_DIR):
+        if RUN_DIR and "vault.pass" in os.listdir(RUN_DIR):
             os.remove(f"{RUN_DIR}/vault.pass")
-        if os.path.exists("/vault.pass"):
-            os.remove("/vault.pass")
-        shutil.rmtree(RUN_DIR)
+        if RUN_DIR:
+            shutil.rmtree(RUN_DIR)
 
 
 @app.route("/ansible_runner/", methods=["POST"])
@@ -1510,6 +1537,11 @@ def get_ansible_status(job_id):
         "status": status.decode("utf-8"),
         "logs": [log.decode("utf-8") for log in logs],
         "results": json.loads(results.decode("utf-8")) if results else None,
+        "error": (
+            redis_client.hget(job_id, "error").decode("utf-8")
+            if redis_client.hget(job_id, "error")
+            else ""
+        ),
     }, 200
 
 
@@ -1517,9 +1549,7 @@ def get_ansible_status(job_id):
 @requires_auth_write
 def update_mac(old_mac, new_mac):
     """Updates the old mac to the new mac"""
-    mongo_client["labyrinth"]["hosts"].update_one(
-        {"mac": old_mac}, {"$set": {"mac": new_mac}}
-    )
+    db["labyrinth"]["hosts"].update_one({"mac": old_mac}, {"$set": {"mac": new_mac}})
     return "Success", 200
 
 
@@ -1527,9 +1557,7 @@ def update_mac(old_mac, new_mac):
 @requires_auth_write
 def update_ip(mac, new_ip):
     """Updates an IP for a given MAC address"""
-    mongo_client["labyrinth"]["hosts"].update_one(
-        {"mac": mac}, {"$set": {"ip": new_ip}}
-    )
+    db["labyrinth"]["hosts"].update_one({"mac": mac}, {"$set": {"ip": new_ip}})
     return "Success", 200
 
 
@@ -1541,15 +1569,15 @@ def index_helper():  # pragma: no cover
     Helps with ensuring indexes are created
     """
 
-    # mongo_client["labyrinth"]["metrics"].create_index(
+    # db["labyrinth"]["metrics"].create_index(
     #    [("timestamp", pymongo.DESCENDING)]
     # )
-    # mongo_client["labyrinth"]["metrics"].create_index("name")
-    # mongo_client["labyrinth"]["metrics"].create_index("tags")
-    mongo_client["labyrinth"]["metrics-latest"].create_index("tags")
+    # db["labyrinth"]["metrics"].create_index("name")
+    # db["labyrinth"]["metrics"].create_index("tags")
+    db["labyrinth"]["metrics-latest"].create_index("tags")
 
     """
-    mongo_client["labyrinth"]["metrics"].create_index(
+    db["labyrinth"]["metrics"].create_index(
         [
             ("tags.ip", pymongo.DESCENDING),
             ("tags.host", pymongo.DESCENDING),
@@ -1558,20 +1586,20 @@ def index_helper():  # pragma: no cover
     )
     """
 
-    mongo_client["labyrinth"]["services"].create_index("name")
-    mongo_client["labyrinth"]["services"].create_index("display_name")
-    mongo_client["labyrinth"]["hosts"].create_index("ip")
-    mongo_client["labyrinth"]["hosts"].create_index("mac")
-    mongo_client["labyrinth"]["hosts"].create_index("subnet")
-    mongo_client["labyrinth"]["hosts"].create_index("location")
-    mongo_client["labyrinth"]["locations"].create_index("name_key")
-    mongo_client["labyrinth"]["settings"].create_index("name")
-    mongo_client["labyrinth"]["proxmox_clusters"].create_index("name")
-    mongo_client["labyrinth"]["aws_accounts"].create_index("name")
-    # mongo_client["labyrinth"]["metrics"].create_index([("timestamp", -1)])
+    db["labyrinth"]["services"].create_index("name")
+    db["labyrinth"]["services"].create_index("display_name")
+    db["labyrinth"]["hosts"].create_index("ip")
+    db["labyrinth"]["hosts"].create_index("mac")
+    db["labyrinth"]["hosts"].create_index("subnet")
+    db["labyrinth"]["hosts"].create_index("location")
+    db["labyrinth"]["locations"].create_index("name_key")
+    db["labyrinth"]["settings"].create_index("name")
+    db["labyrinth"]["proxmox_clusters"].create_index("name")
+    db["labyrinth"]["aws_accounts"].create_index("name")
+    # db["labyrinth"]["metrics"].create_index([("timestamp", -1)])
 
     # Make Metrics Latest expire after a certain time period
-    mongo_client["labyrinth"]["metrics-latest"].create_index(
+    db["labyrinth"]["metrics-latest"].create_index(
         [("timestamp", 1)], expireAfterSeconds=36000
     )
 
@@ -1617,15 +1645,15 @@ def dashboard(val="", report=False, flapping_delay=1300):
         subnets[item] = json.loads(unwrap(list_subnet)(item)[0])
 
     # Get all the hosts
-    hosts = [x for x in mongo_client["labyrinth"]["hosts"].find({})]
+    hosts = [x for x in db["labyrinth"]["hosts"].find({})]
 
     # Get all services
-    all_services = list(mongo_client["labyrinth"]["services"].find({}))
+    all_services = list(db["labyrinth"]["services"].find({}))
 
     # Get latest metrics
 
     latest_metrics = {}
-    for item in mongo_client["labyrinth"]["metrics-latest"].find(
+    for item in db["labyrinth"]["metrics-latest"].find(
         {}, sort=[("_id", pymongo.ASCENDING)]
     ):
         if "name" in item:
@@ -1843,7 +1871,7 @@ def list_custom_dashboards(dashboard=""):
     criteria = {}
     if dashboard:
         criteria = {"name": dashboard}
-    a = list(mongo_client["labyrinth"]["dashboards"].find(criteria))
+    a = list(db["labyrinth"]["dashboards"].find(criteria))
     if dashboard and not a:
         return "Dashboard not found", 404
     return json.dumps(a, default=str), 200
@@ -1858,11 +1886,11 @@ def create_edit_custom_dashboard(dashboard, data=""):
     if data == "":
         data = json.loads(request.form.get("data"))
 
-    mongo_client["labyrinth"]["dashboards"].delete_many({"name": dashboard})
+    db["labyrinth"]["dashboards"].delete_many({"name": dashboard})
 
     data["name"] = dashboard
 
-    mongo_client["labyrinth"]["dashboards"].insert_one(data)
+    db["labyrinth"]["dashboards"].insert_one(data)
     return "Success", 200
 
 
@@ -1872,7 +1900,7 @@ def delete_custom_dashboard(dashboard):
     """
     Deletes a custom dashboard
     """
-    mongo_client["labyrinth"]["dashboards"].delete_many({"name": dashboard})
+    db["labyrinth"]["dashboards"].delete_many({"name": dashboard})
     return "Success", 200
 
 
@@ -2030,7 +2058,7 @@ def list_locations():
     """Lists all locations (sites/buildings) with their racks"""
     return (
         json.dumps(
-            list(mongo_client["labyrinth"]["locations"].find({}, sort=[("name", 1)])),
+            list(db["labyrinth"]["locations"].find({}, sort=[("name", 1)])),
             default=str,
         ),
         200,
@@ -2082,14 +2110,16 @@ def create_edit_location(inp=""):
         "racks": racks,
     }
 
-    db = mongo_client["labyrinth"]
-    clash = db["locations"].find_one({"name_key": doc["name_key"]})
+    labyrinth = db["labyrinth"]
+    clash = labyrinth["locations"].find_one({"name_key": doc["name_key"]})
 
     if not data.get("_id"):
         if clash:
             return "A location with that name already exists", 409
         return (
-            json.dumps({"_id": str(db["locations"].insert_one(doc).inserted_id)}),
+            json.dumps(
+                {"_id": str(labyrinth["locations"].insert_one(doc).inserted_id)}
+            ),
             200,
         )
 
@@ -2097,29 +2127,29 @@ def create_edit_location(inp=""):
         object_id = _validate_object_id(str(data["_id"]))
     except ValueError:
         return "Invalid location ID", 400
-    existing = db["locations"].find_one({"_id": object_id})
+    existing = labyrinth["locations"].find_one({"_id": object_id})
     if not existing:
         return "Location not found", 404
-    if clash and clash["_id"] != object_id:
+    # Compare as text: Postgres ids are strings, Mongo's are ObjectIds
+    if clash and str(clash["_id"]) != str(object_id):
         return "A location with that name already exists", 409
 
-    db["locations"].replace_one({"_id": object_id}, doc)
+    labyrinth["locations"].update_one({"_id": object_id}, {"$set": doc})
     if existing["name"] != name:
         for collection in ["hosts", "subnets", "dashboards"]:
-            db[collection].update_many(
+            labyrinth[collection].update_many(
                 {"location": existing["name"]}, {"$set": {"location": name}}
             )
     for previous, new in renamed_racks.items():
-        db["hosts"].update_many(
+        labyrinth["hosts"].update_many(
             {"location": name, "rack": previous}, {"$set": {"rack": new}}
         )
-    db["hosts"].update_many(
-        {
-            "location": name,
-            "rack": {"$exists": True, "$nin": [x["name"] for x in racks]},
-        },
-        {"$unset": {"rack": "", "rack_unit": ""}},
-    )
+    rack_names = [x["name"] for x in racks]
+    for host in labyrinth["hosts"].find({"location": name, "rack": {"$exists": True}}):
+        if host["rack"] not in rack_names:
+            labyrinth["hosts"].update_one(
+                {"_id": host["_id"]}, {"$unset": {"rack": "", "rack_unit": ""}}
+            )
     return json.dumps({"_id": str(object_id)}), 200
 
 
@@ -2132,17 +2162,20 @@ def delete_location(location_id):
     except ValueError:
         return "Invalid location ID", 400
 
-    db = mongo_client["labyrinth"]
-    found = db["locations"].find_one_and_delete({"_id": object_id})
+    labyrinth = db["labyrinth"]
+    found = labyrinth["locations"].find_one({"_id": object_id})
     if not found:
         return "Location not found", 404
+    labyrinth["locations"].delete_one({"_id": object_id})
 
-    db["hosts"].update_many(
+    labyrinth["hosts"].update_many(
         {"location": found["name"]},
         {"$unset": {"location": "", "rack": "", "rack_unit": ""}},
     )
-    db["subnets"].update_many({"location": found["name"]}, {"$unset": {"location": ""}})
-    db["dashboards"].update_many(
+    labyrinth["subnets"].update_many(
+        {"location": found["name"]}, {"$unset": {"location": ""}}
+    )
+    labyrinth["dashboards"].update_many(
         {"location": found["name"]}, {"$set": {"location": ""}}
     )
     return "Success", 200
@@ -2166,7 +2199,7 @@ def update_host_inventory(host, inp=""):
     if unknown:
         return "Unknown inventory field(s): {}".format(", ".join(unknown)), 407
 
-    hosts = mongo_client["labyrinth"]["hosts"]
+    hosts = db["labyrinth"]["hosts"]
     found = hosts.find_one({"$or": [{"mac": host}, {"ip": host}]})
     if not found:
         return "Host not found", 404
@@ -2188,9 +2221,7 @@ def update_host_inventory(host, inp=""):
     rack = "" if "rack" in cleared else data.get("rack", found.get("rack"))
 
     if location:
-        found_location = mongo_client["labyrinth"]["locations"].find_one(
-            {"name": location}
-        )
+        found_location = db["labyrinth"]["locations"].find_one({"name": location})
         if not found_location:
             return "Unknown location: {}".format(location), 404
         if rack and rack not in [x["name"] for x in found_location.get("racks", [])]:
@@ -2221,9 +2252,7 @@ def alive_check(host):
     Checks one host's reachability right now (e.g. just after it was added)
     and records it, instead of waiting for the next alive cron run
     """
-    found = mongo_client["labyrinth"]["hosts"].find_one(
-        {"$or": [{"mac": host}, {"ip": host}]}
-    )
+    found = db["labyrinth"]["hosts"].find_one({"$or": [{"mac": host}, {"ip": host}]})
     if not found or not found.get("ip"):
         return "Host not found, or it has no IP to check", 404
 
@@ -2245,8 +2274,8 @@ def inventory():
         - `proxmox` is the cached node -> VM/LXC tree, with nodes and guests matched
           to hosts by explicit proxmox_node/proxmox_vmid, else by short hostname
     """
-    db = mongo_client["labyrinth"]
-    hosts = list(db["hosts"].find({}))
+    labyrinth = db["labyrinth"]
+    hosts = list(labyrinth["hosts"].find({}))
     by_key = {x["mac"]: x for x in hosts}
 
     def short_name(name):
@@ -2266,7 +2295,7 @@ def inventory():
 
     # Proxmox: physical nodes and the VMs/LXCs on them, from the refresh cache
     proxmox = []
-    for cluster in db["proxmox_clusters"].find({}):
+    for cluster in labyrinth["proxmox_clusters"].find({}):
         cluster_names = {"", str(cluster["_id"]), str(cluster.get("name"))}
 
         def match(field, value, name):
@@ -2348,7 +2377,8 @@ def inventory():
 
     subnet_locations = {
         x["subnet"]: x["location"]
-        for x in db["subnets"].find({"location": {"$nin": ["", None]}})
+        for x in labyrinth["subnets"].find({})
+        if x.get("location")
     }
     alive_records = {
         k.decode(): json.loads(v) for k, v in rc.hgetall(alive.ALIVE_KEY).items()
@@ -2426,7 +2456,7 @@ def inventory():
     return (
         json.dumps(
             {
-                "locations": list(db["locations"].find({}, sort=[("name", 1)])),
+                "locations": list(labyrinth["locations"].find({}, sort=[("name", 1)])),
                 "devices": hosts,
                 "proxmox": proxmox,
             },
@@ -2449,7 +2479,7 @@ def last_metrics(count):
         json.dumps(
             [
                 x
-                for x in mongo_client["labyrinth"]["metrics-latest"]
+                for x in db["labyrinth"]["metrics-latest"]
                 .find({})
                 .sort([("metrics-latest.timestamp", pymongo.ASCENDING)])
             ],
@@ -2470,13 +2500,11 @@ def read_metrics(host, service="", count=100, option=""):
     """
     or_clause = {"$or": [{"tags.host": host}, {"tags.ip": host}, {"tags.mac": host}]}
 
-    found_host = mongo_client["labyrinth"]["hosts"].find_one(
+    found_host = db["labyrinth"]["hosts"].find_one(
         {"$or": [{"mac": host}, {"ip": host}]}
     )
 
-    found_service = mongo_client["labyrinth"]["services"].find_one(
-        {"display_name": service}
-    )
+    found_service = db["labyrinth"]["services"].find_one({"display_name": service})
 
     if service != "" and found_service:
         or_clause["tags.labyrinth_name"] = found_service["name"]
@@ -2498,17 +2526,23 @@ def read_metrics(host, service="", count=100, option=""):
         table = "metrics-latest"
 
     retval = [
-        x
-        for x in mongo_client["labyrinth"][table]
-        .find(or_clause)
-        .sort("_id", -1)
-        .limit(count)
+        x for x in db["labyrinth"][table].find(or_clause).sort("_id", -1).limit(count)
     ]
+
+    # Staleness (vs. wall-clock "now") only makes sense for the single
+    # latest-value fetch, which reflects current live status. Historical
+    # rows should be judged on whether they passed/failed at the time they
+    # were recorded, not on how old they are relative to right now -
+    # otherwise nearly every point in a History graph older than a few
+    # minutes would be marked "-1"/stale and render as a failure.
+    is_latest = option == "latest"
+    port_stale_time = 10000 if is_latest else float("inf")
+    check_stale_time = 600 if is_latest else float("inf")
 
     if service.strip() == "open_ports" or service.strip() == "closed_ports":
         for item in retval:
             item["judgement"] = mc.judge_port(
-                item, service, found_host, stale_time=10000
+                item, service, found_host, stale_time=port_stale_time
             )
             item["judgement_debug"] = {
                 "item": json.dumps(item, default=str),
@@ -2520,10 +2554,23 @@ def read_metrics(host, service="", count=100, option=""):
             if item is None or found_service is None:
                 item["judgement"] = False
             else:
-                item["judgement"] = mc.judge(item, found_service)
+                item["judgement"] = mc.judge(
+                    item, found_service, stale_time=check_stale_time
+                )
+
+    def _sort_key(item):
+        ts = item.get("timestamp")
+        if isinstance(ts, datetime.datetime):
+            return ts.timestamp()
+        try:
+            return float(ts)
+        except (TypeError, ValueError):
+            return 0
+
+    retval.sort(key=_sort_key)
 
     return (
-        json.dumps(retval[::-1], default=str),
+        json.dumps(retval, default=str),
         200,
     )
 
@@ -2536,7 +2583,7 @@ def delete_metric(metric_id):
     """
     try:
         object_id = _validate_object_id(metric_id)
-        mongo_client["labyrinth"]["metrics-latest"].delete_one({"_id": object_id})
+        db["labyrinth"]["metrics-latest"].delete_one({"_id": object_id})
         return "Success", 200
     except ValueError:
         return json.dumps({"error": "Invalid metric ID"}), 400
@@ -2558,17 +2605,70 @@ def insert_metric(inp=""):
     if "metrics" not in data:  # pragma: no cover
         return "Invalid data", 421
 
+    # Telegraf agents post here through the Go ingest service (metrics-go).
+    # This route stays as a fallback, so it uses one connection and one
+    # pipelined round trip rather than a connection pool per metric.
+    a = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
+    pipeline = a.pipeline()
+    queued = False
+
     for item in data["metrics"]:
 
         if "tags" in item and "name" in item:
 
-            a = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
-
             name = json.dumps({"name": item["name"], "tags": item["tags"]}, default=str)
-            a.set(f"METRIC-{name}", json.dumps(item, default=str))
-            a.expire(f"METRIC-{name}", 120)
+            pipeline.set(f"METRIC-{name}", json.dumps(item, default=str), ex=120)
+            queued = True
+
+    if queued:
+        pipeline.execute()
 
     return "Success", 200
+
+
+@app.route("/metrics_counts/<host>", methods=["GET"])
+@requires_auth_read
+def read_metric_counts(host):
+    """
+    Telegraf ingest counters for a host - how many requests and metrics it has
+    sent, plus the last hour a minute at a time.  Written by the Go ingest
+    service; see backend/ingest_counters.py for the key layout.
+    """
+    found_host = (
+        db["labyrinth"]["hosts"].find_one({"$or": [{"mac": host}, {"ip": host}]}) or {}
+    )
+
+    return (
+        json.dumps(
+            ingest_counters.read_counts(
+                mac=found_host.get("mac", ""),
+                ip=found_host.get("ip", ""),
+                requested=host,
+            ),
+            default=str,
+        ),
+        200,
+    )
+
+
+@app.route("/metrics_counts/<host>", methods=["DELETE"])
+@requires_auth_write
+def reset_metric_counts(host):
+    """
+    Zeroes a host's ingest counters, so a change to its Telegraf config can be
+    measured against a clean slate.
+    """
+    found_host = (
+        db["labyrinth"]["hosts"].find_one({"$or": [{"mac": host}, {"ip": host}]}) or {}
+    )
+
+    deleted = ingest_counters.reset_counts(
+        mac=found_host.get("mac", ""),
+        ip=found_host.get("ip", ""),
+        requested=host,
+    )
+
+    return json.dumps({"deleted": deleted}), 200
 
 
 @app.route("/bulk_insert/", methods=["GET"])
@@ -2587,17 +2687,39 @@ def bulk_insert():
     metrics = a.keys(pattern="METRIC-*")
     for metric in metrics:
         print("Inserting", metric)
-        item = json.loads(a.get(metric))
-        print("Item:", item)
-        last_time = a.get("last_metric_{}".format(item["tags"]["ip"]))
 
-        if "tags" not in item or "name" not in item:
+        raw = a.get(metric)
+        if raw is None:
+            # Expired between the KEYS and the GET
             continue
+
+        try:
+            item = json.loads(raw)
+        except (TypeError, ValueError):
+            print("Unparseable metric - skipping", metric)
+            continue
+
+        print("Item:", item)
+
+        # Guard before dereferencing: a metric with no tags used to raise a
+        # KeyError here and lose the entire batch, not just its own row.
+        if not isinstance(item, dict) or "tags" not in item or "name" not in item:
+            continue
+
+        # Throttle per metric series.  The Redis key already uniquely
+        # identifies name + tags, so reuse it rather than the host's IP.
+        throttle_key = "last_metric_{}".format(
+            metric.decode("utf-8") if isinstance(metric, bytes) else metric
+        )
+        last_time = a.get(throttle_key)
+        try:
+            last_time = float(last_time) if last_time else None
+        except (TypeError, ValueError):
+            last_time = None
 
         if "timestamp" in item:
             try:
-                # item["timestamp"] = datetime.datetime.fromtimestamp(item["timestamp"])
-                item["timestamp"] = datetime.datetime.now()
+                item["timestamp"] = datetime.datetime.fromtimestamp(item["timestamp"])
             except Exception:
                 print("Problem with timestamp - ", sys.exc_info())
 
@@ -2605,145 +2727,69 @@ def bulk_insert():
             item["tags"]["labyrinth_name"] = item["name"]
             item["tags"]["agent_name"] = socket.gethostname()
 
-        try:
-            if last_time and (time.time() - float(last_time)) <= 15:
-                pass
-            else:
-                """
-                mongo_client["labyrinth"]["metrics-latest"].replace_one(
+        if last_time and (time.time() - last_time) <= METRICS_LATEST_MIN_INTERVAL:
+            pass
+        else:
+            """
+            db["labyrinth"]["metrics-latest"].replace_one(
+                {"tags": item["tags"], "name": item["name"]}, item, upsert=True
+            )
+            """
+            metrics_latest_updates.append(
+                db_base.ReplaceOne(
                     {"tags": item["tags"], "name": item["name"]}, item, upsert=True
                 )
-                """
-                metrics_latest_updates.append(
-                    pymongo.ReplaceOne(
-                        {"tags": item["tags"], "name": item["name"]}, item, upsert=True
-                    )
-                )
-        except Exception:
-            raise Exception(item)
+            )
 
-        if last_time and (time.time() - float(last_time)) <= 120:
+        if last_time and (time.time() - last_time) <= METRICS_HISTORY_MIN_INTERVAL:
             pass
         else:
 
             """
-            mongo_client["labyrinth"]["metrics"].insert_one(item)
+            db["labyrinth"]["metrics"].insert_one(item)
             """
-            metrics_updates.append(pymongo.InsertOne(item))
+            metrics_updates.append(db_base.InsertOne(item))
 
-            a.set("last_metric_{}".format(item["tags"]["ip"]), time.time())
+            a.set(
+                throttle_key,
+                time.time(),
+                ex=max(METRICS_HISTORY_MIN_INTERVAL * 10, 3600),
+            )
 
     # Bulk writes
     if metrics_latest_updates:
-        mongo_client["labyrinth"]["metrics-latest"].bulk_write(metrics_latest_updates)
+        db["labyrinth"]["metrics-latest"].bulk_write(metrics_latest_updates)
 
     if metrics_updates:
-        mongo_client["labyrinth"]["metrics"].bulk_write(metrics_updates)
+        db["labyrinth"]["metrics"].bulk_write(metrics_updates)
+
+    # Emulate Mongo's metrics-latest TTL index (expireAfterSeconds=36000,
+    # see index_helper()) - Postgres has no per-row TTL primitive, so this
+    # runs the equivalent sweep here instead, on the same ~1-minute cadence
+    # as Mongo's own background TTL monitor. A harmless no-op on the Mongo
+    # backend itself (real TTL index already covers it).
+    ttl_cutoff = datetime.datetime.now() - datetime.timedelta(seconds=36000)
+    db["labyrinth"]["metrics-latest"].delete_many({"timestamp": {"$lt": ttl_cutoff}})
 
     return len(metrics), 200
 
 
 # Disk Space Monitoring
-def _normalize_match_string(value):
-    if value is None:
-        return ""
-    return str(value).strip().lower()
 
-
-def _candidate_host_names(host):
-    candidates = set()
-    for key in ["host", "name"]:
-        value = _normalize_match_string(host.get(key))
-        if not value:
-            continue
-        candidates.add(value)
-        if "." in value:
-            candidates.add(value.split(".")[0])
-    return candidates
-
-
-def _candidate_instance_names(instance):
-    candidates = set()
-    tag_name = (instance.get("tags") or {}).get("Name")
-    for value in [
-        instance.get("instance_id"),
-        instance.get("name"),
-        instance.get("private_dns_name"),
-        instance.get("public_dns_name"),
-        tag_name,
-    ]:
-        normalized = _normalize_match_string(value)
-        if not normalized:
-            continue
-        candidates.add(normalized)
-        if "." in normalized:
-            candidates.add(normalized.split(".")[0])
-    return candidates
-
-
-def _truthy_monitor_value(value):
-    return _normalize_match_string(value) in ["true", "1", "yes", "on"]
-
-
-def _build_labyrinth_host_match(instance, host):
-    reasons = []
-    host_ip = _normalize_match_string(host.get("ip"))
-    instance_ips = {
-        _normalize_match_string(instance.get("private_ip")),
-        _normalize_match_string(instance.get("public_ip")),
-    }
-    instance_ips.discard("")
-
-    if host_ip and host_ip in instance_ips:
-        reasons.append("ip")
-
-    host_names = _candidate_host_names(host)
-    instance_names = _candidate_instance_names(instance)
-    if host_names and instance_names and host_names.intersection(instance_names):
-        reasons.append("hostname")
-
-    if not reasons:
-        return None
-
-    services = host.get("services") or []
-    return {
-        "ip": host.get("ip"),
-        "mac": host.get("mac"),
-        "host": host.get("host") or host.get("name"),
-        "group": host.get("group"),
-        "tags": host.get("tags", ""),
-        "monitor": host.get("monitor"),
-        "service_count": len(services),
-        "services": services,
-        "match_reasons": reasons,
-    }
+# EC2 <-> Labyrinth host matching lives in aws_helper.py (shared with
+# ec2_unmatched_check.py's alert cron, which cannot import serve.py without
+# creating a circular import). Re-exported here under their historical names
+# since existing tests call them as serve._candidate_host_names(), etc.
+_normalize_match_string = aws_helper._normalize_match_string
+_candidate_host_names = aws_helper._candidate_host_names
+_candidate_instance_names = aws_helper._candidate_instance_names
+_truthy_monitor_value = aws_helper._truthy_monitor_value
+_build_labyrinth_host_match = aws_helper._build_labyrinth_host_match
 
 
 def _enrich_aws_instances_with_matches(instances):
-    hosts = list(mongo_client["labyrinth"]["hosts"].find({}))
-    enriched_instances = []
-
-    for instance in instances:
-        matches = []
-        for host in hosts:
-            match = _build_labyrinth_host_match(instance, host)
-            if match:
-                matches.append(match)
-
-        monitoring_enabled = any(
-            _truthy_monitor_value(match.get("monitor"))
-            or match.get("service_count", 0) > 0
-            for match in matches
-        )
-
-        enriched = dict(instance)
-        enriched["labyrinth_matches"] = matches
-        enriched["match_count"] = len(matches)
-        enriched["matched"] = len(matches) > 0
-        enriched["monitoring_enabled"] = monitoring_enabled
-        enriched_instances.append(enriched)
-
-    return enriched_instances
+    hosts = list(db["labyrinth"]["hosts"].find({}))
+    return aws_helper._enrich_aws_instances_with_matches(instances, hosts)
 
 
 @app.route("/disk-space/proxmox", methods=["GET"])
@@ -2753,8 +2799,9 @@ def get_proxmox_disk_space():
     Get disk space data from all configured Proxmox clusters
     """
     try:
-        clusters = list(mongo_client["labyrinth"]["proxmox_clusters"].find({}))
+        clusters = list(db["labyrinth"]["proxmox_clusters"].find({}))
         redis_client = proxmox_helper.get_redis_client()
+        qemu_agent_ignore_list = proxmox_helper.get_qemu_agent_ignore_list(db)
 
         result = {"proxmox_hosts": []}
 
@@ -2763,6 +2810,7 @@ def get_proxmox_disk_space():
                 cluster,
                 redis_client=redis_client,
             )
+            proxmox_helper.apply_qemu_agent_ignore_list(data, qemu_agent_ignore_list)
             result["proxmox_hosts"].append(data)
 
         return json.dumps(result, default=str), 200
@@ -2779,15 +2827,18 @@ def refresh_proxmox_disk_space():
     Redis cache, and re-cache the freshly fetched payloads.
     """
     try:
-        clusters = list(mongo_client["labyrinth"]["proxmox_clusters"].find({}))
+        clusters = list(db["labyrinth"]["proxmox_clusters"].find({}))
         redis_client = proxmox_helper.get_redis_client()
+        qemu_agent_ignore_list = proxmox_helper.get_qemu_agent_ignore_list(db)
 
-        result = {
-            "proxmox_hosts": proxmox_helper.refresh_proxmox_cluster_cache(
-                clusters,
-                redis_client=redis_client,
-            )
-        }
+        refreshed = proxmox_helper.refresh_proxmox_cluster_cache(
+            clusters,
+            redis_client=redis_client,
+        )
+        for data in refreshed:
+            proxmox_helper.apply_qemu_agent_ignore_list(data, qemu_agent_ignore_list)
+
+        result = {"proxmox_hosts": refreshed}
 
         return json.dumps(result, default=str), 200
     except Exception as e:
@@ -2802,7 +2853,7 @@ def get_manual_disk_space():
     """
     try:
         manual_hosts = []
-        for setting in mongo_client["labyrinth"]["settings"].find(
+        for setting in db["labyrinth"]["settings"].find(
             {"name": {"$regex": "^manual_disk_host_"}}
         ):
             host_config = setting.get("value")
@@ -2836,6 +2887,7 @@ def add_manual_disk_host():
                 "ip": request.form.get("ip"),
                 "type": request.form.get("type"),
                 "description": request.form.get("description", ""),
+                "service": request.form.get("service", ""),
             }
 
         if data is None:
@@ -2856,11 +2908,12 @@ def add_manual_disk_host():
             "ip": data["ip"],
             "type": data["type"],
             "description": data.get("description", ""),
+            "service": data.get("service", ""),
             "created": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "updated": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         }
 
-        mongo_client["labyrinth"]["settings"].insert_one(
+        db["labyrinth"]["settings"].insert_one(
             {"name": setting_name, "value": json.dumps(stored_data)}
         )
 
@@ -2877,9 +2930,7 @@ def delete_manual_disk_host(host_id):
     """
     try:
         setting_name = f"manual_disk_host_{host_id}"
-        result = mongo_client["labyrinth"]["settings"].delete_one(
-            {"name": setting_name}
-        )
+        result = db["labyrinth"]["settings"].delete_one({"name": setting_name})
 
         if result.deleted_count == 0:
             return json.dumps({"error": "Host not found"}), 404
@@ -2896,37 +2947,41 @@ def get_disk_space_settings():
     Get disk space monitoring settings (clusters, tags, alert threshold/recipients)
     """
     try:
-        tag_setting = mongo_client["labyrinth"]["settings"].find_one(
-            {"name": "proxmox_tag"}
-        )
-        threshold_setting = mongo_client["labyrinth"]["settings"].find_one(
+        tag_setting = db["labyrinth"]["settings"].find_one({"name": "proxmox_tag"})
+        threshold_setting = db["labyrinth"]["settings"].find_one(
             {"name": "disk_space_alert_threshold"}
         )
-        recipients_setting = mongo_client["labyrinth"]["settings"].find_one(
+        recipients_setting = db["labyrinth"]["settings"].find_one(
             {"name": "disk_space_alert_recipients"}
         )
 
         recipients_list = _parse_recipients_setting(recipients_setting)
         threshold_percent = _parse_threshold_setting(threshold_setting)
         proxmox_tag = tag_setting.get("value") if tag_setting else "Proxmox"
+        qemu_agent_ignore_list = proxmox_helper.get_qemu_agent_ignore_list(db)
 
         result = {
             "proxmox_tag": proxmox_tag,
             "disk_space_alert_threshold": threshold_percent,
             "disk_space_alert_recipients": recipients_list,
+            # Normalized entries (as typed, whitespace stripped) so the UI can
+            # round-trip the setting without re-parsing.
+            "proxmox_qemu_agent_ignore_vms": [
+                entry["raw"] for entry in qemu_agent_ignore_list
+            ],
             "clusters": [],
             "unconfigured_proxmox_hosts": [],
         }
 
         # Get all clusters
-        clusters = list(mongo_client["labyrinth"]["proxmox_clusters"].find({}))
+        clusters = list(db["labyrinth"]["proxmox_clusters"].find({}))
         for cluster in clusters:
             cluster.pop("token_secret", None)
             cluster["_id"] = str(cluster["_id"])
             result["clusters"].append(cluster)
 
         # Get list of Proxmox-tagged hosts without cluster assignment
-        for host in mongo_client["labyrinth"]["hosts"].find({}):
+        for host in db["labyrinth"]["hosts"].find({}):
             if _is_unconfigured_proxmox_host(host, proxmox_tag):
                 result["unconfigured_proxmox_hosts"].append(
                     {
@@ -3018,7 +3073,7 @@ def send_disk_space_test_email():
         if mode == "full":
             result = proxmox_disk_check.send_full_test_email(
                 recipients,
-                db=mongo_client,
+                db=db,
                 redis_client=proxmox_helper.get_redis_client(),
             )
             return (
@@ -3058,10 +3113,135 @@ def _get_test_email_recipients(data):
         return recipients
 
     # Fall back to saved recipients (same settings the alert cron uses)
-    recipients_setting = mongo_client["labyrinth"]["settings"].find_one(
+    recipients_setting = db["labyrinth"]["settings"].find_one(
         {"name": "disk_space_alert_recipients"}
     )
     return _parse_recipients_setting(recipients_setting)
+
+
+@app.route("/ai/settings", methods=["GET"])
+@app.route("/ai/settings/", methods=["GET"])
+@requires_auth_read
+def get_ai_settings():
+    """
+    Get AI alert settings (prompt, model, recipients, subject template, from
+    name) used by the hourly AI dashboard summary/alert job.
+    """
+    try:
+        return json.dumps(get_ai_alert_settings(db)), 200
+    except Exception as e:
+        return json.dumps({"error": "Failed to retrieve AI settings"}), 500
+
+
+@app.route("/ai/settings", methods=["POST"])
+@app.route("/ai/settings/", methods=["POST"])
+@requires_auth_admin
+def save_ai_settings():
+    """
+    Save AI alert settings.
+    Expected JSON (any subset of these fields; omitted fields are left
+    unchanged): {
+        "prompt": "...",
+        "model": "gpt-5-mini",
+        "recipients": "a@example.com, b@example.com",
+        "subject_template": "Labyrinth IT AI ALERT [{time}]",
+        "from_name": "Labyrinth AI"
+    }
+    """
+    try:
+        data = request.get_json(silent=True)
+        if data is None:
+            try:
+                data = json.loads(request.get_data(as_text=True))
+            except (ValueError, json.JSONDecodeError):
+                return json.dumps({"error": ERROR_INVALID_JSON_BODY}), 400
+
+        field_to_setting_name = {
+            "prompt": "ai_prompt",
+            "model": "ai_model",
+            "recipients": "ai_alert_recipients",
+            "subject_template": "ai_alert_subject_template",
+            "from_name": "ai_alert_from_name",
+        }
+
+        settings_collection = db["labyrinth"]["settings"]
+        for field, setting_name in field_to_setting_name.items():
+            if field not in data:
+                continue
+            value = data[field]
+            if isinstance(value, list):
+                value = ", ".join(str(v) for v in value)
+            settings_collection.delete_one({"name": setting_name})
+            settings_collection.insert_one({"name": setting_name, "value": value})
+
+        return json.dumps(get_ai_alert_settings(db)), 200
+    except Exception as e:
+        return json.dumps({"error": "Failed to save AI settings"}), 500
+
+
+@app.route("/ai/test-email", methods=["POST"])
+@app.route("/ai/test-email/", methods=["POST"])
+@requires_auth_admin
+def send_ai_test_email():
+    """
+    Manually trigger an AI alert test email, so admins can confirm their
+    saved prompt/model/recipient settings work without waiting for the next
+    scheduled run.
+
+    Expected JSON body: {
+        "mode": "simple" | "full",   # default "simple"
+        "recipients": ["a@example.com"]  # optional, overrides saved settings
+    }
+
+    - "simple": sends a minimal message confirming recipients/subject/from
+      name are wired correctly, without calling ChatGPT.
+    - "full": runs the real dashboard -> ChatGPT -> email pipeline using the
+      saved prompt/model, and always sends the resulting email (even if the
+      model decides not to wake up the IT director) so admins can preview
+      real output and confirm the current prompt still behaves sensibly.
+    """
+    try:
+        data = request.get_json(silent=True)
+        if data is None:
+            try:
+                data = (
+                    json.loads(request.get_data(as_text=True))
+                    if request.get_data(as_text=True)
+                    else {}
+                )
+            except (ValueError, json.JSONDecodeError):
+                return json.dumps({"error": ERROR_INVALID_JSON_BODY}), 400
+
+        mode = (data.get("mode") or "simple").lower()
+        if mode not in ("simple", "full"):
+            return json.dumps({"error": "mode must be 'simple' or 'full'"}), 400
+
+        recipients = data.get("recipients")
+        if isinstance(recipients, str):
+            recipients = [r.strip() for r in recipients.split(",") if r.strip()]
+        recipients = recipients or None
+
+        if mode == "full":
+            result = send_full_test_email(recipients, db=db)
+            return json.dumps({"status": "sent", "mode": "full", **result}), 200
+
+        ai_settings = get_ai_alert_settings(db)
+        to = recipients or ai_settings["recipients"]
+        if not to:
+            return (
+                json.dumps(
+                    {
+                        "error": "No recipients configured. Add recipients first or include them in the request."
+                    }
+                ),
+                400,
+            )
+        send_simple_test_email(to, ai_settings)
+        return json.dumps({"status": "sent", "mode": "simple"}), 200
+    except ValueError as e:
+        return json.dumps({"error": "Invalid email configuration"}), 400
+    except Exception as e:
+        return json.dumps({"error": "Failed to send test email"}), 500
 
 
 @app.route("/proxmox-clusters", methods=["GET"])
@@ -3072,7 +3252,7 @@ def list_proxmox_clusters():
     List all Proxmox clusters
     """
     try:
-        clusters = list(mongo_client["labyrinth"]["proxmox_clusters"].find({}))
+        clusters = list(db["labyrinth"]["proxmox_clusters"].find({}))
         # Remove sensitive data from response
         for cluster in clusters:
             cluster.pop("token_secret", None)
@@ -3119,7 +3299,7 @@ def create_proxmox_cluster():
         safe_cluster_name_key = safe_cluster_name.casefold()
 
         # Check if cluster with this name already exists
-        if mongo_client["labyrinth"]["proxmox_clusters"].find_one(
+        if db["labyrinth"]["proxmox_clusters"].find_one(
             {"name_key": safe_cluster_name_key}
         ):
             return json.dumps({"error": "Cluster with this name already exists"}), 409
@@ -3136,7 +3316,7 @@ def create_proxmox_cluster():
             "updated": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         }
 
-        result = mongo_client["labyrinth"]["proxmox_clusters"].insert_one(cluster_doc)
+        result = db["labyrinth"]["proxmox_clusters"].insert_one(cluster_doc)
 
         proxmox_helper.delete_cached_proxmox_disk_data(str(result.inserted_id))
 
@@ -3156,9 +3336,7 @@ def get_proxmox_cluster(cluster_id):
     """
     try:
         object_id = _validate_object_id(cluster_id)
-        cluster = mongo_client["labyrinth"]["proxmox_clusters"].find_one(
-            {"_id": object_id}
-        )
+        cluster = db["labyrinth"]["proxmox_clusters"].find_one({"_id": object_id})
         if not cluster:
             return json.dumps({"error": "Cluster not found"}), 404
 
@@ -3182,9 +3360,7 @@ def update_proxmox_cluster(cluster_id):
             return json.dumps({"error": ERROR_INVALID_JSON_BODY}), 400
 
         object_id = _validate_object_id(cluster_id)
-        cluster = mongo_client["labyrinth"]["proxmox_clusters"].find_one(
-            {"_id": object_id}
-        )
+        cluster = db["labyrinth"]["proxmox_clusters"].find_one({"_id": object_id})
         if not cluster:
             return json.dumps({"error": ERROR_CLUSTER_NOT_FOUND}), 404
 
@@ -3199,12 +3375,12 @@ def update_proxmox_cluster(cluster_id):
             update_doc["updated"] = datetime.datetime.now(
                 datetime.timezone.utc
             ).isoformat()
-            mongo_client["labyrinth"]["proxmox_clusters"].update_one(
+            db["labyrinth"]["proxmox_clusters"].update_one(
                 {"_id": object_id}, {"$set": update_doc}
             )
             proxmox_helper.delete_cached_proxmox_disk_data(cluster_id)
 
-        updated_cluster = mongo_client["labyrinth"]["proxmox_clusters"].find_one(
+        updated_cluster = db["labyrinth"]["proxmox_clusters"].find_one(
             {"_id": object_id}
         )
         updated_cluster.pop("token_secret", None)
@@ -3227,9 +3403,7 @@ def delete_proxmox_cluster(cluster_id):
     try:
         proxmox_helper.delete_cached_proxmox_disk_data(cluster_id)
         object_id = _validate_object_id(cluster_id)
-        result = mongo_client["labyrinth"]["proxmox_clusters"].delete_one(
-            {"_id": object_id}
-        )
+        result = db["labyrinth"]["proxmox_clusters"].delete_one({"_id": object_id})
         if result.deleted_count == 0:
             return json.dumps({"error": ERROR_CLUSTER_NOT_FOUND}), 404
 
@@ -3251,7 +3425,7 @@ def get_aws_ec2_instances():
     List EC2 instances across all configured AWS accounts.
     """
     try:
-        accounts = list(mongo_client["labyrinth"]["aws_accounts"].find({}))
+        accounts = list(db["labyrinth"]["aws_accounts"].find({}))
         result = {
             "accounts": [],
             "instances": [],
@@ -3322,7 +3496,7 @@ def list_aws_accounts():
     List all configured AWS accounts.
     """
     try:
-        accounts = list(mongo_client["labyrinth"]["aws_accounts"].find({}))
+        accounts = list(db["labyrinth"]["aws_accounts"].find({}))
         for account in accounts:
             account.pop("secret_access_key", None)
             account.pop("session_token", None)
@@ -3363,7 +3537,7 @@ def create_aws_account():
             )
 
         safe_name = _sanitize_string_value(data["name"])
-        if mongo_client["labyrinth"]["aws_accounts"].find_one({"name": safe_name}):
+        if db["labyrinth"]["aws_accounts"].find_one({"name": safe_name}):
             return (
                 json.dumps({"error": "AWS account with this name already exists"}),
                 409,
@@ -3379,7 +3553,7 @@ def create_aws_account():
             "updated": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         }
 
-        result = mongo_client["labyrinth"]["aws_accounts"].insert_one(account_doc)
+        result = db["labyrinth"]["aws_accounts"].insert_one(account_doc)
 
         return json.dumps({"id": str(result.inserted_id), "status": "created"}), 201
     except Exception as e:
@@ -3394,7 +3568,7 @@ def get_aws_account(account_id):
     """
     try:
         object_id = _validate_object_id(account_id)
-        account = mongo_client["labyrinth"]["aws_accounts"].find_one({"_id": object_id})
+        account = db["labyrinth"]["aws_accounts"].find_one({"_id": object_id})
         if not account:
             return json.dumps({"error": "AWS account not found"}), 404
 
@@ -3419,7 +3593,7 @@ def update_aws_account(account_id):
             return json.dumps({"error": ERROR_INVALID_JSON_BODY}), 400
 
         object_id = _validate_object_id(account_id)
-        account = mongo_client["labyrinth"]["aws_accounts"].find_one({"_id": object_id})
+        account = db["labyrinth"]["aws_accounts"].find_one({"_id": object_id})
         if not account:
             return json.dumps({"error": ERROR_AWS_ACCOUNT_NOT_FOUND}), 404
 
@@ -3439,7 +3613,7 @@ def update_aws_account(account_id):
             update_doc[field] = _sanitize_db_value(data[field])
 
         if update_doc.get("name") and update_doc["name"] != account.get("name"):
-            duplicate = mongo_client["labyrinth"]["aws_accounts"].find_one(
+            duplicate = db["labyrinth"]["aws_accounts"].find_one(
                 {"name": _sanitize_string_value(update_doc["name"])}
             )
             if duplicate:
@@ -3452,13 +3626,11 @@ def update_aws_account(account_id):
             update_doc["updated"] = datetime.datetime.now(
                 datetime.timezone.utc
             ).isoformat()
-            mongo_client["labyrinth"]["aws_accounts"].update_one(
+            db["labyrinth"]["aws_accounts"].update_one(
                 {"_id": object_id}, {"$set": update_doc}
             )
 
-        updated_account = mongo_client["labyrinth"]["aws_accounts"].find_one(
-            {"_id": object_id}
-        )
+        updated_account = db["labyrinth"]["aws_accounts"].find_one({"_id": object_id})
         updated_account.pop("secret_access_key", None)
         updated_account.pop("session_token", None)
         return json.dumps(updated_account, default=str), 200
@@ -3476,9 +3648,7 @@ def delete_aws_account(account_id):
     """
     try:
         object_id = _validate_object_id(account_id)
-        result = mongo_client["labyrinth"]["aws_accounts"].delete_one(
-            {"_id": object_id}
-        )
+        result = db["labyrinth"]["aws_accounts"].delete_one({"_id": object_id})
         if result.deleted_count == 0:
             return json.dumps({"error": ERROR_AWS_ACCOUNT_NOT_FOUND}), 404
 
@@ -3497,7 +3667,7 @@ def get_aws_settings():
     Get AWS inventory settings.
     """
     try:
-        accounts = list(mongo_client["labyrinth"]["aws_accounts"].find({}))
+        accounts = list(db["labyrinth"]["aws_accounts"].find({}))
         sanitized_accounts = []
         for account in accounts:
             account.pop("secret_access_key", None)
@@ -3505,21 +3675,153 @@ def get_aws_settings():
             account["_id"] = str(account["_id"])
             sanitized_accounts.append(account)
 
-        return json.dumps({"accounts": sanitized_accounts}, default=str), 200
+        recipients_setting = db["labyrinth"]["settings"].find_one(
+            {"name": "ec2_alert_recipients"}
+        )
+
+        return (
+            json.dumps(
+                {
+                    "accounts": sanitized_accounts,
+                    "ec2_alert_recipients": _parse_recipients_setting(
+                        recipients_setting
+                    ),
+                },
+                default=str,
+            ),
+            200,
+        )
     except Exception as e:
         return json.dumps({"error": "Failed to retrieve AWS settings"}), 500
 
 
-if __name__ == "__main__":  # pragma: no cover
-    # Check on indexes
-    index_helper()
+@app.route("/aws/test-email", methods=["POST"])
+@app.route("/aws/test-email/", methods=["POST"])
+@requires_auth_admin
+def send_ec2_unmatched_test_email():
+    """
+    Manually trigger an EC2 unmatched-instance alert test email.
 
+    Expected JSON body: {
+        "mode": "simple" | "full",   # default "simple"
+        "recipients": ["a@example.com"]  # optional, overrides saved settings
+    }
+
+    - "simple": sends a minimal message confirming SMTP is configured
+      correctly, without querying AWS.
+    - "full": queries live AWS EC2 data using the same matching logic as the
+      real alert and sends the real alert template, always sending even if
+      zero instances are currently unmatched, so admins can preview
+      formatting and confirm delivery.
+    """
+    try:
+        data = request.get_json(silent=True)
+        if data is None:
+            try:
+                data = (
+                    json.loads(request.get_data(as_text=True))
+                    if request.get_data(as_text=True)
+                    else {}
+                )
+            except (ValueError, json.JSONDecodeError):
+                return json.dumps({"error": ERROR_INVALID_JSON_BODY}), 400
+
+        mode = (data.get("mode") or "simple").lower()
+        if mode not in ("simple", "full"):
+            return json.dumps({"error": "mode must be 'simple' or 'full'"}), 400
+
+        recipients = _get_ec2_test_email_recipients(data)
+        if not recipients:
+            return (
+                json.dumps(
+                    {
+                        "error": "No recipients configured. Add recipients first or include them in the request."
+                    }
+                ),
+                400,
+            )
+
+        if mode == "full":
+            result = ec2_unmatched_check.send_full_test_email(
+                recipients,
+                db=db,
+            )
+            return (
+                json.dumps(
+                    {
+                        "status": "sent",
+                        "mode": "full",
+                        **result,
+                    }
+                ),
+                200,
+            )
+
+        ec2_unmatched_check.send_simple_test_email(recipients)
+        return (
+            json.dumps(
+                {
+                    "status": "sent",
+                    "mode": "simple",
+                }
+            ),
+            200,
+        )
+    except ValueError as e:
+        return json.dumps({"error": "Invalid email configuration"}), 400
+    except Exception as e:
+        return json.dumps({"error": "Failed to send test email"}), 500
+
+
+def _get_ec2_test_email_recipients(data):
+    """Get recipients from request data or fall back to saved settings."""
+    recipients = data.get("recipients")
+    if isinstance(recipients, str):
+        recipients = [r.strip() for r in recipients.split(",") if r.strip()]
+
+    if recipients:
+        return recipients
+
+    # Fall back to saved recipients (same settings the alert cron uses)
+    recipients_setting = db["labyrinth"]["settings"].find_one(
+        {"name": "ec2_alert_recipients"}
+    )
+    return _parse_recipients_setting(recipients_setting)
+
+
+if __name__ == "__main__":  # pragma: no cover
     if len(sys.argv) > 1 and sys.argv[1] == "watcher":
+        index_helper()
         unwrap(dashboard)(report=True)
     elif len(sys.argv) > 1 and sys.argv[1] == "updater":
-        with PidFile("labyrinth-bulk-insert") as p:
-            unwrap(bulk_insert)()
+        # Metrics transfer: Redis (short-lived, overwritten in place) ->
+        # Postgres (permanent). Cron fires this every minute; the lock makes
+        # a run that spills past the minute mark hold the next tick back
+        # rather than running two transfers over the same Redis keys.
+        #
+        # Nothing above this point touches the database - `db` is lazy and
+        # index_helper() moved inside the lock - so a waiting process costs
+        # one Redis connection, not a Postgres pool. That matters when a
+        # slow transfer leaves several ticks queued up behind it.
+        try:
+            with single_run(
+                redis.Redis(host=os.environ.get("REDIS_HOST") or "redis"),
+                "labyrinth-bulk-insert",
+            ) as lock:
+                if lock.waited_seconds > 1:
+                    print(
+                        "Waited {:.1f}s for the previous transfer to finish.".format(
+                            lock.waited_seconds
+                        )
+                    )
+                index_helper()
+                unwrap(bulk_insert)()
+        except LockNotAcquired as exc:
+            # Not data loss: the metrics are still in Redis and the next
+            # tick retries. Loud, because a transfer this stuck is a bug.
+            print("Skipping bulk insert - {}".format(exc))
     else:
+        index_helper()
         app.debug = True
         app.config["ENV"] = "development"
         app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 7000)))

@@ -31,9 +31,31 @@ jobs:
         run: bash backend/run_tests.sh
       
 
+  metrics-go-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache-dependency-path: metrics-go/go.sum
+
+      - name: Check formatting
+        run: cd metrics-go && test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+
+      - name: Vet
+        run: cd metrics-go && go vet ./...
+
+      - name: Tests
+        run: cd metrics-go && go test ./... -race -cover
+
+
   frontend-tests:
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v2
 
@@ -56,7 +78,7 @@ jobs:
 
   linting:
     runs-on: ubuntu-latest
-    needs: [frontend-tests, backend-tests]
+    needs: [frontend-tests, backend-tests, metrics-go-tests]
     steps:
       - uses: actions/checkout@v2
 

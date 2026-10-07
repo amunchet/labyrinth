@@ -15,14 +15,20 @@
   >
     <div class="top">
       <div
-        :class="monitor ? 'number' : 'number unmonitored'"
+        :class="
+          (monitor ? 'number' : 'number unmonitored') +
+          (subnet && !ip.startsWith(subnet) ? ' number-wide' : '')
+        "
         @click="
           () => {
             $emit('selected_changed');
           }
         "
       >
-        .{{ ip.split(".")[ip.split(".").length - 1] }}
+        <span v-if="subnet && !ip.startsWith(subnet)" :title="ip">{{
+          ip
+        }}</span>
+        <span v-else>.{{ ip.split(".")[ip.split(".").length - 1] }}</span>
       </div>
 
       <div
@@ -169,6 +175,7 @@ export default {
     "service_level",
     "service_levels",
     "selected",
+    "subnet",
   ],
   data() {
     return {
@@ -295,6 +302,15 @@ export default {
   /* top: 0; */
   margin-bottom: 0.5rem;
   cursor: pointer;
+}
+.number-wide {
+  width: 75%;
+  min-width: 50px;
+  max-width: 180px;
+  /* font-size: 9pt; */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .unmonitored {
   color: #dfdfde;

@@ -7,6 +7,13 @@
       v-b-tooltip.hover
       title="QEMU Guest Agent not installed or unavailable."
     />
+    <font-awesome-icon
+      v-else-if="showQemuIgnored"
+      icon="eye-slash"
+      class="qemu-ignored-icon mr-1"
+      v-b-tooltip.hover
+      title="QEMU Guest Agent unavailable - ignored via Settings (disk usage not monitored)."
+    />
     <span class="vm-name text-truncate">{{
       item.name || `ID ${item.id}`
     }}</span>
@@ -71,12 +78,21 @@ export default {
       if (this.memUsagePercentage >= 75) return "usage-warning-text";
       return "";
     },
-    showQemuWarning() {
+    hasQemuWarning() {
       return (
         this.type === "vm" &&
         (this.item.qemu_guest_agent_installed === false ||
           this.item.qemu_guest_agent_warning_inferred === true)
       );
+    },
+    // Explicit Settings opt-out (proxmox_qemu_agent_ignore_vms): the
+    // backend flags these VMs so the warning is replaced by a muted
+    // "ignored" marker instead of the alarm icon.
+    showQemuIgnored() {
+      return this.hasQemuWarning && this.item.qemu_guest_agent_ignored === true;
+    },
+    showQemuWarning() {
+      return this.hasQemuWarning && !this.showQemuIgnored;
     },
     tooltipText() {
       const label = this.item.name || `ID ${this.item.id}`;
@@ -143,6 +159,12 @@ export default {
 
   .qemu-warning-icon {
     color: #fff3cd;
+    flex-shrink: 0;
+  }
+
+  .qemu-ignored-icon {
+    color: #6c757d;
+    opacity: 0.7;
     flex-shrink: 0;
   }
 

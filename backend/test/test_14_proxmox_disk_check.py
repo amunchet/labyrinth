@@ -25,8 +25,8 @@ from common.test import unwrap
 
 def cleanup_test_data():
     """Clean up disk-check test data."""
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].delete_many({})
-    serve.mongo_client["labyrinth"]["settings"].delete_many({})
+    serve.db["labyrinth"]["proxmox_clusters"].delete_many({})
+    serve.db["labyrinth"]["settings"].delete_many({})
 
 
 @pytest.fixture
@@ -323,7 +323,7 @@ def test_gather_all_disk_issues_checks_every_cluster_including_qemu_missing(
     even though it was genuinely being queried. This is the direct regression
     test for that bug.
     """
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_many(
+    serve.db["labyrinth"]["proxmox_clusters"].insert_many(
         [
             {
                 "name": "cluster-1",
@@ -356,7 +356,7 @@ def test_gather_all_disk_issues_checks_every_cluster_including_qemu_missing(
     )
 
     issues, errors = proxmox_disk_check.gather_all_disk_issues(
-        80, db=serve.mongo_client, redis_client=object()
+        80, db=serve.db, redis_client=object()
     )
 
     assert errors == []
@@ -374,7 +374,7 @@ def test_gather_all_disk_issues_records_errors_without_skipping_other_clusters(
 ):
     """A cluster that errors out should be reported in cluster_errors, but
     must not prevent other clusters from being checked."""
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_many(
+    serve.db["labyrinth"]["proxmox_clusters"].insert_many(
         [
             {
                 "name": "cluster-broken",
@@ -407,7 +407,7 @@ def test_gather_all_disk_issues_records_errors_without_skipping_other_clusters(
     )
 
     issues, errors = proxmox_disk_check.gather_all_disk_issues(
-        80, db=serve.mongo_client, redis_client=object()
+        80, db=serve.db, redis_client=object()
     )
 
     assert len(errors) == 1
@@ -678,7 +678,7 @@ def test_render_email_template_omits_qemu_missing_section_when_absent():
 def test_send_full_test_email_reports_issues_from_all_clusters(setup, monkeypatch):
     """The 'Send Full Test Email' path must reflect issues found across every
     cluster, including missing-QEMU warnings, and report a per-type breakdown."""
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_many(
+    serve.db["labyrinth"]["proxmox_clusters"].insert_many(
         [
             {
                 "name": "cluster-1",
@@ -725,7 +725,7 @@ def test_send_full_test_email_reports_issues_from_all_clusters(setup, monkeypatc
     result = proxmox_disk_check.send_full_test_email(
         ["ops@example.com"],
         threshold_percent=80,
-        db=serve.mongo_client,
+        db=serve.db,
         redis_client=object(),
     )
 
@@ -826,7 +826,7 @@ def test_send_disk_space_test_email_endpoint_falls_back_to_saved_recipients(
 ):
     """When no recipients are supplied in the request, the endpoint should
     fall back to the saved disk_space_alert_recipients setting."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {
             "name": "disk_space_alert_recipients",
             "value": "saved@example.com, other@example.com",
@@ -985,7 +985,7 @@ def test_format_size_petabytes():
 
 def test_get_disk_alert_settings_defaults(setup):
     """Return defaults when no settings exist."""
-    settings = proxmox_disk_check.get_disk_alert_settings(serve.mongo_client)
+    settings = proxmox_disk_check.get_disk_alert_settings(serve.db)
 
     assert settings["threshold_percent"] == 80
     assert settings["recipients"] == []
@@ -993,61 +993,61 @@ def test_get_disk_alert_settings_defaults(setup):
 
 def test_get_disk_alert_settings_custom_threshold(setup):
     """Retrieve custom threshold."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {"name": "disk_space_alert_threshold", "value": "90"}
     )
 
-    settings = proxmox_disk_check.get_disk_alert_settings(serve.mongo_client)
+    settings = proxmox_disk_check.get_disk_alert_settings(serve.db)
 
     assert settings["threshold_percent"] == 90
 
 
 def test_get_disk_alert_settings_invalid_threshold(setup):
     """Fall back to default for invalid threshold."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {"name": "disk_space_alert_threshold", "value": "not-a-number"}
     )
 
-    settings = proxmox_disk_check.get_disk_alert_settings(serve.mongo_client)
+    settings = proxmox_disk_check.get_disk_alert_settings(serve.db)
 
     assert settings["threshold_percent"] == 80
 
 
 def test_get_disk_alert_settings_empty_threshold(setup):
     """Fall back to default for empty threshold."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {"name": "disk_space_alert_threshold", "value": ""}
     )
 
-    settings = proxmox_disk_check.get_disk_alert_settings(serve.mongo_client)
+    settings = proxmox_disk_check.get_disk_alert_settings(serve.db)
 
     assert settings["threshold_percent"] == 80
 
 
 def test_get_disk_alert_settings_recipients_as_list(setup):
     """Handle recipients as list."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {
             "name": "disk_space_alert_recipients",
             "value": ["user1@example.com", "user2@example.com"],
         }
     )
 
-    settings = proxmox_disk_check.get_disk_alert_settings(serve.mongo_client)
+    settings = proxmox_disk_check.get_disk_alert_settings(serve.db)
 
     assert len(settings["recipients"]) == 2
 
 
 def test_get_disk_alert_settings_recipients_as_comma_string(setup):
     """Parse recipients from comma-separated string."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {
             "name": "disk_space_alert_recipients",
             "value": "user1@example.com, user2@example.com",
         }
     )
 
-    settings = proxmox_disk_check.get_disk_alert_settings(serve.mongo_client)
+    settings = proxmox_disk_check.get_disk_alert_settings(serve.db)
 
     assert len(settings["recipients"]) == 2
     assert "user1@example.com" in settings["recipients"]
@@ -1056,14 +1056,14 @@ def test_get_disk_alert_settings_recipients_as_comma_string(setup):
 
 def test_get_disk_alert_settings_recipients_with_whitespace(setup):
     """Strip whitespace from recipients."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {
             "name": "disk_space_alert_recipients",
             "value": "  user1@example.com  ,  user2@example.com  ",
         }
     )
 
-    settings = proxmox_disk_check.get_disk_alert_settings(serve.mongo_client)
+    settings = proxmox_disk_check.get_disk_alert_settings(serve.db)
 
     assert settings["recipients"] == ["user1@example.com", "user2@example.com"]
 
@@ -1264,6 +1264,90 @@ def test_collect_vm_issues_missing_qemu_agent():
     assert len(issues) == 1
     assert issues[0]["type"] == "vm_qemu_missing"
     # Should not appear again as a normal VM issue
+
+
+def test_collect_vm_issues_zero_disk_suppressed_by_recent_good_reading():
+    """A zero-disk read is a flaky guest-agent blip, not a real problem, when
+    a real (non-zero, under-threshold) reading was cached within the last
+    two hours - so no issue should be raised at all."""
+    node = {
+        "vms": [
+            {
+                "id": 100,
+                "name": "vm-1",
+                "status": "running",
+                "maxdisk": 10737418240,
+                "disk": 0,
+                "qemu_guest_agent_installed": True,
+                "qemu_guest_agent_warning_inferred": True,
+                "qemu_guest_agent_error": "Guest disk reported as zero",
+                "_last_known_good_disk": {"used": 500, "total": 10737418240},
+            }
+        ]
+    }
+
+    issues = proxmox_disk_check._collect_vm_issues(
+        node, "cluster-1", "10.0.0.1", "node-1", 80
+    )
+
+    assert issues == []
+
+
+def test_collect_vm_issues_zero_disk_with_recent_good_reading_over_threshold():
+    """A zero-disk read still raises a real 'vm' issue (not vm_qemu_missing)
+    when the last known-good cached reading was itself over threshold - the
+    zero read doesn't hide a genuine problem."""
+    node = {
+        "vms": [
+            {
+                "id": 100,
+                "name": "vm-1",
+                "status": "running",
+                "maxdisk": 1000,
+                "disk": 0,
+                "qemu_guest_agent_installed": True,
+                "qemu_guest_agent_warning_inferred": True,
+                "qemu_guest_agent_error": "Guest disk reported as zero",
+                "_last_known_good_disk": {"used": 950, "total": 1000},
+            }
+        ]
+    }
+
+    issues = proxmox_disk_check._collect_vm_issues(
+        node, "cluster-1", "10.0.0.1", "node-1", 80
+    )
+
+    assert len(issues) == 1
+    assert issues[0]["type"] == "vm"
+    assert issues[0]["stale_reading"] is True
+    assert issues[0]["percentage"] == pytest.approx(95.0)
+
+
+def test_collect_vm_issues_zero_disk_no_recent_good_reading():
+    """Without any good reading cached in the last two hours, the VM is
+    genuinely unmeasurable and must still be surfaced as vm_qemu_missing."""
+    node = {
+        "vms": [
+            {
+                "id": 100,
+                "name": "vm-1",
+                "status": "running",
+                "maxdisk": 10737418240,
+                "disk": 0,
+                "qemu_guest_agent_installed": False,
+                "qemu_guest_agent_warning_inferred": True,
+                "qemu_guest_agent_error": "Agent not installed",
+                "_last_known_good_disk": None,
+            }
+        ]
+    }
+
+    issues = proxmox_disk_check._collect_vm_issues(
+        node, "cluster-1", "10.0.0.1", "node-1", 80
+    )
+
+    assert len(issues) == 1
+    assert issues[0]["type"] == "vm_qemu_missing"
 
 
 def test_collect_vm_issues_no_maxdisk():
@@ -1627,7 +1711,7 @@ def test_check_and_alert_disk_space_no_recipients(setup, monkeypatch, capsys):
 
 def test_check_and_alert_disk_space_no_clusters(setup, monkeypatch, capsys):
     """Skip check when no clusters configured."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {"name": "disk_space_alert_recipients", "value": "ops@example.com"}
     )
 
@@ -1639,10 +1723,10 @@ def test_check_and_alert_disk_space_no_clusters(setup, monkeypatch, capsys):
 
 def test_check_and_alert_disk_space_no_issues(setup, monkeypatch, capsys):
     """Handle case with no issues found."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {"name": "disk_space_alert_recipients", "value": "ops@example.com"}
     )
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one(
+    serve.db["labyrinth"]["proxmox_clusters"].insert_one(
         {
             "name": "cluster-1",
             "host": "10.0.0.1",
@@ -1662,10 +1746,10 @@ def test_check_and_alert_disk_space_no_issues(setup, monkeypatch, capsys):
 
 def test_check_and_alert_disk_space_sends_alert_on_issues(setup, monkeypatch, capsys):
     """Send alert when issues are found."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {"name": "disk_space_alert_recipients", "value": "ops@example.com"}
     )
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one(
+    serve.db["labyrinth"]["proxmox_clusters"].insert_one(
         {
             "name": "cluster-1",
             "host": "10.0.0.1",
@@ -1692,10 +1776,10 @@ def test_check_and_alert_disk_space_sends_alert_on_issues(setup, monkeypatch, ca
 
 def test_check_and_alert_disk_space_handles_email_error(setup, monkeypatch, capsys):
     """Handle email sending errors."""
-    serve.mongo_client["labyrinth"]["settings"].insert_one(
+    serve.db["labyrinth"]["settings"].insert_one(
         {"name": "disk_space_alert_recipients", "value": "ops@example.com"}
     )
-    serve.mongo_client["labyrinth"]["proxmox_clusters"].insert_one(
+    serve.db["labyrinth"]["proxmox_clusters"].insert_one(
         {
             "name": "cluster-1",
             "host": "10.0.0.1",
@@ -1735,3 +1819,231 @@ def test_check_and_alert_disk_space_general_error(setup, monkeypatch, capsys):
 
     captured = capsys.readouterr()
     assert "Error in disk check" in captured.out or "Database error" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# QEMU guest agent ignore list (Settings -> proxmox_qemu_agent_ignore_vms)
+# ---------------------------------------------------------------------------
+
+
+def test_parse_qemu_agent_ignore_list_handles_strings_lists_and_scoping():
+    """Entries may be comma or newline separated, optionally scoped with
+    ``cluster/``; blanks are dropped and matching is case-insensitive."""
+    helper = proxmox_disk_check.proxmox_helper
+
+    parsed = helper.parse_qemu_agent_ignore_list(
+        " MacOS-VM , 105\nProd-PVE/Sonoma,, / ,prod/  \n"
+    )
+    assert parsed == [
+        {"raw": "MacOS-VM", "cluster": None, "target": "macos-vm"},
+        {"raw": "105", "cluster": None, "target": "105"},
+        {"raw": "Prod-PVE/Sonoma", "cluster": "prod-pve", "target": "sonoma"},
+    ]
+
+    assert helper.parse_qemu_agent_ignore_list(["vm-a", None, " 7 "]) == [
+        {"raw": "vm-a", "cluster": None, "target": "vm-a"},
+        {"raw": "7", "cluster": None, "target": "7"},
+    ]
+
+    assert helper.parse_qemu_agent_ignore_list(None) == []
+    assert helper.parse_qemu_agent_ignore_list("") == []
+    assert helper.parse_qemu_agent_ignore_list(42) == []
+
+
+def test_is_vm_qemu_agent_ignored_matches_name_vmid_and_cluster_scope():
+    helper = proxmox_disk_check.proxmox_helper
+    ignore_list = helper.parse_qemu_agent_ignore_list(
+        "macos-vm, 105, prod-pve/windows-box, prod-pve/200"
+    )
+
+    # Unscoped name / VMID match on any cluster.
+    assert helper.is_vm_qemu_agent_ignored(
+        {"id": 1, "name": "MacOS-VM"}, "lab", ignore_list
+    )
+    assert helper.is_vm_qemu_agent_ignored({"id": 105, "name": "x"}, None, ignore_list)
+
+    # Scoped entries only match their own cluster (case-insensitively).
+    assert helper.is_vm_qemu_agent_ignored(
+        {"id": 2, "name": "windows-box"}, "Prod-PVE", ignore_list
+    )
+    assert helper.is_vm_qemu_agent_ignored(
+        {"id": 200, "name": "other"}, "prod-pve", ignore_list
+    )
+    assert not helper.is_vm_qemu_agent_ignored(
+        {"id": 2, "name": "windows-box"}, "lab", ignore_list
+    )
+    assert not helper.is_vm_qemu_agent_ignored(
+        {"id": 200, "name": "other"}, "lab", ignore_list
+    )
+
+    # No match / empty list.
+    assert not helper.is_vm_qemu_agent_ignored(
+        {"id": 3, "name": "linux-vm"}, "lab", ignore_list
+    )
+    assert not helper.is_vm_qemu_agent_ignored({"id": 105, "name": "x"}, "lab", [])
+    assert not helper.is_vm_qemu_agent_ignored({}, "lab", ignore_list)
+
+
+def test_apply_qemu_agent_ignore_list_flags_every_vm():
+    helper = proxmox_disk_check.proxmox_helper
+    payload = {
+        "cluster_name": "cluster-a",
+        "nodes": [
+            {
+                "vms": [
+                    {"id": 301, "name": "vm-missing-agent"},
+                    {"id": 302, "name": "vm-fine"},
+                ],
+                "containers": [{"id": 900, "name": "ct"}],
+            },
+            {"vms": None},
+        ],
+    }
+
+    helper.apply_qemu_agent_ignore_list(
+        payload, helper.parse_qemu_agent_ignore_list("vm-missing-agent")
+    )
+
+    vms = payload["nodes"][0]["vms"]
+    assert vms[0]["qemu_guest_agent_ignored"] is True
+    assert vms[1]["qemu_guest_agent_ignored"] is False
+    # Containers are untouched - the QEMU agent only applies to VMs.
+    assert "qemu_guest_agent_ignored" not in payload["nodes"][0]["containers"][0]
+
+
+def test_get_qemu_agent_ignore_list_reads_setting_and_tolerates_db_errors(setup):
+    helper = proxmox_disk_check.proxmox_helper
+
+    assert helper.get_qemu_agent_ignore_list(serve.db) == []
+
+    serve.db["labyrinth"]["settings"].insert_one(
+        {"name": helper.QEMU_AGENT_IGNORE_SETTING, "value": "macos-vm, lab/105"}
+    )
+    parsed = helper.get_qemu_agent_ignore_list(serve.db)
+    assert [e["raw"] for e in parsed] == ["macos-vm", "lab/105"]
+
+    class BrokenDB:
+        def __getitem__(self, _):
+            raise RuntimeError("mongo down")
+
+    assert helper.get_qemu_agent_ignore_list(BrokenDB()) == []
+
+
+def test_get_disk_alert_settings_includes_qemu_agent_ignore_list(setup):
+    helper = proxmox_disk_check.proxmox_helper
+    serve.db["labyrinth"]["settings"].insert_one(
+        {"name": helper.QEMU_AGENT_IGNORE_SETTING, "value": "macos-vm"}
+    )
+
+    settings = proxmox_disk_check.get_disk_alert_settings(serve.db)
+
+    assert settings["qemu_agent_ignore_list"] == [
+        {"raw": "macos-vm", "cluster": None, "target": "macos-vm"}
+    ]
+
+
+def test_collect_disk_issues_skips_ignored_missing_qemu_agent_vm():
+    """A VM on the ignore list must not produce a vm_qemu_missing issue, so a
+    cluster whose only warning is that VM comes back clean - while a VM that
+    is NOT on the list is still reported as before."""
+    helper = proxmox_disk_check.proxmox_helper
+    cluster_data = _cluster_data_with_missing_qemu_agent("cluster-a", "10.1.1.1")
+    cluster_data["nodes"][0]["vms"].append(
+        {
+            "id": 302,
+            "name": "vm-also-missing",
+            "status": "running",
+            "maxdisk": 10737418240,
+            "disk": 0,
+            "qemu_guest_agent_installed": False,
+            "qemu_guest_agent_warning_inferred": True,
+        }
+    )
+
+    issues = proxmox_disk_check.collect_disk_issues(
+        cluster_data,
+        threshold_percent=80,
+        qemu_agent_ignore_list=helper.parse_qemu_agent_ignore_list(
+            "cluster-a/vm-missing-agent"
+        ),
+    )
+
+    assert [i["name"] for i in issues] == ["vm-also-missing"]
+    assert issues[0]["type"] == "vm_qemu_missing"
+
+    # The ignore flag is annotated on the payload for downstream consumers.
+    vms = cluster_data["nodes"][0]["vms"]
+    assert vms[0]["qemu_guest_agent_ignored"] is True
+    assert vms[1]["qemu_guest_agent_ignored"] is False
+
+
+def test_collect_disk_issues_ignore_list_does_not_hide_real_disk_usage():
+    """Ignoring the QEMU warning must not suppress a genuine over-threshold
+    reading for the same VM if one is available (e.g. agent came back)."""
+    helper = proxmox_disk_check.proxmox_helper
+    cluster_data = {
+        "cluster_name": "cluster-a",
+        "host": "10.1.1.1",
+        "nodes": [
+            {
+                "name": "node-a",
+                "storage": [],
+                "vms": [
+                    {
+                        "id": 301,
+                        "name": "macos-vm",
+                        "status": "running",
+                        "maxdisk": 1000,
+                        "disk": 950,
+                        "qemu_guest_agent_installed": True,
+                        "qemu_guest_agent_warning_inferred": False,
+                    }
+                ],
+                "containers": [],
+            }
+        ],
+    }
+
+    issues = proxmox_disk_check.collect_disk_issues(
+        cluster_data,
+        threshold_percent=80,
+        qemu_agent_ignore_list=helper.parse_qemu_agent_ignore_list("macos-vm"),
+    )
+
+    assert len(issues) == 1
+    assert issues[0]["type"] == "vm"
+    assert issues[0]["percentage"] == 95.0
+
+
+def test_gather_all_disk_issues_applies_ignore_list_from_settings(setup, monkeypatch):
+    """The scheduled check (and the full test email, which shares this code)
+    reads the ignore list from the settings collection automatically."""
+    helper = proxmox_disk_check.proxmox_helper
+    serve.db["labyrinth"]["proxmox_clusters"].insert_one(
+        {
+            "name": "cluster-2",
+            "host": "10.1.1.2",
+            "user": "root@pam",
+            "token_id": "token-2",
+            "token_secret": "secret-2",
+            "verify_ssl": False,
+        }
+    )
+    serve.db["labyrinth"]["settings"].insert_one(
+        {"name": helper.QEMU_AGENT_IGNORE_SETTING, "value": "vm-missing-agent"}
+    )
+
+    monkeypatch.setattr(
+        helper,
+        "get_proxmox_disk_data_cached",
+        lambda cluster, redis_client=None: _cluster_data_with_missing_qemu_agent(
+            "cluster-2", cluster["host"]
+        ),
+    )
+
+    issues, errors = proxmox_disk_check.gather_all_disk_issues(
+        80, db=serve.db, redis_client=object()
+    )
+
+    assert errors == []
+    assert issues == []

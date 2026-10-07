@@ -10,47 +10,71 @@ Labyrinth is a network analyzer, mapper, and monitor built on NMap, Ansible, and
 
 **Service boundaries:**
 - `backend/` - Flask API server (port 7000 in dev) handling all business logic; nearly every route lives in `backend/serve.py` (~3000 lines)
+- `metrics-go/` - Go Telegraf ingest service (port 9000, `metrics` compose service). Caddy routes `POST /api/metrics/` here; everything else under `/api/` still goes to Flask. Drop-in replacement for `serve.py`'s `insert_metric`: same `TELEGRAF_KEY` header check, same `METRIC-<json>` Redis keys with the same 120s TTL, but one pipelined Redis round trip per agent batch instead of a connection pool per metric. Also records the per-client ingest counters (see below). Full docs in `metrics-go/README.md`
 - `frontend/labyrinth/` - Vue 2 SPA with Bootstrap-Vue for UI (location floor-plan maps are plain DOM/SVG with percentage positions)
 - `alertmanager/` - Prometheus Alertmanager for alert routing
 - `nginx/` - Reverse proxy with lego for SSL cert management
-- `cron/` - Scheduled jobs (crontab in `cron/cron.d/crontab`) running finder, alive checks, watcher, Proxmox refresh/disk-check, bulk metric writes, AI summaries, level expiry
-- `backend/ai/` - hourly AI summary job (`ai.sh` -> `backend/ai/main.py`) that pulls hosts/services/recent metrics from Mongo, sends them to ChatGPT (`chatgpt_helper.py`) for a plain-English summary, and delivers it by email/Slack (`email_helper.py`, `slack_helper.py`)
-- `backend/ai/mcp/` - standalone MCP server (own Dockerfile, runs as the `mcp` compose service on port 8765) exposing host/service/metric tools via `unwrap()`-wrapped Flask handlers, bypassing HTTP auth for trusted-network agent access
-- MongoDB - primary data store (hosts, subnets, services, metrics, settings, proxmox_clusters, locations, dashboards = location maps)
+- `cron/` - Scheduled jobs (crontab in `cron/cron.d/crontab`) running finder, alive checks, watcher, Proxmox refresh/disk-check, EC2 unmatched-instance check, bulk metric writes, AI summaries, level expiry
+- `backend/ai/` - hourly AI summary job (`ai.sh` -> `backend/ai/main.py`, built on `ai_pipeline.py`/`ai_settings.py`) that pulls hosts/services/recent metrics from the database, sends them to ChatGPT (`chatgpt_helper.py`) for a plain-English summary, and delivers it by email/Slack (`email_helper.py`, `slack_helper.py`)
+- `backend/ai/mcp/` - standalone MCP server (own Dockerfile, runs as the `mcp` compose service on port 8765) exposing host/service/metric tools via `unwrap()`-wrapped Flask handlers, bypassing Auth0; guarded instead by an `MCP_KEY` pre-shared secret and reached externally through Caddy's `/mcp*` route
+- `backend/db/` - database adapter ecosystem (see below) - PostgreSQL/TimescaleDB by default, MongoDB as an explicit fallback
+- PostgreSQL + TimescaleDB - default data store (`DB_BACKEND=postgres`): JSONB tables for hosts/subnets/services/settings/proxmox_clusters/aws_accounts/themes/dashboards (= location maps)/locations, a TimescaleDB hypertable for `metrics`, a plain table for `metrics-latest`. See `MONGO_MIGRATION.md`.
+- MongoDB - fallback data store (`DB_BACKEND=mongo`); prior default, still fully supported
 - Redis - write cache for metrics + temporary storage (Telegraf configs, scan output, autosave, job status, Proxmox cluster/guest status caches, `alive` hash of per-IP reachability)
 
 **Data flow:**
-1. Network scans via `backend/finder.py` (nmap) create/update hosts in MongoDB
-2. Telegraf agents collect metrics and POST to `/metrics` with a `TELEGRAF_KEY` header (checked via the `requires_header` decorator, not Auth0)
-3. Metrics are written to Redis first, then bulk-moved to MongoDB by `cron/bulk_write.sh`
+1. Network scans via `backend/finder.py` (nmap) create/update hosts in the database
+2. Telegraf agents collect metrics and POST to `/metrics` with a `TELEGRAF_KEY` header (checked via the `requires_header` decorator, not Auth0). In deployed stacks this is served by `metrics-go`; the Flask route remains as a fallback
+3. Metrics are written to Redis first (short-lived, 120s TTL, overwritten in place), then bulk-moved to the database once a minute by `cron/bulk_write.sh` (`serve.py`'s `bulk_insert()`). Only one transfer runs at a time - a run that overruns the minute makes the next tick wait, via the Redis lock in `backend/common/single_run.py` (fencing token + heartbeat-extended TTL). See "Redis -> Postgres metrics transfer" in `MONGO_MIGRATION.md`
 4. Frontend polls the backend API to display topology and metrics
 5. `backend/watcher.py` judges service health and sends alerts to Alertmanager (`http://alertmanager:9093/api/v2/alerts`, password read from `/alertmanager/pass`); frontend can list/resolve them via `/alertmanager/alerts`
 6. Proxmox: `cron/proxmox_refresh.sh` refreshes the per-cluster Redis cache; `cron/disk_check.sh` runs `backend/proxmox_disk_check.py` hourly to email disk-space alerts
 7. `backend/alive.py` (cron, every minute) pings - or TCP-checks hosts with a `check_alive_port` - every host with an IP in parallel, replaces the Redis `alive` hash with the results, and alerts only for `monitor`ed hosts that are down
+8. AWS: `cron/ec2_check.sh` runs `backend/ec2_unmatched_check.py` hourly to email a list of EC2 instances that don't match any known Labyrinth host (matching logic shared with `serve.py` via `aws_helper.py`)
+9. Postgres backend only: `cron/compact_metrics.sh` daily rolls raw `metrics` rows older than `METRICS_RAW_RETENTION_DAYS` into `metrics_daily` aggregates; `cron/backup_db.sh` daily dumps the database to `/backups` for an external offsite system to pick up
+
+### Database adapter ecosystem (`backend/db/`)
+
+- `backend/db/__init__.py` is the single entry point, selecting a backend via the `DB_BACKEND` env var (`postgres` default, `mongo` fallback). Every module that touches the database goes through it - there is no direct `pymongo`/`psycopg2` usage outside `backend/db/`.
+- **Which entry point matters for connection count.** On Postgres a `Client` owns a connection pool and nothing reaps pools, so: `shared_db()` (lazy proxy onto the process-wide client) for module-level application code, `get_shared_client()` for helpers that need a `Client` immediately, and `get_db()` - which builds a **new** client every call - only for tests and one-shot tooling that will `close()` it. Calling `get_db()` per request/per job is how the backend ran Postgres out of connections; `serve.py`'s `db = shared_db()` is lazy specifically because `finder.py`/`alive.py`/`serve.py updater` import it just to reuse route handlers. Budget and history: "Connection budget" in `MONGO_MIGRATION.md`.
+- `POSTGRES_POOL_MIN`/`POSTGRES_POOL_MAX` (1/2) bound each process's pool; the compose files pin `max_connections` explicitly because the `timescale/timescaledb` image's autotuner sets it to 50, not 100.
+- `backend/db/base.py` defines the interface (`Client`/`Database`/`Collection`/`Cursor`, plus `InsertOne`/`ReplaceOne`/`UpdateOne`/`DeleteOne` bulk-op classes) - a deliberately narrow, pymongo-shaped surface covering only what this codebase actually uses (no aggregation pipelines, transactions, GridFS, or change streams anywhere in the app).
+- `backend/db/mongo_adapter.py` is a thin passthrough onto real `pymongo` - full Mongo query language support, byte-identical behavior to the pre-migration code.
+- `backend/db/postgres_adapter.py` translates that narrow operator set ($set/$or/$pull/$push/$in/$regex-as-prefix/$exists/$unset/upsert, plus $lt for TTL emulation) onto JSONB/typed-column Postgres tables, with schema bootstrap running eagerly at client construction (not lazily like Mongo, since Postgres tables must exist before first use - see `MONGO_MIGRATION.md`).
+- Full design rationale, schema, and operational runbook: `MONGO_MIGRATION.md`. Adapter contract details: `backend/db/README.md`.
 
 ### Proxmox disk-space monitoring (`backend/proxmox_helper.py`, `backend/proxmox_disk_check.py`)
 
-- Proxmox integration is cluster-based (see `proxmox_clusters` MongoDB collection): each cluster stores its own host/user/token credentials, and individual `hosts` reference a cluster via `proxmox_cluster` (by id or name). Legacy per-host/global API key settings still exist but are deprecated.
+- Proxmox integration is cluster-based (see the `proxmox_clusters` collection/table): each cluster stores its own host/user/token credentials, and individual `hosts` reference a cluster via `proxmox_cluster` (by id or name). Legacy per-host/global API key settings still exist but are deprecated.
 - `ProxmoxClient` wraps the Proxmox REST API to pull nodes, storage, VM/LXC status, and (via the QEMU guest agent, falling back to a `df -h` "escape valve" exec'd in-guest) real filesystem usage.
 - Two layers of Redis caching exist, both namespaced separately:
   - Whole-cluster payload cache (`proxmox-disk:{cluster}`, `PROXMOX_CACHE_TTL_SECONDS`, default 90s) - read by `get_proxmox_disk_data_cached`, refreshed by `cron/proxmox_refresh.sh`.
   - Per-VM/LXC guest status fallback cache (`proxmox-guest-status:{cluster}:{node}:{vm|lxc}:{vmid}`, `PROXMOX_GUEST_STATUS_CACHE_TTL_SECONDS`, default 2 hours) - when a live `get_vm_status`/`get_container_status` call fails, the last known-good status is reused instead of treating the guest as having zero disk usage. This exists specifically to avoid false-positive "missing QEMU guest agent" alerts caused by a single transient API failure.
 - `collect_disk_issues` in `proxmox_disk_check.py` turns cluster payloads into threshold-based issues (datastore/vm/container) and always surfaces VMs whose QEMU guest agent is inferred missing, regardless of threshold - a running VM with `maxdisk > 0` and `disk == 0` is a real "we can't measure this" case, not a clean bill of health.
 - Email alerts render via Jinja2 (`backend/templates/disk_space_alert.html`, autoescaped) through `email_helper`.
+- Exceptional opt-out: the `proxmox_qemu_agent_ignore_vms` setting (Settings > Disk Space > "QEMU Guest Agent Exceptions") lists VMs by name/VMID (optionally `cluster/target`) whose missing-agent warning must be suppressed - `proxmox_helper.apply_qemu_agent_ignore_list` flags them with `qemu_guest_agent_ignored` at read time (never in the Redis cache), `collect_disk_issues` skips their `vm_qemu_missing` issue, and the UI shows a muted marker instead of the warning icon. Meant only for guests that cannot run the agent (e.g. macOS).
+
+### Telegraf ingest and per-client counters (`metrics-go/`, `backend/ingest_counters.py`)
+
+- `metrics-go` reproduces the Flask ingest contract exactly, including the Redis key format. `metrics-go/pyjson.go` reimplements the subset of CPython's `json.dumps` that `serve.py` uses to build keys (`", "`/`": "` separators, insertion order, `ensure_ascii=True`), so both implementations write the *same* key for the same metric and can run side by side or be rolled back cleanly.
+- While storing a batch it also counts it, in the same pipeline: `ingest:count:<client>` (hash of `requests`/`metrics`/`skipped`/`first_seen`/`last_seen`/`last_batch`/`mac`/`ip`/`host`, 30 day TTL) and `ingest:min:<client>:<minute>:r` / `:m` (per-minute buckets, 65 minute TTL so the last hour needs no pruning). `<client>` is the upper-cased `mac` tag, else the `ip` tag, else `remote:<address>`.
+- The counter prefix must never be `METRIC-`: `bulk_insert` does `KEYS METRIC-*` and `GET`s every match, so a hash under that prefix would fail the bulk writer with `WRONGTYPE`.
+- `backend/ingest_counters.py` is the read side (`GET`/`DELETE /metrics_counts/<host>` in `serve.py`, resolving a host by mac or ip), and the counters are displayed in the host settings modal (`CreateEditHost.vue`).
 
 ### Locations, inventory and maps (`/locations/`, `/inventory/`, `frontend/labyrinth/src/views/Locations.vue`)
 
 - Hosts double as the device inventory. Optional `INVENTORY_FIELDS` on host docs (`serve.py`): `device_type` (one of `DEVICE_TYPES`), `location`, `rack`, `rack_unit` (lowest U), `rack_height`, `vendor`, `model`, `serial`, `uplink` (another host's key) + `link_type`, `proxmox_node`, `proxmox_vmid`. `_clean_inventory_fields` coerces/validates them on every host save and drops blank ones.
 - The host key is `mac`. A blank MAC is keyed by IP (as the finder does); IP-less "label" devices (unmanaged switches, patch panels) get a generated `device-<hex>` key and have no subnet, so they never appear on the subnet dashboard.
-- `locations` docs are `{name, name_key, address, notes, racks: [{name, units}]}`; hosts, subnets and maps refer to a location by name, so renames cascade (`create_edit_location`), a rack sent with `previous_name` keeps its hosts, and deleting a location only unassigns.
+- `locations` docs are `{name, name_key, address, notes, racks: [{name, units}]}`; hosts, subnets and maps refer to a location by name, so renames cascade (`create_edit_location`), a rack sent with `previous_name` keeps its hosts, and deleting a location only unassigns. On Postgres it is a JSONB table registered in `_JSONB_TABLE_INDEXES`, and `migrate_to_postgres.py` copies it.
 - `POST /host/<key>/inventory` updates just the inventory fields (validating location/rack/uplink); the UI's drag-and-drop and the MCP use it.
 - `GET /inventory/` returns all hosts, each with a computed `_live` block (effective type, effective location + `location_source` = explicit / proxmox / subnet, last `alive` record, service summary from the judged dashboard, rolled-up `status`: up/down/error/warning/unknown/none), plus `locations` and the cached Proxmox node -> VM/LXC tree matched to hosts (explicit `proxmox_node`/`proxmox_vmid`, else short hostname). It only reads the Proxmox Redis cache, never the live API. `_live` is never persisted (`create_edit_host` drops it).
 - Maps are `dashboards` docs: `{name, location, background_image, default, placements: [{key, x, y}]}` with x/y as percentages of the image; images live in `/src/uploads/images`. `LocationMap.vue` renders/edits them (and converts maps from the old Konva editor, which stored `components` at pixel offsets by IP).
 
 ### AI summaries and MCP (`backend/ai/`)
 
-- `cron/ai.sh` runs `backend/ai/main.py` hourly: `process_dashboard()` pulls hosts/services and recent metrics from MongoDB, slims them down, and `main()` sends the result to ChatGPT (`chatgpt_helper.py`) using a prompt template (`initial_prompt.txt`, gitignored - see `initial_prompt.txt.example`) to produce a plain-English network summary, delivered via `email_helper.py`/`slack_helper.py`.
-- `backend/ai/mcp/server.py` is a separate MCP (Model Context Protocol) server, run as its own Docker service (`mcp` in compose files) with its own `Dockerfile`/`requirements.txt`. It shares the backend's MongoDB/Redis and calls `serve.py` route handlers directly via `unwrap()`, so it exposes host/service/metric and location/inventory management tools (`mcp_list_hosts`, `mcp_create_or_update_host`, `mcp_add_service_to_host`, `mcp_list_services`, `mcp_read_metrics`, `mcp_get_inventory`, `mcp_set_device_inventory`, `mcp_save_location`, `mcp_check_device`, etc.) without HTTP auth - intended for trusted-network agent access only. Full tool/schema docs in `backend/ai/mcp/README.md`.
+- `cron/ai.sh` runs `backend/ai/main.py` hourly: `ai_pipeline.py`'s `process_dashboard()` pulls hosts/services and recent metrics from the database, slims them down, and `main()` sends the result to ChatGPT (`chatgpt_helper.py`) to produce a plain-English network summary, delivered via `email_helper.py`/`slack_helper.py`.
+- The prompt, model, recipients, subject template, and from-name are configurable under Settings -> AI Alerts (`/ai/settings` routes, stored in the generic `settings` collection/table); `backend/ai/ai_settings.py` reads them with built-in defaults, so `initial_prompt.txt` (gitignored - see `initial_prompt.txt.example`) is now only a fallback. `/ai/test-email` sends either a simple deliverability check or a full dashboard -> ChatGPT -> email run on demand.
+- `backend/ai/mcp/server.py` is a separate MCP (Model Context Protocol) server, run as its own Docker service (`mcp` in compose files) with its own `Dockerfile`/`requirements.txt`. It shares the backend's database/Redis (same `DB_BACKEND` selection, own `backend/ai/mcp/requirements.txt` needs the same driver pins kept in sync with `backend/requirements.txt`) and calls `serve.py` route handlers directly via `unwrap()`, so it exposes host/service/metric and location/inventory management tools (`mcp_list_hosts`, `mcp_create_or_update_host`, `mcp_add_service_to_host`, `mcp_list_services`, `mcp_read_metrics`, `mcp_get_inventory`, `mcp_set_device_inventory`, `mcp_save_location`, `mcp_check_device`, etc.) without Auth0. Because `unwrap()` removes the only authorization the handlers have, every HTTP request must instead carry the `MCP_KEY` pre-shared secret (`X-MCP-Key`, `Authorization: Bearer <key>`, or the bare `Authorization: <key>` form); the check lives in `backend/ai/mcp/auth.py` as ASGI middleware wrapping the whole app, and the server refuses to start if the key is unset. The transport is MCP streamable HTTP mounted at `/mcp`, served by `create_http_app()` (FastMCP itself is not ASGI-callable) and proxied externally by Caddy's `/mcp*` route. `server.py` also passes `transport_security` explicitly: FastMCP auto-enables DNS-rebinding protection whenever its own `settings.host` is loopback (which it is - `MCP_HOST` is uvicorn's bind address, not FastMCP's), and that answers `421 Invalid Host header` to everything arriving under a real domain through Caddy. The check is off unless `MCP_ALLOWED_HOSTS` pins an allowlist. Full tool/schema docs in `backend/ai/mcp/README.md`.
 
 ## Development Workflows
 
@@ -61,7 +85,7 @@ Labyrinth is a network analyzer, mapper, and monitor built on NMap, Ansible, and
 - Frontend dev server: port 8001 (hot reload) / port 8002 (live frontend) - see `devel` service in `docker-compose-development.yml`
 - Backend API: port 7000
 - NGINX/SSL: port 7210 (Caddy uses an internal dev CA - accept its cert in-browser)
-- MongoDB: localhost:27017, Mongo Express: port 8071
+- PostgreSQL/TimescaleDB (default backend): localhost:5432; MongoDB (fallback backend, still started in dev so `DB_BACKEND=mongo` stays testable): localhost:27017, Mongo Express: port 8071
 - MCP server: port 8765 (internal to the `labyrinth` docker network)
 
 **Backend tests:**
@@ -72,12 +96,25 @@ PYTHONPATH=. pytest --cov=. --cov-config=.coveragerc --cov-report term-missing -
 # single file / single test:
 PYTHONPATH=. pytest test/test_13_proxmox_helper.py -q
 PYTHONPATH=. pytest test/test_13_proxmox_helper.py::test_get_proxmox_disk_data_no_nodes -q
+# run against the Mongo fallback instead of the Postgres default:
+DB_BACKEND=mongo PYTHONPATH=. pytest test/
 ```
-- Requires `GITHUB=1` or `TESTBED=1` env var so `serve.py`/`proxmox_disk_check.py` use plain `mongodb://` instead of `mongodb+srv://` (SRV DNS lookup fails without a real Atlas host).
+- Requires `GITHUB=1` or `TESTBED=1` env var so `serve.py`/`proxmox_disk_check.py` use plain `mongodb://` instead of `mongodb+srv://` when `DB_BACKEND=mongo` (SRV DNS lookup fails without a real Atlas host).
 - 95% coverage is enforced (`--cov-fail-under=95`); `.coveragerc` excludes `templates/`, `uploads/`, `samples/`, `snippets/`.
 - Fixtures are defined per test file, not centralized in `conftest.py`.
 - Routes are wrapped in Auth0 decorators; tests call them via `common.test.unwrap(serve.some_route)()` to bypass auth and invoke the underlying function directly.
-- Mock MongoDB/Redis via fixtures/monkeypatch (e.g. `Mock(spec=redis.Redis)`, hand-rolled `FakeRedis` classes) rather than hitting real services.
+- The database is tested against real ephemeral containers (both `mongo` and `postgres` run in dev/CI), not mocks - matches the existing convention for Mongo, now extended to Postgres. Redis is a mix: some tests hit the real `redis` container, others mock via fixtures/monkeypatch (e.g. `Mock(spec=redis.Redis)`, hand-rolled `FakeRedis` classes).
+- `backend/test/test_18_db_adapters.py` runs the same black-box scenarios against both `MongoClientAdapter` and `PostgresClientAdapter`; `test_19_compact_metrics.py`, `test_20_backup_db.py`, `test_21_migrate_to_postgres.py` cover the cron/migration tooling. Note the numeric test-file prefixes are not unique - `test_18_ec2_unmatched_check.py`, `test_19_ai_settings.py`, and `test_20_ai_pipeline.py` were added independently and collide by number only, not by name.
+
+**Go ingest service tests (`metrics-go/`):**
+```bash
+cd metrics-go
+# no Go toolchain in the stack's images - use the official one
+docker run --rm -v "$PWD":/src -w /src golang:1.23-alpine \
+  sh -c 'gofmt -l . && go vet ./... && go test ./... -cover'
+```
+- `pyjson_test.go` holds golden keys generated by CPython; a failure there means the Go and Flask ingest paths have drifted.
+- Redis is faked with `miniredis`, so no services are needed.
 
 **Frontend (`frontend/labyrinth/`):**
 ```bash
@@ -103,8 +140,13 @@ docker-compose -f docker-compose-production.yml up --build -d
 - Telegraf metrics ingestion instead uses header auth (`requires_header`, checks `TELEGRAF_KEY`).
 
 **Service/health-check model:**
-- `services` MongoDB collection stores check/port monitoring configs; two service types: `"check"` (command execution) and `"port"` (TCP/UDP checks).
+- `services` collection/table stores check/port monitoring configs; two service types: `"check"` (command execution) and `"port"` (TCP/UDP checks).
 - Judging logic lives in `backend/metrics.py` (`judge()`, `judge_check()`, `judge_port()`).
+
+**Database access:**
+- Always go through `db.get_db()` / the `Client`/`Database`/`Collection` interface in `backend/db/base.py` - never import `pymongo`/`psycopg2` directly outside `backend/db/`. Call sites look like pymongo (`db["labyrinth"]["hosts"].find_one({...})`) regardless of backend.
+- Only the operators actually used anywhere in the app are supported by the Postgres translator: `$set`, `$or`, `$pull` (scalar = exact match, document = Mongo-style subset match on each array element), `$push`, `$in`, `$regex` (anchored prefix only), `$exists`, `$unset`, `upsert=True`, `$lt` (TTL emulation only). Don't reach for other Mongo query operators - they won't work on the Postgres backend. See `backend/db/README.md`.
+- IDs are opaque strings shaped like `bson.ObjectId` hex (`str(bson.ObjectId())`), generated by the Postgres adapter without a real Mongo connection - `_validate_object_id()` and the frontend's `_id` handling work unchanged on both backends.
 
 **Telegraf config management:**
 - Master config at `/src/uploads/master.conf` (TOML), parsed by `backend/services.py` (handles duplicates, multiline arrays, preserves comments).
@@ -116,19 +158,142 @@ docker-compose -f docker-compose-production.yml up --build -d
 - Background execution via `run_ansible_background()`; job status and streamed results (`{job_id}_log`) live in Redis.
 
 **Network scanning:**
-- `backend/finder.py` runs an nmap ping + service-detection scan (`-sT -PU0 -Pn`), stores results in Redis (`output-{subnet}`), and updates the `hosts` collection with discovered IPs/MACs. Triggered via `/scan/` or the cron job.
+- `backend/finder.py` runs an nmap ping sweep (`parse_ping_results`) followed by an all-ports scan of whatever answered, streams progress into Redis (`output-{subnet}`, appended, capped, TTL'd), and updates the `hosts` collection/table with discovered IPs/MACs. Triggered via `/scan/` or the cron job.
+- `main()` is a resident process (`scan_subnets(loop=True)`): every subnet gets its own worker thread that rescans as soon as its previous scan finishes, so **each subnet's rescan interval is however long its own scan takes** - a five-minute subnet does not wait for a two-hour subnet. Cron still fires `finder.py` every minute, but the `labyrinth_finder_lock` Redis lock (`common/single_run.py`, heartbeat-extended) makes every tick a no-op while the resident finder is alive. The old "one pass per cron tick" design was there because a fixed 3600s lock TTL let a new resident finder start every hour; the heartbeat lock is what makes a single resident finder safe again - don't reintroduce a fixed `ex=` TTL.
+- The resident finder re-reads the subnet list every `FINDER_SUBNET_REFRESH_SECONDS` (new subnets get a worker, removed ones retire after their current scan), and recycles itself after `FINDER_MAX_RUNTIME_SECONDS` (default 6h): it releases the global lock *first* so the next cron tick starts a fresh finder immediately, then gives in-flight scans `FINDER_SHUTDOWN_GRACE_SECONDS` to finish (the per-subnet locks keep the two processes off the same subnet). A recycle therefore never pauses scanning, at the cost of two finder processes (two Postgres pools) overlapping for at most the grace period.
+- `FINDER_THREADS` caps how many subnets scan *concurrently* (FIFO-fair `ScanSlots`, `0` = unlimited); it is not a pass-wide worker pool any more. `/scan/` runs `main(loop=False)` - one scan of each subnet, then return - so it can't park forever in the backend's two-thread executor.
+- A slow scan still degrades that subnet's own interval: however long a subnet's scan takes is how often its hosts' ports get rescanned.
+- `PORT_SCAN_ARGUMENTS` keeps `-p-` (needed to catch non-standard services) but must stay bounded by `-T4 --max-retries 2 --host-timeout`. Without those, one host that silently drops packets spends the full retry budget on each of 65535 ports and holds the whole pass open for hours.
+- Both the global and per-subnet locks use `RedisSingleRunLock`, so their TTLs only have to outlive a crash. Don't go back to a plain `set(..., ex=N)`: a scan that outran the guessed TTL lost its lock mid-scan *and* deleted the next scan's lock on the way out.
+- Tunables (env vars, defaults in `finder.py`): `FINDER_NMAP_ARGUMENTS`, `FINDER_HOST_TIMEOUT`, `FINDER_PING_TIMEOUT_SECONDS`, `FINDER_THREADS`, `FINDER_RESCAN_DELAY_SECONDS`, `FINDER_RETRY_DELAY_SECONDS`, `FINDER_SUBNET_REFRESH_SECONDS`, `FINDER_MAX_RUNTIME_SECONDS`, `FINDER_SHUTDOWN_GRACE_SECONDS`, `FINDER_OUTPUT_MAX_BYTES`, `FINDER_OUTPUT_TTL_SECONDS`.
+
+**Metric write cache (`insert_metric`/`metrics-go` -> `bulk_insert`):**
+- `bulk_insert` throttles writes **per metric series**, keyed on the Redis metric key (`last_metric_METRIC-...`), spaced by `METRICS_LATEST_MIN_INTERVAL` / `METRICS_HISTORY_MIN_INTERVAL`. Do not key the throttle on the host IP: that lets the first series drained for a host suppress every other series for that host in the same pass, which silently drops slow-moving metrics such as the finder's `open_ports` before their 120s Redis entry expires.
+- `metrics-latest` rows age out after 36000s (a Mongo TTL index; emulated by a sweep in `bulk_insert` on Postgres) and the dashboard judges `open_ports` with `stale_time=10000`, so a subnet has to be fully rescanned inside ~2.8 hours or its port services report stale.
 
 ## Key Files
 - `backend/serve.py` - all API endpoints
+- `backend/db/` - database adapter ecosystem (`base.py` interface, `mongo_adapter.py`, `postgres_adapter.py`, `__init__.py`'s `get_db()` factory)
+- `metrics-go/` - Go Telegraf ingest service (`server.go` handler, `parse.go` batch parsing, `pyjson.go` Python-compatible key rendering, `counters.go` ingest counters)
+- `backend/ingest_counters.py` - read/reset side of the per-client ingest counters
 - `backend/finder.py` - network discovery
 - `backend/metrics.py` - service health judging
 - `backend/services.py` - Telegraf config parsing
 - `backend/ansible_helper.py` - Ansible validation/execution
 - `backend/proxmox_helper.py` / `backend/proxmox_disk_check.py` - Proxmox cluster querying, caching, and disk-space alert emails
+- `backend/aws_helper.py` / `backend/ec2_unmatched_check.py` - EC2 inventory, EC2<->host matching, and unmatched-instance alert emails (see `cron/ec2_check.sh`)
 - `backend/watcher.py` - Alertmanager alert dispatch
 - `backend/alive.py` - minute-by-minute ping/TCP reachability checks recorded in Redis
 - `frontend/labyrinth/src/views/Locations.vue`, `src/components/LocationMap.vue` - locations, floor-plan maps, racks
-- `backend/ai/main.py` - hourly AI dashboard summary job
+- `backend/ai/main.py` / `backend/ai/ai_pipeline.py` / `backend/ai/ai_settings.py` - hourly AI dashboard summary job, its dashboard->ChatGPT->email pipeline, and the configurable prompt/model/recipient settings
 - `backend/ai/mcp/server.py` - MCP server exposing host/service/metric tools
+- `backend/migrate_to_postgres.py` - one-time Mongo-to-Postgres data migration tool (operator-run, not automatic)
+- `backend/compact_metrics.py` / `backend/backup_db.py` - Postgres-only metrics compaction and database backup (see `cron/compact_metrics.sh`, `cron/backup_db.sh`)
 - `cron/run.sh`, `cron/cron.d/crontab` - scheduled job definitions
 - `start_dev.sh` - development environment bootstrap
+- `MONGO_MIGRATION.md` - full design rationale, schema, and operational runbook for the Postgres migration
+
+<!-- BEGIN ARMADA GLOBAL INSTRUCTIONS (managed by Flagship) -->
+## Armada session policy
+
+You are running inside an Armada session. These rules come from the Flagship
+and apply to every session in the fleet. They sit on top of this project's own
+instructions, and they win wherever the two disagree.
+
+- Armada session: `Remove AI Assistant`
+- Working branch: `armada/Remove-AI-Assistant-56e225`
+- Base branch: `master`
+- Session changelog: `CHANGELOG/armada-Remove-AI-Assistant-56e225.md`
+
+### Prefer Frontend -> Backend -> Database changes
+Prefer to change frontend issues only if possible.  If needed, backend changes are preferable to database schema modifications.  Sometimes all are needed, but prefer frontend only when possible - and when it would not compromise functionality or data integrity.
+
+### Commit and push your work
+
+- Commit as soon as a change is coherent on its own. Never end a turn with a
+  dirty working tree, and never wait to be asked to commit.
+- Push to `origin` right after committing, so the branch on the remote always
+  matches what you have locally.
+- This holds even when the working branch is the base branch. Armada sessions
+  are disposable and their history is the only durable record of the work, so
+  committing directly to `master` is expected here, not a mistake.
+- If a push is rejected because the remote moved ahead, pull with rebase and
+  push again. Report the failure only if that still does not resolve it.
+
+### Keep the branch mergeable
+
+- Whenever the working branch is not the base branch, verify the work still
+  merges cleanly into `master` before you consider a task finished.
+- Check without mutating the working tree, for example:
+  `git fetch origin && git merge-tree $(git merge-base HEAD origin/master) HEAD origin/master`
+- If that reports conflicts, resolve them now rather than leaving them for
+  whoever opens the pull request. Rebase or merge the base branch in, fix each
+  conflict on its merits, re-run the tests, then commit and push.
+- If a conflict genuinely needs a human decision, stop and say exactly which
+  files conflict and what the competing changes are.
+
+### Keep the changelog current
+
+- Record what you did in `CHANGELOG/armada-Remove-AI-Assistant-56e225.md` as part of the same commit that
+  makes the change.
+- The file is scoped to this branch, so it never conflicts with changelogs
+  written by other sessions.
+- Append one entry per meaningful change, newest last, in this shape:
+
+  ```markdown
+  ## 2025-01-31 14:22 UTC
+  Short description of what changed and why.
+  ```
+
+- Use Central Time (US/Chicago), and include both the date and the time. Get them from `date -u`
+  rather than guessing.
+- Describe the change in terms a reviewer would care about. Skip routine
+  mechanics like formatting passes or lint fixes unless they are the point of
+  the work.
+- This per-branch file is yours to maintain. A top-level auto-generated
+  `CHANGELOG.md`, if the project has one, is still off limits.
+
+### Coding style
+
+When writing, modifying, refactoring, or reviewing code, follow the shared
+`code-style` skill. Its rules apply unless this project's instructions
+explicitly require otherwise.
+
+### Report pull requests and reviews to Armada
+
+The Flagship learns about pull requests and reviews only from files in
+`.armada/` at the workspace root. Whichever skill or command you used, do this:
+
+- **After opening a pull request**, write `.armada/pr.json`:
+
+  ```json
+  {"schema": 1, "number": 0, "url": "<pull request or compare url>",
+   "head_branch": "armada/Remove-AI-Assistant-56e225", "base_branch": "master",
+   "head_sha": "<git rev-parse HEAD>", "ready_for_review": true,
+   "written_at": "<date -u +%Y-%m-%dT%H:%M:%SZ>"}
+  ```
+
+  `gh pr view --json number,url,headRefOid` supplies the real number, url and
+  sha. Without a number, `url` alone is enough.
+
+- **After reviewing the branch**, whatever else the review produced, write the
+  report a human reads to `.armada/review.md` and the verdict to
+  `.armada/review.json`:
+
+  ```json
+  {"schema": 1, "reviewer": "self", "pr_number": 0, "head_sha": "<sha>",
+   "base_branch": "master", "verdict": "comment",
+   "recommended_level": 2, "summary": "One paragraph.",
+   "findings": [{"severity": "medium", "file": "path.py", "line": 12,
+                 "title": "Short title", "detail": "What is wrong and why."}],
+   "tests": {"command": "<test command>", "ran": true, "passed": true,
+             "output_tail": "last few lines"},
+   "reviewed_at": "<date -u +%Y-%m-%dT%H:%M:%SZ>"}
+  ```
+
+  `verdict` is `approve`, `request_changes`, `comment` or `failed`; `severity`
+  is `high`, `medium`, `low` or `nit`; `reviewer` is `self` for your own work
+  and `agent` for someone else's.
+
+`.armada/` is not part of the repo - never commit it.
+<!-- END ARMADA GLOBAL INSTRUCTIONS -->

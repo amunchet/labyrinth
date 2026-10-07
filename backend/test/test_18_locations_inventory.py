@@ -19,7 +19,7 @@ import serve
 from common.test import unwrap
 
 rc = redis.Redis(host=os.environ.get("REDIS_HOST"))
-db = serve.mongo_client["labyrinth"]
+db = serve.db["labyrinth"]
 
 
 def tearDown():
@@ -335,6 +335,8 @@ def test_delete_host_cleans_references(setup):
     assert unwrap(serve.delete_host)("10.0.0.1")[1] == 200
     assert not {"uplink", "link_type"} & set(get_host("AA"))
     assert db["dashboards"].find_one({"name": "Floor 1"})["placements"] == []
+    # Maps from the old editor are left exactly as they were
+    assert "placements" not in db["dashboards"].find_one({"name": "Legacy"})
     assert unwrap(serve.delete_host)("10.0.0.1")[1] == 407
 
 

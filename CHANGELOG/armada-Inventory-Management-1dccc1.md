@@ -74,3 +74,17 @@ flows, with no console errors.
 Documented locations, maps, racks and live reachability in the README (for
 users) and CLAUDE.md (data model, `/inventory/` semantics, alive cron, MCP
 tools).
+
+## 2026-10-07 15:46 CDT (20:46 UTC)
+Merged master (45 commits, including the move to PostgreSQL/TimescaleDB behind
+the `backend/db/` adapter) into this branch and ported the inventory work onto
+it: all new code goes through `serve.db`, avoids operators the Postgres adapter
+does not support (`$nin`, `find_one_and_delete`, `replace_one`, dotted array
+filters), compares `_id`s as text (Postgres ids are strings, so a location
+update would otherwise have been rejected as a duplicate name), registers the
+`locations` table with the Postgres schema bootstrap and copies it in
+`migrate_to_postgres.py`. The new MCP tools moved to master's
+`backend/ai/mcp/client.py`/`server.py` split. Conflicts in the host and subnet
+editors, nav, routes and Settings keep both sides (Clone, ingest counters,
+Do-not-scan, Problems page, AI Alerts). Backend suite passes on Postgres (the
+inventory tests also on the Mongo fallback); frontend lint/tests/build pass.

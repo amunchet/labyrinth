@@ -173,4 +173,55 @@ describe("VMContainerProgressBar.vue", () => {
     const percentage = wrapper.vm.diskUsagePercentage;
     expect(percentage).toBeGreaterThan(100);
   });
+
+  test("shows the QEMU warning icon for a running VM with no agent", () => {
+    wrapper = createWrapper({
+      name: "no-agent-vm",
+      id: "600",
+      status: "running",
+      disk: 0,
+      maxdisk: 100000000000,
+      qemu_guest_agent_installed: false,
+      qemu_guest_agent_warning_inferred: true,
+    });
+
+    expect(wrapper.vm.showQemuWarning).toBe(true);
+    expect(wrapper.vm.showQemuIgnored).toBe(false);
+    expect(wrapper.find(".qemu-warning-icon").exists()).toBe(true);
+    expect(wrapper.find(".qemu-ignored-icon").exists()).toBe(false);
+  });
+
+  test("replaces the warning with an ignored marker when flagged via Settings", () => {
+    wrapper = createWrapper({
+      name: "macos-vm",
+      id: "601",
+      status: "running",
+      disk: 0,
+      maxdisk: 100000000000,
+      qemu_guest_agent_installed: false,
+      qemu_guest_agent_warning_inferred: true,
+      qemu_guest_agent_ignored: true,
+    });
+
+    expect(wrapper.vm.showQemuWarning).toBe(false);
+    expect(wrapper.vm.showQemuIgnored).toBe(true);
+    expect(wrapper.find(".qemu-warning-icon").exists()).toBe(false);
+    expect(wrapper.find(".qemu-ignored-icon").exists()).toBe(true);
+  });
+
+  test("shows no marker at all for an ignored VM whose agent is healthy", () => {
+    wrapper = createWrapper({
+      name: "macos-vm",
+      id: "602",
+      status: "running",
+      disk: 50000000000,
+      maxdisk: 100000000000,
+      qemu_guest_agent_installed: true,
+      qemu_guest_agent_warning_inferred: false,
+      qemu_guest_agent_ignored: true,
+    });
+
+    expect(wrapper.vm.showQemuWarning).toBe(false);
+    expect(wrapper.vm.showQemuIgnored).toBe(false);
+  });
 });

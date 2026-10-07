@@ -11,7 +11,6 @@ import json
 import sys
 import time
 from typing import List, Dict, Optional, Tuple
-import pymongo
 import redis
 from jinja2 import Environment, FileSystemLoader, Template, select_autoescape
 from datetime import datetime
@@ -22,6 +21,7 @@ sys.path.insert(0, "/src")
 
 import proxmox_helper
 from ai import email_helper
+from db import get_shared_client
 
 # Setup Jinja2 template environment with auto-escaping enabled for HTML templates
 TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "templates")
@@ -31,23 +31,14 @@ jinja_env = Environment(
 )
 
 
-def get_mongo_client():
-    """Get MongoDB client from connection string."""
-    if os.getenv("GITHUB") or os.getenv("TESTBED"):
-        return pymongo.MongoClient(
-            "mongodb://{}:{}@{}".format(
-                os.environ.get("MONGO_USERNAME"),
-                os.environ.get("MONGO_PASSWORD"),
-                os.environ.get("MONGO_HOST"),
-            )
-        )
-    return pymongo.MongoClient(
-        "mongodb+srv://{}:{}@{}".format(
-            os.environ.get("MONGO_USERNAME"),
-            os.environ.get("MONGO_PASSWORD"),
-            os.environ.get("MONGO_HOST"),
-        )
-    )
+def _get_db_client():
+    """Get the process-wide database client (Postgres by default, Mongo if
+    DB_BACKEND=mongo - see backend/db/).
+
+    Shared, not fresh: serve.py calls send_full_test_email() from a route, so
+    a new client per call would leak a pool into a gunicorn worker.
+    """
+    return get_shared_client()
 
 
 def get_disk_alert_settings(db) -> Dict:
@@ -79,6 +70,9 @@ def get_disk_alert_settings(db) -> Dict:
     return {
         "threshold_percent": threshold_percent,
         "recipients": recipient_list,
+        # VMs whose missing QEMU guest agent should NOT be alerted on. Rare,
+        # explicit opt-out (e.g. a macOS guest) - see proxmox_helper.
+        "qemu_agent_ignore_list": proxmox_helper.get_qemu_agent_ignore_list(db),
     }
 
 
@@ -92,14 +86,25 @@ def calculate_percentage(used: int, total: int) -> float:
         return 0
 
 
-def collect_disk_issues(cluster_data: Dict, threshold_percent: float) -> List[Dict]:
+def collect_disk_issues(
+    cluster_data: Dict, threshold_percent: float, qemu_agent_ignore_list=None
+) -> List[Dict]:
     """
     Extract all disk usage issues from Proxmox cluster data.
     Returns list of dicts with disk name, used, total, percentage, type.
+
+    ``qemu_agent_ignore_list`` (parsed via
+    ``proxmox_helper.parse_qemu_agent_ignore_list``) names VMs whose
+    missing/unresponsive QEMU guest agent must not be reported.
     """
     issues = []
     cluster_name = cluster_data.get("cluster_name", "unknown")
     host = cluster_data.get("host", "unknown")
+
+    if qemu_agent_ignore_list:
+        proxmox_helper.apply_qemu_agent_ignore_list(
+            cluster_data, qemu_agent_ignore_list
+        )
 
     # Check storage (datastores)
     for node in cluster_data.get("nodes", []):
@@ -174,14 +179,57 @@ def _collect_vm_issues(node, cluster_name, host, node_name, threshold_percent):
         maxdisk = vm.get("maxdisk")
         disk = vm.get("disk")
 
-        # A running VM with maxdisk but a zero/blank disk reading means
-        # the QEMU guest agent is missing, not running, or couldn't
-        # report filesystem info - so disk usage cannot be verified at
-        # all. Always surface this, regardless of threshold, since
-        # silently skipping these VMs (previous behavior) could make an
-        # entire cluster look "clean" when its VMs simply couldn't be
-        # measured.
+        # A running VM with maxdisk but a zero/blank disk reading means this
+        # cycle's guest-agent/fsinfo read came back empty - it does NOT by
+        # itself mean the agent is missing, since a single transient failure
+        # (network blip, node under load) can produce the same zero reading
+        # as a genuinely absent agent. Before alerting, check whether a real
+        # (non-zero) disk reading was captured for this VM within the last
+        # two hours (see proxmox_helper.get_cached_good_disk):
+        #   - a recent good reading under threshold -> suppress entirely,
+        #     this is a flaky read, not a real problem.
+        #   - a recent good reading at/over threshold -> surface as a real
+        #     "vm" disk issue using that last known-good data.
+        #   - no good reading in the last two hours -> genuinely can't
+        #     verify this VM any more, always surface regardless of
+        #     threshold so a whole cluster doesn't look "clean" just because
+        #     its VMs stopped being measurable.
         if vm.get("qemu_guest_agent_warning_inferred"):
+            last_known_good = vm.get("_last_known_good_disk")
+
+            if last_known_good and last_known_good.get("total"):
+                good_used = last_known_good.get("used")
+                good_total = last_known_good.get("total")
+                percent = calculate_percentage(good_used, good_total)
+                if percent >= threshold_percent:
+                    issues.append(
+                        {
+                            "type": "vm",
+                            "cluster": cluster_name,
+                            "host": host,
+                            "node": node_name,
+                            "name": vm.get("name"),
+                            "vm_id": vm.get("id"),
+                            "status": vm.get("status"),
+                            "used": good_used,
+                            "total": good_total,
+                            "percentage": round(percent, 2),
+                            "qemu_agent_installed": vm.get(
+                                "qemu_guest_agent_installed"
+                            ),
+                            "stale_reading": True,
+                        }
+                    )
+                continue
+
+            # Explicit opt-out from Settings (proxmox_qemu_agent_ignore_vms):
+            # this guest is known not to run the QEMU agent, so the warning
+            # is expected and must not generate an email. Nothing else about
+            # the VM is checked either - with disk reported as 0 there is no
+            # usable measurement to threshold against.
+            if vm.get("qemu_guest_agent_ignored"):
+                continue
+
             # Distinguish a genuinely missing/non-functional guest agent from
             # a live status check that failed with no Redis fallback left to
             # cover for it (see proxmox_helper._add_vm_info) - the latter
@@ -312,9 +360,10 @@ def gather_all_disk_issues(
 
     Returns a tuple: (issues, cluster_errors)
     """
-    db = db or get_mongo_client()
+    db = db or _get_db_client()
     clusters = list(db["labyrinth"]["proxmox_clusters"].find({}))
     redis_client = redis_client or proxmox_helper.get_redis_client()
+    qemu_agent_ignore_list = proxmox_helper.get_qemu_agent_ignore_list(db)
 
     all_issues = []
     cluster_errors = []
@@ -337,7 +386,13 @@ def gather_all_disk_issues(
             )
             continue
 
-        all_issues.extend(collect_disk_issues(cluster_data, threshold_percent))
+        all_issues.extend(
+            collect_disk_issues(
+                cluster_data,
+                threshold_percent,
+                qemu_agent_ignore_list=qemu_agent_ignore_list,
+            )
+        )
 
     return all_issues, cluster_errors
 
@@ -457,7 +512,7 @@ def send_full_test_email(
     if not recipients:
         raise ValueError("At least one recipient is required")
 
-    db = db or get_mongo_client()
+    db = db or _get_db_client()
 
     if threshold_percent is None:
         threshold_percent = get_disk_alert_settings(db)["threshold_percent"]
@@ -486,7 +541,7 @@ def check_and_alert_disk_space():
     Main function: Check all Proxmox clusters for disk issues and send email alerts.
     """
     try:
-        db = get_mongo_client()
+        db = _get_db_client()
 
         # Get settings
         settings = get_disk_alert_settings(db)

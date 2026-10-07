@@ -11,8 +11,8 @@ from common.test import unwrap
 
 def cleanup_test_data():
     """Clean up AWS test data."""
-    serve.mongo_client["labyrinth"]["hosts"].delete_many({})
-    serve.mongo_client["labyrinth"]["aws_accounts"].delete_many({})
+    serve.db["labyrinth"]["hosts"].delete_many({})
+    serve.db["labyrinth"]["aws_accounts"].delete_many({})
 
 
 @pytest.fixture
@@ -73,7 +73,7 @@ def test_aws_account_crud(setup):
     assert updated["region"] == "us-west-2"
     assert "secret_access_key" not in updated
 
-    db_account = serve.mongo_client["labyrinth"]["aws_accounts"].find_one(
+    db_account = serve.db["labyrinth"]["aws_accounts"].find_one(
         {"_id": bson.ObjectId(account_id)}
     )
     assert db_account["secret_access_key"] == "updated-secret"
@@ -124,7 +124,7 @@ def test_aws_account_duplicate_name_rejected(setup):
 
 def test_get_aws_ec2_instances_enriches_labyrinth_matches(setup, monkeypatch):
     """Returns EC2 inventory plus match status against Labyrinth hosts."""
-    serve.mongo_client["labyrinth"]["aws_accounts"].insert_one(
+    serve.db["labyrinth"]["aws_accounts"].insert_one(
         {
             "name": "prod-account",
             "region": "us-east-1",
@@ -133,7 +133,7 @@ def test_get_aws_ec2_instances_enriches_labyrinth_matches(setup, monkeypatch):
         }
     )
 
-    serve.mongo_client["labyrinth"]["hosts"].insert_many(
+    serve.db["labyrinth"]["hosts"].insert_many(
         [
             {
                 "ip": "10.0.0.10",
@@ -243,7 +243,7 @@ def test_get_aws_ec2_instances_enriches_labyrinth_matches(setup, monkeypatch):
 
 def test_get_aws_ec2_instances_collects_account_errors(setup, monkeypatch):
     """Surfaces per-account AWS inventory errors without failing the whole response."""
-    serve.mongo_client["labyrinth"]["aws_accounts"].insert_one(
+    serve.db["labyrinth"]["aws_accounts"].insert_one(
         {
             "name": "broken-account",
             "region": "us-east-1",
