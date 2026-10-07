@@ -29,7 +29,12 @@ describe("DiskSpace.vue", () => {
   test("renders component correctly", () => {
     wrapper = mount(DiskSpace, {
       mocks: { $auth: config.mocks["$auth"] },
-      stubs: ["DiskSpaceView", "DiskSpaceSettings", "TelegrafCheckView"],
+      stubs: [
+        "DiskSpaceView",
+        "DiskSpaceSettings",
+        "TelegrafCheckView",
+        "GraylogCheckView",
+      ],
     });
 
     expect(wrapper.findComponent({ name: "BTabs" }).exists()).toBe(true);
@@ -38,7 +43,12 @@ describe("DiskSpace.vue", () => {
   test("displays disk space view tab/section", () => {
     wrapper = mount(DiskSpace, {
       mocks: { $auth: config.mocks["$auth"] },
-      stubs: ["DiskSpaceView", "DiskSpaceSettings", "TelegrafCheckView"],
+      stubs: [
+        "DiskSpaceView",
+        "DiskSpaceSettings",
+        "TelegrafCheckView",
+        "GraylogCheckView",
+      ],
     });
 
     const tabs = wrapper.findAllComponents({ name: "BTab" });
@@ -48,36 +58,57 @@ describe("DiskSpace.vue", () => {
   test("displays disk space settings tab/section", () => {
     wrapper = mount(DiskSpace, {
       mocks: { $auth: config.mocks["$auth"] },
-      stubs: ["DiskSpaceView", "DiskSpaceSettings", "TelegrafCheckView"],
+      stubs: [
+        "DiskSpaceView",
+        "DiskSpaceSettings",
+        "TelegrafCheckView",
+        "GraylogCheckView",
+      ],
     });
 
     const tabs = wrapper.findAllComponents({ name: "BTab" });
-    expect(tabs.at(2).props("title")).toBe("Settings");
+    expect(tabs.at(3).props("title")).toBe("Settings");
   });
 
   test("displays telegraf check tab/section", () => {
     wrapper = mount(DiskSpace, {
       mocks: { $auth: config.mocks["$auth"] },
-      stubs: ["DiskSpaceView", "DiskSpaceSettings", "TelegrafCheckView"],
+      stubs: [
+        "DiskSpaceView",
+        "DiskSpaceSettings",
+        "TelegrafCheckView",
+        "GraylogCheckView",
+      ],
     });
 
     const tabs = wrapper.findAllComponents({ name: "BTab" });
     expect(tabs.at(1).props("title")).toBe("Telegraf Check");
+    expect(tabs.at(2).props("title")).toBe("Graylog Check");
   });
 
   test("displays documentation tab/section", () => {
     wrapper = mount(DiskSpace, {
       mocks: { $auth: config.mocks["$auth"] },
-      stubs: ["DiskSpaceView", "DiskSpaceSettings", "TelegrafCheckView"],
+      stubs: [
+        "DiskSpaceView",
+        "DiskSpaceSettings",
+        "TelegrafCheckView",
+        "GraylogCheckView",
+      ],
     });
 
-    expect(wrapper.findAllComponents({ name: "BTab" }).length).toBe(3);
+    expect(wrapper.findAllComponents({ name: "BTab" }).length).toBe(4);
   });
 
   test("component has proper structure", () => {
     wrapper = mount(DiskSpace, {
       mocks: { $auth: config.mocks["$auth"] },
-      stubs: ["DiskSpaceView", "DiskSpaceSettings", "TelegrafCheckView"],
+      stubs: [
+        "DiskSpaceView",
+        "DiskSpaceSettings",
+        "TelegrafCheckView",
+        "GraylogCheckView",
+      ],
     });
 
     expect(wrapper.vm).toBeTruthy();
@@ -87,7 +118,12 @@ describe("DiskSpace.vue", () => {
     expect(() => {
       wrapper = mount(DiskSpace, {
         mocks: { $auth: config.mocks["$auth"] },
-        stubs: ["DiskSpaceView", "DiskSpaceSettings", "TelegrafCheckView"],
+        stubs: [
+          "DiskSpaceView",
+          "DiskSpaceSettings",
+          "TelegrafCheckView",
+          "GraylogCheckView",
+        ],
       });
     }).not.toThrow();
   });
@@ -95,7 +131,12 @@ describe("DiskSpace.vue", () => {
   test("has navigation structure for tabs", () => {
     wrapper = mount(DiskSpace, {
       mocks: { $auth: config.mocks["$auth"] },
-      stubs: ["DiskSpaceView", "DiskSpaceSettings", "TelegrafCheckView"],
+      stubs: [
+        "DiskSpaceView",
+        "DiskSpaceSettings",
+        "TelegrafCheckView",
+        "GraylogCheckView",
+      ],
     });
 
     const html = wrapper.html();

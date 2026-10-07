@@ -2329,6 +2329,89 @@ def refresh_proxmox_disk_space():
         return json.dumps({"error": "Failed to refresh disk space data"}), 500
 
 
+def _proxmox_guests_with_matches():
+    """
+    Flatten every VM/LXC across all Proxmox clusters and match each one by
+    name to Labyrinth hosts. Shared by the Telegraf and Graylog checks.
+    """
+    hosts = list(db["labyrinth"]["hosts"].find({}))
+    clusters = list(db["labyrinth"]["proxmox_clusters"].find({}))
+    redis_client = proxmox_helper.get_redis_client()
+    guests, errors = [], []
+
+    for cluster in clusters:
+        data = proxmox_helper.get_proxmox_disk_data_cached(
+            cluster, redis_client=redis_client
+        )
+        cluster_name = cluster.get("name")
+        if data.get("error"):
+            errors.append({"cluster_name": cluster_name, "error": data.get("error")})
+            continue
+
+        for node in data.get("nodes", []):
+            for kind, key in [("vm", "vms"), ("lxc", "containers")]:
+                for guest in node.get(key, []):
+                    names = set()
+                    name = _normalize_match_string(guest.get("name"))
+                    if name:
+                        names.add(name)
+                        names.add(name.split(".")[0])
+
+                    matches = [
+                        m
+                        for m in (
+                            aws_helper._build_host_match(h, set(), names) for h in hosts
+                        )
+                        if m
+                    ]
+                    guests.append(
+                        {
+                            "cluster_name": cluster_name,
+                            "node": node.get("name"),
+                            "type": kind,
+                            "id": guest.get("id"),
+                            "name": guest.get("name"),
+                            "status": guest.get("status"),
+                            "running": str(guest.get("status") or "").lower()
+                            == "running",
+                            "labyrinth_matches": matches,
+                            "matched": bool(matches),
+                            "monitoring_enabled": any(
+                                _truthy_monitor_value(m.get("monitor"))
+                                or m.get("service_count", 0) > 0
+                                for m in matches
+                            ),
+                        }
+                    )
+
+    return clusters, guests, errors
+
+
+def _latest_metric_by_host(query):
+    """Map each reporting IP / hostname to its newest metrics-latest entry."""
+    latest = {}
+    for item in db["labyrinth"]["metrics-latest"].find(query):
+        stamp = item.get("timestamp")
+        if not isinstance(stamp, datetime.datetime):
+            continue
+        for field in ["ip", "host"]:
+            key = _normalize_match_string((item.get("tags") or {}).get(field))
+            if key and (key not in latest or stamp > latest[key]["timestamp"]):
+                latest[key] = item
+    return latest
+
+
+def _latest_metric_for_matches(matches, latest):
+    """Newest metric reported by any of a guest's matched Labyrinth hosts."""
+    found = None
+    for m in matches:
+        for value in [m.get("ip"), m.get("host")]:
+            item = latest.get(_normalize_match_string(value))
+            if item and (found is None or item["timestamp"] > found["timestamp"]):
+                found = item
+    return found
+
+
 @app.route("/disk-space/proxmox/telegraf-check", methods=["GET"])
 @app.route("/disk-space/proxmox/telegraf-check/", methods=["GET"])
 @requires_auth_read
@@ -2341,115 +2424,164 @@ def get_proxmox_telegraf_check():
         stale_minutes = int(request.args.get("stale_minutes", 15))
         cutoff = datetime.datetime.now() - datetime.timedelta(minutes=stale_minutes)
 
-        hosts = list(db["labyrinth"]["hosts"].find({}))
-        clusters = list(db["labyrinth"]["proxmox_clusters"].find({}))
-        redis_client = proxmox_helper.get_redis_client()
+        clusters, guests, errors = _proxmox_guests_with_matches()
+        latest = _latest_metric_by_host({})
 
-        # Most recent Telegraf metric per reporting IP / hostname
-        last_seen = {}
-        for item in db["labyrinth"]["metrics-latest"].find({}):
-            stamp = item.get("timestamp")
-            if not isinstance(stamp, datetime.datetime):
-                continue
-            for field in ["ip", "host"]:
-                key = _normalize_match_string((item.get("tags") or {}).get(field))
-                if key and stamp > last_seen.get(key, datetime.datetime.min):
-                    last_seen[key] = stamp
+        for guest in guests:
+            metric = _latest_metric_for_matches(guest["labyrinth_matches"], latest)
+            guest["telegraf_last_seen"] = metric["timestamp"] if metric else None
+            guest["telegraf_reporting"] = bool(metric and metric["timestamp"] >= cutoff)
 
-        result = {"clusters": [], "guests": [], "errors": []}
+            if not guest["running"]:
+                guest["check_status"] = "stopped"
+            elif not guest["matched"]:
+                guest["check_status"] = "unmatched"
+            elif not guest["monitoring_enabled"]:
+                guest["check_status"] = "not_monitored"
+            elif not guest["telegraf_reporting"]:
+                guest["check_status"] = "no_telegraf"
+            else:
+                guest["check_status"] = "ok"
 
-        for cluster in clusters:
-            data = proxmox_helper.get_proxmox_disk_data_cached(
-                cluster, redis_client=redis_client
-            )
-            cluster_name = cluster.get("name")
-            result["clusters"].append(
-                {"_id": str(cluster.get("_id")), "name": cluster_name}
-            )
-            if data.get("error"):
-                result["errors"].append(
-                    {"cluster_name": cluster_name, "error": data.get("error")}
-                )
-                continue
-
-            for node in data.get("nodes", []):
-                for kind, key in [("vm", "vms"), ("lxc", "containers")]:
-                    for guest in node.get(key, []):
-                        names = set()
-                        name = _normalize_match_string(guest.get("name"))
-                        if name:
-                            names.add(name)
-                            names.add(name.split(".")[0])
-
-                        matches = [
-                            m
-                            for m in (
-                                aws_helper._build_host_match(h, set(), names)
-                                for h in hosts
-                            )
-                            if m
-                        ]
-                        monitored = any(
-                            _truthy_monitor_value(m.get("monitor"))
-                            or m.get("service_count", 0) > 0
-                            for m in matches
-                        )
-
-                        telegraf_last_seen = None
-                        for m in matches:
-                            for value in [m.get("ip"), m.get("host")]:
-                                seen = last_seen.get(_normalize_match_string(value))
-                                if seen and (
-                                    telegraf_last_seen is None
-                                    or seen > telegraf_last_seen
-                                ):
-                                    telegraf_last_seen = seen
-                        telegraf_reporting = bool(
-                            telegraf_last_seen and telegraf_last_seen >= cutoff
-                        )
-
-                        running = str(guest.get("status") or "").lower() == "running"
-                        if not running:
-                            status = "stopped"
-                        elif not matches:
-                            status = "unmatched"
-                        elif not monitored:
-                            status = "not_monitored"
-                        elif not telegraf_reporting:
-                            status = "no_telegraf"
-                        else:
-                            status = "ok"
-
-                        result["guests"].append(
-                            {
-                                "cluster_name": cluster_name,
-                                "node": node.get("name"),
-                                "type": kind,
-                                "id": guest.get("id"),
-                                "name": guest.get("name"),
-                                "status": guest.get("status"),
-                                "labyrinth_matches": matches,
-                                "matched": bool(matches),
-                                "monitoring_enabled": monitored,
-                                "telegraf_last_seen": telegraf_last_seen,
-                                "telegraf_reporting": telegraf_reporting,
-                                "check_status": status,
-                            }
-                        )
-
-        result["summary"] = {
+        summary = {
             "cluster_count": len(clusters),
-            "guest_count": len(result["guests"]),
+            "guest_count": len(guests),
             "stale_minutes": stale_minutes,
         }
         for status in ["ok", "unmatched", "not_monitored", "no_telegraf", "stopped"]:
-            result["summary"][f"{status}_count"] = len(
-                [g for g in result["guests"] if g["check_status"] == status]
+            summary[f"{status}_count"] = len(
+                [g for g in guests if g["check_status"] == status]
             )
 
-        return json.dumps(result, default=str), 200
+        return (
+            json.dumps(
+                {
+                    "clusters": [
+                        {"_id": str(c.get("_id")), "name": c.get("name")}
+                        for c in clusters
+                    ],
+                    "guests": guests,
+                    "errors": errors,
+                    "summary": summary,
+                },
+                default=str,
+            ),
+            200,
+        )
     except Exception as e:
         return json.dumps({"error": "Failed to run Telegraf check"}), 500
+
+
+GRAYLOG_CHECK_SETTING = "proxmox_graylog_check"
+GRAYLOG_DEFERRALS_SETTING = "proxmox_graylog_deferrals"
+
+
+@app.route("/disk-space/proxmox/graylog-check", methods=["GET"])
+@app.route("/disk-space/proxmox/graylog-check/", methods=["GET"])
+@requires_auth_read
+def get_proxmox_graylog_check():
+    """
+    Check that every Proxmox VM/LXC reports a passing check_graylog metric
+    (rsyslog installed, running, and forwarding to Graylog).
+
+    Deliberately looser than the Telegraf check: a long freshness window,
+    missing/stale data is only a warning, and guests can be deferred until a
+    date or permanently.
+    """
+    try:
+        settings, deferrals = {}, []
+        for name in [GRAYLOG_CHECK_SETTING, GRAYLOG_DEFERRALS_SETTING]:
+            row = db["labyrinth"]["settings"].find_one({"name": name})
+            value = row.get("value") if row else None
+            if isinstance(value, str) and value.strip():
+                value = json.loads(value)
+            if name == GRAYLOG_CHECK_SETTING:
+                settings = value or {}
+            else:
+                deferrals = value or []
+
+        metric_name = settings.get("metric_name") or "check_graylog"
+        stale_hours = float(settings.get("stale_hours") or 24)
+        now = datetime.datetime.now()
+        cutoff = now - datetime.timedelta(hours=stale_hours)
+        today = now.date().isoformat()
+
+        active_deferrals = {
+            (str(d.get("cluster_name")), str(d.get("id"))): d
+            for d in deferrals
+            if not d.get("until") or str(d.get("until")) >= today
+        }
+
+        clusters, guests, errors = _proxmox_guests_with_matches()
+        latest = _latest_metric_by_host({"name": metric_name})
+
+        for guest in guests:
+            metric = _latest_metric_for_matches(guest["labyrinth_matches"], latest)
+            fields = (metric or {}).get("fields") or {}
+            guest["graylog_last_seen"] = metric["timestamp"] if metric else None
+            guest["graylog_fields"] = fields
+            guest["graylog_target"] = ((metric or {}).get("tags") or {}).get("target")
+            guest["deferral"] = active_deferrals.get(
+                (str(guest["cluster_name"]), str(guest["id"]))
+            )
+
+            if not guest["running"]:
+                status = "stopped"
+            elif not guest["matched"]:
+                status = "unmatched"
+            elif metric is None:
+                status = "not_deployed"
+            elif metric["timestamp"] < cutoff:
+                status = "stale"
+            elif str(fields.get("ok")) in ["1", "True", "true"]:
+                status = "ok"
+            else:
+                status = "failing"
+
+            guest["result_status"] = status
+            guest["check_status"] = (
+                "deferred"
+                if guest["deferral"] and status not in ["ok", "stopped"]
+                else status
+            )
+
+        summary = {
+            "cluster_count": len(clusters),
+            "guest_count": len(guests),
+            "metric_name": metric_name,
+            "stale_hours": stale_hours,
+        }
+        for status in [
+            "ok",
+            "failing",
+            "stale",
+            "not_deployed",
+            "unmatched",
+            "deferred",
+            "stopped",
+        ]:
+            summary[f"{status}_count"] = len(
+                [g for g in guests if g["check_status"] == status]
+            )
+
+        return (
+            json.dumps(
+                {
+                    "guests": guests,
+                    "errors": errors,
+                    "summary": summary,
+                    "settings": {
+                        "metric_name": metric_name,
+                        "stale_hours": stale_hours,
+                    },
+                    "deferrals": deferrals,
+                },
+                default=str,
+            ),
+            200,
+        )
+    except Exception as e:
+        return json.dumps({"error": "Failed to run Graylog check"}), 500
 
 
 @app.route("/disk-space/manual", methods=["GET"])

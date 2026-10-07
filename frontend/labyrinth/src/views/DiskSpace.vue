@@ -11,6 +11,10 @@
           <TelegrafCheckView />
         </b-tab>
 
+        <b-tab title="Graylog Check" lazy>
+          <GraylogCheckView />
+        </b-tab>
+
         <!-- Settings Tab -->
         <b-tab title="Settings" lazy>
           <DiskSpaceSettings />
@@ -24,6 +28,7 @@
 import DiskSpaceView from "@/components/DiskSpace/DiskSpaceView";
 import DiskSpaceSettings from "@/components/DiskSpace/DiskSpaceSettings";
 import TelegrafCheckView from "@/components/DiskSpace/TelegrafCheckView";
+import GraylogCheckView from "@/components/DiskSpace/GraylogCheckView";
 
 export default {
   name: "DiskSpace",
@@ -31,6 +36,7 @@ export default {
     DiskSpaceView,
     DiskSpaceSettings,
     TelegrafCheckView,
+    GraylogCheckView,
   },
 };
 </script>

@@ -14,6 +14,7 @@ def cleanup_test_data():
     serve.db["labyrinth"]["hosts"].delete_many({})
     serve.db["labyrinth"]["proxmox_clusters"].delete_many({})
     serve.db["labyrinth"]["metrics-latest"].delete_many({})
+    serve.db["labyrinth"]["settings"].delete_many({})
 
 
 @pytest.fixture
@@ -43,7 +44,7 @@ def _guest(vmid, name, status="running"):
     return {"id": vmid, "name": name, "status": status}
 
 
-def _run(monkeypatch, payload, query=""):
+def _run(monkeypatch, payload, query="", route="telegraf-check"):
     monkeypatch.setattr(
         serve.proxmox_helper,
         "get_proxmox_disk_data_cached",
@@ -51,9 +52,13 @@ def _run(monkeypatch, payload, query=""):
     )
     monkeypatch.setattr(serve.proxmox_helper, "get_redis_client", lambda: None)
     with serve.app.test_request_context(
-        f"/disk-space/proxmox/telegraf-check{query}", method="GET"
+        f"/disk-space/proxmox/{route}{query}", method="GET"
     ):
-        response = unwrap(serve.get_proxmox_telegraf_check)()
+        handler = {
+            "telegraf-check": serve.get_proxmox_telegraf_check,
+            "graylog-check": serve.get_proxmox_graylog_check,
+        }[route]
+        response = unwrap(handler)()
     assert response[1] == 200
     payload = json.loads(response[0])
     return payload, {g["name"]: g for g in payload["guests"]}
@@ -160,3 +165,127 @@ def test_telegraf_check_reports_cluster_errors(setup, monkeypatch):
     assert payload["errors"] == [
         {"cluster_name": "broken", "error": "Failed to get Proxmox data"}
     ]
+
+
+def _graylog_metric(ip, ok, age=datetime.timedelta(0), name="check_graylog"):
+    return {
+        "name": name,
+        "tags": {"ip": ip, "target": "graylog.lan:1514"},
+        "fields": {
+            "ok": 1 if ok else 0,
+            "status": "ok" if ok else "rsyslog not running",
+        },
+        "timestamp": datetime.datetime.now() - age,
+    }
+
+
+def test_graylog_check_classifies_and_honors_deferrals(setup, monkeypatch):
+    """check_graylog results drive status; only failures are hard, deferrals hide issues until they expire."""
+    serve.db["labyrinth"]["proxmox_clusters"].insert_one(
+        {"name": "home", "host": "10.0.0.1"}
+    )
+    serve.db["labyrinth"]["hosts"].insert_many(
+        [
+            _host("10.0.0.10", "web01"),
+            _host("10.0.0.11", "db01"),
+            _host("10.0.0.12", "cache01"),
+            _host("10.0.0.13", "old01"),
+            _host("10.0.0.14", "app01"),
+            _host("10.0.0.15", "lapsed01"),
+        ]
+    )
+    serve.db["labyrinth"]["metrics-latest"].insert_many(
+        [
+            _graylog_metric("10.0.0.10", True),
+            _graylog_metric("10.0.0.11", False),
+            _graylog_metric("10.0.0.13", True, age=datetime.timedelta(days=3)),
+            _graylog_metric("10.0.0.14", False),
+            _graylog_metric("10.0.0.15", False),
+            # Other metrics never count as a Graylog result
+            {
+                "name": "cpu",
+                "tags": {"ip": "10.0.0.12"},
+                "fields": {"ok": 1},
+                "timestamp": datetime.datetime.now(),
+            },
+        ]
+    )
+    unwrap(serve.save_setting)(
+        "proxmox_graylog_deferrals",
+        json.dumps(
+            [
+                {
+                    "cluster_name": "home",
+                    "id": 104,
+                    "until": None,
+                    "reason": "appliance",
+                },
+                {"cluster_name": "home", "id": 105, "until": "2000-01-01"},
+            ]
+        ),
+    )
+
+    payload, guests = _run(
+        monkeypatch,
+        {
+            "nodes": [
+                {
+                    "name": "pv3",
+                    "vms": [
+                        _guest(100, "web01"),
+                        _guest(101, "db01"),
+                        _guest(102, "cache01"),
+                        _guest(103, "old01"),
+                        _guest(104, "app01"),
+                        _guest(105, "lapsed01"),
+                    ],
+                    "containers": [_guest(200, "orphan")],
+                }
+            ]
+        },
+        route="graylog-check",
+    )
+
+    assert guests["web01"]["check_status"] == "ok"
+    assert guests["web01"]["graylog_target"] == "graylog.lan:1514"
+    assert guests["db01"]["check_status"] == "failing"
+    assert guests["db01"]["graylog_fields"]["status"] == "rsyslog not running"
+    assert guests["cache01"]["check_status"] == "not_deployed"
+    assert guests["old01"]["check_status"] == "stale"
+    assert guests["app01"]["check_status"] == "deferred"
+    assert guests["app01"]["result_status"] == "failing"
+    assert guests["app01"]["deferral"]["reason"] == "appliance"
+    assert guests["lapsed01"]["check_status"] == "failing"
+    assert guests["orphan"]["check_status"] == "unmatched"
+
+    summary = payload["summary"]
+    assert summary["metric_name"] == "check_graylog"
+    assert summary["stale_hours"] == 24
+    assert summary["failing_count"] == 2
+    assert summary["deferred_count"] == 1
+
+
+def test_graylog_check_uses_configured_metric_name_and_window(setup, monkeypatch):
+    """The check metric name and freshness window come from the settings."""
+    serve.db["labyrinth"]["proxmox_clusters"].insert_one(
+        {"name": "home", "host": "10.0.0.1"}
+    )
+    serve.db["labyrinth"]["hosts"].insert_one(_host("10.0.0.10", "web01"))
+    serve.db["labyrinth"]["metrics-latest"].insert_one(
+        _graylog_metric(
+            "10.0.0.10", True, age=datetime.timedelta(hours=60), name="rsyslog_graylog"
+        )
+    )
+    unwrap(serve.save_setting)(
+        "proxmox_graylog_check",
+        json.dumps({"metric_name": "rsyslog_graylog", "stale_hours": 72}),
+    )
+
+    payload, guests = _run(
+        monkeypatch,
+        {"nodes": [{"name": "pv3", "vms": [_guest(100, "web01")]}]},
+        route="graylog-check",
+    )
+
+    assert payload["settings"] == {"metric_name": "rsyslog_graylog", "stale_hours": 72}
+    assert guests["web01"]["check_status"] == "ok"
