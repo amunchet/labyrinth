@@ -194,7 +194,7 @@ effective ~47 (50 minus `superuser_reserved_connections`) - i.e. the stack
 could exhaust the server with no leak involved at all. The default is now
 `POSTGRES_POOL_MAX=2` (`13 x 2 = 26`), which leaves real headroom. Sync
 gunicorn workers serve one request at a time and need exactly one
-connection; the headroom above 1 covers the AI chat background threads.
+connection; the headroom above 1 covers any background threads.
 
 If you raise `--workers`, raise `POSTGRES_MAX_CONNECTIONS` to match, or
 lower `POSTGRES_POOL_MAX`.
