@@ -12,3 +12,6 @@ Fixed VMs on the QEMU guest agent ignore list (Settings -> `proxmox_qemu_agent_i
 
 ## 2026-10-07 15:02 CDT
 Merged latest `master` (AI assistant removal, #70). Only conflict was the session-specific Armada block in `CLAUDE.md`; kept this session's values.
+
+## 2026-10-07 15:09 CDT
+Stopped treating read-only image root filesystems (squashfs/erofs/iso9660/cramfs) as a VM's disk usage. Appliance OSes like Home Assistant OS mount their OS image at `/`, which is always ~100% full, so `haos-18.2` showed as a red, near-full VM (and could trigger a real over-threshold alert) instead of the muted "ignored" state its entry on the QEMU agent ignore list should give it. Such roots are now left unresolved, which flows into the existing missing-agent/ignore handling.

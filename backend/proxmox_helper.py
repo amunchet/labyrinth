@@ -1116,6 +1116,11 @@ def _add_container_info(
         node_info["containers"].append(container_info)
 
 
+# Filesystem types that are compressed/immutable images rather than writable
+# disks; their usage is always ~100% and says nothing about free space.
+READ_ONLY_IMAGE_FS_TYPES = {"squashfs", "erofs", "iso9660", "cramfs"}
+
+
 def _get_guest_disk_info(
     client, node_name, vmid, disk, maxdisk, is_running, qemu_truly_installed
 ):
@@ -1129,8 +1134,15 @@ def _get_guest_disk_info(
 
     fsinfo = guest_disk_info.get("result", [])
     for fs in fsinfo:
-        if fs.get("mountpoint") == "/":
-            return fs.get("used-bytes"), fs.get("total-bytes"), guest_disk_info
+        if fs.get("mountpoint") != "/":
+            continue
+        # Appliance OSes (e.g. Home Assistant OS) boot from a read-only image
+        # mounted at "/", which is always ~100% full by construction. That is
+        # not a measurement of writable disk usage, so leave the reading
+        # unresolved rather than reporting a permanent false 100%.
+        if str(fs.get("type") or "").lower() in READ_ONLY_IMAGE_FS_TYPES:
+            continue
+        return fs.get("used-bytes"), fs.get("total-bytes"), guest_disk_info
     return disk, maxdisk, guest_disk_info
 
 
