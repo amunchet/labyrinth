@@ -27,6 +27,13 @@ class AuthService extends EventEmitter {
 
   // Starts the user login flow
   login(customState) {
+    // Remember where we were (e.g. a Deploy deep link) so the callback can return there
+    if (window.location.pathname != "/callback") {
+      sessionStorage.setItem(
+        "loginReturnTo",
+        window.location.pathname + window.location.search
+      );
+    }
     webAuth.authorize({
       appState: customState,
     });

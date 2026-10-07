@@ -245,6 +245,83 @@
         </b-row>
       </b-container>
     </b-modal>
+    <b-row v-if="deep_link">
+      <b-col>
+        <b-card border-variant="primary" class="text-left">
+          <h4>Prepared Deployment</h4>
+          <p v-if="deep_link.notes">{{ deep_link.notes }}</p>
+          <ul>
+            <li>
+              Hosts: <b>{{ deep_link.hosts.join(", ") }}</b>
+            </li>
+            <li>
+              Playbook: <b>{{ deep_link.playbook }}.yml</b>
+              <span v-if="deep_link.generated">
+                (generated - saved when you deploy)</span
+              >
+            </li>
+            <li>
+              Become file: <b>{{ deep_link.become_file }}.yml</b>
+            </li>
+          </ul>
+          <b-button
+            variant="link"
+            class="p-0 mb-2"
+            v-b-toggle.deep_link_playbook
+          >
+            Review playbook
+          </b-button>
+          <b-collapse id="deep_link_playbook">
+            <pre class="deep_link_playbook">{{ deep_link_playbook }}</pre>
+          </b-collapse>
+          <b-form @submit.prevent="deployDeepLink()">
+            Vault Password:<br />
+            <b-input
+              autofocus
+              :state="vault_password != ''"
+              type="password"
+              v-model="vault_password"
+            />
+            <b-button
+              type="submit"
+              size="lg"
+              class="mt-3"
+              style="width: 100%"
+              variant="primary"
+              :disabled="running || !vault_password"
+            >
+              <b-spinner small v-if="running" /> Deploy
+            </b-button>
+          </b-form>
+          <b-alert
+            show
+            class="mt-3"
+            v-if="deep_link_run"
+            :variant="deep_link_run.outcome == 'success' ? 'success' : 'danger'"
+          >
+            <b>{{
+              deep_link_run.outcome == "success" ? "Succeeded" : "Failed"
+            }}</b>
+            <span v-if="deep_link_run.error"> - {{ deep_link_run.error }}</span>
+            <ul class="mb-0" v-if="deep_link_run.failures.length > 0">
+              <li
+                v-for="(failure, idx) in deep_link_run.failures"
+                :key="'deep_link_failure' + idx"
+              >
+                {{ failure.host }} - {{ failure.task }}: {{ failure.msg }}
+              </li>
+            </ul>
+          </b-alert>
+          <div class="playbook_result" v-if="deep_link_logs.length > 0">
+            <pre
+              v-for="(item, idx) in deep_link_logs"
+              :key="'deep_link_log' + idx"
+              >{{ (item || "").replace(/^\s+/gm, " ") }}</pre
+            >
+          </div>
+        </b-card>
+      </b-col>
+    </b-row>
     <b-row>
       <b-col>
         <b-card no-body>
@@ -547,6 +624,14 @@
             @click="runPlaybook()"
             >Deploy to host<span v-if="ips.length != 0">s</span></b-button
           >
+          <b-button
+            variant="link"
+            class="float-right"
+            v-if="!isTesting"
+            @click="copyDeployLink()"
+          >
+            <font-awesome-icon icon="link" size="1x" />&nbsp; Copy deploy link
+          </b-button>
           <hr />
           <div
             class="playbook_result mb-4"
@@ -630,6 +715,12 @@ export default {
         },
       ],
       manual_ips: false,
+
+      // Deployment prepared via link (?request=<id> or ?ips=&playbook=&become=)
+      deep_link: null,
+      deep_link_playbook: "",
+      deep_link_logs: [],
+      deep_link_run: null,
     };
   },
   watch: {
@@ -816,6 +907,47 @@ export default {
         });
     },
 
+    // Starts an ansible run (POST /ansible_runner/) and returns its job_id
+    startAnsibleJob: /* istanbul ignore next */ async function (data) {
+      let formData = new FormData();
+      formData.append("data", JSON.stringify(data));
+      const response = await Helper.apiPost(
+        "ansible_runner",
+        "",
+        "",
+        this.$auth,
+        formData,
+        false,
+        1
+      );
+      const resp = await response.json();
+      if (!resp.job_id || resp.status !== "started") {
+        throw new Error("Failed to start the playbook execution.");
+      }
+      return resp.job_id;
+    },
+
+    // Polls a run until it finishes, passing the accumulated log lines to onLog
+    pollAnsibleJob: /* istanbul ignore next */ async function (job_id, onLog) {
+      let status = "";
+      let results = "";
+      while (status !== "completed") {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const resp = await Helper.apiCall(
+          `ansible_status/${job_id}`,
+          "",
+          this.$auth
+        );
+        onLog(resp.logs || []);
+        if (resp.status === "error") {
+          throw new Error(resp.error || "An error occurred during execution.");
+        }
+        status = resp.status;
+        results = resp.results || "";
+      }
+      return results;
+    },
+
     runPlaybook: /* istanbul ignore next */ async function () {
       if (this.selected["become"] === "") {
         this.$store.commit(
@@ -825,7 +957,6 @@ export default {
         return false;
       }
 
-      let auth = this.$auth;
       this.running = true;
       this.playbook_loaded = false;
       this.playbook_result = "";
@@ -841,54 +972,10 @@ export default {
         totp_file: this.selected["totp"] || "",
       };
 
-      // Use FormData to prepare the request
-      let formData = new FormData();
-      formData.append("data", JSON.stringify(data));
-
       try {
-        // Step 1: Initiate the Ansible Runner job
-        let response = await Helper.apiPost(
-          "ansible_runner", // URL
-          "", // Service (empty string if not needed)
-          "", // Command (empty string if not needed)
-          auth, // Auth object
-          formData, // Data
-          false, // isUpload set to true for multipart/form-data
-          1
-        );
-
-        // Extract job_id from the response
-        const resp = await response.json();
-        const job_id = resp.job_id;
-        const status = resp.status;
-        if (!job_id || status !== "started") {
-          throw new Error("Failed to start the playbook execution.");
-        }
-
-        // Step 2: Poll for job status and logs
-        let polling = true;
-        let result = "";
-        while (polling) {
-          await new Promise((resolve) => setTimeout(resolve, 2000)); // Poll every 2 seconds
-
-          let statusResponse = await Helper.apiCall(
-            `ansible_status/${job_id}`, // URL
-            "", // Command (empty string if not needed)
-            auth // Auth object
-          );
-
-          const { status, logs, results, error } = statusResponse;
-
-          if (status === "completed") {
-            result = results || "";
-            polling = false;
-          } else if (status === "error") {
-            throw new Error(error || "An error occurred during execution.");
-          } else {
-            // Update logs incrementally
-            this.playbook_result = logs.join("\r\n\r\n");
-          }
-
+        const job_id = await this.startAnsibleJob(data);
+        const result = await this.pollAnsibleJob(job_id, (logs) => {
+          this.playbook_result = logs.join("\r\n\r\n");
           this.playbook_results = logs;
           this.$nextTick(() => {
             const div = this.$refs.playbookResultDiv;
@@ -903,7 +990,7 @@ export default {
           });
 
           this.$forceUpdate(); // Re-render the component
-        }
+        });
 
         // Final result
         this.playbook_result = result;
@@ -915,6 +1002,133 @@ export default {
         this.$store.commit("updateError", error.message || error);
         this.running = false;
         this.playbook_loaded = true;
+      }
+    },
+
+    loadDeepLink: /* istanbul ignore next */ async function () {
+      const query = this.$route.query;
+      const ips = query.ips?.split(",").filter((x) => x != "") || [];
+      if (query.request) {
+        this.deep_link = await Helper.apiCall(
+          "ansible_request",
+          query.request,
+          this.$auth
+        );
+      } else if (query.playbook && query.become && ips.length > 0) {
+        this.deep_link = {
+          hosts: ips,
+          playbook: query.playbook.replace(/.yml$/, ""),
+          become_file: query.become.replace(/.yml$/, ""),
+          ssh_key: query.ssh || "",
+          generated: false,
+          notes: "",
+        };
+      } else {
+        if (ips.length > 0) {
+          this.manual_ips = true;
+        }
+        this.ips = ips;
+        return;
+      }
+
+      this.deep_link_playbook = this.deep_link.generated
+        ? this.deep_link.playbook_content
+        : await Helper.apiCall(
+            "get_ansible_file",
+            this.deep_link.playbook,
+            this.$auth
+          );
+    },
+
+    deployDeepLink: /* istanbul ignore next */ async function () {
+      if (!this.vault_password || this.running) {
+        return;
+      }
+      const auth = this.$auth;
+      const link = this.deep_link;
+      this.running = true;
+      this.deep_link_logs = [];
+      this.deep_link_run = null;
+
+      let job_id = null;
+      try {
+        if (link.request_id) {
+          // Staged requests deploy server-side, so exactly the staged playbook runs
+          let formData = new FormData();
+          formData.append(
+            "data",
+            JSON.stringify({ vault_password: this.vault_password })
+          );
+          const response = await Helper.apiPost(
+            "ansible_request/",
+            link.request_id,
+            "deploy",
+            auth,
+            formData,
+            false,
+            1
+          );
+          job_id = (await response.json()).job_id;
+        } else {
+          job_id = await this.startAnsibleJob({
+            hosts: link.hosts.join(","),
+            playbook: link.playbook,
+            vault_password: this.vault_password,
+            become_file: link.become_file,
+            ssh_key: link.ssh_key,
+          });
+        }
+        await this.pollAnsibleJob(job_id, (logs) => {
+          this.deep_link_logs = logs;
+        });
+      } catch (e) {
+        const message = "" + (e.message || e);
+        if (message.indexOf("471") != -1) {
+          this.$store.commit(
+            "updateError",
+            "Error: The staged playbook failed validation (ansible-playbook --check). Check the vault password, or ask the agent to fix the playbook."
+          );
+        } else if (message.indexOf("482") != -1) {
+          this.$store.commit(
+            "updateError",
+            "Error: The staged playbook could not be saved. Ask the agent to stage it again."
+          );
+        } else {
+          this.$store.commit("updateError", message);
+        }
+      }
+
+      // The recorded run carries the outcome and failed tasks, even on error
+      if (job_id) {
+        try {
+          this.deep_link_run = await Helper.apiCall(
+            "ansible_run",
+            job_id,
+            auth
+          );
+        } catch (e) {
+          this.$store.commit("updateError", e);
+        }
+      }
+      this.running = false;
+    },
+
+    copyDeployLink: /* istanbul ignore next */ async function () {
+      const params = new URLSearchParams({
+        ips: (this.ips.length > 0 ? this.ips : [this.selected_host]).join(","),
+        playbook: this.selected_playbook.replace(/.yml$/, ""),
+        become: this.selected["become"].replace(/.yml$/, ""),
+      });
+      if (this.selected["ssh"]) {
+        params.set("ssh", this.selected["ssh"]);
+      }
+      const url = `${window.location.origin}/deploy?${params}`;
+      try {
+        await navigator.clipboard.writeText(url);
+        this.$store.commit("updateError", "Deploy link copied: " + url);
+      } catch (e) {
+        // Clipboard needs a secure context; still hand over the link
+        this.$store.commit("updateError", "Deploy link: " + url);
       }
     },
 
@@ -1048,12 +1262,7 @@ export default {
 
       this.loadHosts();
 
-      const ips =
-        this.$route.query.ips?.split(",").filter((x) => x != "") || [];
-      if (ips.length > 0) {
-        this.manual_ips = true;
-      }
-      this.ips = ips;
+      await this.loadDeepLink();
     } catch (e) {
       this.$store.commit("updateError", e);
     }
@@ -1094,6 +1303,13 @@ pre {
 .playbook_result div {
   margin-top: 0.5rem;
   margin-bottom: 0.5rem;
+}
+.deep_link_playbook {
+  white-space: pre;
+  max-height: 400px;
+  overflow: auto;
+  background-color: lightgrey;
+  padding: 1rem !important;
 }
 .text-underline {
   font-weight: bold;

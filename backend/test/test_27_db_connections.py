@@ -341,3 +341,23 @@ def test_pool_respects_configured_max(monkeypatch, observer):
                 pool.putconn(conn)
     finally:
         client.close()
+
+
+def test_forked_child_drops_inherited_client():
+    """A background job forked from a worker must not reuse the parent's pool."""
+    db_pkg.close_shared_client()
+    sentinel = object()
+    db_pkg._shared_client = sentinel
+    try:
+        pid = os.fork()
+        if pid == 0:  # pragma: no cover - child exits before coverage reports
+            os._exit(0 if db_pkg._shared_client is None else 1)
+        _, status = os.waitpid(pid, 0)
+        assert os.WEXITSTATUS(status) == 0
+        assert db_pkg._shared_client is sentinel
+
+        # The hook itself, run in-process so coverage sees it
+        db_pkg._forget_shared_client()
+        assert db_pkg._shared_client is None
+    finally:
+        db_pkg._shared_client = None

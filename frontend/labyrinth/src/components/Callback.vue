@@ -7,12 +7,15 @@
 <script>
 export default {
   methods: {
-    handleLoginEvent() {
-      //console.log(data);
-      /* istanbul ignore next */
-      this.$router.push("/");
+    handleLoginEvent() /* istanbul ignore next */ {
+      const target = sessionStorage.getItem("loginReturnTo") || "/";
+      sessionStorage.removeItem("loginReturnTo");
       window.location.href =
-        window.location.href + "?callback=1&date=" + Date.now();
+        window.location.origin +
+        target +
+        (target.includes("?") ? "&" : "?") +
+        "callback=1&date=" +
+        Date.now();
     },
   },
   created: async function () {

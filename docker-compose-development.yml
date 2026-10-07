@@ -164,6 +164,8 @@ services:
       - labyrinth
     volumes:
       - ./backend:/app/backend
+      # Read-only: MCP reads playbooks/become files; the Deploy page does the writing
+      - ./backend/uploads:/src/uploads:ro
     environment:
       DB_BACKEND: postgres
       POSTGRES_HOST: postgres
@@ -180,6 +182,8 @@ services:
       # Pre-shared secret every MCP request must present.  Fixed for dev; in
       # production it comes from the root .env or backend/.env.
       MCP_KEY: development
+      # Public base URL used to build Deploy page deep links
+      LABYRINTH_URL: ${LABYRINTH_URL:-https://localhost:7210}
       TESTBED: 1
 
   # Vulnerable server running on the network

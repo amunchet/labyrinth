@@ -20,6 +20,7 @@ import uuid
 
 import ansi2html
 import ansible_runner
+import yaml
 
 from werkzeug.utils import secure_filename
 from typing import List
@@ -113,6 +114,95 @@ def check_file(filename, file_type, raw=""):
                         return True
                 break
         return False
+
+
+def validate_ai_playbook(raw, forbidden_hosts=None):
+    """Reject unsafe agent-generated playbook structure before Ansible runs it.
+
+    Used for playbooks staged through the MCP server.  Deployment scope comes
+    from the staged host list, so the playbook may target only the generic
+    groups and may not embed credentials or a concrete IP/hostname.
+    """
+    try:
+        docs = list(yaml.safe_load_all(raw))
+    except yaml.YAMLError:
+        return "Invalid YAML syntax."
+    # yaml.safe_load_all wraps each YAML document; a playbook is a sequence of
+    # play dicts, so each document is a list.  Flatten one level.
+    plays = []
+    for doc in docs:
+        if isinstance(doc, list):
+            plays.extend(doc)
+        elif doc is not None:
+            plays.append(doc)
+    if not plays or any(not isinstance(play, dict) for play in plays):
+        return "The playbook must contain one or more Ansible plays."
+
+    secret_names = {
+        "ansible_password",
+        "ansible_become_password",
+        "ansible_ssh_pass",
+        "vault_password",
+        "ssh_password",
+    }
+    allowed_hosts = {"all", "clients"}
+    forbidden_hosts = {
+        str(host).strip().lower()
+        for host in (forbidden_hosts or [])
+        if str(host).strip()
+    }
+
+    def walk(value):
+        if isinstance(value, str) and any(
+            host in value.lower() for host in forbidden_hosts
+        ):
+            return "Generated playbooks must not contain deployment target hosts."
+        if isinstance(value, dict):
+            for key, child in value.items():
+                if str(key).lower() in secret_names:
+                    return "Playbooks must reference encrypted vars files, never cleartext passwords."
+                error = walk(child)
+                if error:
+                    return error
+        elif isinstance(value, list):
+            for child in value:
+                error = walk(child)
+                if error:
+                    return error
+        return None
+
+    for play in plays:
+        hosts = play.get("hosts")
+        if hosts not in allowed_hosts:
+            return "Generated playbooks must use hosts: all or hosts: clients; deployment targets are selected separately."
+        if play.get("vars_files"):
+            return "Generated playbooks must not choose credential files; the approved encrypted become file is attached by the controller."
+        error = walk(play)
+        if error:
+            return error
+    return None
+
+
+def persist_reviewed_playbook(filename, raw, vars_file, forbidden_hosts=None):
+    """Attach the encrypted become vars and save a validated agent-generated playbook."""
+    validation_error = validate_ai_playbook(raw, forbidden_hosts=forbidden_hosts)
+    if validation_error:
+        raise ValueError(validation_error)
+    # Each YAML document of a playbook is a list of plays
+    plays = []
+    for doc in yaml.safe_load_all(raw):
+        plays.extend(doc if isinstance(doc, list) else [doc])
+    for play in plays:
+        play["vars_files"] = [
+            "/src/uploads/become/{}.yml".format(
+                secure_filename(vars_file).replace(".yml", "")
+            )
+        ]
+    return check_file(
+        secure_filename(filename).replace(".yml", ""),
+        "ansible",
+        raw=yaml.safe_dump(plays, sort_keys=False),
+    )
 
 
 def run_ansible(
