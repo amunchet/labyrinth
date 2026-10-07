@@ -367,6 +367,29 @@ def test_check_host_methods(monkeypatch):
     assert "Invalid check port" in result["error"]
 
 
+def test_check_port_times_out(monkeypatch):
+    """A dead host must not hold a TCP check open for the OS connect timeout"""
+    sockets = []
+
+    class FakeSocket:
+        def __init__(self, *args):
+            self.timeout = None
+            sockets.append(self)
+
+        def settimeout(self, seconds):
+            self.timeout = seconds
+
+        def connect_ex(self, address):
+            return 0 if self.timeout else 110
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(alive.socket, "socket", FakeSocket)
+    assert alive.check_port("10.0.0.9", 80) is True
+    assert sockets[0].timeout == 2
+
+
 def test_alive_check_endpoint_records(setup, monkeypatch):
     """An on-demand check is stored where the inventory reads it"""
     monkeypatch.setattr(alive, "ping", lambda ip: True)

@@ -5,7 +5,8 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 RUN apt update && apt upgrade -y && apt install -y \
-       git
+       git \
+       iputils-ping
 
 # Install dependencies (reuse backend requirements + MCP extras)
 COPY backend/requirements.txt /requirements.txt

@@ -46,6 +46,8 @@ def check_port(host, port):
     """
     try:
         with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
+            # Without a timeout a dead host blocks for the OS connect timeout (~2 min)
+            sock.settimeout(2)
             if sock.connect_ex((host, port)) == 0:
                 return True
             else:

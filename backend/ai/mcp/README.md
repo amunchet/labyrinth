@@ -68,6 +68,15 @@ docker run --rm -p 8765:8765 \
 ### Metrics
 - `mcp_read_metrics(host_key, service, count)` - Read latest metrics for a host
 
+### Locations and Inventory
+Hosts double as the device inventory (servers, VMs/LXCs, PCs, switches, bridges, PLCs, ...), including IP-less "label" devices such as unmanaged switches.
+- `mcp_list_locations` - List locations (sites/buildings) with their racks
+- `mcp_save_location(location_json)` - Create a location, or update/rename one by including its `_id`
+- `mcp_delete_location(name)` - Delete a location; its devices, subnets and maps become unassigned (not deleted)
+- `mcp_get_inventory(location, device_type, status)` - Devices with live status (optionally filtered), plus locations and the Proxmox node -> VM/LXC tree
+- `mcp_set_device_inventory(host_key, fields_json)` - Change only a device's inventory fields (location, rack, type, uplink, ...); blank values clear a field
+- `mcp_check_device(host_key)` - Ping (or TCP-check) a device right now and record the result
+
 ## Host Schema
 
 When creating/updating hosts, use this structure:
@@ -86,7 +95,35 @@ When creating/updating hosts, use this structure:
 }
 ```
 
-Required fields: `mac`, `subnet`
+`mac` is the host key. Omit it to key a device by its IP (or, for an IP-less device, to generate a key); `subnet` is derived from the IP when omitted.
+
+Optional inventory fields:
+```json
+{
+  "device_type": "server | vm | lxc | pc | laptop | switch | router | firewall | ap | bridge | plc | iot | camera | printer | phone | ups | storage | patch-panel | other",
+  "location": "Main Office",
+  "rack": "Rack A",
+  "rack_unit": 10,
+  "rack_height": 2,
+  "vendor": "Ubiquiti",
+  "model": "USW-Pro-24",
+  "serial": "...",
+  "uplink": "<key of the device it connects up to>",
+  "link_type": "ethernet | fiber | wireless | vpn",
+  "proxmox_node": "pve1",
+  "proxmox_vmid": 105
+}
+```
+
+## Inventory Status
+
+`mcp_get_inventory` rolls each device into one `status`:
+- `up` / `down` - reachability from the minute-by-minute ping (or TCP check when `check_alive_port` is set). A host that drops pings but reports healthy metrics counts as `up`.
+- `error` / `warning` - reachable, but services are failing (warning-level or stale services are `warning`)
+- `unknown` - has an IP but no recent check yet
+- `none` - no IP; a labelled device that is not monitored
+
+A device's `location` is its own, else that of the Proxmox node it runs on (VMs/LXCs), else that of its subnet (`location_source` says which).
 
 ## Service Schema
 

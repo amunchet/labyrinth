@@ -34,3 +34,13 @@ as devices, and live reachability.
 - `GET /inventory/` rolls each host's reachability and service health into one
   status, resolves its location (explicit, else its Proxmox node's, else its
   subnet's) and returns the cached Proxmox node -> VM/LXC tree matched to hosts.
+
+## 2026-10-07 14:58 CDT (19:58 UTC)
+MCP tools so an AI agent can manage the inventory: list/save/delete locations,
+read the inventory with live status (filter by location, device type or
+status), update a device's location/rack/type/uplink without touching its
+monitoring setup, and run an on-demand reachability check. Creating a host
+over MCP no longer requires a MAC (IP-keyed or generated), but refuses to
+shadow a host already known by MAC. The MCP image now installs `ping`, which
+the on-demand check needs. TCP reachability checks now time out after 2s; a
+dead host previously held a check open for the OS connect timeout (~2 min).
