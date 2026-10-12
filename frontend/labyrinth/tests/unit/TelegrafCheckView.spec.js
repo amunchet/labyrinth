@@ -2,6 +2,7 @@ import { config, mount } from "@vue/test-utils";
 import Vue from "vue";
 import BootstrapVue from "bootstrap-vue";
 import TelegrafCheckView from "@/components/DiskSpace/TelegrafCheckView.vue";
+import ProxmoxGuestCheck from "@/components/DiskSpace/ProxmoxGuestCheck.vue";
 import Helper from "@/helper";
 
 Vue.use(BootstrapVue);
@@ -32,6 +33,7 @@ const flush = () => new Promise((resolve) => setTimeout(resolve));
 
 describe("TelegrafCheckView.vue", () => {
   let wrapper;
+  const check = () => wrapper.findComponent(ProxmoxGuestCheck).vm;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -73,16 +75,16 @@ describe("TelegrafCheckView.vue", () => {
       "telegraf-check",
       config.mocks["$auth"]
     );
-    const names = wrapper.vm.filteredGuests.map((g) => g.name);
+    const names = check().filteredGuests.map((g) => g.name);
     expect(names).toEqual(["orphan", "db01"]);
     expect(wrapper.text()).toContain("No Labyrinth host");
     expect(wrapper.text()).toContain("No Telegraf");
 
-    wrapper.setData({ filter: "all" });
-    expect(wrapper.vm.filteredGuests.length).toBe(4);
+    check().filter = "all";
+    expect(check().filteredGuests.length).toBe(4);
 
-    wrapper.setData({ filter: "ok" });
-    expect(wrapper.vm.filteredGuests.map((g) => g.name)).toEqual(["web01"]);
+    check().filter = "ok";
+    expect(check().filteredGuests.map((g) => g.name)).toEqual(["web01"]);
   });
 
   test("surfaces cluster errors and request failures", async () => {
@@ -102,7 +104,7 @@ describe("TelegrafCheckView.vue", () => {
     expect(wrapper.text()).toContain("broken: Failed to get Proxmox data");
 
     Helper.apiCall.mockRejectedValueOnce("Error 500: boom");
-    await wrapper.vm.loadGuests();
+    await check().load();
     await wrapper.vm.$nextTick();
     expect(wrapper.text()).toContain("Error 500: boom");
   });

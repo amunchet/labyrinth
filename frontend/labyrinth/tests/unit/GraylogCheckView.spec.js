@@ -2,6 +2,7 @@ import { config, mount } from "@vue/test-utils";
 import Vue from "vue";
 import BootstrapVue from "bootstrap-vue";
 import GraylogCheckView from "@/components/DiskSpace/GraylogCheckView.vue";
+import ProxmoxGuestCheck from "@/components/DiskSpace/ProxmoxGuestCheck.vue";
 import Helper from "@/helper";
 
 Vue.use(BootstrapVue);
@@ -73,6 +74,7 @@ const savedValue = (name) => {
 
 describe("GraylogCheckView.vue", () => {
   let wrapper;
+  const check = () => wrapper.findComponent(ProxmoxGuestCheck).vm;
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -93,18 +95,18 @@ describe("GraylogCheckView.vue", () => {
       "graylog-check",
       config.mocks["$auth"]
     );
-    expect(wrapper.vm.filteredGuests.map((g) => g.name)).toEqual([
+    expect(check().filteredGuests.map((g) => g.name)).toEqual([
       "db01",
       "cache01",
     ]);
     expect(wrapper.text()).toContain("rsyslog not running");
 
-    wrapper.setData({ filter: "deferred" });
-    expect(wrapper.vm.filteredGuests.map((g) => g.name)).toEqual(["app01"]);
+    check().filter = "deferred";
+    expect(check().filteredGuests.map((g) => g.name)).toEqual(["app01"]);
   });
 
   test("deferring a guest saves it with an expiry and drops expired entries", async () => {
-    const db01 = wrapper.vm.guests.find((g) => g.name === "db01");
+    const db01 = check().guests.find((g) => g.name === "db01");
     wrapper.vm.openDefer(db01);
     wrapper.setData({
       deferModal: { ...wrapper.vm.deferModal, days: 7, reason: " later " },
@@ -119,14 +121,14 @@ describe("GraylogCheckView.vue", () => {
   });
 
   test("permanent deferral has no expiry, and undefer removes it", async () => {
-    const cache01 = wrapper.vm.guests.find((g) => g.name === "cache01");
+    const cache01 = check().guests.find((g) => g.name === "cache01");
     wrapper.vm.openDefer(cache01);
     wrapper.setData({ deferModal: { ...wrapper.vm.deferModal, days: null } });
     await wrapper.vm.saveDeferral();
     expect(savedValue("proxmox_graylog_deferrals")[1].until).toBeNull();
 
     Helper.apiPost.mockClear();
-    const app01 = wrapper.vm.guests.find((g) => g.name === "app01");
+    const app01 = check().guests.find((g) => g.name === "app01");
     await wrapper.vm.removeDeferral(app01);
     expect(savedValue("proxmox_graylog_deferrals")).toEqual([]);
   });
