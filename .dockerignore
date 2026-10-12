@@ -1,8 +1,23 @@
-data/**
+# Only backend/ai/mcp/Dockerfile and cron/Dockerfile build from the repo root,
+# and they need just backend/ and cron/.  Everything else stays out of the build
+# context - in production the repo root also holds pgdata/ (the live Postgres
+# data directory), backups/, redis_data/ and node_modules, which made the
+# context gigabytes and the mcp build take hours.
+*
+!backend
+!cron
 
-# Never bake secrets into an image layer.  backend/ai/mcp/Dockerfile is the one
-# Dockerfile that COPYs the repo wholesale, so without this backend/.env - now
-# holding MCP_KEY as well as TELEGRAF_KEY - ends up baked into the mcp image.
-# The mcp service bind-mounts ./backend over /app/backend at runtime, so the
-# real .env is still there where it is needed.
+# Never bake secrets into an image layer.  backend/ai/mcp/Dockerfile COPYs
+# backend/ wholesale, so without this backend/.env - holding MCP_KEY as well as
+# TELEGRAF_KEY - ends up baked into the mcp image.  The mcp service bind-mounts
+# ./backend over /app/backend at runtime, so the real .env is still there.
 **/.env
+
+# Runtime data and build/test output - bind-mounted or regenerated, never needed
+# in an image
+backend/uploads
+backend/output-labyrinth
+backend/htmlcov
+**/__pycache__
+**/.coverage*
+**/.pytest_cache
