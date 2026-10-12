@@ -68,7 +68,7 @@ Labyrinth is a network analyzer, mapper, and monitor built on NMap, Ansible, and
 - `locations` docs are `{name, name_key, address, notes, racks: [{name, units}]}`; hosts, subnets and maps refer to a location by name, so renames cascade (`create_edit_location`), a rack sent with `previous_name` keeps its hosts, and deleting a location only unassigns. On Postgres it is a JSONB table registered in `_JSONB_TABLE_INDEXES`, and `migrate_to_postgres.py` copies it.
 - `POST /host/<key>/inventory` updates just the inventory fields (validating location/rack/uplink); the UI's drag-and-drop and the MCP use it.
 - `GET /inventory/` returns all hosts, each with a computed `_live` block (effective type, effective location + `location_source` = explicit / proxmox / subnet, last `alive` record, service summary from the judged dashboard, rolled-up `status`: up/down/error/warning/unknown/none), plus `locations` and the cached Proxmox node -> VM/LXC tree matched to hosts (explicit `proxmox_node`/`proxmox_vmid`, else short hostname). It only reads the Proxmox Redis cache, never the live API. `_live` is never persisted (`create_edit_host` drops it).
-- Maps are `dashboards` docs: `{name, location, background_image, default, placements: [{key, x, y}]}` with x/y as percentages of the image; images live in `/src/uploads/images`. `LocationMap.vue` renders/edits them (and converts maps from the old Konva editor, which stored `components` at pixel offsets by IP).
+- Maps are `dashboards` docs: `{name, location, background_image, default, placements: [{key, x, y}]}` with x/y as percentages of the image; images live in `/src/uploads/images` and are served only with the usual Authorization header (`GET /custom_dashboard_images/<file>`, read permission). Floor plans are not public, and an `<img src>` cannot send that header, so `LocationMap.vue` fetches each image with `Helper.apiBlob` and shows a blob URL; never put an access token in a URL (request logs keep it). `LocationMap.vue` renders/edits them (and converts maps from the old Konva editor, which stored `components` at pixel offsets by IP).
 
 ### AI summaries and MCP (`backend/ai/`)
 
@@ -138,6 +138,7 @@ docker-compose -f docker-compose-production.yml up --build -d
 **Authentication:**
 - Three permission levels: `PERM_READ`, `PERM_WRITE`, `PERM_ADMIN`, applied via `@requires_auth_read`/`@requires_auth_write`/`@requires_auth_admin` decorators (Auth0 JWT validation in `backend/common/auth.py`).
 - Telegraf metrics ingestion instead uses header auth (`requires_header`, checks `TELEGRAF_KEY`).
+- On an auth failure `_requires_auth` calls `error_func` with the failed route's URL arguments, so `error_func` must accept extra keyword arguments; otherwise every protected route with a URL parameter answers a missing/expired token with a 500 instead of 401/471.
 
 **Service/health-check model:**
 - `services` collection/table stores check/port monitoring configs; two service types: `"check"` (command execution) and `"port"` (TCP/UDP checks).

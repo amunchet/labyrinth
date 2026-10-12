@@ -9,8 +9,16 @@ jest.mock("@/helper", () => {
     apiCall: jest.fn(() => Promise.resolve([])),
     apiPost: jest.fn(() => Promise.resolve("Success")),
     apiDelete: jest.fn(() => Promise.resolve("Success")),
+    // Stands in for a Blob; URL.createObjectURL is stubbed below
+    apiBlob: jest.fn(() => Promise.resolve({ type: "image/png" })),
   };
 });
+
+// jsdom has no blob URLs
+global.URL.createObjectURL = jest.fn(() => "blob:map-image");
+global.URL.revokeObjectURL = jest.fn();
+
+const flushPromises = () => new Promise((resolve) => setImmediate(resolve));
 
 const device = (key, fields = {}, live = {}) => ({
   mac: key,
@@ -206,6 +214,44 @@ describe("LocationMap.vue", () => {
       "A map with that name already exists"
     );
     expect(wrapper.vm.nameProblem("Floor 2")).toBe("");
+  });
+
+  test("map images are fetched with the login and shown as blob URLs", async () => {
+    wrapper = mount({
+      all_maps: [{ ...floor, background_image: "floor 1.png" }],
+    });
+    expect(wrapper.find(".map-placeholder").text()).toBe(
+      "Loading floor plan..."
+    );
+
+    await flushPromises();
+    expect(Helper.apiBlob).toHaveBeenCalledTimes(1);
+    expect(Helper.apiBlob.mock.calls[0][0]).toBe(
+      "custom_dashboard_images/floor%201.png"
+    );
+    // The token goes in the request header, never in the image's URL
+    expect(wrapper.find("img.map-image").attributes("src")).toBe(
+      "blob:map-image"
+    );
+
+    // Each image is fetched once, and its blob URL released with the map
+    await wrapper.vm.loadImage("floor 1.png");
+    expect(Helper.apiBlob).toHaveBeenCalledTimes(1);
+    wrapper.destroy();
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:map-image");
+    wrapper = mount();
+  });
+
+  test("an image that cannot be loaded says so", async () => {
+    Helper.apiBlob.mockImplementationOnce(() =>
+      Promise.reject(new Error("HTTP error! Status: 401"))
+    );
+    wrapper = mount();
+    await flushPromises();
+    expect(wrapper.find(".map-placeholder").text()).toBe(
+      "The floor plan image could not be loaded."
+    );
+    expect(wrapper.vm.$store.commit).toHaveBeenCalled();
   });
 
   test("a server's marker flags problems on its VMs/LXCs", () => {

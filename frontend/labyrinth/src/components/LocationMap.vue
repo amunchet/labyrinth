@@ -132,53 +132,62 @@
           @dragover.prevent
           @drop.prevent="dropOnMap($event)"
         >
-          <img
-            ref="image"
-            :src="imageUrl(shown.background_image)"
-            class="map-image"
-            draggable="false"
-            @load="onImageLoad($event)"
-          />
-          <svg
-            class="map-links"
-            viewBox="0 0 100 100"
-            preserveAspectRatio="none"
-          >
-            <line
-              v-for="link in links"
-              :key="link.key"
-              :x1="link.x1"
-              :y1="link.y1"
-              :x2="link.x2"
-              :y2="link.y2"
-              :class="'link link-' + link.type + ' link-' + link.state"
-              vector-effect="non-scaling-stroke"
-            />
-          </svg>
-          <div
-            v-for="item in placed"
-            :key="item.device._live.key"
-            :class="
-              'marker status-' +
-              item.device._live.status +
-              (active_key == item.device._live.key ? ' active' : '')
-            "
-            :style="{ left: item.x + '%', top: item.y + '%' }"
-            :title="tooltip(item.device)"
-            :draggable="editing"
-            @dragstart="dragStart($event, item.device._live.key)"
-            @click="select(item.device)"
-          >
-            <span class="marker-icon">
-              <font-awesome-icon :icon="deviceIcon(item.device)" />
-              <span
-                v-if="guestProblems(item.device)"
-                class="guest-alert"
-                :title="guestProblems(item.device) + ' VM/LXC with problems'"
-              />
-            </span>
-            <span class="marker-label">{{ deviceName(item.device) }}</span>
+          <div v-if="!image_src" class="map-placeholder">
+            {{
+              image_src === null
+                ? "The floor plan image could not be loaded."
+                : "Loading floor plan..."
+            }}
           </div>
+          <template v-else>
+            <img
+              ref="image"
+              :src="image_src"
+              class="map-image"
+              draggable="false"
+              @load="onImageLoad($event)"
+            />
+            <svg
+              class="map-links"
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
+            >
+              <line
+                v-for="link in links"
+                :key="link.key"
+                :x1="link.x1"
+                :y1="link.y1"
+                :x2="link.x2"
+                :y2="link.y2"
+                :class="'link link-' + link.type + ' link-' + link.state"
+                vector-effect="non-scaling-stroke"
+              />
+            </svg>
+            <div
+              v-for="item in placed"
+              :key="item.device._live.key"
+              :class="
+                'marker status-' +
+                item.device._live.status +
+                (active_key == item.device._live.key ? ' active' : '')
+              "
+              :style="{ left: item.x + '%', top: item.y + '%' }"
+              :title="tooltip(item.device)"
+              :draggable="editing"
+              @dragstart="dragStart($event, item.device._live.key)"
+              @click="select(item.device)"
+            >
+              <span class="marker-icon">
+                <font-awesome-icon :icon="deviceIcon(item.device)" />
+                <span
+                  v-if="guestProblems(item.device)"
+                  class="guest-alert"
+                  :title="guestProblems(item.device) + ' VM/LXC with problems'"
+                />
+              </span>
+              <span class="marker-label">{{ deviceName(item.device) }}</span>
+            </div>
+          </template>
         </div>
 
         <div
@@ -275,6 +284,7 @@ export default {
       images: [],
       upload: null,
       image_size: null,
+      image_srcs: {},
       show_unplaced: false,
       active_key: "",
       statuses: Helper.deviceStatuses,
@@ -411,8 +421,20 @@ export default {
     active_device() {
       return this.device_map[this.active_key] || null;
     },
+    background_image() {
+      return this.shown ? this.shown.background_image : "";
+    },
+    image_src() {
+      return this.image_srcs[this.background_image];
+    },
   },
   watch: {
+    background_image: {
+      immediate: true,
+      handler(name) {
+        this.loadImage(name);
+      },
+    },
     upload: /* istanbul ignore next */ function (file) {
       if (file) {
         this.uploadImage(file);
@@ -425,17 +447,35 @@ export default {
       this.image_size = null;
     },
   },
+  beforeDestroy() {
+    Object.keys(this.image_srcs).forEach((name) => this.forgetImage(name));
+  },
   methods: {
     deviceIcon: Helper.deviceIcon,
     deviceName: Helper.deviceName,
-    imageUrl(name) {
-      return (
-        Helper.getURL() +
-        "custom_dashboard_images/" +
-        this.$auth.accessToken +
-        "/" +
-        encodeURIComponent(name)
-      );
+    async loadImage(name) {
+      // Map images need the Authorization header, which an <img src> cannot
+      // send: fetch each one once and show it through a blob URL
+      if (!name || name in this.image_srcs) {
+        return;
+      }
+      this.$set(this.image_srcs, name, "");
+      try {
+        let blob = await Helper.apiBlob(
+          "custom_dashboard_images/" + encodeURIComponent(name),
+          this.$auth
+        );
+        this.image_srcs[name] = URL.createObjectURL(blob);
+      } catch (e) {
+        this.image_srcs[name] = null;
+        this.$store.commit("updateError", e);
+      }
+    },
+    forgetImage(name) {
+      if (this.image_srcs[name]) {
+        URL.revokeObjectURL(this.image_srcs[name]);
+      }
+      this.$delete(this.image_srcs, name);
     },
     onImageLoad(event) {
       this.image_size = {
@@ -643,6 +683,8 @@ export default {
         // the same name when an existing image was replaced
         let added = this.images.filter((x) => before.indexOf(x) == -1);
         let uploaded = added.length == 1 ? added[0] : file.name;
+        this.forgetImage(uploaded);
+        this.loadImage(uploaded);
         if (this.draft && this.images.indexOf(uploaded) != -1) {
           this.draft.background_image = uploaded;
           await this.saveDraft();
@@ -668,6 +710,7 @@ export default {
       }
       try {
         await Helper.apiDelete("custom_dashboard_images", name, this.$auth);
+        this.forgetImage(name);
         this.draft.background_image = "";
         await this.saveDraft();
         await this.loadImages();
@@ -692,6 +735,11 @@ export default {
   border-radius: 0.5rem;
   overflow: hidden;
   background-color: #fafafa;
+}
+.map-placeholder {
+  padding: 4rem 1rem;
+  text-align: center;
+  color: #6c757d;
 }
 .map-image {
   display: block;

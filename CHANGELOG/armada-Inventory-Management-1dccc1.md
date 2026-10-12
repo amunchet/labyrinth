@@ -110,3 +110,13 @@ Merged master again (Proxmox QEMU ignore-list fix and the Ansible deploy
 hand-off). Its MCP tools, client methods, README section and Postgres tables
 were added at the same spots as this branch's; kept both. Backend suite passes
 on Postgres (2 environment-only Alertmanager failures), frontend 208 tests.
+
+## 2026-10-12 14:02 CDT (19:02 UTC)
+Map images (building floor plans) were served to anyone: the image route took
+an access token in its URL but never checked it, so any string worked. It now
+requires a logged-in user via the usual Authorization header, and the
+token-in-the-URL form is gone, so no token ends up in request logs. The map
+fetches its image with that header and shows it through a blob URL, with a
+placeholder while it loads or if it fails. Also fixed the shared auth error
+handler: protected routes with URL parameters answered a missing or expired
+token with a 500 instead of 401/471.

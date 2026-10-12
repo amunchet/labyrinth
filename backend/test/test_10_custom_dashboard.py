@@ -143,6 +143,28 @@ def test_image_upload(setup):
     assert not os.path.exists("/src/uploads/images/floorplan.jpg")
 
 
+def test_images_need_a_login(setup):
+    """
+    Map images (building floor plans) are only served to logged-in users
+        - The token travels in the Authorization header; image URLs never carry one
+    """
+    assert (
+        unwrap(serve.custom_dashboard_image_upload)(override="floorplan.jpg")[1] == 200
+    )
+
+    client = serve.app.test_client()
+    assert client.get("/custom_dashboard_images/floorplan.jpg").status_code == 401
+    # The old token-in-the-path form accepted any string; it is gone
+    a = client.get("/custom_dashboard_images/any-token/floorplan.jpg")
+    assert a.status_code == 404
+
+    with serve.app.test_request_context():
+        a = unwrap(serve.custom_dashboard_return_image)("floorplan.jpg")
+        assert a.status_code == 200 and a.mimetype == "image/jpeg"
+        a.close()
+        assert unwrap(serve.custom_dashboard_return_image)("../../etc/passwd")[1] == 404
+
+
 def test_images_list(setup):
     """
     Lists all uploaded images

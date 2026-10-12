@@ -209,7 +209,10 @@ PERM_ADMIN = "admin"
 
 
 @app.route("/error/<int:code>")
-def error_func(code=401, msg="", command=""):  # pragma: no cover
+def error_func(code=401, msg="", **route_args):  # pragma: no cover
+    # _requires_auth passes along the failed route's URL arguments (e.g. a
+    # host or file name); without accepting them, any parameterised route
+    # answered a missing or expired token with a 500 instead of 401/471
     if isinstance(code, int):
         return "Auth Error {} - {}".format(code, msg), code
     return "Auth Error", 500
@@ -2193,10 +2196,14 @@ def custom_dashboard_list_images():
     return json.dumps([]), 200
 
 
-@app.route("/custom_dashboard_images/<override_token>/<filename>")
-def custom_dashboard_return_image(override_token, filename):
+@app.route("/custom_dashboard_images/<filename>", methods=["GET"])
+@requires_auth_read
+def custom_dashboard_return_image(filename):
     """
-    Returns a specific image file
+    Returns a map image (floor plans are not public)
+        - Authenticated by the usual Authorization header: the UI fetches the
+          image and shows it through a blob URL, so no token is put in a URL
+          (where request logs and caches would keep it)
     """
     filename = secure_filename(filename)
     if os.path.exists("/src/uploads/images") and filename in os.listdir(
