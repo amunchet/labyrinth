@@ -36,3 +36,21 @@ For all running VMs and LXCs on Proxmox hosts, checks whether rsyslog and Telegr
 - Does `/etc/rsyslog.conf` exist?
 - Is the `telegraf` process running?
 - Does `/etc/telegraf/telegraf.conf` exist and contain configuration sections?
+
+---
+
+## install_check_graylog.yml
+
+Installs `samples/telegraf/check_graylog.sh`, the Telegraf exec check behind the Proxmox **Graylog Check** tab.
+
+**Steps:**
+1. Run this playbook against the guests (Deploy to Tag, or a host group).
+2. Add the `[[inputs.exec]]` block from the top of the playbook to each host's Telegraf config in Labyrinth.
+
+**What the check reports (`check_graylog` metric):**
+- `ok` - 1 when everything below passes
+- `installed` / `active` - rsyslog installed and running
+- `forwarding` - rsyslog forwards to a target (the one given as an argument / `$GRAYLOG_TARGET`, else any)
+- `target_reachable` - TCP connect succeeds (UDP targets only need to resolve)
+- `suspended` - rsyslog's last forwarding action log line is "suspended"
+- `status` - human-readable first failure, or `ok`
