@@ -195,6 +195,16 @@ def _collect_vm_issues(node, cluster_name, host, node_name, threshold_percent):
         #     threshold so a whole cluster doesn't look "clean" just because
         #     its VMs stopped being measurable.
         if vm.get("qemu_guest_agent_warning_inferred"):
+            # Explicit opt-out from Settings (proxmox_qemu_agent_ignore_vms):
+            # this guest's agent is known to be missing or unreliable, so the
+            # warning is expected and must not generate an email. This check
+            # must come before the last-known-good fallback below - a guest
+            # whose agent only answers occasionally (e.g. Home Assistant OS)
+            # does have a cached reading, and alerting on it would bypass the
+            # opt-out.
+            if vm.get("qemu_guest_agent_ignored"):
+                continue
+
             last_known_good = vm.get("_last_known_good_disk")
 
             if last_known_good and last_known_good.get("total"):
@@ -220,14 +230,6 @@ def _collect_vm_issues(node, cluster_name, host, node_name, threshold_percent):
                             "stale_reading": True,
                         }
                     )
-                continue
-
-            # Explicit opt-out from Settings (proxmox_qemu_agent_ignore_vms):
-            # this guest is known not to run the QEMU agent, so the warning
-            # is expected and must not generate an email. Nothing else about
-            # the VM is checked either - with disk reported as 0 there is no
-            # usable measurement to threshold against.
-            if vm.get("qemu_guest_agent_ignored"):
                 continue
 
             # Distinguish a genuinely missing/non-functional guest agent from

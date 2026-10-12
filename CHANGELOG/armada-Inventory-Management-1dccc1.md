@@ -104,3 +104,9 @@ Locations page polish found while building the look-and-feel preview: location
 notes no longer pick up the template's indentation (they are rendered with
 `white-space: pre-wrap`), and on phones the location pills and Map/Racks/Devices
 tabs stay plain instead of inheriting App.vue's global mobile navbar-tile style.
+
+## 2026-10-12 13:44 CDT (18:44 UTC)
+Merged master again (Proxmox QEMU ignore-list fix and the Ansible deploy
+hand-off). Its MCP tools, client methods, README section and Postgres tables
+were added at the same spots as this branch's; kept both. Backend suite passes
+on Postgres (2 environment-only Alertmanager failures), frontend 208 tests.

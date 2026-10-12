@@ -1977,6 +1977,46 @@ def test_collect_disk_issues_skips_ignored_missing_qemu_agent_vm():
     assert vms[1]["qemu_guest_agent_ignored"] is False
 
 
+def test_collect_disk_issues_skips_ignored_vm_with_stale_over_threshold_reading():
+    """An ignored VM whose agent only answers occasionally has a cached
+    last-known-good reading. A zero read this cycle must not resurface it
+    through the stale-reading fallback, or the opt-out is bypassed."""
+    helper = proxmox_disk_check.proxmox_helper
+    cluster_data = {
+        "cluster_name": "cluster-a",
+        "host": "10.1.1.1",
+        "nodes": [
+            {
+                "name": "pve5",
+                "storage": [],
+                "vms": [
+                    {
+                        "id": 118,
+                        "name": "haos-18.2",
+                        "status": "running",
+                        "maxdisk": 1000,
+                        "disk": 0,
+                        "qemu_guest_agent_installed": True,
+                        "qemu_guest_agent_warning_inferred": True,
+                        "_last_known_good_disk": {"used": 990, "total": 1000},
+                    }
+                ],
+                "containers": [],
+            }
+        ],
+    }
+
+    issues = proxmox_disk_check.collect_disk_issues(
+        cluster_data,
+        threshold_percent=80,
+        qemu_agent_ignore_list=helper.parse_qemu_agent_ignore_list(
+            "MacOS-Monterey\nhaos-18.2\nroboguide\nHACK-SEQUOIA"
+        ),
+    )
+
+    assert issues == []
+
+
 def test_collect_disk_issues_ignore_list_does_not_hide_real_disk_usage():
     """Ignoring the QEMU warning must not suppress a genuine over-threshold
     reading for the same VM if one is available (e.g. agent came back)."""

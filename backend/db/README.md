@@ -92,7 +92,8 @@ to add support for it in `PostgresCollectionAdapter._translate_filter` /
 `ValueError` otherwise, not silently do the wrong thing.
 
 Schema: every JSONB-flexible collection (`hosts`, `subnets`, `services`,
-`settings`, `proxmox_clusters`, `aws_accounts`, `themes`, `dashboards`) is a
+`settings`, `proxmox_clusters`, `aws_accounts`, `themes`, `dashboards`,
+`ai_chat_sessions`, `ansible_runs`, `ansible_requests`) is a
 table shaped `(id TEXT PRIMARY KEY, seq BIGSERIAL, data JSONB)`. `metrics`
 (a TimescaleDB hypertable) and `metrics-latest` have typed columns instead
 (`ts`, `name`, `tags`, `fields`). Schema bootstrap runs eagerly at
