@@ -98,6 +98,22 @@ def close_shared_client():
 atexit.register(close_shared_client)
 
 
+def _forget_shared_client():
+    """Drop, without closing, a client inherited across fork().
+
+    Background jobs (ansible runs) are forked from a worker that
+    may already hold a pool. Its sockets belong to the parent, so the child must
+    not use them - or close them, which would end the parent's sessions too.
+    The child builds its own client on first use instead.
+    """
+    global _shared_client, _shared_lock
+    _shared_client = None
+    _shared_lock = threading.Lock()
+
+
+os.register_at_fork(after_in_child=_forget_shared_client)
+
+
 class _LazyClient(base.Client):
     """Proxy that resolves to the shared client on first actual use.
 

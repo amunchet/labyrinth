@@ -1422,11 +1422,23 @@ def save_ansible_file(fname, inp_data="", vars_file=""):
 
 # Ansible runner
 
+# Cap on stored log characters per run, keeping the tail (the play recap lives there)
+ANSIBLE_LOG_LIMIT = 1_000_000
+
+
+def utc_now():
+    """Current UTC time as an ISO string, the format stored on ansible runs/requests."""
+    return datetime.datetime.now(datetime.timezone.utc).isoformat()
+
 
 def run_ansible_background(job_id, data):
-    """Run Ansible in the background and store results in Redis."""
+    """Run Ansible in the background, streaming logs to Redis and recording the outcome in `ansible_runs`."""
     redis_client = redis.Redis(host=os.environ.get("REDIS_HOST"))
     RUN_DIR = None
+    results = []
+    failures = []
+    stats = None
+    final = {}
     try:
         RUN_DIR, playbook = ansible_helper.run_ansible(
             data["hosts"],
@@ -1437,6 +1449,10 @@ def run_ansible_background(job_id, data):
             totp_file=data.get("totp_file", ""),
         )
         redis_client.hset(job_id, "status", "running")
+        db["labyrinth"]["ansible_runs"].update_one(
+            {"job_id": job_id},
+            {"$set": {"status": "running", "started_at": utc_now()}},
+        )
         thread, runner = ansible_runner.run_async(
             private_data_dir=RUN_DIR,
             playbook=f"{playbook}.yml",
@@ -1444,33 +1460,113 @@ def run_ansible_background(job_id, data):
             quiet=True,
         )
 
-        results = []
         while thread.is_alive():
             for event in runner.events:
                 stdout = event.get("stdout", "")
                 if stdout:
                     results.append(stdout)
                     redis_client.rpush(f"{job_id}_log", stdout)
+
+                event_data = event.get("event_data", {})
+                if event.get("event") in (
+                    "runner_on_failed",
+                    "runner_on_unreachable",
+                ) and not event_data.get("ignore_errors"):
+                    res = event_data.get("res", {})
+                    failures.append(
+                        {
+                            "host": event_data.get("host"),
+                            "task": event_data.get("task"),
+                            "event": event["event"],
+                            "msg": str(res.get("msg") or res.get("stderr") or "")[
+                                :2000
+                            ],
+                        }
+                    )
+                elif event.get("event") == "playbook_on_stats":
+                    stats = {
+                        key: event_data.get(key, {})
+                        for key in (
+                            "ok",
+                            "changed",
+                            "failures",
+                            "dark",
+                            "skipped",
+                            "rescued",
+                            "ignored",
+                        )
+                    }
             time.sleep(0.1)
 
         redis_client.hset(job_id, "status", "completed")
         redis_client.hset(job_id, "results", json.dumps(results))
 
+        # No recap means the play never really ran (syntax error, vault failure, etc.)
+        succeeded = stats is not None and not stats["failures"] and not stats["dark"]
+        final = {"status": "completed", "outcome": "success" if succeeded else "failed"}
+
     except Exception as e:
         redis_client.hset(job_id, "status", "error")
         redis_client.hset(job_id, "error", str(e))
+        final = {"status": "error", "outcome": "failed", "error": str(e)}
 
     finally:
+        # Credentials first, so a database outage below can't leave them on disk
         if RUN_DIR and "vault.pass" in os.listdir(RUN_DIR):
             os.remove(f"{RUN_DIR}/vault.pass")
         if RUN_DIR:
             shutil.rmtree(RUN_DIR)
 
+        logs = []
+        size = 0
+        for line in reversed(results):
+            size += len(line)
+            if size > ANSIBLE_LOG_LIMIT:
+                break
+            logs.append(line)
+        logs.reverse()
+
+        db["labyrinth"]["ansible_runs"].update_one(
+            {"job_id": job_id},
+            {
+                "$set": {
+                    **final,
+                    "finished_at": utc_now(),
+                    "stats": stats,
+                    "failures": failures,
+                    "logs": logs,
+                    "logs_truncated": len(logs) < len(results),
+                }
+            },
+        )
+
+
+def start_ansible_job(job_id, data):
+    """Queue a run: Redis status for live polling, an `ansible_runs` record, then the background process."""
+    redis.Redis(host=os.environ.get("REDIS_HOST")).hset(job_id, "status", "queued")
+
+    hosts = data["hosts"]
+    if isinstance(hosts, str):
+        hosts = [x.strip() for x in hosts.split(",") if x.strip()]
+    db["labyrinth"]["ansible_runs"].insert_one(
+        {
+            "job_id": job_id,
+            "request_id": data.get("request_id", ""),
+            "playbook": data["playbook"],
+            "hosts": hosts,
+            "become_file": data["become_file"],
+            "status": "queued",
+            "created_at": utc_now(),
+        }
+    )
+
+    process = Process(target=run_ansible_background, args=(job_id, data))
+    process.start()
+
 
 @app.route("/ansible_runner/", methods=["POST"])
 @requires_auth_admin
 def run_ansible_endpoint(inp_data=""):
-    redis_client = redis.Redis(host=os.environ.get("REDIS_HOST"))
     if inp_data:
         data = inp_data
     else:  # pragma: no cover
@@ -1484,11 +1580,7 @@ def run_ansible_endpoint(inp_data=""):
         return "Invalid data", 482
 
     job_id = f"ansible_job_{uuid.uuid4()}"
-    redis_client.hset(job_id, "status", "queued")
-
-    # Start the process
-    process = Process(target=run_ansible_background, args=(job_id, data))
-    process.start()
+    start_ansible_job(job_id, data)
 
     return {"job_id": job_id, "status": "started"}, 200
 
@@ -1516,6 +1608,184 @@ def get_ansible_status(job_id):
             else ""
         ),
     }, 200
+
+
+@app.route("/ansible_runs/")
+@app.route("/ansible_runs/<int:limit>")
+@requires_auth_admin
+def list_ansible_runs(limit=25):
+    """Recent ansible runs, newest first, without their logs."""
+    runs = db["labyrinth"]["ansible_runs"].find({}).sort("created_at", -1).limit(limit)
+    return (
+        json.dumps(
+            [{k: v for k, v in x.items() if k not in ("_id", "logs")} for x in runs]
+        ),
+        200,
+    )
+
+
+@app.route("/ansible_run/<job_id>")
+@requires_auth_admin
+def get_ansible_run(job_id):
+    """Full record of one ansible run; unfinished runs carry their live Redis log."""
+    run = db["labyrinth"]["ansible_runs"].find_one({"job_id": job_id})
+    if not run:
+        return "Run not found", 404
+    run.pop("_id", None)
+
+    if run["status"] in ("queued", "running"):
+        redis_client = redis.Redis(host=os.environ.get("REDIS_HOST"))
+        run["logs"] = [
+            x.decode("utf-8") for x in redis_client.lrange(f"{job_id}_log", 0, -1)
+        ]
+    return json.dumps(run), 200
+
+
+@app.route("/ansible_request/", methods=["POST"])
+@requires_auth_admin
+def create_ansible_request(inp_data=""):
+    """
+    Stages a deployment (hosts, playbook, become file) for a human to launch from
+    the Deploy page with just the vault password.  An optional `playbook_content`
+    carries an AI-generated playbook, held to the same rules as AI chat drafts and
+    saved only when the human deploys it.
+    """
+    if inp_data:
+        data = inp_data
+    else:  # pragma: no cover
+        data = request.form.get("data")
+        if not data:
+            return "Invalid data", 481
+    data = json.loads(data)
+
+    playbook = secure_filename(data.get("playbook", "")).replace(".yml", "")
+    become_file = secure_filename(data.get("become_file", "")).replace(".yml", "")
+    hosts = data.get("hosts", [])
+    if isinstance(hosts, str):
+        hosts = [x.strip() for x in hosts.split(",") if x.strip()]
+    content = data.get("playbook_content", "")
+
+    if not playbook or not become_file or not hosts:
+        return "playbook, become_file and hosts are required", 482
+
+    if "{}.yml".format(become_file) not in os.listdir("/src/uploads/become"):
+        return "Become file not found: {}".format(escape(become_file)), 483
+
+    requests = db["labyrinth"]["ansible_requests"]
+    playbook_exists = "{}.yml".format(playbook) in os.listdir("/src/uploads/ansible")
+    if content:
+        error = ansible_helper.validate_ai_playbook(content, forbidden_hosts=hosts)
+        if error:
+            return error, 471
+        # Generated content may replace an earlier generated playbook, never a human one
+        if playbook_exists and not requests.find_one(
+            {"playbook": playbook, "generated": True}
+        ):
+            return (
+                "Playbook {} already exists; choose a new name".format(
+                    escape(playbook)
+                ),
+                409,
+            )
+    elif not playbook_exists:
+        return "Playbook not found: {}".format(escape(playbook)), 484
+
+    request_id = str(uuid.uuid4())
+    requests.insert_one(
+        {
+            "request_id": request_id,
+            "playbook": playbook,
+            "playbook_content": content,
+            "generated": bool(content),
+            "hosts": hosts,
+            "become_file": become_file,
+            "ssh_key": data.get("ssh_key", ""),
+            "totp_file": data.get("totp_file", ""),
+            "notes": data.get("notes", ""),
+            "created_at": utc_now(),
+        }
+    )
+    return {"request_id": request_id, "path": f"/deploy?request={request_id}"}, 200
+
+
+@app.route("/ansible_request/<request_id>")
+@requires_auth_admin
+def get_ansible_request(request_id):
+    """A staged deployment along with summaries of the runs launched from it."""
+    found = db["labyrinth"]["ansible_requests"].find_one({"request_id": request_id})
+    if not found:
+        return "Request not found", 404
+    found.pop("_id", None)
+
+    runs = (
+        db["labyrinth"]["ansible_runs"]
+        .find({"request_id": request_id})
+        .sort("created_at", 1)
+    )
+    found["runs"] = [
+        {k: v for k, v in x.items() if k not in ("_id", "logs")} for x in runs
+    ]
+    return json.dumps(found), 200
+
+
+@app.route("/ansible_request/<request_id>/deploy", methods=["POST"])
+@requires_auth_admin
+def deploy_ansible_request(request_id, inp_data=""):
+    """
+    Launches a staged deployment; the human supplies only the vault password.
+    Generated content is saved server-side first, so what runs is exactly what
+    was staged and reviewed.
+    """
+    if inp_data:
+        data = inp_data
+    else:  # pragma: no cover
+        data = request.form.get("data")
+        if not data:
+            return "Invalid data", 481
+    data = json.loads(data)
+    if not data.get("vault_password"):
+        return "Vault password required", 482
+
+    staged = db["labyrinth"]["ansible_requests"].find_one({"request_id": request_id})
+    if not staged:
+        return "Request not found", 404
+
+    if staged["playbook_content"]:
+        try:
+            result = ansible_helper.persist_reviewed_playbook(
+                staged["playbook"],
+                staged["playbook_content"],
+                staged["become_file"],
+                forbidden_hosts=staged["hosts"],
+            )
+        except (ValueError, OSError):
+            return "Unable to save the staged playbook", 482
+        if not result[0]:
+            return (
+                json.dumps(
+                    {
+                        "error": "Playbook validation failed",
+                        "stdout": str(result[1]),
+                        "stderr": str(result[2]),
+                    }
+                ),
+                471,
+            )
+
+    job_id = f"ansible_job_{uuid.uuid4()}"
+    start_ansible_job(
+        job_id,
+        {
+            "request_id": request_id,
+            "hosts": staged["hosts"],
+            "playbook": staged["playbook"],
+            "vault_password": data["vault_password"],
+            "become_file": staged["become_file"],
+            "ssh_key": staged.get("ssh_key", ""),
+            "totp_file": data.get("totp_file") or staged.get("totp_file", ""),
+        },
+    )
+    return {"job_id": job_id, "status": "started"}, 200
 
 
 @app.route("/mac/<old_mac>/<new_mac>/")

@@ -157,6 +157,78 @@ async def mcp_read_metrics(
     return client.get_metrics(host_key, service, count)
 
 
+@app.tool()
+async def mcp_list_playbooks() -> List[str]:
+    """List saved Ansible playbooks (filenames) available on the Deploy page."""
+    return client.list_files("ansible")
+
+
+@app.tool()
+async def mcp_get_playbook(name: str) -> str:
+    """Read the YAML contents of a saved Ansible playbook."""
+    return client.get_playbook(name)
+
+
+@app.tool()
+async def mcp_list_become_files() -> List[str]:
+    """List the vault-encrypted become/credential files a deployment can use."""
+    return client.list_files("become")
+
+
+@app.tool()
+async def mcp_prepare_deployment(
+    hosts: str,
+    playbook: str,
+    become_file: str,
+    playbook_content: str = "",
+    ssh_key: str = "",
+    notes: str = "",
+) -> Dict[str, Any]:
+    """
+    Stage an Ansible deployment and return a deep link to the Deploy page.
+
+    hosts: comma-separated IPs or MACs.  playbook: playbook name (without .yml).
+    become_file: one of mcp_list_become_files.  playbook_content: optional new
+    playbook YAML, saved under `playbook` only when the human deploys.  It must
+    use `hosts: all` (targets come from `hosts`, never the YAML), must not set
+    vars_files or any password, and may not reuse the name of a playbook a
+    human wrote (an earlier generated one is fine).  Nothing runs until a human
+    opens deploy_url and enters the vault password.  Read results back with
+    mcp_get_deployment_request / mcp_get_deployment.
+    """
+    return client.prepare_deployment(
+        {
+            "hosts": [x.strip() for x in hosts.split(",") if x.strip()],
+            "playbook": playbook,
+            "become_file": become_file,
+            "playbook_content": playbook_content,
+            "ssh_key": ssh_key,
+            "notes": notes,
+        }
+    )
+
+
+@app.tool()
+async def mcp_get_deployment_request(request_id: str) -> Dict[str, Any]:
+    """A staged deployment plus summaries (status, outcome, stats, failures) of runs launched from it."""
+    return client.get_deployment_request(request_id)
+
+
+@app.tool()
+async def mcp_list_deployments(limit: int = 25) -> List[Dict[str, Any]]:
+    """Recent Ansible runs, newest first, without logs."""
+    return client.list_deployments(limit)
+
+
+@app.tool()
+async def mcp_get_deployment(job_id: str, log_tail: int = 200) -> Dict[str, Any]:
+    """
+    Full result of one Ansible run: status, outcome, per-host stats, failed tasks,
+    and the last `log_tail` log lines (0 for all).  Running jobs include live logs.
+    """
+    return client.get_deployment(job_id, log_tail)
+
+
 def create_http_app():
     """
     Build the ASGI application uvicorn serves.

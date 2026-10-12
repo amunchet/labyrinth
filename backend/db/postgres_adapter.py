@@ -40,6 +40,8 @@ _JSONB_TABLE_INDEXES = {
     "aws_accounts": [("name", False)],
     "themes": [("name", False)],
     "dashboards": [("name", False)],
+    "ansible_runs": [("job_id", False), ("request_id", False), ("created_at", False)],
+    "ansible_requests": [("request_id", False), ("playbook", False)],
 }
 
 _METRICS_TABLES = ("metrics", "metrics_latest")

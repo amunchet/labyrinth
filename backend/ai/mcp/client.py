@@ -4,6 +4,7 @@ host/service/metric tools of the standalone MCP server (mcp/server.py).
 """
 
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -110,3 +111,46 @@ class LabyrinthClient:
         if status != 200:
             raise RuntimeError(f"read_metrics failed with status {status}")
         return json.loads(raw)
+
+    def list_files(self, file_type: str) -> List[str]:
+        raw, status = unwrap(serve.list_directory)(file_type)
+        if status != 200:
+            raise RuntimeError(f"list_directory failed with status {status}")
+        return json.loads(raw)
+
+    def get_playbook(self, name: str) -> str:
+        raw, _ = unwrap(serve.get_ansible_file)(name)
+        return raw
+
+    def prepare_deployment(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        # Hosts may be given as MACs; the deploy page and inventory want IPs
+        hosts = []
+        for key in data["hosts"]:
+            host = self.get_host(key)
+            hosts.append(host["ip"] if host and host.get("ip") else key)
+        data["hosts"] = hosts
+
+        raw, status = unwrap(serve.create_ansible_request)(json.dumps(data))
+        if status != 200:
+            raise RuntimeError(f"create_ansible_request failed ({status}): {raw}")
+        base = os.environ.get("LABYRINTH_URL", "").rstrip("/")
+        return {**raw, "hosts": hosts, "deploy_url": base + raw["path"]}
+
+    def get_deployment_request(self, request_id: str) -> Dict[str, Any]:
+        raw, status = unwrap(serve.get_ansible_request)(request_id)
+        if status != 200:
+            raise ValueError("Deployment request not found")
+        return json.loads(raw)
+
+    def list_deployments(self, limit: int = 25) -> List[Dict[str, Any]]:
+        raw, _ = unwrap(serve.list_ansible_runs)(limit)
+        return json.loads(raw)
+
+    def get_deployment(self, job_id: str, log_tail: int = 200) -> Dict[str, Any]:
+        raw, status = unwrap(serve.get_ansible_run)(job_id)
+        if status != 200:
+            raise ValueError("Deployment run not found")
+        run = json.loads(raw)
+        if log_tail > 0:
+            run["logs"] = run.get("logs", [])[-log_tail:]
+        return run

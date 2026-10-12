@@ -44,6 +44,8 @@ Environment variables:
 - `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` (when `DB_BACKEND=postgres`)
 - `MONGO_HOST`, `MONGO_USERNAME`, `MONGO_PASSWORD` (when `DB_BACKEND=mongo`)
 - `REDIS_HOST`
+- `LABYRINTH_URL` - public base URL of the Labyrinth UI (e.g. `https://labyrinth.example.com`), used to build Deploy page deep links; without it links are relative (`/deploy?request=...`)
+- The container mounts `backend/uploads` read-only at `/src/uploads` so it can read playbooks and become files
 
 `server.py` loads `backend/.env` explicitly before importing `serve`, so in
 production `MCP_KEY` and the Mongo credentials can live there alongside
@@ -197,6 +199,24 @@ which `common/auth.py` requires at import) as `-e` flags.
 
 ### Metrics
 - `mcp_read_metrics(host_key, service, count)` - Read latest metrics for a host
+
+### Ansible Deployments
+- `mcp_list_playbooks` / `mcp_get_playbook(name)` - List / read saved playbooks
+- `mcp_list_become_files` - List vault-encrypted become files a deployment can use
+- `mcp_prepare_deployment(hosts, playbook, become_file, playbook_content, ssh_key, notes)` - Stage a deployment and get a `deploy_url` deep link
+- `mcp_get_deployment_request(request_id)` - A staged deployment plus the runs launched from it
+- `mcp_list_deployments(limit)` - Recent runs, newest first (no logs)
+- `mcp_get_deployment(job_id, log_tail)` - One run's status, outcome, per-host stats, failed tasks and log tail
+
+The MCP server never runs playbooks itself. The intended hand-off is:
+
+1. The agent writes a playbook and calls `mcp_prepare_deployment` with the target hosts (IPs or MACs), a playbook name, a become file, and optionally the generated `playbook_content`. Generated content must pass `ansible_helper.validate_ai_playbook`: `hosts: all`/`clients` only, no `vars_files`, no cleartext passwords, no target hosts embedded in the YAML. It may replace an earlier *generated* playbook of the same name, never one a human wrote.
+2. A human opens the returned `deploy_url`. The Deploy page shows a "Prepared Deployment" card with the hosts, become file, notes and the playbook for review, and asks only for the vault password. On Deploy, the backend saves the staged content (become file attached to `vars_files`, checked with `ansible-playbook --check`) and starts the run, so what runs is exactly what was staged.
+3. The agent polls `mcp_get_deployment_request(request_id)` until a run shows `status` `completed`/`error`, then reads `mcp_get_deployment(job_id)` for failures and logs.
+
+Every run (Deploy page or MCP-staged) is recorded in the `ansible_runs` collection/table: `status` (`queued`/`running`/`completed`/`error`), `outcome` (`success` only when the play recap shows no failed or unreachable hosts), `stats`, `failures`, and the log tail (capped at ~1MB). Staged deployments live in `ansible_requests`. Vault passwords are never stored.
+
+Deploy deep links also work without staging: `/deploy?ips=10.0.0.5,10.0.0.6&playbook=<name>&become=<file>[&ssh=<key>]`. The Deploy page has a "Copy deploy link" button that builds one from the current selection.
 
 ## Host Schema
 
