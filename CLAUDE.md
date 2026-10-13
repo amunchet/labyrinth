@@ -140,6 +140,9 @@ docker-compose -f docker-compose-production.yml up --build -d
 - Telegraf metrics ingestion instead uses header auth (`requires_header`, checks `TELEGRAF_KEY`).
 - On an auth failure `_requires_auth` calls `error_func` with the failed route's URL arguments, so `error_func` must accept extra keyword arguments; otherwise every protected route with a URL parameter answers a missing/expired token with a 500 instead of 401/471.
 
+**Error responses:**
+- Never put a submitted value or a caught exception's text into a response. Flask sends a returned string as `text/html`, so echoing input is reflected XSS (CodeQL `py/reflective-xss`, Sonar S5131), and `str(e)` is flagged as stack-trace exposure. Return fixed text that says what is allowed instead; validators such as `_clean_inventory_fields` return a message rather than raising.
+
 **Service/health-check model:**
 - `services` collection/table stores check/port monitoring configs; two service types: `"check"` (command execution) and `"port"` (TCP/UDP checks).
 - Judging logic lives in `backend/metrics.py` (`judge()`, `judge_check()`, `judge_port()`).

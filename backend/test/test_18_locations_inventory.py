@@ -358,6 +358,33 @@ def test_update_host_inventory(setup):
     assert not {"location", "uplink"} & set(get_host("AA"))
 
 
+def test_inventory_errors_never_echo_input(setup):
+    """
+    Rejected values are not repeated in the (text/html) error response, which
+    would be reflected XSS, but the response still says what is allowed
+    """
+    make_location("Plant", racks=[{"name": "Rack A"}])
+    make_host(ip="10.0.0.5", mac="AA")
+    evil = "<script>alert(1)</script>"
+
+    for data in [
+        {"location": evil},
+        {"location": "Plant", "rack": evil},
+        {"uplink": evil},
+        {"link_type": evil},
+        {"rack_unit": evil},
+    ]:
+        body, code = unwrap(serve.update_host_inventory)("AA", data)
+        assert code in (404, 407) and evil not in body, data
+
+    body, code = unwrap(serve.update_host_inventory)("AA", {evil: "x"})
+    assert code == 407 and evil not in body and "device_type" in body
+
+    host = {"ip": "10.0.0.6", "mac": "BB", "subnet": "10.0.0", "device_type": evil}
+    body, code = unwrap(serve.create_edit_host)(host)
+    assert code == 407 and evil not in body and "server" in body
+
+
 def test_delete_host_cleans_references(setup):
     """Deleting a device drops uplinks and map placements that pointed at it"""
     make_host(ip="10.0.0.1", mac="CORE", device_type="switch")

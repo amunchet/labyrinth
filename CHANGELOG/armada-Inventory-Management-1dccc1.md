@@ -120,3 +120,12 @@ fetches its image with that header and shows it through a blob URL, with a
 placeholder while it loads or if it fails. Also fixed the shared auth error
 handler: protected routes with URL parameters answered a missing or expired
 token with a 500 instead of 401/471.
+
+## 2026-10-13 01:45 CDT (06:45 UTC)
+Merged master (Proxmox Telegraf/Graylog guest checks). Fixed the code-scanning
+alerts on PR #74: the inventory update and host save routes echoed submitted
+values (location, rack, uplink, field names, device/link type) back in their
+error text, which Flask sends as text/html (reflected XSS), and returned
+exception text. Errors are now fixed text that says what is allowed, and
+inventory validation returns a message instead of raising. The UI never showed
+these messages; MCP agents get the new wording.

@@ -480,10 +480,9 @@ def create_edit_host(inp=""):
     else:  # pragma: no cover
         return "Invalid data", 443
 
-    try:
-        _clean_inventory_fields(host)
-    except ValueError as e:
-        return str(e), 407
+    problem = _clean_inventory_fields(host)
+    if problem:
+        return problem, 407
 
     # Computed by /inventory/; a client saving a device back must not persist it
     host.pop("_live", None)
@@ -2268,6 +2267,10 @@ def custom_dashboard_image_upload(override=""):
 # devices such as unmanaged switches, may carry the optional fields below.  A
 # location is a site/building (with optional racks); hosts, subnets and maps
 # (custom dashboards) refer to it by name.
+#
+# Error responses here are fixed text: Flask sends a returned string as
+# text/html, so echoing a submitted value back would be reflected XSS, and
+# exception text is never returned either.
 
 INVENTORY_FIELDS = {
     "device_type": str,
@@ -2310,7 +2313,8 @@ LINK_TYPES = ["ethernet", "fiber", "wireless", "vpn"]
 def _clean_inventory_fields(doc):
     """
     Coerces any inventory fields in `doc` to their types in place and drops
-    blank ones, so the rack/map views can trust them.  Raises ValueError.
+    blank ones, so the rack/map views can trust them.  Returns what is wrong
+    with the first invalid field, or None.
     """
     for field, kind in INVENTORY_FIELDS.items():
         if field not in doc:
@@ -2325,13 +2329,13 @@ def _clean_inventory_fields(doc):
         try:
             value = kind(value)
         except (TypeError, ValueError):
-            raise ValueError("{} must be a whole number".format(field))
+            return "{} must be a whole number".format(field)
         if field == "device_type" and value not in DEVICE_TYPES:
-            raise ValueError("Unknown device type: {}".format(value))
+            return "Unknown device type; use one of: " + ", ".join(DEVICE_TYPES)
         if field == "link_type" and value not in LINK_TYPES:
-            raise ValueError("Unknown link type: {}".format(value))
+            return "Unknown link type; use one of: " + ", ".join(LINK_TYPES)
         if field in ("rack_unit", "rack_height") and value < 1:
-            raise ValueError("{} must be 1 or more".format(field))
+            return "{} must be 1 or more".format(field)
         doc[field] = value
 
 
@@ -2478,9 +2482,11 @@ def update_host_inventory(host, inp=""):
     else:  # pragma: no cover
         data = json.loads(request.form.get("data"))
 
-    unknown = [x for x in data if x not in INVENTORY_FIELDS]
-    if unknown:
-        return "Unknown inventory field(s): {}".format(", ".join(unknown)), 407
+    if any(x not in INVENTORY_FIELDS for x in data):
+        return (
+            "Unknown inventory field; the fields are: " + ", ".join(INVENTORY_FIELDS),
+            407,
+        )
 
     hosts = db["labyrinth"]["hosts"]
     found = hosts.find_one({"$or": [{"mac": host}, {"ip": host}]})
@@ -2488,10 +2494,9 @@ def update_host_inventory(host, inp=""):
         return "Host not found", 404
 
     cleared = [x for x in data if data[x] in ("", None)]
-    try:
-        _clean_inventory_fields(data)
-    except ValueError as e:
-        return str(e), 407
+    problem = _clean_inventory_fields(data)
+    if problem:
+        return problem, 407
 
     location = data.get(
         "location", "" if "location" in cleared else found.get("location")
@@ -2506,9 +2511,9 @@ def update_host_inventory(host, inp=""):
     if location:
         found_location = db["labyrinth"]["locations"].find_one({"name": location})
         if not found_location:
-            return "Unknown location: {}".format(location), 404
+            return "Unknown location", 404
         if rack and rack not in [x["name"] for x in found_location.get("racks", [])]:
-            return "Unknown rack for {}: {}".format(location, rack), 404
+            return "Unknown rack for that location", 404
     elif rack:
         return "A rack needs a location", 407
 
@@ -2516,7 +2521,7 @@ def update_host_inventory(host, inp=""):
         if data["uplink"] == found["mac"]:
             return "A device cannot uplink to itself", 407
         if not hosts.find_one({"mac": data["uplink"]}):
-            return "Unknown uplink device: {}".format(data["uplink"]), 404
+            return "Unknown uplink device", 404
 
     update = {}
     if data:
