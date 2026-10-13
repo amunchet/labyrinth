@@ -129,3 +129,11 @@ error text, which Flask sends as text/html (reflected XSS), and returned
 exception text. Errors are now fixed text that says what is allowed, and
 inventory validation returns a message instead of raising. The UI never showed
 these messages; MCP agents get the new wording.
+
+## 2026-10-13 02:20 CDT (07:20 UTC)
+Cleared the remaining failing scan checks on PR #74. SonarCloud's reliability
+gate: map markers, map chips, the "Not on this map" toggle, rack devices and
+un-racked chips were click-only, so they are now focusable buttons that also
+work with Enter/Space; the floor-plan image has alt text. CodeQL: the auth
+error handler's status code (which its /error/<code> route takes from the URL)
+is now escaped; the response text is unchanged.

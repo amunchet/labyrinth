@@ -54,3 +54,7 @@ def test_auth_failure_on_routes_with_url_arguments():
     assert client.get("/secure").status_code == 401
     assert client.get("/host/AA").status_code == 401
     assert client.get("/custom_dashboard_images/floorplan.jpg").status_code == 401
+
+    # The UI shows this text, so auth.py's message must not come back escaped
+    body = client.get("/secure").get_data(as_text=True)
+    assert body.startswith("Auth Error 401 - {'code': ")

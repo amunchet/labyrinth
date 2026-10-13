@@ -212,9 +212,11 @@ PERM_ADMIN = "admin"
 def error_func(code=401, msg="", **route_args):  # pragma: no cover
     # _requires_auth passes along the failed route's URL arguments (e.g. a
     # host or file name); without accepting them, any parameterised route
-    # answered a missing or expired token with a 500 instead of 401/471
+    # answered a missing or expired token with a 500 instead of 401/471.
+    # `code` can come from this route's URL, so it is escaped; `msg` is
+    # auth.py's own error dict, which escaping would garble for the UI.
     if isinstance(code, int):
-        return "Auth Error {} - {}".format(code, msg), code
+        return "Auth Error {} - {}".format(escape(code), msg), code
     return "Auth Error", 500
 
 
@@ -2527,7 +2529,7 @@ def update_host_inventory(host, inp=""):
     if data:
         update["$set"] = data
     if cleared:
-        update["$unset"] = {x: "" for x in cleared}
+        update["$unset"] = dict.fromkeys(cleared, "")
     if update:
         hosts.update_one({"_id": found["_id"]}, update)
     return json.dumps(hosts.find_one({"_id": found["_id"]}), default=str), 200

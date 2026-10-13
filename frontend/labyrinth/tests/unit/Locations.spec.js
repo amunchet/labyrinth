@@ -250,6 +250,18 @@ describe("Locations.vue", () => {
     expect(wrapper.vm.rack_node).toBe(null);
   });
 
+  test("racked and unracked devices can be picked with the keyboard", async () => {
+    setInventory([
+      device("SRV", { rack: "Rack A", rack_unit: 2 }),
+      device("PC"),
+    ]);
+    await wrapper.setData({ loading: false });
+    await wrapper.find(".rack-device").trigger("keydown.enter");
+    expect(wrapper.vm.rack_key).toBe("SRV");
+    await wrapper.find(".unracked .chip").trigger("keydown.space");
+    expect(wrapper.vm.rack_key).toBe("PC");
+  });
+
   test("new devices start at the current location", () => {
     wrapper.setData({ selected: "Plant" });
     wrapper.vm.addDevice();

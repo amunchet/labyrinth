@@ -254,6 +254,28 @@ describe("LocationMap.vue", () => {
     expect(wrapper.vm.$store.commit).toHaveBeenCalled();
   });
 
+  test("markers, chips and the unplaced toggle work from the keyboard", async () => {
+    wrapper = mount({
+      devices: [
+        device("SW", {}, { type: "switch" }),
+        device("PC", {}, { type: "pc" }),
+      ],
+    });
+    await flushPromises();
+
+    let marker = wrapper.find(".marker");
+    expect(marker.attributes("tabindex")).toBe("0");
+    await marker.trigger("keydown.enter");
+    expect(wrapper.vm.active_key).toBe("SW");
+
+    await wrapper.find(".unplaced-header").trigger("keydown.space");
+    let chip = wrapper.find(".chip");
+    await chip.trigger("keydown.tab");
+    expect(wrapper.vm.active_key).toBe("SW");
+    await chip.trigger("keydown.space");
+    expect(wrapper.vm.active_key).toBe("PC");
+  });
+
   test("a server's marker flags problems on its VMs/LXCs", () => {
     wrapper = mount({
       devices: [

@@ -196,8 +196,13 @@
                       :style="{ gridRow: item.row + ' / span ' + item.height }"
                       :title="item.overlaps ? 'Overlaps another device' : ''"
                       draggable="true"
+                      tabindex="0"
+                      role="button"
                       @dragstart="dragStart($event, item.device)"
                       @click="rack_key = item.device._live.key"
+                      @keydown.enter.space.prevent="
+                        rack_key = item.device._live.key
+                      "
                     >
                       <font-awesome-icon
                         :icon="deviceIcon(item.device)"
@@ -234,8 +239,11 @@
                     :key="device._live.key"
                     :class="'chip status-' + device._live.status"
                     draggable="true"
+                    tabindex="0"
+                    role="button"
                     @dragstart="dragStart($event, device)"
                     @click="rack_key = device._live.key"
+                    @keydown.enter.space.prevent="rack_key = device._live.key"
                   >
                     <font-awesome-icon
                       :icon="deviceIcon(device)"

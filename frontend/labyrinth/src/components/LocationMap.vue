@@ -144,6 +144,7 @@
               ref="image"
               :src="image_src"
               class="map-image"
+              alt="Floor plan"
               draggable="false"
               @load="onImageLoad($event)"
             />
@@ -174,8 +175,11 @@
               :style="{ left: item.x + '%', top: item.y + '%' }"
               :title="tooltip(item.device)"
               :draggable="editing"
+              tabindex="0"
+              role="button"
               @dragstart="dragStart($event, item.device._live.key)"
               @click="select(item.device)"
+              @keydown.enter.space.prevent="select(item.device)"
             >
               <span class="marker-icon">
                 <font-awesome-icon :icon="deviceIcon(item.device)" />
@@ -198,7 +202,10 @@
           <div
             v-if="has_image"
             class="unplaced-header"
+            tabindex="0"
+            role="button"
             @click="show_unplaced = !show_unplaced"
+            @keydown.enter.space.prevent="show_unplaced = !show_unplaced"
           >
             <font-awesome-icon
               :icon="show_unplaced || editing ? 'caret-down' : 'caret-right'"
@@ -222,8 +229,11 @@
                   "
                   :title="tooltip(device)"
                   :draggable="editing && has_image"
+                  tabindex="0"
+                  role="button"
                   @dragstart="dragStart($event, device._live.key)"
                   @click="select(device)"
+                  @keydown.enter.space.prevent="select(device)"
                 >
                   <font-awesome-icon :icon="deviceIcon(device)" class="mr-1" />
                   {{ deviceName(device) }}
