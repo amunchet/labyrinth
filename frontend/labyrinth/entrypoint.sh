@@ -1,9 +1,8 @@
 #!/bin/bash
 echo "Building dist..."
-npm install -g @vue/cli
 
 cd /src
-npm install
+npm ci --ignore-scripts
 
 
 echo "Building..."

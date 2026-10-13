@@ -1,0 +1,7 @@
+# Edit this list, not requirements.txt: that is the hash-locked file the
+# alertmanager image installs (pip --require-hashes). Regenerate it from this
+# directory with the Python that image runs (ubuntu:latest, now 26.04: 3.14):
+#   docker run --rm -v "$PWD:/w" -w /w python:3.14-slim sh -c "pip install pip-tools && pip-compile --generate-hashes --allow-unsafe --strip-extras -o requirements.txt requirements.in"
+
+bcrypt
+pyyaml

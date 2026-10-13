@@ -15,9 +15,9 @@ RUN apt update && apt -y install \
 
 RUN echo "root:test" | chpasswd
 
-ADD entrypoint.sh /
+COPY entrypoint.sh /
 RUN dos2unix /entrypoint.sh
 
 
 
-CMD exec sh -c "/entrypoint.sh"
+CMD ["/entrypoint.sh"]

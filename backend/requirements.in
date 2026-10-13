@@ -1,0 +1,35 @@
+# Edit this list, not requirements.txt: that is the hash-locked file the backend
+# and cron images install (pip --require-hashes). Regenerate it from this
+# directory with the Python those images run (ubuntu:latest, now 26.04: 3.14):
+#   docker run --rm -v "$PWD:/w" -w /w python:3.14-slim sh -c "pip install pip-tools && pip-compile --generate-hashes --allow-unsafe --strip-extras -o requirements.txt requirements.in"
+
+flask==2.*
+flask-cors
+flask-socketio
+gunicorn
+gevent
+python-dotenv
+python-jose
+pymongo[srv]>=4.6,<5
+psycopg2-binary>=2.9,<3
+python-nmap
+ansi2html
+redis>=5.0,<9
+pid
+ansible
+ansible-runner
+pyyaml
+pillow
+xmltodict
+
+# Development tools
+pytest
+pytest-cov
+requests
+black
+boto3
+
+# TOML
+# Once (or if) PR #375 is merged, we will switch back to `uiri/toml`
+# (a commit archive, not git+https: pip cannot hash a git checkout)
+toml @ https://github.com/amunchet/toml/archive/3fa4f8dbdda8e3da26baa5d3f663db567b29d7ea.tar.gz

@@ -43,11 +43,15 @@ RUN echo 'deb [signed-by=/etc/apt/keyrings/influxdata-archive.gpg] https://repos
 RUN apt update && apt -y install telegraf
 
 COPY requirements.txt /requirements.txt
-RUN pip3 install -r /requirements.txt --break-system-packages
+# requirements.txt is hash-locked (edit requirements.in). Wheels only, except
+# python-nmap, which publishes nothing but a source archive. --ignore-installed
+# because pip cannot replace Ubuntu's own python3-packaging (via python3-pip).
+RUN pip3 install --require-hashes --only-binary=:all: --no-binary=python-nmap \
+    --ignore-installed -r /requirements.txt --break-system-packages
 
-ADD entrypoint.sh /
+COPY entrypoint.sh /
 RUN dos2unix -n /entrypoint.sh /entrypoint-fixed.sh
 RUN chmod a+x /entrypoint-fixed.sh
 
 
-CMD exec /bin/bash -c '/entrypoint-fixed.sh'
+CMD ["/entrypoint-fixed.sh"]

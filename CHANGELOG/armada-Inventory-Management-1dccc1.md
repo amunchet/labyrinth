@@ -183,3 +183,35 @@ Reliability findings on master.
   `Number.parseInt`/`Number.isNaN`, generic fallback fonts, a dead duplicate
   `margin`, `[[ ]]` in two bash scripts, and an Error rejection reason in
   `renewTokens` (the message text is unchanged).
+
+## 2026-10-13 14:59 CDT (19:59 UTC)
+Hotfix: SonarCloud's supply-chain findings, which were failing master's quality
+gate (new-code security rating C from the Dockerfile pip installs).
+- Python dependencies are hash-locked. Each image installs a pip-compile'd
+  `requirements.txt` with `--require-hashes --only-binary=:all:`, generated
+  from the `requirements.in` beside it for that image's Python (3.14 for the
+  ubuntu:latest images, 3.11 for mcp). The pins are what the unpinned lists
+  resolve to today, so a rebuild installs what it would have anyway, but from
+  now on exactly that. python-nmap publishes only a source archive
+  (`--no-binary=python-nmap`); the amunchet/toml fork is pinned to its commit
+  archive, because pip cannot hash a git checkout; the backend and cron
+  installs add `--ignore-installed`, because pip cannot replace Ubuntu's own
+  python3-packaging. CI's black is locked the same way at 24.8.0, the version
+  CI was already getting on Python 3.8.
+- npm installs are `npm ci --ignore-scripts` (CI and both frontend
+  entrypoints). Only canvas runs its install script, because jsdom loads its
+  native binary in the unit tests; the production build needs neither it nor
+  node-sass. The unused global `@vue/cli` installs are gone. They were the
+  source of the npm `notarget` CI flake.
+- Alertmanager downloads with `curl --proto =https` instead of wget, and finds
+  the latest release through github.com's redirect instead of the
+  unauthenticated GitHub API, whose rate limit was the other CI flake.
+- Dockerfiles use COPY instead of ADD, and exec-form CMDs that run the same
+  scripts under the same /bin/sh.
+Verified by building every changed image and booting backend, cron and mcp
+(gunicorn answers 401 on /secure, cron runs, MCP lists 22 tools and answers a
+tool call). The backend suite in the new image gives the same result as
+before: 976 passed, with only the two live-Alertmanager tests failing. The
+frontend container's entrypoint installs and builds. On this host's 5.4
+kernel, Ubuntu 26.04's tar cannot extract the Alertmanager tarball ("Function
+not implemented"). That is unrelated to this change, and CI is unaffected.

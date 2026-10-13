@@ -2,7 +2,10 @@
 set -euo pipefail
 
 echo 'Installing project...'
-cd /src/labyrinth && npm install
+# Exactly the lockfile, with dependency install scripts off; canvas is the one
+# package that needs its script (it fetches the native binary jsdom loads in the
+# unit tests)
+cd /src/labyrinth && npm ci --ignore-scripts && npm rebuild canvas
 
 
 # Avoid runtime mass upgrades that break compatibility

@@ -23,15 +23,17 @@ RUN   apt-get update && apt-get -y install python3 \
 
 
 COPY backend/requirements.txt /
-RUN pip3 install -r /requirements.txt --break-system-packages
+# Hash-locked, wheels only except python-nmap (see backend/Dockerfile)
+RUN pip3 install --require-hashes --only-binary=:all: --no-binary=python-nmap \
+    --ignore-installed -r /requirements.txt --break-system-packages
 
 # Cron installation
 
 
-ADD cron/entrypoint.sh /
+COPY cron/entrypoint.sh /
 RUN dos2unix -n /entrypoint.sh /entrypoint-fixed.sh
 RUN chmod a+x /entrypoint-fixed.sh
 
 
-CMD exec /bin/bash -c '/entrypoint-fixed.sh'
+CMD ["/entrypoint-fixed.sh"]
 

@@ -1,0 +1,23 @@
+# Edit this list, not requirements.txt: that is the hash-locked file the mcp
+# image installs (pip --require-hashes). Regenerate it from this directory with
+# the Python that image runs (3.11):
+#   docker run --rm -v "$PWD:/w" -w /w python:3.11-slim sh -c "pip install pip-tools && pip-compile --generate-hashes --allow-unsafe --strip-extras -o requirements.txt requirements.in"
+
+mcp>=1.2,<2
+uvicorn[standard]
+flask==2.*
+flask-cors
+python-dotenv
+python-jose
+pymongo[srv]>=4.6,<5
+psycopg2-binary>=2.9,<3
+redis>=5.0,<9
+requests
+pyyaml
+pillow
+pid
+ansible-runner
+ansi2html
+six
+# The backend's amunchet/toml fork, as a commit archive pip can hash
+toml @ https://github.com/amunchet/toml/archive/3fa4f8dbdda8e3da26baa5d3f663db567b29d7ea.tar.gz

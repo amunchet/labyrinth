@@ -11,7 +11,8 @@ RUN apt update && apt upgrade -y && apt install -y \
 # Install dependencies (reuse backend requirements + MCP extras)
 COPY backend/requirements.txt /requirements.txt
 COPY backend/ai/mcp/requirements.txt /requirements-mcp.txt
-RUN pip install --no-cache-dir -r /requirements-mcp.txt
+RUN pip install --no-cache-dir --require-hashes --only-binary=:all: \
+    -r /requirements-mcp.txt
 
 # Copy source
 COPY backend /app/backend

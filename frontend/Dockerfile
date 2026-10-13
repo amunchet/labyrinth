@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /src
 
 # Entrypoint
-ADD entrypoint.sh /entrypoint.sh
+COPY entrypoint.sh /entrypoint.sh
 RUN dos2unix -n /entrypoint.sh /entrypoint-fixed.sh && chmod +x /entrypoint-fixed.sh
 
 EXPOSE 8000 8080

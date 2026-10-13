@@ -133,6 +133,10 @@ docker-compose -f docker-compose-production.yml up --build -d
 
 **CI** (`.github/workflows/push.yml`): backend tests run inside docker-compose-development via `start_dev.sh` + `backend/run_tests.sh`; frontend tests/lint run separately with npm.
 
+**Dependencies are locked:**
+- The Python images install hash-locked `requirements.txt` files (`pip install --require-hashes --only-binary=:all:`). Edit the `requirements.in` beside each (`backend/` for the backend and cron images, `backend/ai/mcp/`, `alertmanager/`, and `.github/requirements-black.in` for CI's black) and regenerate with the `pip-compile` command at its top, under the Python that image runs (3.14 for the `ubuntu:latest` images, 3.11 for mcp, 3.8 for CI's black). A hand-edited `requirements.txt` without hashes fails the build. python-nmap ships only a source archive (`--no-binary=python-nmap`), and the toml fork is pinned as a commit archive because pip cannot hash a git checkout. The backend and cron installs need `--ignore-installed`: pip cannot replace Ubuntu's own python3-packaging.
+- npm installs are `npm ci --ignore-scripts` (CI and the frontend container). Only canvas runs its install script (`npm rebuild canvas`), because jsdom loads its native binary in the unit tests; the build itself needs neither it nor node-sass. No global `@vue/cli` is needed: `npm run` uses the local `vue-cli-service`.
+
 ## Code Conventions
 
 **Authentication:**
