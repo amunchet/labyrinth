@@ -100,7 +100,7 @@ class AuthService extends EventEmitter {
   renewTokens() {
     return new Promise((resolve, reject) => {
       if (localStorage.getItem(localStorageKey) !== "true") {
-        return reject("Error: Not logged in");
+        return reject(new Error("Not logged in"));
       }
       if (this.isAuthenticated()) {
         resolve(localStorage);

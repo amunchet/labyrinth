@@ -50,8 +50,8 @@ export default {
       }
 
       for (var i = 0; i < count; i++) {
-        var temp = parseInt(splits[i]);
-        if (isNaN(temp)) {
+        var temp = Number.parseInt(splits[i]);
+        if (Number.isNaN(temp)) {
           /* istanbul ignore next */
           return false;
         }

@@ -19,8 +19,11 @@
         </b-input-group>
       </b-col>
       <b-col md="auto">
-        <label class="mb-0 mr-1 small text-muted">Type</label>
+        <label for="service-type-filter" class="mb-0 mr-1 small text-muted"
+          >Type</label
+        >
         <b-form-select
+          id="service-type-filter"
           v-model="service_type_filter"
           :options="typeOptions"
           size="sm"

@@ -11,14 +11,14 @@
     </div>
 
     <div class="uptime-bars" v-if="buckets.length">
-      <div
+      <button
         v-for="(bucket, idx) in buckets"
         :key="idx"
+        type="button"
         v-b-tooltip.top="bucket.tooltip"
-        tabindex="0"
         :aria-label="bucket.tooltip"
         :class="['uptime-bar', statusBgClass(bucket.status)]"
-      ></div>
+      ></button>
     </div>
     <div class="uptime-empty text-muted" v-else>
       No metric history available yet.
@@ -237,6 +237,8 @@ export default {
 .uptime-bar {
   flex: 1 1 0;
   min-width: 3px;
+  padding: 0;
+  border: 0;
   border-radius: 3px;
   cursor: pointer;
   transition: filter 0.1s ease-in-out, transform 0.1s ease-in-out;

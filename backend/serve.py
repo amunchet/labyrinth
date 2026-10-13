@@ -1434,7 +1434,7 @@ def save_ansible_file(fname, inp_data="", vars_file=""):
             parsed = yaml.safe_load_all(data)
         except yaml.YAMLError as exc:
             return "YAML Read Error: {}".format(exc), 471
-        parsed = list(parsed)[0]
+        parsed = next(iter(parsed))
         for item in parsed:
             item["vars_files"] = ["/src/uploads/become/{}.yml".format(vars_file)]
 

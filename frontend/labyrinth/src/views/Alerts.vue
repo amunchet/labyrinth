@@ -287,7 +287,7 @@ export default {
   outline: 2px solid cyan;
 }
 ::v-deep .cm-editor .cm-content {
-  font-family: "Consolas";
+  font-family: "Consolas", monospace;
 }
 iframe {
   width: 100%;

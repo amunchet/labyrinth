@@ -19,11 +19,14 @@
           (monitor ? 'number' : 'number unmonitored') +
           (subnet && !ip.startsWith(subnet) ? ' number-wide' : '')
         "
+        tabindex="0"
+        role="button"
         @click="
           () => {
             $emit('selected_changed');
           }
         "
+        @keydown.enter.space.prevent="$emit('selected_changed')"
       >
         <span v-if="subnet && !ip.startsWith(subnet)" :title="ip">{{
           ip
@@ -282,7 +285,7 @@ export default {
 }
 .title {
   color: darkgrey;
-  font-family: Helvetica, Arial;
+  font-family: Helvetica, Arial, sans-serif;
   font-size: 12pt;
   min-width: 120px;
   width: 100%;

@@ -611,8 +611,8 @@ export default {
         if (
           host.open_ports != undefined &&
           host.open_ports
-            .map((x) => parseInt(x))
-            .indexOf(parseInt(search.port)) != -1
+            .map((x) => Number.parseInt(x))
+            .indexOf(Number.parseInt(search.port)) != -1
         ) {
           retval = true;
         }
@@ -1010,7 +1010,6 @@ h2.subnet:hover {
   border-radius: 1rem;
   /* width: 30%; */
   /* width: 400px !important; */
-  margin: 1%;
   text-align: center;
   background-color: #dfdfde;
   padding: 20px;

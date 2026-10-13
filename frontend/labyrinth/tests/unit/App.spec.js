@@ -97,6 +97,17 @@ describe("App.vue", () => {
       "Error: Logged out.  Please login again."
     );
   });
+  test("only the store's [timestamp] prefix is dropped from a message", async () => {
+    wrapper.vm.$store.commit(
+      "updateError",
+      "Error: [Errno 111] Connection refused"
+    );
+    await wrapper.vm.$nextTick();
+    await wrapper.vm.$nextTick();
+    expect(wrapper.vm.$store.state.error).toBe(
+      " Error: [Errno 111] Connection refused"
+    );
+  });
   test("checkErrorMessage", () => {
     wrapper.vm.$store.state.error = "Error!";
     expect(wrapper.vm.checkErrorMessage()).toBe("danger");

@@ -32,7 +32,7 @@ auth_config () {
 alertmanager() {
 	echo "What is your email server? e.g. localhost:25 (Press Enter to skip)"
 	read;
-	if [ -z "$REPLY" ]; then
+	if [[ -z "$REPLY" ]]; then
 		echo "Skipping alertmanager configuration..."
 	else
 		cp $ALERTMANAGER_FOLDER/alertmanager.sample.yml $ALERTMANAGER_FOLDER/alertmanager.yml

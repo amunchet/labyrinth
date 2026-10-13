@@ -107,4 +107,13 @@ describe("Host.vue", () => {
     expect(wrapper.vm.$data.drag_class).toEqual("");
     expect(wrapper.vm.$data.dragging_ip).toEqual("");
   });
+  test("the host number selects the host by click, Enter or Space", async () => {
+    let number = wrapper.find(".number");
+    expect(number.attributes("tabindex")).toBe("0");
+    await number.trigger("click");
+    await number.trigger("keydown.enter");
+    await number.trigger("keydown.tab");
+    await number.trigger("keydown.space");
+    expect(wrapper.emitted("selected_changed")).toHaveLength(3);
+  });
 });

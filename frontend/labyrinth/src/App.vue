@@ -126,7 +126,9 @@ export default {
     "$store.state.error": function (val, prev) {
       //window.scrollTo(0, 0)
       if (val != undefined && val != "Logged in.") {
-        let parsed_val = ("" + val).replace(/\[.*\]/, "");
+        // Drops the "[timestamp]" prefix updateError adds; brackets in the
+        // message itself stay
+        let parsed_val = ("" + val).replace(/^\[[^\]]*\]/, "");
         if (parsed_val != undefined && parsed_val != "" && parsed_val != " ") {
           if (parsed_val.indexOf("401") != -1) {
             parsed_val = "Error: Logged out.  Please login again.";

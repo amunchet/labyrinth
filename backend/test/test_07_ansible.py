@@ -226,17 +226,14 @@ def test_run_ansible():
     assert os.path.exists("{}/vault.pass".format(x))
 
     # Check failing SSH key
-    try:
-        x = run_ansible(
+    with pytest.raises(Exception, match="SSH key file not found"):
+        run_ansible(
             hosts="sampleclient",
             playbook="install",
             become_file="vault",
             vault_password="test",
             ssh_key_file="asdfsadfasdf",
         )
-        assert False
-    except Exception:
-        assert True
 
     # Check valid SSH key is copied to env/ssh_key
     if not os.path.exists("/src/uploads/ssh"):  # pragma: no cover
@@ -257,17 +254,14 @@ def test_run_ansible():
     assert os.path.exists("{}/env/ssh_key".format(x))
 
     # Check failing TOTP file
-    try:
-        x = run_ansible(
+    with pytest.raises(Exception, match="TOTP file not found"):
+        run_ansible(
             hosts="sampleclient",
             playbook="install",
             become_file="vault",
             vault_password="test",
             totp_file="nonexistent_totp",
         )
-        assert False
-    except Exception:
-        assert True
 
     # Check valid TOTP file is copied to vars
     if not os.path.exists("/src/uploads/totp"):  # pragma: no cover

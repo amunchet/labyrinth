@@ -165,3 +165,21 @@ handler was also registered as an unauthenticated /error/<code> route that
 nothing used, and that route was CodeQL's only source of request data. The
 route is removed, so the handler is back to its plain tuple. Failed auth checks
 answer exactly as before (401/471 with the same text); /error/<code> is a 404.
+
+## 2026-10-13 14:15 CDT (19:15 UTC)
+Hotfix (on master, after #74 was squash-merged): the code-level SonarCloud
+Reliability findings on master.
+- Two checks in `test_07_ansible.py` (bad SSH key, bad TOTP file) could never
+  fail: `assert False` sat inside `except Exception`, which also catches the
+  AssertionError. They now use `pytest.raises` with the expected message.
+- The error toast's `[timestamp]` strip was a greedy `\[.*\]` that also ate any
+  bracketed text in the message ("[Errno 111]" and everything before it). It
+  now removes only the leading prefix the store adds, without backtracking.
+- Keyboard and accessibility: a host's number badge selects it with Enter/Space,
+  the uptime bars are native buttons (still focusable for their tooltips), the
+  service-type filter's label is tied to its select, the add-row cells drop a
+  role Bootstrap already implies, and the page declares `lang="en"`.
+- Smaller fixes: `next(iter(...))` for the first YAML document,
+  `Number.parseInt`/`Number.isNaN`, generic fallback fonts, a dead duplicate
+  `margin`, `[[ ]]` in two bash scripts, and an Error rejection reason in
+  `renewTokens` (the message text is unchanged).

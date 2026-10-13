@@ -326,10 +326,10 @@
           </template>
 
           <template v-slot:top-row="" v-if="show_add_port">
-            <td role="cell">
+            <td>
               <b-input placeholder="Port:" v-model="new_port" />
             </td>
-            <td role="cell">
+            <td>
               <b-button
                 variant="success"
                 class="float-right p-1 pl-2 pr-2"
@@ -399,7 +399,7 @@
             </b-button>
           </template>
           <template v-slot:top-row="" v-if="show_add_service">
-            <td role="cell" @keydown.esc.stop="(e) => e.stopPropagation()">
+            <td @keydown.esc.stop="(e) => e.stopPropagation()">
               <v-select
                 placeholder="Service:"
                 label="text"
@@ -410,7 +410,7 @@
             </td>
 
             <td>-</td>
-            <td role="cell">
+            <td>
               <b-button
                 variant="success"
                 class="float-right p-1 pl-2 pr-2"
