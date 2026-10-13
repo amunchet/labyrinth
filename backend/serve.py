@@ -208,16 +208,13 @@ PERM_WRITE = "write"
 PERM_ADMIN = "admin"
 
 
-@app.route("/error/<int:code>")
 def error_func(code=401, msg="", **route_args):  # pragma: no cover
+    """Answers a failed auth check for the requires_auth_* decorators (not a route)"""
     # _requires_auth passes along the failed route's URL arguments (e.g. a
     # host or file name); without accepting them, any parameterised route
-    # answered a missing or expired token with a 500 instead of 401/471.
-    # `code` may come from this route's URL, so it is escaped and returned as
-    # a Response status (code scanning reads a tuple's status as body text);
-    # `msg` is auth.py's own error dict, which escaping would garble.
+    # answered a missing or expired token with a 500 instead of 401/471
     if isinstance(code, int):
-        return Response("Auth Error {} - {}".format(escape(code), msg), status=code)
+        return "Auth Error {} - {}".format(code, msg), code
     return "Auth Error", 500
 
 

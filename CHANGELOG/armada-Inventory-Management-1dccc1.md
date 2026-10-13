@@ -157,3 +157,11 @@ Response with the status set separately (same text, status and content type).
 The map's "Not on this map" toggle is now a real button (native Enter/Space,
 restyled to look the same); the draggable markers, chips and rack devices stay
 as keyboard-operable divs because buttons do not drag reliably in Firefox.
+
+## 2026-10-13 02:43 CDT (07:43 UTC)
+Replaced the Response-object workaround in the auth error handler: returning a
+Response broke a test that reads the handler's (text, status) result. The
+handler was also registered as an unauthenticated /error/<code> route that
+nothing used, and that route was CodeQL's only source of request data. The
+route is removed, so the handler is back to its plain tuple. Failed auth checks
+answer exactly as before (401/471 with the same text); /error/<code> is a 404.
