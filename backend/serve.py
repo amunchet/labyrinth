@@ -213,10 +213,11 @@ def error_func(code=401, msg="", **route_args):  # pragma: no cover
     # _requires_auth passes along the failed route's URL arguments (e.g. a
     # host or file name); without accepting them, any parameterised route
     # answered a missing or expired token with a 500 instead of 401/471.
-    # `code` can come from this route's URL, so it is escaped; `msg` is
-    # auth.py's own error dict, which escaping would garble for the UI.
+    # `code` may come from this route's URL, so it is escaped and returned as
+    # a Response status (code scanning reads a tuple's status as body text);
+    # `msg` is auth.py's own error dict, which escaping would garble.
     if isinstance(code, int):
-        return "Auth Error {} - {}".format(escape(code), msg), code
+        return Response("Auth Error {} - {}".format(escape(code), msg), status=code)
     return "Auth Error", 500
 
 
