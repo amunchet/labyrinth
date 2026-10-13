@@ -215,3 +215,13 @@ before: 976 passed, with only the two live-Alertmanager tests failing. The
 frontend container's entrypoint installs and builds. On this host's 5.4
 kernel, Ubuntu 26.04's tar cannot extract the Alertmanager tarball ("Function
 not implemented"). That is unrelated to this change, and CI is unaffected.
+
+## 2026-10-13 15:10 CDT (20:10 UTC)
+Hotfix: CodeQL raised a new stack-trace-exposure alert (#700) on
+`save_ansible_file` after the first hotfix touched it. Its "YAML Read Error"
+and "YAML Dump Error" replies (the latter alert #4, open since 2023) echoed the
+YAML library's exception text. Both now return fixed text. The parse also moved
+inside the `try`: `safe_load_all` is lazy, so invalid YAML used to raise
+outside it and answer a 500. Saving an invalid playbook with a become file now
+gets the 471 that Deploy.vue turns into "Invalid Ansible File. Correct the file
+and save again." The UI never displayed the exception text.

@@ -1431,17 +1431,16 @@ def save_ansible_file(fname, inp_data="", vars_file=""):
     # Check YAML file
     if vars_file != "":
         try:
-            parsed = yaml.safe_load_all(data)
-        except yaml.YAMLError as exc:
-            return "YAML Read Error: {}".format(exc), 471
-        parsed = next(iter(parsed))
+            parsed = next(yaml.safe_load_all(data))
+        except yaml.YAMLError:
+            return "YAML Read Error: the playbook is not valid YAML", 471
         for item in parsed:
             item["vars_files"] = ["/src/uploads/become/{}.yml".format(vars_file)]
 
         try:
             data = yaml.safe_dump(parsed, sort_keys=False)
-        except yaml.YAMLError as exc:
-            return "YAML Dump Error: {}".format(exc), 471
+        except yaml.YAMLError:
+            return "YAML Dump Error: the playbook could not be written as YAML", 471
 
     x = ansible_helper.check_file(filename=fname, raw=data, file_type="ansible")
     if type(x) == type([]) and x[0]:

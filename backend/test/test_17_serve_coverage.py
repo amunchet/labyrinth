@@ -2064,6 +2064,16 @@ def test_save_ansible_file_invalid_yaml_dump(setup):
     assert resp[1] == 471
 
 
+def test_save_ansible_file_invalid_yaml_with_vars_file(setup):
+    """Invalid YAML is the UI's 471 ("Invalid Ansible File"), not a 500."""
+    with serve.app.test_request_context("/ansible/playbook/test", method="POST"):
+        resp = unwrap(serve.save_ansible_file)("test", "- hosts: [all\n", "vars")
+
+    assert resp[1] == 471
+    # The parser's message (with its line and column) is not sent back
+    assert "column" not in resp[0]
+
+
 def test_save_ansible_file_post_method(setup):
     """Test POST method for save_ansible_file."""
     with patch("ansible_helper.check_file", return_value=True):
