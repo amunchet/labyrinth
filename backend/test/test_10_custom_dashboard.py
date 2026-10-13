@@ -160,7 +160,8 @@ def test_images_need_a_login(setup):
 
     with serve.app.test_request_context():
         a = unwrap(serve.custom_dashboard_return_image)("floorplan.jpg")
-        assert a.status_code == 200 and a.mimetype == "image/jpeg"
+        assert a.status_code == 200
+        assert a.mimetype == "image/jpeg"
         a.close()
         assert unwrap(serve.custom_dashboard_return_image)("../../etc/passwd")[1] == 404
 

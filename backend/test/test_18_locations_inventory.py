@@ -164,7 +164,8 @@ def test_location_removed_rack_unracks_hosts(setup):
 
     host = get_host("AA")
     assert host["location"] == "Plant"
-    assert "rack" not in host and "rack_unit" not in host
+    assert "rack" not in host
+    assert "rack_unit" not in host
     assert get_host("BB")["rack"] == "Rack B"
 
 
@@ -242,7 +243,8 @@ def test_host_saved_without_ip_or_mac_keys(setup):
     a = unwrap(serve.create_edit_host)({"host": "Patch panel", "tags": "plant"})
     assert a[1] == 200
     host = db["hosts"].find_one({"host": "Patch panel"})
-    assert host["ip"] == "" and host["subnet"] == ""
+    assert host["ip"] == ""
+    assert host["subnet"] == ""
     assert host["mac"].startswith("device-")
 
 
@@ -285,7 +287,8 @@ def test_host_save_coerces_inventory_fields(setup):
     """Rack positions are stored as numbers; blanks are dropped; bad values rejected"""
     make_host(ip="10.0.0.5", mac="AA", rack_unit="12", rack_height=" 2 ", vendor=" ")
     host = get_host("AA")
-    assert host["rack_unit"] == 12 and host["rack_height"] == 2
+    assert host["rack_unit"] == 12
+    assert host["rack_height"] == 2
     assert "vendor" not in host
 
     for bad in [
@@ -326,9 +329,11 @@ def test_update_host_inventory(setup):
     )
     assert a[1] == 200
     host = get_host("AA")
-    assert host["rack_unit"] == 10 and host["uplink"] == "CORE"
+    assert host["rack_unit"] == 10
+    assert host["uplink"] == "CORE"
     assert host["services"] == ["open_ports", "cpu"]
-    assert host["monitor"] is True and host["check_alive_port"] == "22"
+    assert host["monitor"] is True
+    assert host["check_alive_port"] == "22"
     assert json.loads(a[0])["rack"] == "Rack A"
 
     errors = [
@@ -349,7 +354,8 @@ def test_update_host_inventory(setup):
     assert unwrap(serve.update_host_inventory)("AA", {"location": "Office"})[1] == 200
     host = get_host("AA")
     assert host["location"] == "Office"
-    assert "rack" not in host and "rack_unit" not in host
+    assert "rack" not in host
+    assert "rack_unit" not in host
     assert host["rack_height"] == 2
 
     # Blank values clear fields
@@ -375,14 +381,19 @@ def test_inventory_errors_never_echo_input(setup):
         {"rack_unit": evil},
     ]:
         body, code = unwrap(serve.update_host_inventory)("AA", data)
-        assert code in (404, 407) and evil not in body, data
+        assert code in (404, 407), data
+        assert evil not in body, data
 
     body, code = unwrap(serve.update_host_inventory)("AA", {evil: "x"})
-    assert code == 407 and evil not in body and "device_type" in body
+    assert code == 407
+    assert evil not in body
+    assert "device_type" in body
 
     host = {"ip": "10.0.0.6", "mac": "BB", "subnet": "10.0.0", "device_type": evil}
     body, code = unwrap(serve.create_edit_host)(host)
-    assert code == 407 and evil not in body and "server" in body
+    assert code == 407
+    assert evil not in body
+    assert "server" in body
 
 
 def test_delete_host_cleans_references(setup):
@@ -417,13 +428,15 @@ def test_check_host_methods(monkeypatch):
     monkeypatch.setattr(alive, "check_port", fake_check_port)
 
     result = alive.check_host({"ip": "10.0.0.5"})
-    assert result["up"] is True and result["method"] == "ping"
+    assert result["up"] is True
+    assert result["method"] == "ping"
     assert time.time() - result["checked"] < 5
     assert alive.check_host({"ip": "10.0.0.6", "check_alive_port": ""})["up"] is False
 
     # The UI stores the port as text; it must reach the socket as a number
     result = alive.check_host({"ip": "10.0.0.7", "check_alive_port": " 502 "})
-    assert result["up"] is True and result["method"] == "port"
+    assert result["up"] is True
+    assert result["method"] == "port"
     assert calls == [("10.0.0.7", 502)]
 
     result = alive.check_host({"ip": "10.0.0.8", "check_alive_port": "http"})
@@ -461,7 +474,8 @@ def test_alive_check_endpoint_records(setup, monkeypatch):
     make_host(host="Unmanaged switch")
 
     a = unwrap(serve.alive_check)("AA")
-    assert a[1] == 200 and json.loads(a[0])["up"] is True
+    assert a[1] == 200
+    assert json.loads(a[0])["up"] is True
     assert json.loads(rc.hget(alive.ALIVE_KEY, "10.0.0.5"))["up"] is True
 
     assert unwrap(serve.alive_check)("missing")[1] == 404
@@ -618,7 +632,8 @@ def test_inventory_locations_and_proxmox(setup, monkeypatch):
     assert live["KIOSK"]["location_source"] == "explicit"
 
     [cluster_tree] = data["proxmox"]
-    assert cluster_tree["cluster"] == "prod" and cluster_tree["error"] is None
+    assert cluster_tree["cluster"] == "prod"
+    assert cluster_tree["error"] is None
     assert (live["FILES"]["type"], live["FILES"]["parent"]) == ("vm", "")
     assert live["FILES"]["location"] == ""
 
@@ -628,7 +643,8 @@ def test_inventory_locations_and_proxmox(setup, monkeypatch):
     assert node["host_key"] == "PVE1"
     guests = {x["name"]: x for x in node["guests"]}
     assert guests["web01"]["host_key"] == "WEB"
-    assert guests["dns"]["host_key"] == "DNS" and guests["dns"]["kind"] == "lxc"
+    assert guests["dns"]["host_key"] == "DNS"
+    assert guests["dns"]["kind"] == "lxc"
     assert guests["orphan"]["host_key"] == ""
 
 
