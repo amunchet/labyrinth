@@ -130,7 +130,7 @@ exception text. Errors are now fixed text that says what is allowed, and
 inventory validation returns a message instead of raising. The UI never showed
 these messages; MCP agents get the new wording.
 
-## 2026-10-13 02:20 CDT (07:20 UTC)
+## 2026-10-13 02:16 CDT (07:16 UTC)
 Cleared the remaining failing scan checks on PR #74. SonarCloud's reliability
 gate: map markers, map chips, the "Not on this map" toggle, rack devices and
 un-racked chips were click-only, so they are now focusable buttons that also
@@ -138,7 +138,7 @@ work with Enter/Space; the floor-plan image has alt text. CodeQL: the auth
 error handler's status code (which its /error/<code> route takes from the URL)
 is now escaped; the response text is unchanged.
 
-## 2026-10-13 02:45 CDT (07:45 UTC)
+## 2026-10-13 02:22 CDT (07:22 UTC)
 Worked through SonarCloud's maintainability findings on PR #74 that fit the
 project's code style: explicit GET methods on /locations/, /inventory/ and
 /alive/check/<host>; flat promise chains (map image fetch, host save then
@@ -150,7 +150,7 @@ purpose: cognitive-complexity splits and constants for "$unset"/"$pull" (the
 code style rules out single-use helpers and extra abstractions), and
 structuredClone (CI runs the frontend tests on Node 16, which lacks it).
 
-## 2026-10-13 02:40 CDT (07:40 UTC)
+## 2026-10-13 02:33 CDT (07:33 UTC)
 Escaping the auth error handler's status text was not enough for CodeQL, which
 reads a returned (text, status) tuple as one body, so the handler now returns a
 Response with the status set separately (same text, status and content type).
