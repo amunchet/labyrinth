@@ -199,19 +199,17 @@
           @dragover.prevent
           @drop.prevent="dropOnList($event)"
         >
-          <div
+          <button
             v-if="has_image"
+            type="button"
             class="unplaced-header"
-            tabindex="0"
-            role="button"
             @click="show_unplaced = !show_unplaced"
-            @keydown.enter.space.prevent="show_unplaced = !show_unplaced"
           >
             <font-awesome-icon
               :icon="show_unplaced || editing ? 'caret-down' : 'caret-right'"
             />
             Not on this map ({{ unplaced.length }})
-          </div>
+          </button>
           <div v-if="!has_image || show_unplaced || editing">
             <div v-if="!devices.length" class="text-muted p-2">
               No devices here yet.
@@ -677,7 +675,7 @@ export default {
       }
     },
     uploadImage: /* istanbul ignore next */ async function (file) {
-      let before = this.images.slice();
+      let before = new Set(this.images);
       let formData = new FormData();
       formData.append("file", file);
       try {
@@ -692,7 +690,7 @@ export default {
         await this.loadImages();
         // The server sanitises file names: the new entry is the upload, or
         // the same name when an existing image was replaced
-        let added = this.images.filter((x) => !before.includes(x));
+        let added = this.images.filter((x) => !before.has(x));
         let uploaded = added.length == 1 ? added[0] : file.name;
         this.forgetImage(uploaded);
         this.loadImage(uploaded);
@@ -881,6 +879,12 @@ export default {
   padding: 0.25rem;
 }
 .unplaced-header {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
   cursor: pointer;
   color: #6c757d;
   font-size: 0.9rem;

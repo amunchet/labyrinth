@@ -268,7 +268,8 @@ describe("LocationMap.vue", () => {
     await marker.trigger("keydown.enter");
     expect(wrapper.vm.active_key).toBe("SW");
 
-    await wrapper.find(".unplaced-header").trigger("keydown.space");
+    // A native button: the browser turns Enter/Space into a click
+    await wrapper.find("button.unplaced-header").trigger("click");
     let chip = wrapper.find(".chip");
     await chip.trigger("keydown.tab");
     expect(wrapper.vm.active_key).toBe("SW");

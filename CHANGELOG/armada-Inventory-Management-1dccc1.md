@@ -149,3 +149,11 @@ modernisations; `let` for the Deploy IP. No behaviour change. Not changed on
 purpose: cognitive-complexity splits and constants for "$unset"/"$pull" (the
 code style rules out single-use helpers and extra abstractions), and
 structuredClone (CI runs the frontend tests on Node 16, which lacks it).
+
+## 2026-10-13 02:40 CDT (07:40 UTC)
+Escaping the auth error handler's status text was not enough for CodeQL, which
+reads a returned (text, status) tuple as one body, so the handler now returns a
+Response with the status set separately (same text, status and content type).
+The map's "Not on this map" toggle is now a real button (native Enter/Space,
+restyled to look the same); the draggable markers, chips and rack devices stay
+as keyboard-operable divs because buttons do not drag reliably in Firefox.
