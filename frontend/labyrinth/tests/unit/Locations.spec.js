@@ -250,6 +250,19 @@ describe("Locations.vue", () => {
     expect(wrapper.vm.rack_node).toBe(null);
   });
 
+  test("device rows show the rack and, when known, the rack unit", () => {
+    setInventory([
+      device("A", { rack: "Rack A", rack_unit: 4 }),
+      device("B", { rack: "Rack B" }),
+      device("C"),
+    ]);
+    expect(wrapper.vm.device_rows.map((x) => x.rack)).toStrictEqual([
+      "Rack A U4",
+      "Rack B",
+      "",
+    ]);
+  });
+
   test("racked and unracked devices can be picked with the keyboard", async () => {
     setInventory([
       device("SRV", { rack: "Rack A", rack_unit: 2 }),

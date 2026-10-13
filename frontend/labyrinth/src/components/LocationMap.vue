@@ -369,7 +369,7 @@ export default {
       return this.devices.filter(
         (x) =>
           !placed[x._live.key] &&
-          !(this.has_image && ["vm", "lxc"].indexOf(x._live.type) != -1)
+          !(this.has_image && ["vm", "lxc"].includes(x._live.type))
       );
     },
     unplaced_groups() {
@@ -519,7 +519,7 @@ export default {
       if (!name.trim()) {
         return "A map needs a name";
       }
-      if (name.indexOf("/") != -1) {
+      if (name.includes("/")) {
         return "Map names cannot contain '/'";
       }
       if (this.all_maps.some((x) => x.name == name.trim())) {
@@ -594,14 +594,15 @@ export default {
       try {
         if (this.draft.default) {
           // Only one map is the Home default
-          for (let other of this.all_maps) {
-            if (other.default && other.name != this.draft.name) {
-              let copy = JSON.parse(JSON.stringify(other));
-              delete copy._id;
-              copy.default = false;
-              await this.saveMap(copy);
-            }
-          }
+          await Promise.all(
+            this.all_maps
+              .filter((x) => x.default && x.name != this.draft.name)
+              .map((other) => {
+                let copy = { ...other, default: false };
+                delete copy._id;
+                return this.saveMap(copy);
+              })
+          );
         }
         await this.saveMap(this.draft);
         this.$emit("changed");
@@ -691,18 +692,18 @@ export default {
         await this.loadImages();
         // The server sanitises file names: the new entry is the upload, or
         // the same name when an existing image was replaced
-        let added = this.images.filter((x) => before.indexOf(x) == -1);
+        let added = this.images.filter((x) => !before.includes(x));
         let uploaded = added.length == 1 ? added[0] : file.name;
         this.forgetImage(uploaded);
         this.loadImage(uploaded);
-        if (this.draft && this.images.indexOf(uploaded) != -1) {
+        if (this.draft && this.images.includes(uploaded)) {
           this.draft.background_image = uploaded;
           await this.saveDraft();
         }
       } catch (e) {
         this.$store.commit(
           "updateError",
-          ("" + e).indexOf("484") != -1
+          ("" + e).includes("484")
             ? "Error: That file is not a valid image."
             : e
         );

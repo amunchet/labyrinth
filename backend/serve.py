@@ -2341,7 +2341,7 @@ def _clean_inventory_fields(doc):
         doc[field] = value
 
 
-@app.route("/locations/")
+@app.route("/locations/", methods=["GET"])
 @requires_auth_read
 def list_locations():
     """Lists all locations (sites/buildings) with their racks"""
@@ -2507,7 +2507,7 @@ def update_host_inventory(host, inp=""):
         cleared += ["rack"]
     if "rack" in cleared:
         cleared += ["rack_unit"]
-    cleared = sorted(set(x for x in cleared if x not in data))
+    cleared = sorted({x for x in cleared if x not in data})
     rack = "" if "rack" in cleared else data.get("rack", found.get("rack"))
 
     if location:
@@ -2535,7 +2535,7 @@ def update_host_inventory(host, inp=""):
     return json.dumps(hosts.find_one({"_id": found["_id"]}), default=str), 200
 
 
-@app.route("/alive/check/<host>")
+@app.route("/alive/check/<host>", methods=["GET"])
 @requires_auth_write
 def alive_check(host):
     """
@@ -2553,7 +2553,7 @@ def alive_check(host):
     return json.dumps(result), 200
 
 
-@app.route("/inventory/")
+@app.route("/inventory/", methods=["GET"])
 @requires_auth_read
 def inventory():
     """

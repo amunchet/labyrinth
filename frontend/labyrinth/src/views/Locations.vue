@@ -465,7 +465,7 @@ export default {
       return this.devicesAt(this.selected);
     },
     all_ips() {
-      return new Set(this.inventory.devices.map((x) => x.ip).filter((x) => x));
+      return new Set(this.inventory.devices.map((x) => x.ip).filter(Boolean));
     },
     rack_layouts() {
       if (!this.current) {
@@ -512,8 +512,8 @@ export default {
       let racks = this.current ? this.current.racks.map((x) => x.name) : [];
       return this.devices_here.filter(
         (x) =>
-          !(racks.indexOf(x.rack) != -1 && x.rack_unit) &&
-          ["vm", "lxc"].indexOf(x._live.type) == -1
+          !(racks.includes(x.rack) && x.rack_unit) &&
+          !["vm", "lxc"].includes(x._live.type)
       );
     },
     rack_device() {
@@ -548,24 +548,27 @@ export default {
             [x.host, x.ip, x.mac, x.vendor, x.model, x.serial, x.notes]
               .join(" ")
               .toLowerCase()
-              .indexOf(filter) != -1
+              .includes(filter)
         )
         .map((device) => {
           let type = Helper.deviceTypes[device._live.type];
+          let rack = device.rack || "";
+          if (rack && device.rack_unit) {
+            rack += " U" + device.rack_unit;
+          }
           let uplink = this.device_map[device.uplink];
+          let uplink_label = uplink ? Helper.deviceName(uplink) : "";
+          if (uplink && device.link_type) {
+            uplink_label += " (" + device.link_type + ")";
+          }
           return {
             device: device,
             status: device._live.status,
             name: Helper.deviceName(device),
             type: type ? type.label : "",
             ip: device.ip,
-            rack: device.rack
-              ? device.rack + (device.rack_unit ? " U" + device.rack_unit : "")
-              : "",
-            uplink: uplink
-              ? Helper.deviceName(uplink) +
-                (device.link_type ? " (" + device.link_type + ")" : "")
-              : "",
+            rack: rack,
+            uplink: uplink_label,
             location_source: device._live.location_source,
           };
         });
@@ -575,7 +578,7 @@ export default {
       if (!name) {
         return "A location needs a name.";
       }
-      if (name.indexOf("/") != -1) {
+      if (name.includes("/")) {
         return "Location names cannot contain '/'.";
       }
       let clash = this.locations.find(

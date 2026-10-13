@@ -152,13 +152,13 @@ export default {
       return services ? services.ok + services.warning + services.failed : 0;
     },
     guest_problems() {
-      return this.guests.filter(
-        (x) => ["down", "error"].indexOf(x._live.status) != -1
+      return this.guests.filter((x) =>
+        ["down", "error"].includes(x._live.status)
       ).length;
     },
     hardware() {
       return [this.device.vendor, this.device.model, this.device.serial]
-        .filter((x) => x)
+        .filter(Boolean)
         .join(" · ");
     },
   },
@@ -186,7 +186,7 @@ dt {
 }
 dd {
   margin: 0;
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 .notes {
   white-space: pre-wrap;

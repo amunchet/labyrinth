@@ -842,7 +842,7 @@ export default {
         " metric(s)"
       );
     },
-    saveHost: /* istanbul ignore next  */ function () {
+    saveHost: /* istanbul ignore next  */ async function () {
       let auth = this.$auth;
       let formData = new FormData();
 
@@ -870,22 +870,22 @@ export default {
       let host = JSON.parse(JSON.stringify(this.host));
       host["services"] = host["services"].map((x) => x["name"]);
       formData.append("data", JSON.stringify(host));
-      Helper.apiPost("host", "", "", auth, formData)
-        .then((res) => {
-          this.$emit("update");
-          this.$store.commit("updateError", res);
-          this.$bvModal.hide("create_edit_host");
-          if (host.ip) {
-            // Show its reachability now instead of after the next alive run.
-            // Best effort: needs write access, and the cron catches up anyway.
-            Helper.apiCall("alive/check", host.ip, auth)
-              .then(() => this.$emit("update"))
-              .catch(() => {});
-          }
-        })
-        .catch((e) => {
-          this.$store.commit("updateError", e);
-        });
+      try {
+        let res = await Helper.apiPost("host", "", "", auth, formData);
+        this.$emit("update");
+        this.$store.commit("updateError", res);
+        this.$bvModal.hide("create_edit_host");
+      } catch (e) {
+        this.$store.commit("updateError", e);
+        return;
+      }
+      if (host.ip) {
+        // Show its reachability now instead of after the next alive run.
+        // Best effort: needs write access, and the cron catches up anyway.
+        Helper.apiCall("alive/check", host.ip, auth)
+          .then(() => this.$emit("update"))
+          .catch(() => {});
+      }
     },
     cloneHost: function () {
       let cloned = JSON.parse(JSON.stringify(this.host));

@@ -1231,7 +1231,7 @@ export default {
           var seen = {};
           res.forEach((x) => {
             // IP-less inventory devices cannot be deployed to
-            var ip = (x.ip || "").trim();
+            let ip = (x.ip || "").trim();
             if (ip && seen[ip] == undefined) {
               seen[ip] = true;
               hosts.push({

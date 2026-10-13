@@ -137,3 +137,15 @@ un-racked chips were click-only, so they are now focusable buttons that also
 work with Enter/Space; the floor-plan image has alt text. CodeQL: the auth
 error handler's status code (which its /error/<code> route takes from the URL)
 is now escaped; the response text is unchanged.
+
+## 2026-10-13 02:45 CDT (07:45 UTC)
+Worked through SonarCloud's maintainability findings on PR #74 that fit the
+project's code style: explicit GET methods on /locations/, /inventory/ and
+/alive/check/<host>; flat promise chains (map image fetch, host save then
+reachability check); un-defaulting other maps saved in parallel rather than
+one by one; nested ternaries in the Locations device list replaced with plain
+ifs (with a test for the rack label); includes()/Boolean/overflow-wrap
+modernisations; `let` for the Deploy IP. No behaviour change. Not changed on
+purpose: cognitive-complexity splits and constants for "$unset"/"$pull" (the
+code style rules out single-use helpers and extra abstractions), and
+structuredClone (CI runs the frontend tests on Node 16, which lacks it).

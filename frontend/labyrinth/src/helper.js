@@ -159,19 +159,22 @@ export default {
   // cannot send the Authorization header, so callers show it via a blob URL
   // rather than putting the access token in the image's URL.
   apiBlob(path, auth) /* istanbul ignore next */ {
-    return auth.getAccessToken().then((accessToken) =>
-      fetch(this.getURL() + path, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Email: auth["profile"]["email"],
-        },
-      }).then((response) => {
+    return auth
+      .getAccessToken()
+      .then((accessToken) =>
+        fetch(this.getURL() + path, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Email: auth["profile"]["email"],
+          },
+        })
+      )
+      .then((response) => {
         if (!response.ok) {
           throw new Error(`HTTP error! Status: ${response.status}`);
         }
         return response.blob();
-      })
-    );
+      });
   },
   apiDelete(url, command, auth) /* istanbul ignore next */ {
     var profile = auth["profile"]["email"];
