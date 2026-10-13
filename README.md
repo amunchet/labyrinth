@@ -23,6 +23,16 @@ The beautiful network analyzer, mapper, and monitor.
     - Paste that token when `install.sh` asks for the Cloudflare API token for the DNS challenge.
 3.  If you are running docker as non-root, then remove the top section from `install.sh` and re-run.
 
+## Locations, Maps and Racks
+The **Locations** page tracks where everything physically is, across buildings and sites:
+- **Locations** are buildings or sites, each with optional racks (name and height in U).
+- **Devices** are hosts with optional inventory fields: type (server, VM/LXC, PC, switch, AP, wireless bridge, PLC, camera, ...), location, rack position, vendor/model/serial and an *uplink* to the device they connect up to (with a link type such as fiber or wireless). Devices without an IP, like unmanaged switches or patch panels, can be added too - they are labelled, not monitored.
+- A device's location is its own, else that of the Proxmox node it runs on (VMs/LXCs), else that of its subnet - so giving a subnet a location (click the subnet on the Dashboard) places all of its hosts at once.
+- **Maps** are floor plans: upload an image, then drag devices onto it. Each marker shows live status, and uplinks between placed devices are drawn, so building-to-building bridges and fiber show up on a site map. A location without a floor plan automatically shows a board of all its devices. The default map is shown on the Home page.
+- **Racks** show each rack's devices by U position (drag to rack/move them), and the Proxmox VMs and containers running on each server.
+
+Anything with an IP is pinged every minute (or TCP-checked, if the host has a *Check TCP Port*, e.g. `80` for a web-controlled PLC), so its status shows on maps right away; only hosts set to *Monitor* raise alerts. The same inventory is available to AI agents through the MCP server (see `backend/ai/mcp/README.md`).
+
 ## Upgrading an existing install
 
 `install.sh` copies `caddy/Caddyfile.sample` to `caddy/Caddyfile` only if that file does not already exist, so an existing deployment keeps its own Caddyfile.  To pick up the Go metrics ingest service, add the nested `handle` blocks from `caddy/Caddyfile.sample` to your `caddy/Caddyfile`:

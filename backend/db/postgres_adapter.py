@@ -32,7 +32,7 @@ from db import base
 _SAFE_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*(\.[A-Za-z_][A-Za-z0-9_-]*)*$")
 
 _JSONB_TABLE_INDEXES = {
-    "hosts": [("ip", False), ("mac", False), ("subnet", False)],
+    "hosts": [("ip", False), ("mac", False), ("subnet", False), ("location", False)],
     "subnets": [("subnet", False)],
     "services": [("name", False), ("display_name", False)],
     "settings": [("name", True)],
@@ -40,6 +40,7 @@ _JSONB_TABLE_INDEXES = {
     "aws_accounts": [("name", False)],
     "themes": [("name", False)],
     "dashboards": [("name", False)],
+    "locations": [("name_key", False)],
     "ansible_runs": [("job_id", False), ("request_id", False), ("created_at", False)],
     "ansible_requests": [("request_id", False), ("playbook", False)],
 }

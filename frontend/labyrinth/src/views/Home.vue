@@ -8,9 +8,7 @@
       <b-avatar class="mb-2" :src="$auth.profile.picture" size="5rem" />
       <h4>Welcome, {{ $auth.profile.name }}</h4>
       <hr />
-      <div class="nomobile">
-        <CustomDashboardsView />
-      </div>
+      <CustomDashboardsView />
     </div>
   </div>
 </template>
@@ -26,10 +24,3 @@ export default {
   },
 };
 </script>
-<style lang="scss" scoped>
-@media screen and (max-width: 991px) {
-  .nomobile {
-    display: none !important;
-  }
-}
-</style>

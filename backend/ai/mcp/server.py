@@ -99,7 +99,15 @@ async def mcp_get_host(host_key: str) -> Dict[str, Any]:
 
 @app.tool()
 async def mcp_create_or_update_host(host_json: str) -> str:
-    """Create or update a host. Provide a JSON object string."""
+    """
+    Create or update a host/device (replaces the whole record; use
+    mcp_set_device_inventory to change only location/rack/type fields).
+    Provide a JSON object string. `mac` is the key: omit it to key the device
+    by IP, or for IP-less devices (e.g. an unmanaged switch) to generate one.
+    Optional inventory fields: device_type, location, rack, rack_unit,
+    rack_height, vendor, model, serial, uplink (another device's key),
+    link_type, proxmox_node, proxmox_vmid.
+    """
     host = json.loads(host_json)
     return client.create_or_update_host(host)
 
@@ -155,6 +163,62 @@ async def mcp_read_metrics(
     "Input should be a valid dictionary".
     """
     return client.get_metrics(host_key, service, count)
+
+
+@app.tool()
+async def mcp_list_locations() -> List[Dict[str, Any]]:
+    """List locations (sites/buildings), each with its racks."""
+    return client.list_locations()
+
+
+@app.tool()
+async def mcp_save_location(location_json: str) -> Dict[str, Any]:
+    """
+    Create or update a location. JSON: {"name", "address", "notes",
+    "racks": [{"name", "units"}]}. To update or rename, include its "_id"
+    (from mcp_list_locations) and send the full rack list; a rack sent with
+    "previous_name" was renamed and keeps its devices, and devices in racks
+    left out are un-racked.
+    """
+    return client.save_location(json.loads(location_json))
+
+
+@app.tool()
+async def mcp_delete_location(name: str) -> str:
+    """Delete a location by name. Its devices, subnets and maps become unassigned, not deleted."""
+    return client.delete_location(name)
+
+
+@app.tool()
+async def mcp_get_inventory(
+    location: str = "", device_type: str = "", status: str = ""
+) -> Dict[str, Any]:
+    """
+    Devices with live status, plus locations and the Proxmox node -> VM/LXC tree.
+    Filters (optional): location (effective location name), device_type (server,
+    vm, lxc, pc, laptop, switch, router, firewall, ap, bridge, plc, iot, camera,
+    printer, phone, ups, storage, patch-panel, other) and status (up, down,
+    error, warning, unknown, none = no IP/label only). A device's location is
+    explicit, else inherited from its Proxmox node, else from its subnet.
+    """
+    return client.get_inventory(location, device_type, status)
+
+
+@app.tool()
+async def mcp_set_device_inventory(host_key: str, fields_json: str) -> Dict[str, Any]:
+    """
+    Update only the inventory fields of a device (by key/MAC or IP), e.g.
+    {"location": "Plant", "rack": "Rack A", "rack_unit": 10, "rack_height": 2,
+    "device_type": "server", "uplink": "<switch key>", "link_type": "fiber"}.
+    Blank values clear a field; the location, rack and uplink must exist.
+    """
+    return client.set_device_inventory(host_key, json.loads(fields_json))
+
+
+@app.tool()
+async def mcp_check_device(host_key: str) -> Dict[str, Any]:
+    """Ping (or TCP-check, if the device has a check port) a device now and record the result."""
+    return client.check_device(host_key)
 
 
 @app.tool()

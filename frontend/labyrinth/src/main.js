@@ -35,10 +35,6 @@ Vue.use(AuthPlugin);
 import Vuelidate from "vuelidate";
 Vue.use(Vuelidate);
 
-// Konva
-import VueKonva from "vue-konva";
-Vue.use(VueKonva);
-
 import VueCodemirror from "vue-codemirror";
 
 // require styles

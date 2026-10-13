@@ -11,16 +11,16 @@ Labyrinth is a network analyzer, mapper, and monitor built on NMap, Ansible, and
 **Service boundaries:**
 - `backend/` - Flask API server (port 7000 in dev) handling all business logic; nearly every route lives in `backend/serve.py` (~3000 lines)
 - `metrics-go/` - Go Telegraf ingest service (port 9000, `metrics` compose service). Caddy routes `POST /api/metrics/` here; everything else under `/api/` still goes to Flask. Drop-in replacement for `serve.py`'s `insert_metric`: same `TELEGRAF_KEY` header check, same `METRIC-<json>` Redis keys with the same 120s TTL, but one pipelined Redis round trip per agent batch instead of a connection pool per metric. Also records the per-client ingest counters (see below). Full docs in `metrics-go/README.md`
-- `frontend/labyrinth/` - Vue 2 SPA with Bootstrap-Vue for UI, Konva canvas for network topology visualization
+- `frontend/labyrinth/` - Vue 2 SPA with Bootstrap-Vue for UI (location floor-plan maps are plain DOM/SVG with percentage positions)
 - `alertmanager/` - Prometheus Alertmanager for alert routing
 - `nginx/` - Reverse proxy with lego for SSL cert management
 - `cron/` - Scheduled jobs (crontab in `cron/cron.d/crontab`) running finder, alive checks, watcher, Proxmox refresh/disk-check, EC2 unmatched-instance check, bulk metric writes, AI summaries, level expiry
 - `backend/ai/` - hourly AI summary job (`ai.sh` -> `backend/ai/main.py`, built on `ai_pipeline.py`/`ai_settings.py`) that pulls hosts/services/recent metrics from the database, sends them to ChatGPT (`chatgpt_helper.py`) for a plain-English summary, and delivers it by email/Slack (`email_helper.py`, `slack_helper.py`)
 - `backend/ai/mcp/` - standalone MCP server (own Dockerfile, runs as the `mcp` compose service on port 8765) exposing host/service/metric tools via `unwrap()`-wrapped Flask handlers, bypassing Auth0; guarded instead by an `MCP_KEY` pre-shared secret and reached externally through Caddy's `/mcp*` route
 - `backend/db/` - database adapter ecosystem (see below) - PostgreSQL/TimescaleDB by default, MongoDB as an explicit fallback
-- PostgreSQL + TimescaleDB - default data store (`DB_BACKEND=postgres`): JSONB tables for hosts/subnets/services/settings/proxmox_clusters/aws_accounts/themes/dashboards, a TimescaleDB hypertable for `metrics`, a plain table for `metrics-latest`. See `MONGO_MIGRATION.md`.
+- PostgreSQL + TimescaleDB - default data store (`DB_BACKEND=postgres`): JSONB tables for hosts/subnets/services/settings/proxmox_clusters/aws_accounts/themes/dashboards (= location maps)/locations, a TimescaleDB hypertable for `metrics`, a plain table for `metrics-latest`. See `MONGO_MIGRATION.md`.
 - MongoDB - fallback data store (`DB_BACKEND=mongo`); prior default, still fully supported
-- Redis - write cache for metrics + temporary storage (Telegraf configs, scan output, autosave, job status, Proxmox cluster/guest status caches)
+- Redis - write cache for metrics + temporary storage (Telegraf configs, scan output, autosave, job status, Proxmox cluster/guest status caches, `alive` hash of per-IP reachability)
 
 **Data flow:**
 1. Network scans via `backend/finder.py` (nmap) create/update hosts in the database
@@ -29,8 +29,9 @@ Labyrinth is a network analyzer, mapper, and monitor built on NMap, Ansible, and
 4. Frontend polls the backend API to display topology and metrics
 5. `backend/watcher.py` judges service health and sends alerts to Alertmanager (`http://alertmanager:9093/api/v2/alerts`, password read from `/alertmanager/pass`); frontend can list/resolve them via `/alertmanager/alerts`
 6. Proxmox: `cron/proxmox_refresh.sh` refreshes the per-cluster Redis cache; `cron/disk_check.sh` runs `backend/proxmox_disk_check.py` hourly to email disk-space alerts
-7. AWS: `cron/ec2_check.sh` runs `backend/ec2_unmatched_check.py` hourly to email a list of EC2 instances that don't match any known Labyrinth host (matching logic shared with `serve.py` via `aws_helper.py`)
-8. Postgres backend only: `cron/compact_metrics.sh` daily rolls raw `metrics` rows older than `METRICS_RAW_RETENTION_DAYS` into `metrics_daily` aggregates; `cron/backup_db.sh` daily dumps the database to `/backups` for an external offsite system to pick up
+7. `backend/alive.py` (cron, every minute) pings - or TCP-checks hosts with a `check_alive_port` - every host with an IP in parallel, replaces the Redis `alive` hash with the results, and alerts only for `monitor`ed hosts that are down
+8. AWS: `cron/ec2_check.sh` runs `backend/ec2_unmatched_check.py` hourly to email a list of EC2 instances that don't match any known Labyrinth host (matching logic shared with `serve.py` via `aws_helper.py`)
+9. Postgres backend only: `cron/compact_metrics.sh` daily rolls raw `metrics` rows older than `METRICS_RAW_RETENTION_DAYS` into `metrics_daily` aggregates; `cron/backup_db.sh` daily dumps the database to `/backups` for an external offsite system to pick up
 
 ### Database adapter ecosystem (`backend/db/`)
 
@@ -60,11 +61,20 @@ Labyrinth is a network analyzer, mapper, and monitor built on NMap, Ansible, and
 - The counter prefix must never be `METRIC-`: `bulk_insert` does `KEYS METRIC-*` and `GET`s every match, so a hash under that prefix would fail the bulk writer with `WRONGTYPE`.
 - `backend/ingest_counters.py` is the read side (`GET`/`DELETE /metrics_counts/<host>` in `serve.py`, resolving a host by mac or ip), and the counters are displayed in the host settings modal (`CreateEditHost.vue`).
 
+### Locations, inventory and maps (`/locations/`, `/inventory/`, `frontend/labyrinth/src/views/Locations.vue`)
+
+- Hosts double as the device inventory. Optional `INVENTORY_FIELDS` on host docs (`serve.py`): `device_type` (one of `DEVICE_TYPES`), `location`, `rack`, `rack_unit` (lowest U), `rack_height`, `vendor`, `model`, `serial`, `uplink` (another host's key) + `link_type`, `proxmox_node`, `proxmox_vmid`. `_clean_inventory_fields` coerces/validates them on every host save and drops blank ones.
+- The host key is `mac`. A blank MAC is keyed by IP (as the finder does); IP-less "label" devices (unmanaged switches, patch panels) get a generated `device-<hex>` key and have no subnet, so they never appear on the subnet dashboard.
+- `locations` docs are `{name, name_key, address, notes, racks: [{name, units}]}`; hosts, subnets and maps refer to a location by name, so renames cascade (`create_edit_location`), a rack sent with `previous_name` keeps its hosts, and deleting a location only unassigns. On Postgres it is a JSONB table registered in `_JSONB_TABLE_INDEXES`, and `migrate_to_postgres.py` copies it.
+- `POST /host/<key>/inventory` updates just the inventory fields (validating location/rack/uplink); the UI's drag-and-drop and the MCP use it.
+- `GET /inventory/` returns all hosts, each with a computed `_live` block (effective type, effective location + `location_source` = explicit / proxmox / subnet, last `alive` record, service summary from the judged dashboard, rolled-up `status`: up/down/error/warning/unknown/none), plus `locations` and the cached Proxmox node -> VM/LXC tree matched to hosts (explicit `proxmox_node`/`proxmox_vmid`, else short hostname). It only reads the Proxmox Redis cache, never the live API. `_live` is never persisted (`create_edit_host` drops it).
+- Maps are `dashboards` docs: `{name, location, background_image, default, placements: [{key, x, y}]}` with x/y as percentages of the image; images live in `/src/uploads/images` and are served only with the usual Authorization header (`GET /custom_dashboard_images/<file>`, read permission). Floor plans are not public, and an `<img src>` cannot send that header, so `LocationMap.vue` fetches each image with `Helper.apiBlob` and shows a blob URL; never put an access token in a URL (request logs keep it). `LocationMap.vue` renders/edits them (and converts maps from the old Konva editor, which stored `components` at pixel offsets by IP).
+
 ### AI summaries and MCP (`backend/ai/`)
 
 - `cron/ai.sh` runs `backend/ai/main.py` hourly: `ai_pipeline.py`'s `process_dashboard()` pulls hosts/services and recent metrics from the database, slims them down, and `main()` sends the result to ChatGPT (`chatgpt_helper.py`) to produce a plain-English network summary, delivered via `email_helper.py`/`slack_helper.py`.
 - The prompt, model, recipients, subject template, and from-name are configurable under Settings -> AI Alerts (`/ai/settings` routes, stored in the generic `settings` collection/table); `backend/ai/ai_settings.py` reads them with built-in defaults, so `initial_prompt.txt` (gitignored - see `initial_prompt.txt.example`) is now only a fallback. `/ai/test-email` sends either a simple deliverability check or a full dashboard -> ChatGPT -> email run on demand.
-- `backend/ai/mcp/server.py` is a separate MCP (Model Context Protocol) server, run as its own Docker service (`mcp` in compose files) with its own `Dockerfile`/`requirements.txt`. It shares the backend's database/Redis (same `DB_BACKEND` selection, own `backend/ai/mcp/requirements.txt` needs the same driver pins kept in sync with `backend/requirements.txt`) and calls `serve.py` route handlers directly via `unwrap()`, so it exposes host/service/metric management tools (`mcp_list_hosts`, `mcp_create_or_update_host`, `mcp_add_service_to_host`, `mcp_list_services`, `mcp_read_metrics`, etc.) without Auth0. Because `unwrap()` removes the only authorization the handlers have, every HTTP request must instead carry the `MCP_KEY` pre-shared secret (`X-MCP-Key`, `Authorization: Bearer <key>`, or the bare `Authorization: <key>` form); the check lives in `backend/ai/mcp/auth.py` as ASGI middleware wrapping the whole app, and the server refuses to start if the key is unset. The transport is MCP streamable HTTP mounted at `/mcp`, served by `create_http_app()` (FastMCP itself is not ASGI-callable) and proxied externally by Caddy's `/mcp*` route. `server.py` also passes `transport_security` explicitly: FastMCP auto-enables DNS-rebinding protection whenever its own `settings.host` is loopback (which it is - `MCP_HOST` is uvicorn's bind address, not FastMCP's), and that answers `421 Invalid Host header` to everything arriving under a real domain through Caddy. The check is off unless `MCP_ALLOWED_HOSTS` pins an allowlist. Full tool/schema docs in `backend/ai/mcp/README.md`.
+- `backend/ai/mcp/server.py` is a separate MCP (Model Context Protocol) server, run as its own Docker service (`mcp` in compose files) with its own `Dockerfile`/`requirements.txt`. It shares the backend's database/Redis (same `DB_BACKEND` selection, own `backend/ai/mcp/requirements.txt` needs the same driver pins kept in sync with `backend/requirements.txt`) and calls `serve.py` route handlers directly via `unwrap()`, so it exposes host/service/metric and location/inventory management tools (`mcp_list_hosts`, `mcp_create_or_update_host`, `mcp_add_service_to_host`, `mcp_list_services`, `mcp_read_metrics`, `mcp_get_inventory`, `mcp_set_device_inventory`, `mcp_save_location`, `mcp_check_device`, etc.) without Auth0. Because `unwrap()` removes the only authorization the handlers have, every HTTP request must instead carry the `MCP_KEY` pre-shared secret (`X-MCP-Key`, `Authorization: Bearer <key>`, or the bare `Authorization: <key>` form); the check lives in `backend/ai/mcp/auth.py` as ASGI middleware wrapping the whole app, and the server refuses to start if the key is unset. The transport is MCP streamable HTTP mounted at `/mcp`, served by `create_http_app()` (FastMCP itself is not ASGI-callable) and proxied externally by Caddy's `/mcp*` route. `server.py` also passes `transport_security` explicitly: FastMCP auto-enables DNS-rebinding protection whenever its own `settings.host` is loopback (which it is - `MCP_HOST` is uvicorn's bind address, not FastMCP's), and that answers `421 Invalid Host header` to everything arriving under a real domain through Caddy. The check is off unless `MCP_ALLOWED_HOSTS` pins an allowlist. Full tool/schema docs in `backend/ai/mcp/README.md`.
 
 ## Development Workflows
 
@@ -128,6 +138,10 @@ docker-compose -f docker-compose-production.yml up --build -d
 **Authentication:**
 - Three permission levels: `PERM_READ`, `PERM_WRITE`, `PERM_ADMIN`, applied via `@requires_auth_read`/`@requires_auth_write`/`@requires_auth_admin` decorators (Auth0 JWT validation in `backend/common/auth.py`).
 - Telegraf metrics ingestion instead uses header auth (`requires_header`, checks `TELEGRAF_KEY`).
+- On an auth failure `_requires_auth` calls `error_func` with the failed route's URL arguments, so `error_func` must accept extra keyword arguments; otherwise every protected route with a URL parameter answers a missing/expired token with a 500 instead of 401/471.
+
+**Error responses:**
+- Never put a submitted value or a caught exception's text into a response. Flask sends a returned string as `text/html`, so echoing input is reflected XSS (CodeQL `py/reflective-xss`, Sonar S5131), and `str(e)` is flagged as stack-trace exposure. Return fixed text that says what is allowed instead; validators such as `_clean_inventory_fields` return a message rather than raising. CodeQL reads a returned `(body, status)` tuple as one body, so a status taken from the request is flagged too.
 
 **Service/health-check model:**
 - `services` collection/table stores check/port monitoring configs; two service types: `"check"` (command execution) and `"port"` (TCP/UDP checks).
@@ -173,6 +187,8 @@ docker-compose -f docker-compose-production.yml up --build -d
 - `backend/proxmox_helper.py` / `backend/proxmox_disk_check.py` - Proxmox cluster querying, caching, and disk-space alert emails
 - `backend/aws_helper.py` / `backend/ec2_unmatched_check.py` - EC2 inventory, EC2<->host matching, and unmatched-instance alert emails (see `cron/ec2_check.sh`)
 - `backend/watcher.py` - Alertmanager alert dispatch
+- `backend/alive.py` - minute-by-minute ping/TCP reachability checks recorded in Redis
+- `frontend/labyrinth/src/views/Locations.vue`, `src/components/LocationMap.vue` - locations, floor-plan maps, racks
 - `backend/ai/main.py` / `backend/ai/ai_pipeline.py` / `backend/ai/ai_settings.py` - hourly AI dashboard summary job, its dashboard->ChatGPT->email pipeline, and the configurable prompt/model/recipient settings
 - `backend/ai/mcp/server.py` - MCP server exposing host/service/metric tools
 - `backend/migrate_to_postgres.py` - one-time Mongo-to-Postgres data migration tool (operator-run, not automatic)

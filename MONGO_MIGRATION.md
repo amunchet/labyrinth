@@ -9,9 +9,9 @@ MongoDB remains fully supported as an explicit fallback (`DB_BACKEND=mongo`)
 - nothing was ripped out, and existing Mongo deployments keep working
 unchanged until you choose to cut over.
 
-**Why Postgres + TimescaleDB:** the app is a hybrid workload - eight
+**Why Postgres + TimescaleDB:** the app is a hybrid workload - nine
 low-volume, flexible-schema config collections (hosts, subnets, services,
-settings, proxmox_clusters, aws_accounts, themes, dashboards) plus one
+settings, proxmox_clusters, aws_accounts, themes, dashboards, locations) plus one
 high-frequency time-series stream (metrics). Postgres covers both in a
 single engine (JSONB tables for the former, a TimescaleDB hypertable for
 the latter), which matters for "docker friendly": one container, one

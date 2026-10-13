@@ -20,6 +20,9 @@
             <b-nav-item href="/dashboard">
               <router-link to="/dashboard">Dashboard</router-link>
             </b-nav-item>
+            <b-nav-item href="/locations">
+              <router-link to="/locations">Locations</router-link>
+            </b-nav-item>
             <b-nav-item href="/problem-services">
               <router-link to="/problem-services">Problems</router-link>
             </b-nav-item>

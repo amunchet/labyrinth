@@ -52,6 +52,7 @@ COLLECTIONS = [
     "aws_accounts",
     "themes",
     "dashboards",
+    "locations",
     "metrics-latest",
     "metrics",
 ]

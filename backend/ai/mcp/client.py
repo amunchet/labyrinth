@@ -49,11 +49,18 @@ class LabyrinthClient:
         return None
 
     def create_or_update_host(self, host: Dict[str, Any]) -> str:
-        if "mac" not in host:
-            raise ValueError("Host requires mac field")
-        _, status = unwrap(serve.create_edit_host)(host)
+        # Without a mac the backend keys the host by IP (or generates a key for
+        # IP-less devices), so refuse to shadow a host already known by MAC.
+        if not host.get("mac") and host.get("ip"):
+            existing = serve.db["labyrinth"]["hosts"].find_one({"ip": host["ip"]})
+            if existing and existing.get("mac") != host["ip"]:
+                raise ValueError(
+                    f"A host with IP {host['ip']} already exists (key "
+                    f"{existing['mac']}); include that mac to update it"
+                )
+        msg, status = unwrap(serve.create_edit_host)(host)
         if status != 200:
-            raise RuntimeError(f"create_edit_host failed with status {status}")
+            raise RuntimeError(f"create_edit_host failed with status {status}: {msg}")
         return "Success"
 
     def update_host_services(
@@ -110,6 +117,92 @@ class LabyrinthClient:
         raw, status = unwrap(serve.read_metrics)(host_key, service, count)
         if status != 200:
             raise RuntimeError(f"read_metrics failed with status {status}")
+        return json.loads(raw)
+
+    def list_locations(self) -> List[Dict[str, Any]]:
+        raw, _ = unwrap(serve.list_locations)()
+        return json.loads(raw)
+
+    def save_location(self, location: Dict[str, Any]) -> Dict[str, Any]:
+        raw, status = unwrap(serve.create_edit_location)(location)
+        if status != 200:
+            raise RuntimeError(f"Saving the location failed ({status}): {raw}")
+        return json.loads(raw)
+
+    def delete_location(self, name: str) -> str:
+        found = [
+            x
+            for x in self.list_locations()
+            if x["name"].casefold() == name.strip().casefold()
+        ]
+        if not found:
+            raise ValueError(f"No location named {name}")
+        msg, status = unwrap(serve.delete_location)(str(found[0]["_id"]))
+        if status != 200:
+            raise RuntimeError(f"Deleting the location failed ({status}): {msg}")
+        return "Success"
+
+    def get_inventory(
+        self, location: str = "", device_type: str = "", status: str = ""
+    ) -> Dict[str, Any]:
+        """Inventory with devices slimmed to what an agent needs, optionally filtered."""
+        data = json.loads(unwrap(serve.inventory)()[0])
+        devices = []
+        for device in data["devices"]:
+            live = device["_live"]
+            if location and live["location"].casefold() != location.casefold():
+                continue
+            if device_type and live["type"] != device_type:
+                continue
+            if status and live["status"] != status:
+                continue
+            slim = {
+                "key": live["key"],
+                "name": device.get("host", ""),
+                "ip": device.get("ip", ""),
+                "mac": device.get("mac", ""),
+                "type": live["type"],
+                "location": live["location"],
+                "location_source": live["location_source"],
+                "status": live["status"],
+                "alive": live["alive"],
+                "services": live["services"],
+                "proxmox": live["proxmox"],
+                "parent": live["parent"],
+            }
+            for field in list(serve.INVENTORY_FIELDS) + [
+                "group",
+                "subnet",
+                "tags",
+                "notes",
+                "monitor",
+                "check_alive_port",
+            ]:
+                if field in device and field not in ("device_type", "location"):
+                    slim[field] = device[field]
+            devices.append(slim)
+
+        locations = data["locations"]
+        if location:
+            locations = [
+                x for x in locations if x["name"].casefold() == location.casefold()
+            ]
+        return {"locations": locations, "devices": devices, "proxmox": data["proxmox"]}
+
+    def set_device_inventory(
+        self, host_key: str, fields: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        raw, status = unwrap(serve.update_host_inventory)(host_key, fields)
+        if status != 200:
+            raise RuntimeError(f"Updating the device failed ({status}): {raw}")
+        device = json.loads(raw)
+        device.pop("_id", None)
+        return device
+
+    def check_device(self, host_key: str) -> Dict[str, Any]:
+        raw, status = unwrap(serve.alive_check)(host_key)
+        if status != 200:
+            raise RuntimeError(f"Checking the device failed ({status}): {raw}")
         return json.loads(raw)
 
     def list_files(self, file_type: str) -> List[str]:
