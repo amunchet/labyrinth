@@ -158,20 +158,26 @@ def _truthy_monitor_value(value):
 
 
 def _build_labyrinth_host_match(instance, host):
-    reasons = []
-    host_ip = _normalize_match_string(host.get("ip"))
     instance_ips = {
         _normalize_match_string(instance.get("private_ip")),
         _normalize_match_string(instance.get("public_ip")),
     }
     instance_ips.discard("")
+    return _build_host_match(host, instance_ips, _candidate_instance_names(instance))
 
-    if host_ip and host_ip in instance_ips:
+
+def _build_host_match(host, ips, names):
+    """Describe how a Labyrinth host matches a set of external IPs/names, or None.
+
+    Shared by the EC2 inventory and the Proxmox Telegraf check.
+    """
+    reasons = []
+    host_ip = _normalize_match_string(host.get("ip"))
+    if host_ip and host_ip in ips:
         reasons.append("ip")
 
     host_names = _candidate_host_names(host)
-    instance_names = _candidate_instance_names(instance)
-    if host_names and instance_names and host_names.intersection(instance_names):
+    if host_names and names and host_names.intersection(names):
         reasons.append("hostname")
 
     if not reasons:

@@ -1,0 +1,35 @@
+---
+# Install the check_graylog Telegraf exec check on every host in the run.
+#
+# Copies samples/telegraf/check_graylog.sh to /usr/local/bin and lets the
+# telegraf user read the journal/syslog (for rsyslog suspension detection).
+# Afterwards add this to the host's Telegraf config in Labyrinth:
+#
+#   [[inputs.exec]]
+#     commands = ["/usr/local/bin/check_graylog.sh"]
+#     timeout = "15s"
+#     data_format = "influx"
+#
+# Pass the Graylog target to pin it, e.g.
+#   commands = ["/usr/local/bin/check_graylog.sh graylog.lan:1514"]
+
+- name: Install check_graylog
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Copy check_graylog.sh
+      copy:
+        src: /src/samples/telegraf/check_graylog.sh
+        dest: /usr/local/bin/check_graylog.sh
+        mode: "0755"
+
+    - name: Let telegraf read rsyslog logs
+      user:
+        name: telegraf
+        groups: "{{ item }}"
+        append: true
+      loop:
+        - adm
+        - systemd-journal
+      failed_when: false
