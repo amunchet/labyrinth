@@ -141,8 +141,11 @@ services:
       ALLOW_EMPTY_PASSWORD: "yes"
     networks:
       - labyrinth
-    # volumes:
-    #  - ./redis_data:/bitnami/redis/data
+    # Named, not a bind mount: bitnami runs as uid 1001 and could not write a
+    # root-owned ./redis_data.  Without it the append-only file lived in the
+    # container layer, lost on recreate and rewritten from near-empty.
+    volumes:
+      - redis_data:/bitnami/redis/data
 
   alertmanager:
     build:
@@ -228,3 +231,4 @@ networks:
 volumes:
   caddy_data:
   caddy_config:
+  redis_data:
