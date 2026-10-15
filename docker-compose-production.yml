@@ -43,6 +43,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-labyrinth}
       REDIS_HOST: redis
       PRODUCTION: 1
+      # Just under gunicorn's --timeout, so a killed worker's query dies too
+      POSTGRES_STATEMENT_TIMEOUT_MS: ${POSTGRES_STATEMENT_TIMEOUT_MS:-110000}
 
   # Go Telegraf ingest service - serves POST /api/metrics/.  This is the hot
   # path: one pipelined Redis round trip per agent flush instead of the Flask
@@ -178,6 +180,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-labyrinth}
       REDIS_HOST: redis
+      # Tools run on threads, up to one per pooled connection
+      POSTGRES_POOL_MAX: 4
+      POSTGRES_STATEMENT_TIMEOUT_MS: ${POSTGRES_STATEMENT_TIMEOUT_MS:-110000}
       MCP_PORT: 8765
       MCP_HOST: 0.0.0.0
       # Public base URL used to build Deploy page deep links

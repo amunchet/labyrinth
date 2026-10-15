@@ -81,17 +81,29 @@ def transport_security():
 client = LabyrinthClient()
 app = _FastMCP("labyrinth-mcp", transport_security=transport_security())
 
+# Every client call blocks on Postgres/Redis.  Awaited inline, one slow call
+# (an unindexed metrics read ran for minutes) froze the event loop and every
+# other request with it.  Run them on threads, capped at the per-process DB
+# pool size: ThreadedConnectionPool raises rather than waits when exhausted.
+_db_slots = asyncio.Semaphore(int(os.environ.get("POSTGRES_POOL_MAX") or 2))
+
+
+async def _blocking(fn, *args, **kwargs):
+    """Run a blocking client call off the event loop."""
+    async with _db_slots:
+        return await asyncio.to_thread(fn, *args, **kwargs)
+
 
 @app.tool()
 async def mcp_list_hosts() -> List[Dict[str, Any]]:
     """List all hosts in Labyrinth."""
-    return client.list_hosts()
+    return await _blocking(client.list_hosts)
 
 
 @app.tool()
 async def mcp_get_host(host_key: str) -> Dict[str, Any]:
     """Fetch a single host by MAC or IP."""
-    host = client.get_host(host_key)
+    host = await _blocking(client.get_host, host_key)
     if not host:
         raise ValueError("Host not found")
     return host
@@ -109,13 +121,13 @@ async def mcp_create_or_update_host(host_json: str) -> str:
     link_type, proxmox_node, proxmox_vmid.
     """
     host = json.loads(host_json)
-    return client.create_or_update_host(host)
+    return await _blocking(client.create_or_update_host, host)
 
 
 @app.tool()
 async def mcp_add_service_to_host(host_key: str, service_name: str) -> Dict[str, Any]:
     """Attach a service (display_name) to a host."""
-    return client.add_service_to_host(host_key, service_name)
+    return await _blocking(client.add_service_to_host, host_key, service_name)
 
 
 @app.tool()
@@ -123,7 +135,7 @@ async def mcp_remove_service_from_host(
     host_key: str, service_name: str
 ) -> Dict[str, Any]:
     """Remove a service from a host."""
-    return client.remove_service_from_host(host_key, service_name)
+    return await _blocking(client.remove_service_from_host, host_key, service_name)
 
 
 @app.tool()
@@ -134,20 +146,20 @@ async def mcp_replace_host_services(
     services = json.loads(services_json)
     if not isinstance(services, list):
         raise ValueError("services_json must decode to a list")
-    return client.update_host_services(host_key, services)
+    return await _blocking(client.update_host_services, host_key, services)
 
 
 @app.tool()
 async def mcp_list_services(include_full: bool = False) -> List[Any]:
     """List services. Set include_full=true for full records."""
-    return client.list_services(include_full=include_full)
+    return await _blocking(client.list_services, include_full=include_full)
 
 
 @app.tool()
 async def mcp_create_or_update_service(service_json: str) -> str:
     """Create or update a service definition. Provide a JSON object string."""
     service = json.loads(service_json)
-    return client.create_or_update_service(service)
+    return await _blocking(client.create_or_update_service, service)
 
 
 @app.tool()
@@ -162,13 +174,13 @@ async def mcp_read_metrics(
     declaring a dict here failed every call, empty result included, with
     "Input should be a valid dictionary".
     """
-    return client.get_metrics(host_key, service, count)
+    return await _blocking(client.get_metrics, host_key, service, count)
 
 
 @app.tool()
 async def mcp_list_locations() -> List[Dict[str, Any]]:
     """List locations (sites/buildings), each with its racks."""
-    return client.list_locations()
+    return await _blocking(client.list_locations)
 
 
 @app.tool()
@@ -180,13 +192,13 @@ async def mcp_save_location(location_json: str) -> Dict[str, Any]:
     "previous_name" was renamed and keeps its devices, and devices in racks
     left out are un-racked.
     """
-    return client.save_location(json.loads(location_json))
+    return await _blocking(client.save_location, json.loads(location_json))
 
 
 @app.tool()
 async def mcp_delete_location(name: str) -> str:
     """Delete a location by name. Its devices, subnets and maps become unassigned, not deleted."""
-    return client.delete_location(name)
+    return await _blocking(client.delete_location, name)
 
 
 @app.tool()
@@ -201,7 +213,7 @@ async def mcp_get_inventory(
     error, warning, unknown, none = no IP/label only). A device's location is
     explicit, else inherited from its Proxmox node, else from its subnet.
     """
-    return client.get_inventory(location, device_type, status)
+    return await _blocking(client.get_inventory, location, device_type, status)
 
 
 @app.tool()
@@ -212,31 +224,33 @@ async def mcp_set_device_inventory(host_key: str, fields_json: str) -> Dict[str,
     "device_type": "server", "uplink": "<switch key>", "link_type": "fiber"}.
     Blank values clear a field; the location, rack and uplink must exist.
     """
-    return client.set_device_inventory(host_key, json.loads(fields_json))
+    return await _blocking(
+        client.set_device_inventory, host_key, json.loads(fields_json)
+    )
 
 
 @app.tool()
 async def mcp_check_device(host_key: str) -> Dict[str, Any]:
     """Ping (or TCP-check, if the device has a check port) a device now and record the result."""
-    return client.check_device(host_key)
+    return await _blocking(client.check_device, host_key)
 
 
 @app.tool()
 async def mcp_list_playbooks() -> List[str]:
     """List saved Ansible playbooks (filenames) available on the Deploy page."""
-    return client.list_files("ansible")
+    return await _blocking(client.list_files, "ansible")
 
 
 @app.tool()
 async def mcp_get_playbook(name: str) -> str:
     """Read the YAML contents of a saved Ansible playbook."""
-    return client.get_playbook(name)
+    return await _blocking(client.get_playbook, name)
 
 
 @app.tool()
 async def mcp_list_become_files() -> List[str]:
     """List the vault-encrypted become/credential files a deployment can use."""
-    return client.list_files("become")
+    return await _blocking(client.list_files, "become")
 
 
 @app.tool()
@@ -260,7 +274,8 @@ async def mcp_prepare_deployment(
     opens deploy_url and enters the vault password.  Read results back with
     mcp_get_deployment_request / mcp_get_deployment.
     """
-    return client.prepare_deployment(
+    return await _blocking(
+        client.prepare_deployment,
         {
             "hosts": [x.strip() for x in hosts.split(",") if x.strip()],
             "playbook": playbook,
@@ -268,20 +283,20 @@ async def mcp_prepare_deployment(
             "playbook_content": playbook_content,
             "ssh_key": ssh_key,
             "notes": notes,
-        }
+        },
     )
 
 
 @app.tool()
 async def mcp_get_deployment_request(request_id: str) -> Dict[str, Any]:
     """A staged deployment plus summaries (status, outcome, stats, failures) of runs launched from it."""
-    return client.get_deployment_request(request_id)
+    return await _blocking(client.get_deployment_request, request_id)
 
 
 @app.tool()
 async def mcp_list_deployments(limit: int = 25) -> List[Dict[str, Any]]:
     """Recent Ansible runs, newest first, without logs."""
-    return client.list_deployments(limit)
+    return await _blocking(client.list_deployments, limit)
 
 
 @app.tool()
@@ -290,7 +305,7 @@ async def mcp_get_deployment(job_id: str, log_tail: int = 200) -> Dict[str, Any]
     Full result of one Ansible run: status, outcome, per-host stats, failed tasks,
     and the last `log_tail` log lines (0 for all).  Running jobs include live logs.
     """
-    return client.get_deployment(job_id, log_tail)
+    return await _blocking(client.get_deployment, job_id, log_tail)
 
 
 def create_http_app():
