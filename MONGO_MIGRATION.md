@@ -88,6 +88,14 @@ eagerly at client construction - **not** lazily like Mongo's
 gunicorn workers) and would leave a fresh Postgres install 500ing on the
 first request if schema setup were similarly lazy.
 
+Once every table and index it creates already exists - checked with lock-free
+`to_regclass()` catalog lookups - client construction skips the DDL entirely.
+Running it on every process start (each per-minute cron job) took SHARE locks
+via `CREATE INDEX IF NOT EXISTS`, queueing metric writes behind them and making
+autovacuum log `skipping analyze ... lock not available`. A table or index
+added to the bootstrap later is missing on existing installs, so the full DDL
+runs again there.
+
 ### IDs
 
 Every id is a string shaped like a Mongo `ObjectId` hex
