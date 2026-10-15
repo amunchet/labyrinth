@@ -47,17 +47,31 @@ _JSONB_TABLE_INDEXES = {
 
 _METRICS_TABLES = ("metrics", "metrics_latest")
 
+# Metric tags matched through the GIN index rather than a per-row filter.
+# Only the per-device identity tags: their index lookups are small.  Shared
+# values like labyrinth_name span every host, so intersecting their posting
+# lists measured ~2.5x slower than rechecking them on the host's rows.
+_INDEXED_TAG_KEYS = ("host", "ip", "mac")
+
 _BOOTSTRAP_LOCK_KEY = 891234765
 
 
 def _connection_dsn():
-    return "host={} port={} user={} password={} dbname={}".format(
+    dsn = "host={} port={} user={} password={} dbname={}".format(
         os.environ.get("POSTGRES_HOST", "postgres"),
         os.environ.get("POSTGRES_PORT", "5432"),
         os.environ.get("POSTGRES_USER", "labyrinth"),
         os.environ.get("POSTGRES_PASSWORD", ""),
         os.environ.get("POSTGRES_DB", "labyrinth"),
     )
+    # When gunicorn kills a timed-out worker its query keeps running
+    # server-side, so slow requests that users retried piled up into
+    # concurrent scans.  Set per service in compose; unset (cron: compaction,
+    # backups) means no limit.
+    timeout_ms = int(os.environ.get("POSTGRES_STATEMENT_TIMEOUT_MS") or 0)
+    if timeout_ms > 0:
+        dsn += " options='-c statement_timeout={}'".format(timeout_ms)
+    return dsn
 
 
 # Per-process pool bounds. Deliberately small, because the connection budget
@@ -123,11 +137,31 @@ def _bootstrap_schema(pool):
     API request would 500 with "relation does not exist" before cron ever
     ticks. Guarded by an advisory lock so the 8 concurrently-starting
     gunicorn workers don't race each other's `CREATE TABLE IF NOT EXISTS`.
+
+    Skipped once every relation exists: `CREATE INDEX IF NOT EXISTS` still
+    takes a SHARE lock on its table (and every chunk of the hypertable), and
+    every process start - each cron job, every minute - ran it, blocking
+    metric writes and starving autovacuum's ANALYZE. A relation added here
+    later is missing on existing installs, so the full bootstrap runs again.
     """
+    expected = ["metrics", "metrics_latest", "metrics_daily"]
+    expected += ["metrics_tags_idx", "metrics_name_idx", "metrics_id_idx"]
+    expected += ["metrics_latest_tags_idx", "metrics_latest_name_tags_uidx"]
+    for table, indexes in _JSONB_TABLE_INDEXES.items():
+        expected += [table] + ["{}_{}_idx".format(table, f) for f, _ in indexes]
+
     conn = pool.getconn()
     try:
         conn.autocommit = True
         with conn.cursor() as cur:
+            # Catalog lookups only - no table locks
+            cur.execute(
+                "SELECT count(*) FROM unnest(%s::text[]) AS rel "
+                "WHERE to_regclass(rel) IS NULL",
+                (expected,),
+            )
+            if cur.fetchone()[0] == 0:
+                return
             cur.execute("SELECT pg_advisory_lock(%s)", (_BOOTSTRAP_LOCK_KEY,))
             try:
                 cur.execute("CREATE EXTENSION IF NOT EXISTS timescaledb")
@@ -482,6 +516,20 @@ class PostgresCollectionAdapter(base.Collection):
                 op_sql, op_params = self._translate_operator(key, value)
                 clauses.append(op_sql)
                 params.extend(op_params)
+                continue
+
+            tag = key[len("tags.") :] if key.startswith("tags.") else ""
+            if (
+                self._kind == "metrics"
+                and tag in _INDEXED_TAG_KEYS
+                and isinstance(value, (str, int, float, bool))
+            ):
+                # `tags->'ip' = ...` can't use the GIN index on tags, so
+                # read_metrics scanned the whole hypertable - minutes for a
+                # host with no metrics, freezing gunicorn workers and the MCP.
+                # Containment is the same test for a scalar and is indexed.
+                clauses.append("tags @> %s::jsonb")
+                params.append(_to_jsonb_param({tag: value}))
                 continue
 
             clauses.append("{} = %s::jsonb".format(self._jsonb_path(key)))

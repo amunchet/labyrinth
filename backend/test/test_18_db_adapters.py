@@ -364,6 +364,47 @@ def test_dotted_tag_or_filter(db):
     assert matched[0]["name"] == "check_hd"
 
 
+def test_identity_tags_match_through_the_tags_index():
+    """
+    tags.host/ip/mac must translate to `tags @>` - the only form the GIN index
+    on tags serves.  `tags->'ip' = ...` scanned the whole metrics hypertable,
+    minutes per read for a host with no metrics.
+    """
+    from db.postgres_adapter import PostgresCollectionAdapter
+
+    metrics = PostgresCollectionAdapter(None, "metrics", "metrics")
+    sql, params = metrics._translate_filter(
+        {
+            "$or": [{"tags.host": "h1"}, {"tags.ip": "h1"}, {"tags.mac": "h1"}],
+            "tags.labyrinth_name": "check_hd",
+        }
+    )
+    assert sql.count("tags @> %s::jsonb") == 3
+    # Shared, low-cardinality tags stay a recheck filter (see _INDEXED_TAG_KEYS)
+    assert "tags->'labyrinth_name' = %s::jsonb" in sql
+    assert '{"ip": "h1"}' in params
+
+    # JSONB tables are untouched
+    hosts = PostgresCollectionAdapter(None, "hosts", "jsonb")
+    sql, _ = hosts._translate_filter({"tags.ip": "h1"})
+    assert "@>" not in sql
+
+
+def test_metrics_found_by_each_identity_tag(db):
+    tags = {"host": "h1", "ip": "10.0.0.5", "mac": "AA:BB", "labyrinth_name": "cpu"}
+    db["metrics"].insert_one(
+        {
+            "name": "cpu",
+            "tags": tags,
+            "fields": {},
+            "timestamp": datetime.datetime.now(),
+        }
+    )
+    for key in ["host", "ip", "mac"]:
+        assert len(list(db["metrics"].find({"tags." + key: tags[key]}))) == 1
+        assert list(db["metrics"].find({"tags." + key: "missing"})) == []
+
+
 def test_ttl_emulation_lt_delete(db):
     old_item = {
         "name": "stale",

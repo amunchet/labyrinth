@@ -39,6 +39,7 @@ New env vars (see `backend/.env.sample` for the full annotated list):
 | `BACKUP_RETENTION_DAYS` | `14` | local `/backups` retention, separate from whatever your offsite system does |
 | `POSTGRES_POOL_MIN` | `1` | Postgres only - per-process pool floor |
 | `POSTGRES_POOL_MAX` | `2` | Postgres only - per-process pool ceiling; see Connection budget below |
+| `POSTGRES_STATEMENT_TIMEOUT_MS` | unset (no limit) | Postgres only - per-statement limit; production sets 110000 on `backend`/`mcp` (under gunicorn's 120s timeout) and leaves cron unlimited |
 | `POSTGRES_MAX_CONNECTIONS` | `100` | compose-level; the server's `max_connections` |
 | `BULK_INSERT_LOCK_WAIT_SECONDS` | `240` | how long a queued metrics transfer waits for the running one |
 | `BULK_INSERT_LOCK_TTL_SECONDS` | `120` | how long after a crash the transfer lock frees itself |
@@ -86,6 +87,14 @@ eagerly at client construction - **not** lazily like Mongo's
 `index_helper()`, which only ever ran from the cron container (never from
 gunicorn workers) and would leave a fresh Postgres install 500ing on the
 first request if schema setup were similarly lazy.
+
+Once every table and index it creates already exists - checked with lock-free
+`to_regclass()` catalog lookups - client construction skips the DDL entirely.
+Running it on every process start (each per-minute cron job) took SHARE locks
+via `CREATE INDEX IF NOT EXISTS`, queueing metric writes behind them and making
+autovacuum log `skipping analyze ... lock not available`. A table or index
+added to the bootstrap later is missing on existing installs, so the full DDL
+runs again there.
 
 ### IDs
 
@@ -186,7 +195,7 @@ Demand is `POSTGRES_POOL_MAX` per *process*, not per container:
 | Source | Processes |
 |---|---|
 | `backend` | 8 gunicorn workers |
-| `mcp` | 1 |
+| `mcp` | 1 (production sets `POSTGRES_POOL_MAX: 4` - tools run on threads, one per connection) |
 | `cron` | up to ~4 overlapping on the same minute (finder, bulk_write, proxmox_refresh x2); the finder is resident, and briefly two of them while one recycles (see `FINDER_MAX_RUNTIME_SECONDS`) |
 
 At the previous hardcoded pool max of 5 that is `13 x 5 = 65` against an

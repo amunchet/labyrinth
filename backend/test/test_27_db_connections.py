@@ -361,3 +361,56 @@ def test_forked_child_drops_inherited_client():
         assert db_pkg._shared_client is None
     finally:
         db_pkg._shared_client = None
+
+
+def test_statement_timeout_applies_to_new_connections(monkeypatch):
+    """A killed gunicorn worker's query must not keep running server-side."""
+    monkeypatch.setenv("POSTGRES_STATEMENT_TIMEOUT_MS", "1500")
+    pool = postgres_adapter._connect_with_retry(
+        postgres_adapter._connection_dsn(), minconn=1, maxconn=1
+    )
+    try:
+        conn = pool.getconn()
+        with conn.cursor() as cur:
+            cur.execute("SHOW statement_timeout")
+            assert cur.fetchone()[0] == "1500ms"
+        pool.putconn(conn)
+    finally:
+        pool.closeall()
+
+
+def test_statement_timeout_unset_means_no_limit(monkeypatch):
+    monkeypatch.delenv("POSTGRES_STATEMENT_TIMEOUT_MS", raising=False)
+    assert "statement_timeout" not in postgres_adapter._connection_dsn()
+
+
+def test_bootstrap_skips_ddl_once_schema_exists(observer):
+    """
+    Every process start used to run CREATE INDEX IF NOT EXISTS, whose SHARE
+    lock queues behind (and blocks) metric writes.  Hold a writer's lock and
+    check a new client still starts.
+    """
+    PostgresClientAdapter().close()  # make sure the schema exists
+    with observer.cursor() as cur:
+        cur.execute("BEGIN")
+        cur.execute("LOCK TABLE metrics_latest IN ROW EXCLUSIVE MODE")
+        try:
+            started = []
+            worker = threading.Thread(
+                target=lambda: started.append(PostgresClientAdapter())
+            )
+            worker.start()
+            worker.join(10)
+            assert started, "client start blocked on a table lock"
+            started[0].close()
+        finally:
+            cur.execute("ROLLBACK")
+
+
+def test_bootstrap_recreates_a_missing_index(observer):
+    with observer.cursor() as cur:
+        cur.execute("DROP INDEX IF EXISTS hosts_location_idx")
+    PostgresClientAdapter().close()
+    with observer.cursor() as cur:
+        cur.execute("SELECT to_regclass('hosts_location_idx')")
+        assert cur.fetchone()[0] is not None
