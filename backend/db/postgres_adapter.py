@@ -47,10 +47,11 @@ _JSONB_TABLE_INDEXES = {
 
 _METRICS_TABLES = ("metrics", "metrics_latest")
 
-# Metric tags matched through the GIN index rather than a per-row filter.
-# Only the per-device identity tags: their index lookups are small.  Shared
-# values like labyrinth_name span every host, so intersecting their posting
-# lists measured ~2.5x slower than rechecking them on the host's rows.
+# Per-device identity tags, matched through indexes rather than a per-row
+# filter.  Shared values like labyrinth_name span every host, so intersecting
+# their GIN posting lists measured ~2.5x slower than rechecking them on the
+# host's rows.  Each also gets a btree on ((tags->>key), id) - see
+# ensure_metric_tag_indexes().
 _INDEXED_TAG_KEYS = ("host", "ip", "mac")
 
 _BOOTSTRAP_LOCK_KEY = 891234765
@@ -240,6 +241,46 @@ def _bootstrap_schema(pool):
         pool.putconn(conn)
 
 
+def ensure_metric_tag_indexes(pool):
+    """
+    Builds a btree on ((tags->>key), id) for each identity tag, so a host's
+    newest metrics are an ordered index scan that stops after LIMIT rows.
+    Without them a small LIMIT made the planner walk the whole id index,
+    filtering every row - past the statement timeout for a host with no
+    metrics.
+
+    Not part of _bootstrap_schema: on an existing install each build takes
+    many minutes, and bootstrap holds an advisory lock that every starting
+    process waits on.  Runs from the nightly compaction job instead (run it
+    by hand to build them sooner), one chunk per transaction so writes are
+    only held up for the chunk being indexed.  An interrupted build leaves
+    the index invalid, which IF NOT EXISTS would skip forever - rebuild it.
+    """
+    conn = pool.getconn()
+    try:
+        conn.autocommit = True
+        with conn.cursor() as cur:
+            for key in _INDEXED_TAG_KEYS:
+                name = "metrics_tag_{}_idx".format(key)
+                cur.execute(
+                    "SELECT i.indisvalid FROM pg_index i "
+                    "WHERE i.indexrelid = to_regclass(%s)",
+                    (name,),
+                )
+                row = cur.fetchone()
+                if row and row[0]:
+                    continue
+                if row:
+                    cur.execute("DROP INDEX {}".format(name))
+                print("Building {}...".format(name))
+                cur.execute(
+                    "CREATE INDEX {} ON metrics ((tags->>'{}'), id) "
+                    "WITH (timescaledb.transaction_per_chunk)".format(name, key)
+                )
+    finally:
+        pool.putconn(conn)
+
+
 def _cursor(pool):
     """Context manager yielding a dict-row cursor from the pool."""
     return _PoolCursor(pool)
@@ -374,10 +415,11 @@ def _filter_to_doc(filt):
 
 
 class PostgresCursor(base.Cursor):
-    def __init__(self, collection, where_sql, params):
+    def __init__(self, collection, where_sql, params, branches=None):
         self._collection = collection
         self._where_sql = where_sql
         self._params = params
+        self._branches = branches
         self._order_sql = None
         self._limit_n = None
 
@@ -399,16 +441,53 @@ class PostgresCursor(base.Cursor):
 
     def __iter__(self):
         order = self._order_sql or "seq ASC"
-        sql = "SELECT * FROM {} WHERE {} ORDER BY {}".format(
-            self._collection._table, self._where_sql, order
-        )
-        params = list(self._params)
-        if self._limit_n is not None:
-            sql += " LIMIT %s"
+        table = self._collection._table
+        merged = bool(self._branches and self._limit_n is not None)
+        if merged:
+            # Each branch is an ordered index scan that stops at the limit.
+            # UNION, not UNION ALL: a row whose ip and mac tags hold the
+            # same value (common) matches two branches.
+            parts = []
+            params = []
+            for where_sql, branch_params in self._branches:
+                parts.append(
+                    "(SELECT * FROM {} WHERE {} ORDER BY {} LIMIT %s)".format(
+                        table, where_sql, order
+                    )
+                )
+                params += branch_params + [self._limit_n]
+            sql = "SELECT * FROM ({}) u ORDER BY {} LIMIT %s".format(
+                " UNION ".join(parts), order
+            )
             params.append(self._limit_n)
+        else:
+            sql = "SELECT * FROM {} WHERE {} ORDER BY {}".format(
+                table, self._where_sql, order
+            )
+            params = list(self._params)
+            if self._limit_n is not None:
+                sql += " LIMIT %s"
+                params.append(self._limit_n)
         with _cursor(self._collection._pool) as cur:
-            cur.execute(sql, params)
-            rows = cur.fetchall()
+            if merged:
+                # The planner misjudges the service filter and picks a bitmap
+                # or parallel scan that reads and sorts every row of the host
+                # (13-35s for a 1000-row history graph on 6M rows) over
+                # walking the ordered index to the limit (well under 1s
+                # warm).  Those read every host row anyway, so the walk is
+                # never much worse.
+                cur.execute(
+                    "SET enable_bitmapscan = off; "
+                    "SET max_parallel_workers_per_gather = 0"
+                )
+            try:
+                cur.execute(sql, params)
+                rows = cur.fetchall()
+            finally:
+                if merged and not cur.connection.closed:
+                    cur.execute(
+                        "RESET enable_bitmapscan; RESET max_parallel_workers_per_gather"
+                    )
         return iter(self._collection._row_to_doc(row) for row in rows)
 
 
@@ -679,8 +758,39 @@ class PostgresCollectionAdapter(base.Collection):
     # ---- base.Collection interface ---------------------------------------------
 
     def find(self, filter=None, sort=None, limit=None):
-        where_sql, params = self._translate_filter(filter or {})
-        cursor = PostgresCursor(self, where_sql, params)
+        filter = filter or {}
+        where_sql, params = self._translate_filter(filter)
+
+        # An $or over identity tags (read_metrics' host/ip/mac lookup) can't
+        # use any one ordered index, so with a sort + limit the planner
+        # walked the whole id index instead.  Keep each branch on its own
+        # index-ordered query; the cursor merges them when a limit is set.
+        branches = None
+        ors = filter.get("$or") if self._kind == "metrics" else None
+        if ors and all(
+            len(b) == 1
+            and next(iter(b)).startswith("tags.")
+            and next(iter(b))[len("tags.") :] in _INDEXED_TAG_KEYS
+            and isinstance(next(iter(b.values())), str)
+            for b in ors
+        ):
+            # tags->>key alone, not the `@>` above: offered both, the
+            # planner took the GIN bitmap and read every row of the host
+            # (5-10s on 6M rows) instead of the ordered btree (~10ms).
+            rest_sql, rest_params = self._translate_filter(
+                {k: v for k, v in filter.items() if k != "$or"}
+            )
+            branches = []
+            for b in ors:
+                (key, value), = b.items()
+                branches.append(
+                    (
+                        "{} AND tags->>'{}' = %s".format(rest_sql, key[len("tags.") :]),
+                        rest_params + [value],
+                    )
+                )
+
+        cursor = PostgresCursor(self, where_sql, params, branches)
         if sort is not None:
             cursor.sort(sort)
         if limit is not None:

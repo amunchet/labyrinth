@@ -414,3 +414,62 @@ def test_bootstrap_recreates_a_missing_index(observer):
     with observer.cursor() as cur:
         cur.execute("SELECT to_regclass('hosts_location_idx')")
         assert cur.fetchone()[0] is not None
+
+
+def test_metric_tag_indexes_build_and_repair(observer):
+    """
+    The nightly job builds them; a re-run is a no-op, and a build left
+    invalid by an interruption is rebuilt rather than skipped forever.
+    """
+    names = ["metrics_tag_{}_idx".format(k) for k in ["host", "ip", "mac"]]
+
+    def valid():
+        with observer.cursor() as cur:
+            cur.execute(
+                "SELECT count(*) FROM pg_index "
+                "WHERE indexrelid = ANY(ARRAY[%s, %s, %s]::regclass[]) "
+                "AND indisvalid",
+                names,
+            )
+            return cur.fetchone()[0]
+
+    client = PostgresClientAdapter()
+    try:
+        postgres_adapter.ensure_metric_tag_indexes(client.get_pool())
+        assert valid() == 3
+        postgres_adapter.ensure_metric_tag_indexes(client.get_pool())
+        assert valid() == 3
+
+        with observer.cursor() as cur:
+            cur.execute(
+                "UPDATE pg_index SET indisvalid = false "
+                "WHERE indexrelid = 'metrics_tag_ip_idx'::regclass"
+            )
+        assert valid() == 2
+        postgres_adapter.ensure_metric_tag_indexes(client.get_pool())
+        assert valid() == 3
+    finally:
+        client.close()
+
+
+def test_merged_identity_read_leaves_planner_settings_alone(monkeypatch):
+    """The per-branch read turns bitmap and parallel scans off; the pooled
+    connection must hand them back on, or every later query on it plans without them."""
+    monkeypatch.setenv("POSTGRES_POOL_MIN", "1")
+    monkeypatch.setenv("POSTGRES_POOL_MAX", "1")
+    client = PostgresClientAdapter()
+    try:
+        query = {"$or": [{"tags.ip": "10.9.9.9"}, {"tags.mac": "10.9.9.9"}]}
+        list(client["labyrinth"]["metrics"].find(query).sort("_id", -1).limit(5))
+        pool = client.get_pool()
+        conn = pool.getconn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SHOW enable_bitmapscan")
+                assert cur.fetchone()[0] == "on"
+                cur.execute("SHOW max_parallel_workers_per_gather")
+                assert cur.fetchone()[0] != "0"
+        finally:
+            pool.putconn(conn)
+    finally:
+        client.close()

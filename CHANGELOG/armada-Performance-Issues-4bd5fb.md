@@ -44,3 +44,16 @@ Post-deploy check: Postgres ran parallel plans for large metric reads (e.g. the
 1000-row service history graph), and every parallel worker died with `could not
 resize shared memory segment ... No space left on device` - Docker's default 64MB
 `/dev/shm`. Postgres now gets `shm_size: 1g` in both compose files.
+
+## 2026-10-15 03:09 CDT
+Post-deploy, `mcp_read_metrics` for a host with no metrics still hit the 110s
+statement timeout. Postgres ran the new indexed filter, but with `ORDER BY id
+LIMIT 5` the planner walked the whole id index. The query shape alone can't fix
+that, so (approved schema addition) btree indexes on `((tags->>'host'|'ip'|'mac'),
+id)` are now built by the nightly compaction job, one chunk per transaction. They
+are not built at startup, because each build takes minutes on a populated table.
+With a limit, the adapter now runs each host/ip/mac branch as its own ordered
+index scan and merges them, with bitmap and parallel scans off for those
+statements only. On 6M local rows every case (empty, sparse, dense host; limit 5
+to 1000) takes 5-260 ms warm, against 60s+ before. **Run the index build once
+right after deploying** - see "Per-host metric reads" in MONGO_MIGRATION.md.
