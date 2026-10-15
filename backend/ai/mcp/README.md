@@ -198,7 +198,7 @@ which `common/auth.py` requires at import) as `-e` flags.
 - `mcp_create_or_update_service(service_json)` - Create/update a service definition (JSON string)
 
 ### Metrics
-- `mcp_read_metrics(host_key, service, count)` - Read latest metrics for a host
+- `mcp_read_metrics(host_key, service, count, latest)` - Read metrics for a host. `latest=True` (default) reads the current value per series from `metrics-latest`, judged for staleness; `latest=False` reads raw history from `metrics`
 
 ### Locations and Inventory
 Hosts double as the device inventory (servers, VMs/LXCs, PCs, switches, bridges, PLCs, ...), including IP-less "label" devices such as unmanaged switches.

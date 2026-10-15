@@ -80,6 +80,32 @@ class TestGetMetricsReturnsAList:
                 LabyrinthClient().get_metrics("10.0.0.5", "", 50)
 
 
+class TestGetMetricsTable:
+    """
+    Current-status reads go to metrics-latest. The raw metrics table has no
+    tag index, so a service with no recent rows made the history query scan
+    the whole table and hang the MCP server.
+    """
+
+    def _called_option(self, **kwargs):
+        calls = []
+
+        def fake(*args):
+            calls.append(args)
+            return "[]", 200
+
+        with patch("serve.read_metrics") as read_metrics:
+            read_metrics.__wrapped__ = fake
+            LabyrinthClient().get_metrics("10.0.0.5", "disk", 1, **kwargs)
+        return calls[0][3]
+
+    def test_defaults_to_metrics_latest(self):
+        assert self._called_option() == "latest"
+
+    def test_history_reads_the_raw_table(self):
+        assert self._called_option(latest=False) == ""
+
+
 class TestDeclaredReturnTypes:
     """
     These annotations generate the wire-level output schemas, so a change here
