@@ -782,7 +782,7 @@ class PostgresCollectionAdapter(base.Collection):
             )
             branches = []
             for b in ors:
-                (key, value), = b.items()
+                ((key, value),) = b.items()
                 branches.append(
                     (
                         "{} AND tags->>'{}' = %s".format(rest_sql, key[len("tags.") :]),
