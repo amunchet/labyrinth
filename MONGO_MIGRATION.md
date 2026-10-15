@@ -180,6 +180,43 @@ the storage/compaction mechanism only; no existing route currently queries
 metrics far enough back for this to matter, and wiring it into the frontend
 would be a separate feature.
 
+## Per-host metric reads (identity-tag indexes)
+
+`read_metrics` (host pages, every service history graph, `mcp_read_metrics`)
+asks for a host's newest N metrics: `$or` over `tags.host`/`tags.ip`/`tags.mac`,
+optionally a service tag, sorted by `_id`, limited. No single index serves an
+`$or` in id order, so the planner walked the whole id index, checking every row
+- past the statement timeout for a host with no metrics.
+
+- `ensure_metric_tag_indexes()` (`backend/db/postgres_adapter.py`) builds a
+  btree on `((tags->>'host'|'ip'|'mac'), id)`.
+- With a limit, the adapter runs each `$or` branch as its own ordered index scan
+  that stops at the limit, and merges them with `UNION`. `UNION` rather than
+  `UNION ALL` because `ip` and `mac` often hold the same value. For those
+  statements only, it turns off bitmap and parallel scans: the planner misjudges
+  the service filter and picks plans that read and sort every row of the host.
+- Measured on 6M local rows: 5-260 ms warm for empty, sparse and dense hosts
+  alike, against 60 s+ before. A cold 1000-row history graph can take a few
+  seconds.
+
+**The indexes are not built at startup.** On a populated table each one takes
+many minutes, and `_bootstrap_schema` holds an advisory lock that every starting
+process waits on. The nightly `compact_metrics.py` builds them, one chunk per
+transaction so writes are only held up for the chunk being indexed. It also
+rebuilds any index an interrupted build left invalid.
+
+Until they exist, the per-branch reads have no btree to walk and are as slow as
+before. **Build them right after deploying**, without waiting for the 02:00 run.
+Compaction is safe to re-run, so the same script does it:
+
+```bash
+docker compose -f docker-compose-production.yml exec -d samplecron bash -c \
+  '/cron/compact_metrics.sh > /var/log/compact_metrics_manual 2>&1'
+# progress: "Building metrics_tag_<key>_idx..." lines in that log, or
+docker compose -f docker-compose-production.yml exec samplecron \
+  tail -f /var/log/compact_metrics_manual
+```
+
 ## Connection budget
 
 Postgres refuses new sessions with `FATAL: sorry, too many clients already`

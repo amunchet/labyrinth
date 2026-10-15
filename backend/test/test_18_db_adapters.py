@@ -405,6 +405,45 @@ def test_metrics_found_by_each_identity_tag(db):
         assert list(db["metrics"].find({"tags." + key: "missing"})) == []
 
 
+def test_identity_or_with_limit_returns_newest_once(db):
+    """
+    read_metrics' host/ip/mac lookup runs as one query per branch on Postgres;
+    a row whose ip and mac tags match (the finder keys MAC-less hosts by IP)
+    must still come back once, newest first, within the limit.
+    """
+    now = datetime.datetime.now()
+    for minutes in [3, 2, 1]:
+        db["metrics"].insert_one(
+            {
+                "name": "cpu",
+                "tags": {"ip": "10.0.0.5", "mac": "10.0.0.5", "labyrinth_name": "cpu"},
+                "fields": {"age": minutes},
+                "timestamp": now - datetime.timedelta(minutes=minutes),
+            }
+        )
+    db["metrics"].insert_one(
+        {
+            "name": "cpu",
+            "tags": {"ip": "10.0.0.6", "mac": "10.0.0.6", "labyrinth_name": "cpu"},
+            "fields": {"age": 0},
+            "timestamp": now,
+        }
+    )
+
+    query = {
+        "$or": [
+            {"tags.host": "10.0.0.5"},
+            {"tags.ip": "10.0.0.5"},
+            {"tags.mac": "10.0.0.5"},
+        ],
+        "tags.labyrinth_name": "cpu",
+    }
+    found = list(db["metrics"].find(query).sort("_id", -1).limit(2))
+    assert [m["fields"]["age"] for m in found] == [1, 2]
+
+    assert len(list(db["metrics"].find(query))) == 3
+
+
 def test_ttl_emulation_lt_delete(db):
     old_item = {
         "name": "stale",

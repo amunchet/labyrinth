@@ -60,10 +60,12 @@ def compact_metrics():
 
     import psycopg2.extras
 
-    from db.postgres_adapter import PostgresClientAdapter
+    from db.postgres_adapter import PostgresClientAdapter, ensure_metric_tag_indexes
 
     client = PostgresClientAdapter()
     pool = client.get_pool()
+    # Too slow for startup on a populated table - see ensure_metric_tag_indexes
+    ensure_metric_tag_indexes(pool)
     cutoff = datetime.datetime.now() - datetime.timedelta(days=_raw_retention_days())
 
     conn = pool.getconn()
