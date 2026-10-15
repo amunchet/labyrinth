@@ -361,3 +361,24 @@ def test_forked_child_drops_inherited_client():
         assert db_pkg._shared_client is None
     finally:
         db_pkg._shared_client = None
+
+
+def test_statement_timeout_applies_to_new_connections(monkeypatch):
+    """A killed gunicorn worker's query must not keep running server-side."""
+    monkeypatch.setenv("POSTGRES_STATEMENT_TIMEOUT_MS", "1500")
+    pool = postgres_adapter._connect_with_retry(
+        postgres_adapter._connection_dsn(), minconn=1, maxconn=1
+    )
+    try:
+        conn = pool.getconn()
+        with conn.cursor() as cur:
+            cur.execute("SHOW statement_timeout")
+            assert cur.fetchone()[0] == "1500ms"
+        pool.putconn(conn)
+    finally:
+        pool.closeall()
+
+
+def test_statement_timeout_unset_means_no_limit(monkeypatch):
+    monkeypatch.delenv("POSTGRES_STATEMENT_TIMEOUT_MS", raising=False)
+    assert "statement_timeout" not in postgres_adapter._connection_dsn()
