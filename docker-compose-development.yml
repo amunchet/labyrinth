@@ -120,6 +120,11 @@ services:
     # Match production's explicit ceiling instead of timescaledb-tune's
     # max_connections=50 - see docker-compose-production.yml.
     command: postgres -c max_connections=${POSTGRES_MAX_CONNECTIONS:-100}
+    # Parallel query workers share memory through /dev/shm, which Docker
+    # caps at 64MB.  Large metric reads pick a parallel plan and every worker
+    # died with "could not resize shared memory segment ... No space left on
+    # device".
+    shm_size: 1g
     ports:
       - 127.0.0.1:5432:5432
     networks:

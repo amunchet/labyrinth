@@ -38,3 +38,9 @@ append-only file previously lived in the container layer: lost on recreate,
 rewritten from near-empty (the "6727531600% growth" AOF rewrite in the logs). A
 named volume rather than `./redis_data` because bitnami runs as uid 1001 and
 cannot write a root-owned bind mount.
+
+## 2026-10-15 02:36 CDT
+Post-deploy check: Postgres ran parallel plans for large metric reads (e.g. the
+1000-row service history graph), and every parallel worker died with `could not
+resize shared memory segment ... No space left on device` - Docker's default 64MB
+`/dev/shm`. Postgres now gets `shm_size: 1g` in both compose files.
