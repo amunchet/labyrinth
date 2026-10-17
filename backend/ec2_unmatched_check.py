@@ -12,7 +12,7 @@ import os
 import sys
 from typing import List, Dict, Optional, Tuple
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Add backend to path for imports
 sys.path.insert(0, "/src")
@@ -104,7 +104,7 @@ def render_email_template(unmatched_instances: List[Dict]) -> str:
 
     html = template.render(
         instances=unmatched_instances,
-        timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC"),
+        timestamp=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
     )
 
     return html

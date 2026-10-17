@@ -198,7 +198,7 @@ which `common/auth.py` requires at import) as `-e` flags.
 - `mcp_create_or_update_service(service_json)` - Create/update a service definition (JSON string)
 
 ### Metrics
-- `mcp_read_metrics(host_key, service, count)` - Read latest metrics for a host
+- `mcp_read_metrics(host_key, service, count)` - Read latest metrics for a host. `timestamp` is UTC: epoch seconds when the service was judged, otherwise a naive `YYYY-MM-DD HH:MM:SS` string. Rows stored before October 2026 read 5 hours early (they were saved in US Central time).
 
 ### Locations and Inventory
 Hosts double as the device inventory (servers, VMs/LXCs, PCs, switches, bridges, PLCs, ...), including IP-less "label" devices such as unmanaged switches.

@@ -5,6 +5,7 @@ import json
 
 import pytest
 import serve
+from common import utc
 
 from common.test import unwrap
 
@@ -66,7 +67,7 @@ def _run(monkeypatch, payload, query="", route="telegraf-check"):
 
 def test_telegraf_check_classifies_every_guest(setup, monkeypatch):
     """Each VM/LXC is classified by Labyrinth host match, monitoring, and Telegraf freshness."""
-    now = datetime.datetime.now()
+    now = utc.now()
     serve.db["labyrinth"]["proxmox_clusters"].insert_one(
         {"name": "home", "host": "10.0.0.1"}
     )
@@ -139,7 +140,7 @@ def test_telegraf_check_matches_metrics_by_hostname_and_honors_stale_window(
         {
             "name": "mem",
             "tags": {"host": "app01"},
-            "timestamp": datetime.datetime.now() - datetime.timedelta(minutes=30),
+            "timestamp": utc.now() - datetime.timedelta(minutes=30),
         }
     )
     payload = {"nodes": [{"name": "pv5", "vms": [_guest(300, "app01")]}]}
@@ -175,7 +176,7 @@ def _graylog_metric(ip, ok, age=datetime.timedelta(0), name="check_graylog"):
             "ok": 1 if ok else 0,
             "status": "ok" if ok else "rsyslog not running",
         },
-        "timestamp": datetime.datetime.now() - age,
+        "timestamp": utc.now() - age,
     }
 
 
@@ -206,7 +207,7 @@ def test_graylog_check_classifies_and_honors_deferrals(setup, monkeypatch):
                 "name": "cpu",
                 "tags": {"ip": "10.0.0.12"},
                 "fields": {"ok": 1},
-                "timestamp": datetime.datetime.now(),
+                "timestamp": utc.now(),
             },
         ]
     )

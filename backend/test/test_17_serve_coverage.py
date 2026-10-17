@@ -19,6 +19,7 @@ import bson
 import redis
 
 import serve
+from common import utc
 import proxmox_helper
 from common.test import unwrap
 
@@ -539,7 +540,7 @@ def test_bulk_insert_preserves_metric_timestamp(setup):
 
         stored = serve.db["labyrinth"]["metrics"].find_one({"tags.ip": "192.168.1.9"})
         assert stored is not None
-        assert abs(stored["timestamp"].timestamp() - original_timestamp) < 5
+        assert abs(utc.to_epoch(stored["timestamp"]) - original_timestamp) < 5
     finally:
         a.close()
 

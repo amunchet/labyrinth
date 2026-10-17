@@ -30,7 +30,7 @@
 
     <template #cell(telegraf)="row">
       <div class="small">
-        {{ row.item.telegraf_last_seen || "Never" }}
+        {{ formatUTC(row.item.telegraf_last_seen) || "Never" }}
       </div>
     </template>
   </ProxmoxGuestCheck>
@@ -38,6 +38,7 @@
 
 <script>
 import ProxmoxGuestCheck from "@/components/DiskSpace/ProxmoxGuestCheck";
+import Helper from "@/helper";
 
 export default {
   name: "TelegrafCheckView",
@@ -60,6 +61,9 @@ export default {
         { key: "check_status", label: "Status", sortable: true },
       ],
     };
+  },
+  methods: {
+    formatUTC: Helper.formatUTC,
   },
 };
 </script>

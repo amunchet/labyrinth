@@ -618,7 +618,7 @@
           striped
         >
           <template v-slot:cell(timestamp)="cell">
-            {{ cell.item.timestamp.split(".")[0] }}
+            {{ formatUTC(cell.item.timestamp) }}
           </template>
         </b-table>
       </div>
@@ -717,6 +717,7 @@ export default {
     },
   },
   methods: {
+    formatUTC: Helper.formatUTC,
     listIcons: /* istanbul ignore next */ function () {
       let auth = this.$auth;
       Helper.apiCall("icons", "", auth)

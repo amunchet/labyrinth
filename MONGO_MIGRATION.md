@@ -307,6 +307,26 @@ contention rather than waiting, dropping that window's transfer.
 A waiting process holds no Postgres connections - `serve.db` is lazy and
 `index_helper()` runs inside the lock - so queued ticks are cheap.
 
+## Metric timestamps are naive UTC
+
+A naive `datetime` in this codebase means UTC. That is pymongo's convention,
+and the Postgres adapter stores it the same way (`_as_utc`). `backend/common/utc.py`
+holds the conversions: `utc.now()`, `utc.from_epoch()` and `utc.to_epoch()`.
+Don't use `datetime.now()`, `fromtimestamp()` or `.timestamp()` on metric times.
+
+Until October 2026, `bulk_insert` stored `datetime.fromtimestamp()` (container
+local time) and `judge()` read it back with `.timestamp()` (local again). Inside
+the app the two shifts cancelled out, but the stored value was off by the
+container's UTC offset: five hours under `TZ=America/Chicago`. That skewed
+anything that compared stored times against real UTC, such as retention
+cutoffs, chunk boundaries and outside readers like the MCP. Rows written before
+the fix still carry that offset and are deliberately left as they are; they age
+out through normal retention.
+
+The API serializes these times either as epoch seconds (judged rows) or as
+naive strings (`str(datetime)`). The frontend renders both through
+`Helper.formatUTC()`, which reads the naive strings as UTC.
+
 ## Known behavior notes carried forward unchanged
 
 - **Metrics throttle bug** (`serve.py`'s `bulk_insert()`): the per-host

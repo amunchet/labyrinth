@@ -234,7 +234,7 @@
           </div>
         </template>
         <template v-slot:cell(timestamp)="cell">
-          {{ ("" + cell.item.timestamp).split(".")[0] }}
+          {{ formatUTC(cell.item.timestamp) }}
         </template>
       </b-table>
       <b-spinner v-else class="m-2" />
@@ -281,6 +281,7 @@ export default {
     },
   },
   methods: {
+    formatUTC: Helper.formatUTC,
     deleteService: /* istanbul ignore next */ function (name) {
       let auth = this.$auth;
 

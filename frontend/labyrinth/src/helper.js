@@ -32,6 +32,44 @@ const deviceTypes = {
   other: { label: "Other", icon: "question-circle" },
 };
 
+const formatDate = (date, isTime = false) => {
+  var d = new Date(date),
+    month = "" + (d.getMonth() + 1),
+    day = "" + d.getDate(),
+    year = d.getFullYear();
+
+  if (month.length < 2) month = "0" + month;
+  if (day.length < 2) day = "0" + day;
+
+  if (isTime) {
+    var hours = d.getHours();
+    var minutes = d.getMinutes();
+    var seconds = d.getSeconds();
+
+    return hours + ":" + minutes + ":" + seconds;
+  }
+  return [year, month, day].join("-");
+};
+
+// Metric timestamps are UTC.  The API hands them over as epoch seconds or as
+// naive strings ("2026-10-15 16:44:03"), which `new Date()` would read as
+// browser-local time.  Rendered in local time, like formatDate.
+const formatUTC = (value) => {
+  if (value === null || value === undefined || value === "") {
+    return "";
+  }
+  let when;
+  if (typeof value === "number") {
+    when = new Date(value * 1000);
+  } else {
+    let text = String(value)
+      .replace(" ", "T")
+      .replace(/(\.\d{3})\d+/, "$1");
+    when = new Date(/(Z|[+-]\d\d:?\d\d)$/.test(text) ? text : text + "Z");
+  }
+  return formatDate(when) + " " + formatDate(when, true);
+};
+
 export default {
   name: "Helper",
   capitalize: function (string) {
@@ -65,24 +103,8 @@ export default {
     }
     return true;
   },
-  formatDate(date, isTime = false) {
-    var d = new Date(date),
-      month = "" + (d.getMonth() + 1),
-      day = "" + d.getDate(),
-      year = d.getFullYear();
-
-    if (month.length < 2) month = "0" + month;
-    if (day.length < 2) day = "0" + day;
-
-    if (isTime) {
-      var hours = d.getHours();
-      var minutes = d.getMinutes();
-      var seconds = d.getSeconds();
-
-      return hours + ":" + minutes + ":" + seconds;
-    }
-    return [year, month, day].join("-");
-  },
+  formatDate,
+  formatUTC,
 
   deviceTypes,
   linkTypes: ["ethernet", "fiber", "wireless", "vpn"],

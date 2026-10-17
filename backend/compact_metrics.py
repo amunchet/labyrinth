@@ -19,6 +19,8 @@ import json
 import os
 import statistics
 
+from common import utc
+
 
 def _raw_retention_days():
     value = (os.environ.get("METRICS_RAW_RETENTION_DAYS") or "30").strip()
@@ -66,7 +68,7 @@ def compact_metrics():
     pool = client.get_pool()
     # Too slow for startup on a populated table - see ensure_metric_tag_indexes
     ensure_metric_tag_indexes(pool)
-    cutoff = datetime.datetime.now() - datetime.timedelta(days=_raw_retention_days())
+    cutoff = utc.now() - datetime.timedelta(days=_raw_retention_days())
 
     conn = pool.getconn()
     try:
