@@ -13,7 +13,7 @@ import time
 from typing import List, Dict, Optional, Tuple
 import redis
 from jinja2 import Environment, FileSystemLoader, Template, select_autoescape
-from datetime import datetime
+from datetime import datetime, timezone
 from markupsafe import escape
 
 # Add backend to path for imports
@@ -140,7 +140,8 @@ def _format_warning_duration(seconds: float) -> str:
 
 def _format_warning_timestamp(epoch: float) -> str:
     """Render an epoch timestamp in the same style as the email's own timestamp."""
-    return datetime.fromtimestamp(epoch).strftime("%Y-%m-%d %H:%M:%S UTC")
+    stamp = datetime.fromtimestamp(epoch, timezone.utc)
+    return stamp.strftime("%Y-%m-%d %H:%M:%S UTC")
 
 
 def _collect_storage_issues(node, cluster_name, host, node_name, threshold_percent):
@@ -441,7 +442,7 @@ def render_email_template(issues: List[Dict], threshold_percent: float) -> str:
         containers=containers,
         qemu_missing=qemu_missing,
         threshold_percent=threshold_percent,
-        timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC"),
+        timestamp=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
     )
 
     return html

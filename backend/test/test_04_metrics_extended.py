@@ -7,6 +7,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 
 import metrics
+from common import utc
 
 
 class TestJudgeFunction:
@@ -42,7 +43,7 @@ class TestJudgeFunction:
 
     def test_judge_datetime_timestamp_conversion(self):
         """Test judge converts datetime timestamp to float."""
-        now = datetime.datetime.now()
+        now = utc.now()
         metric = {"timestamp": now}
         service = {
             "type": "check",
@@ -97,7 +98,7 @@ class TestJudgeFunction:
 
     def test_judge_metric_timestamp_as_datetime(self):
         """Test judge when metric timestamp is datetime object."""
-        dt = datetime.datetime.now()
+        dt = utc.now()
         metric = {"timestamp": dt}
         service = {
             "type": "check",
@@ -177,7 +178,7 @@ class TestJudgePortFunction:
 
     def test_judge_port_datetime_timestamp(self):
         """Test judge_port converts datetime timestamp."""
-        now = datetime.datetime.now()
+        now = utc.now()
         metric = {"timestamp": now, "fields": {"ports": [22]}}
         host = {"open_ports": [22]}
 

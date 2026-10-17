@@ -27,6 +27,20 @@ describe("Helper", () => {
 
     expect(Helper.formatDate("2020-01-01 00:00:00", true)).toBe("0:0:0");
   });
+  test("formatUTC reads metric timestamps as UTC", () => {
+    // 2026-10-15 16:44:03 UTC, rendered in whatever zone the test runs in
+    const epoch = Date.UTC(2026, 9, 15, 16, 44, 3) / 1000;
+    const when = new Date(epoch * 1000);
+    const expected =
+      Helper.formatDate(when) + " " + Helper.formatDate(when, true);
+
+    expect(Helper.formatUTC("2026-10-15 16:44:03")).toBe(expected);
+    expect(Helper.formatUTC("2026-10-15 16:44:03.123456")).toBe(expected);
+    expect(Helper.formatUTC("2026-10-15T16:44:03+00:00")).toBe(expected);
+    expect(Helper.formatUTC(epoch)).toBe(expected);
+    expect(Helper.formatUTC(null)).toBe("");
+    expect(Helper.formatUTC("")).toBe("");
+  });
   test("getUrl", () => {
     expect(Helper.getURL()).toBe("/api/");
   });

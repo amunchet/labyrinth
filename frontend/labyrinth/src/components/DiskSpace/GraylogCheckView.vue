@@ -88,7 +88,7 @@
           </span>
         </div>
         <div class="text-muted">
-          {{ row.item.graylog_last_seen || "No check reported" }}
+          {{ formatUTC(row.item.graylog_last_seen) || "No check reported" }}
         </div>
       </div>
     </template>
@@ -191,6 +191,7 @@ export default {
     };
   },
   methods: {
+    formatUTC: Helper.formatUTC,
     onLoaded(payload) {
       this.deferrals = payload.deferrals || [];
       this.settings = payload.settings || this.settings;

@@ -41,6 +41,7 @@ from db import base as db_base
 from common import auth
 from common.test import unwrap
 from common.single_run import single_run, LockNotAcquired
+from common import utc
 from flask import Flask, request, Response, send_file
 from markupsafe import escape
 from werkzeug.utils import secure_filename
@@ -1971,13 +1972,9 @@ def dashboard(val="", report=False, flapping_delay=1300):
 
             if (mac_clause or ip_clause) and additional_tag_clause:
                 if found and "timestamp" in found and type(found["timestamp"]) == float:
-                    found["timestamp"] = datetime.datetime.fromtimestamp(
-                        found["timestamp"]
-                    )
+                    found["timestamp"] = utc.from_epoch(found["timestamp"])
                 if item and "timestamp" in item and type(item["timestamp"]) == float:
-                    item["timestamp"] = datetime.datetime.fromtimestamp(
-                        item["timestamp"]
-                    )
+                    item["timestamp"] = utc.from_epoch(item["timestamp"])
 
                 if found is None or (
                     "timestamp" in item and item["timestamp"] > found["timestamp"]
@@ -2848,7 +2845,7 @@ def read_metrics(host, service="", count=100, option=""):
     def _sort_key(item):
         ts = item.get("timestamp")
         if isinstance(ts, datetime.datetime):
-            return ts.timestamp()
+            return utc.to_epoch(ts)
         try:
             return float(ts)
         except (TypeError, ValueError):
@@ -3006,7 +3003,7 @@ def bulk_insert():
 
         if "timestamp" in item:
             try:
-                item["timestamp"] = datetime.datetime.fromtimestamp(item["timestamp"])
+                item["timestamp"] = utc.from_epoch(item["timestamp"])
             except Exception:
                 print("Problem with timestamp - ", sys.exc_info())
 
@@ -3055,7 +3052,7 @@ def bulk_insert():
     # runs the equivalent sweep here instead, on the same ~1-minute cadence
     # as Mongo's own background TTL monitor. A harmless no-op on the Mongo
     # backend itself (real TTL index already covers it).
-    ttl_cutoff = datetime.datetime.now() - datetime.timedelta(seconds=36000)
+    ttl_cutoff = utc.now() - datetime.timedelta(seconds=36000)
     db["labyrinth"]["metrics-latest"].delete_many({"timestamp": {"$lt": ttl_cutoff}})
 
     return len(metrics), 200
@@ -3225,7 +3222,7 @@ def get_proxmox_telegraf_check():
     """
     try:
         stale_minutes = int(request.args.get("stale_minutes", 15))
-        cutoff = datetime.datetime.now() - datetime.timedelta(minutes=stale_minutes)
+        cutoff = utc.now() - datetime.timedelta(minutes=stale_minutes)
 
         clusters, guests, errors = _proxmox_guests_with_matches()
         latest = _latest_metric_by_host({})
@@ -3305,9 +3302,9 @@ def get_proxmox_graylog_check():
 
         metric_name = settings.get("metric_name") or "check_graylog"
         stale_hours = float(settings.get("stale_hours") or 24)
-        now = datetime.datetime.now()
-        cutoff = now - datetime.timedelta(hours=stale_hours)
-        today = now.date().isoformat()
+        cutoff = utc.now() - datetime.timedelta(hours=stale_hours)
+        # Deferral dates are entered in local time
+        today = datetime.date.today().isoformat()
 
         active_deferrals = {
             (str(d.get("cluster_name")), str(d.get("id"))): d

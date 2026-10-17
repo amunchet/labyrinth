@@ -57,3 +57,21 @@ index scan and merges them, with bitmap and parallel scans off for those
 statements only. On 6M local rows every case (empty, sparse, dense host; limit 5
 to 1000) takes 5-260 ms warm, against 60s+ before. **Run the index build once
 right after deploying** - see "Per-host metric reads" in MONGO_MIGRATION.md.
+
+## 2026-10-17 02:33 CDT
+Metric timestamps are now real UTC. `bulk_insert` stored `datetime.fromtimestamp()`
+(container local time) in a UTC column, and `judge()` read it back with
+`.timestamp()` (local again). The two shifts cancelled out inside the app, but
+every stored metric was 5 hours off under `TZ=America/Chicago`, which skewed
+retention cutoffs, chunk boundaries and outside readers like the MCP. A naive
+datetime now means UTC everywhere, through the new `backend/common/utc.py`:
+- bulk_insert, the dashboard's float->datetime conversion, and the Postgres
+  adapter's numeric/default timestamps
+- judge()/judge_port(), the read_metrics sort
+- the metrics-latest TTL sweep, the compaction cutoff, and the Proxmox
+  Telegraf/Graylog staleness cutoffs
+
+The Proxmox disk and EC2 emails, which printed local time labelled "UTC", now
+print UTC. The four frontend spots that printed raw naive strings now render
+local time through `Helper.formatUTC()`. Per the user, rows stored before the fix
+keep their offset and age out through retention.

@@ -370,9 +370,8 @@ def _from_utc(value):
     """Inverse of _as_utc: hand callers the naive UTC datetime Mongo would.
 
     psycopg2 returns TIMESTAMPTZ as offset-aware, but pymongo returns naive
-    datetimes, and app code mixes stored timestamps with naive ones built by
-    datetime.now()/fromtimestamp() (serve.py's find_metric, metrics.py's
-    judge). Returning aware values here makes those comparisons raise
+    datetimes, and app code mixes stored timestamps with naive UTC ones from
+    common/utc.py (serve.py's find_metric, metrics.py's judge). Returning aware values here makes those comparisons raise
     "can't compare offset-naive and offset-aware datetimes".
     """
     if isinstance(value, datetime.datetime) and value.tzinfo is not None:
@@ -381,20 +380,21 @@ def _from_utc(value):
 
 
 def _coerce_timestamp(value):
+    utc_now = datetime.datetime.now(datetime.timezone.utc)
     if value is None:
-        return _as_utc(datetime.datetime.now())
+        return utc_now
     if isinstance(value, datetime.datetime):
         return _as_utc(value)
     if isinstance(value, (int, float)):
-        return _as_utc(datetime.datetime.fromtimestamp(value))
+        return datetime.datetime.fromtimestamp(value, datetime.timezone.utc)
     if isinstance(value, str):
         try:
             return _as_utc(
                 datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
             )
         except ValueError:
-            return _as_utc(datetime.datetime.now())
-    return _as_utc(datetime.datetime.now())
+            return utc_now
+    return utc_now
 
 
 def _to_jsonb_param(value):
