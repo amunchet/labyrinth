@@ -208,10 +208,10 @@ You are running inside an Armada session. These rules come from the Flagship
 and apply to every session in the fleet. They sit on top of this project's own
 instructions, and they win wherever the two disagree.
 
-- Armada session: `Bugfix - ignored proxmox item`
-- Working branch: `armada/Bugfix---ignored-proxmox-item-fedaff`
+- Armada session: `Updating Layouts`
+- Working branch: `armada/Updating-Layouts-bdcf75`
 - Base branch: `master`
-- Session changelog: `CHANGELOG/armada-Bugfix---ignored-proxmox-item-fedaff.md`
+- Session changelog: `CHANGELOG/armada-Updating-Layouts-bdcf75.md`
 
 ### Prefer Frontend -> Backend -> Database changes
 Prefer to change frontend issues only if possible.  If needed, backend changes are preferable to database schema modifications.  Sometimes all are needed, but prefer frontend only when possible - and when it would not compromise functionality or data integrity.
@@ -242,7 +242,7 @@ Prefer to change frontend issues only if possible.  If needed, backend changes a
 
 ### Keep the changelog current
 
-- Record what you did in `CHANGELOG/armada-Bugfix---ignored-proxmox-item-fedaff.md` as part of the same commit that
+- Record what you did in `CHANGELOG/armada-Updating-Layouts-bdcf75.md` as part of the same commit that
   makes the change.
 - The file is scoped to this branch, so it never conflicts with changelogs
   written by other sessions.
@@ -276,7 +276,7 @@ The Flagship learns about pull requests and reviews only from files in
 
   ```json
   {"schema": 1, "number": 0, "url": "<pull request or compare url>",
-   "head_branch": "armada/Bugfix---ignored-proxmox-item-fedaff", "base_branch": "master",
+   "head_branch": "armada/Updating-Layouts-bdcf75", "base_branch": "master",
    "head_sha": "<git rev-parse HEAD>", "ready_for_review": true,
    "written_at": "<date -u +%Y-%m-%dT%H:%M:%SZ>"}
   ```
