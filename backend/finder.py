@@ -18,9 +18,10 @@ from typing import Dict, List
 from nmap import PortScannerYield as ps
 
 
+import host_identity
 from common.single_run import RedisSingleRunLock, LockNotAcquired
 from common.test import unwrap
-from serve import list_subnet, list_subnets, create_edit_host, list_host, insert_metric
+from serve import db, list_subnet, list_subnets, create_edit_host, insert_metric
 
 
 def _int_from_env(name, default):
@@ -197,10 +198,9 @@ def convert_host(input: Dict) -> Dict:
     if "hostnames" in input and input["hostnames"] and "name" in input["hostnames"][0]:
         output["host"] = input["hostnames"][0]["name"]
     output["ip"] = input["addresses"]["ipv4"]
-    if "mac" in input["addresses"]:
-        output["mac"] = input["addresses"]["mac"]
-    else:
-        output["mac"] = input["addresses"]["ipv4"]
+    # Without a MAC the key is left blank for host_identity to generate: an
+    # address-based key would name whichever device DHCP hands it to next
+    output["mac"], _, _ = host_identity.scanned_identity(input)
     output["subnet"] = ".".join(output["ip"].split(".")[:3])
     if "osmatch" in input and input["osmatch"]:
         print(input["osmatch"])
@@ -493,24 +493,27 @@ def main(loop=True, stop_event=None):  # pragma: no cover
                 update_redis("\nStarting {}".format(subnet), subnet)
                 results = scan(subnet, lambda x: update_redis(x, subnet))
 
-                # For each host, if it doesn't exist, create it.
+                # Match each device to a known host by MAC, then hostname,
+                # then IP (see host_identity), creating the ones that are new.
+                # Hosts are read once the scan is done, not before: it can
+                # take hours, and other subnets' scans move hosts meanwhile.
                 update_redis("\nHosts Check...", subnet)
-                for result in results:
-                    host = [x for x in result["scan"].values()]
-                    if not host:
-                        continue
-                    host = host[0]
-
+                scanned = [h for r in results for h in list(r["scan"].values())[:1]]
+                known = list(db["labyrinth"]["hosts"].find({}))
+                ambiguous = host_identity.ambiguous_hostnames(scanned)
+                for host in scanned:
                     try:
-                        if "mac" in host["addresses"]:
-                            mac = host["addresses"]["mac"]
-                        else:
-                            mac = host["addresses"]["ipv4"]
-                        update_redis("\n" + str(mac), subnet)
-                        output = unwrap(list_host)(mac)[0]
-                        if output == "null":
-                            update_redis("\nCreating new host: {}".format(mac), subnet)
-                            unwrap(create_edit_host)(convert_host(host))
+                        update_redis("\n" + host["addresses"]["ipv4"], subnet)
+                        note = host_identity.reconcile(
+                            db,
+                            known,
+                            host,
+                            convert_host,
+                            unwrap(create_edit_host),
+                            ambiguous,
+                        )
+                        if note:
+                            update_redis("\n" + note, subnet)
 
                         update_redis("\nInserting metrics...", subnet)
                         metric = unwrap(insert_metric)(

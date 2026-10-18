@@ -13,6 +13,12 @@
           <dt>IP</dt>
           <dd>{{ device.ip }}</dd>
         </template>
+        <template v-else-if="device.previous_ip">
+          <dt>Last IP</dt>
+          <dd title="Another device was found at this address">
+            {{ device.previous_ip }}
+          </dd>
+        </template>
         <template v-if="real_mac">
           <dt>MAC</dt>
           <dd>{{ device.mac }}</dd>
@@ -119,7 +125,7 @@ export default {
       return type ? type.label : "Not set";
     },
     real_mac() {
-      // Hosts without a known MAC are keyed by IP or a generated "device-" key
+      // Hosts without a known MAC have a generated "device-" key (older ones an IP)
       let mac = this.device.mac || "";
       return mac != this.device.ip && !mac.startsWith("device-");
     },
