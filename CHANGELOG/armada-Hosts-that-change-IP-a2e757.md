@@ -19,3 +19,6 @@ Hostnames are now the first thing a host is identified by, so DHCP devices (clie
 
 ## 2026-10-22 01:11 CT
 Faster backend tests. `test_08_telegraf.py` parsed the 8,600-line sample Telegraf config six times with the comment-preserving TOML decoder, at about 6s per parse. It now parses each distinct text once and reuses deep copies, taking the file from 42s to 8s. `put_structure` now writes its ~2,500 comment keys to Redis in a single `MSET` instead of one round trip each, which also speeds up the real endpoint. The full suite takes about 1.5 minutes with the dev compose environment.
+
+## 2026-10-22 17:10 CT
+Restored the `MONGO_MIGRATION.md` entry under Key Files in CLAUDE.md, which was dropped by accident while resolving the Armada-block conflict. Self-review of the branch is published at https://claude.ai/artifact/QTuUqzEiBKWrdDDnRTPsfF.

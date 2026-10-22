@@ -200,6 +200,7 @@ docker-compose -f docker-compose-production.yml up --build -d
 - `backend/compact_metrics.py` / `backend/backup_db.py` - Postgres-only metrics compaction and database backup (see `cron/compact_metrics.sh`, `cron/backup_db.sh`)
 - `cron/run.sh`, `cron/cron.d/crontab` - scheduled job definitions
 - `start_dev.sh` - development environment bootstrap
+- `MONGO_MIGRATION.md` - full design rationale, schema, and operational runbook for the Postgres migration
 
 <!-- BEGIN ARMADA GLOBAL INSTRUCTIONS (managed by Flagship) -->
 This session's Armada instructions are in `CLAUDE.local.md`, which is kept out of git.
