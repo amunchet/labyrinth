@@ -22,3 +22,15 @@ Faster backend tests. `test_08_telegraf.py` parsed the 8,600-line sample Telegra
 
 ## 2026-10-22 17:10 CT
 Restored the `MONGO_MIGRATION.md` entry under Key Files in CLAUDE.md, which was dropped by accident while resolving the Armada-block conflict. Self-review of the branch is published at https://claude.ai/artifact/QTuUqzEiBKWrdDDnRTPsfF.
+
+## 2026-10-22 17:37 CT
+Follow-ups from the branch self-review:
+- **Merges keep references intact.** When the finder merges duplicate records, any other host whose `uplink` pointed at a merged-away record now points at the record that was kept. Map placements move the same way; where a map already places the kept record, the duplicate's spot is dropped. A kept record left uplinking to a copy of itself loses that uplink.
+- **Metrics stay with the moved host.** Telegraf configs bake in the IP the host had when the config was generated (`global_tags` in `Services.vue`), so a moved host's agent keeps reporting its old IP. The dashboard's `find_metric` used to match on mac *or* IP, which credited those metrics to whatever new device took the old IP. It now never matches by IP when the metric's `mac` tag is a different host's key.
+- **Bounded DNS in alive.** Hostnames are resolved once per run in `resolve_names`:
+  - Names are deduplicated before lookup.
+  - Answers, including "not found", are cached in Redis for 5 minutes.
+  - At most 4 lookups run at once (daemon threads).
+  - The whole batch gets 10 seconds. A name still pending after that is checked at its stored IP and retried on the next run.
+  - Tunable through `ALIVE_DNS_CACHE_SECONDS`, `ALIVE_DNS_WORKERS` and `ALIVE_DNS_TIMEOUT_SECONDS`.
+  - Previously, up to 32 uncached and unbounded `gethostbyname` calls ran every minute.

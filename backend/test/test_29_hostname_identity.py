@@ -1,10 +1,17 @@
 #!/usr/bin/env python3
 """Hosts are identified by hostname first, so DHCP hosts keep their record when their IP changes"""
+import json
+import threading
+import time
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 import alive
 import finder
+import serve
 from common.hostnames import hostnames_match, same_subnet
+from common.test import unwrap
 
 
 def scanned(ip, name="", mac=""):
@@ -32,11 +39,12 @@ def record(ip, name="", **extra):
     return host
 
 
-def reconcile(scan, hosts):
-    collection = MagicMock()
+def reconcile(scan, hosts, boards=()):
+    database = {"hosts": MagicMock(), "dashboards": MagicMock()}
+    database["dashboards"].find.return_value = list(boards)
     created = []
-    log = finder.reconcile_hosts(scan, hosts, collection, created.append)
-    return collection, created, log
+    log = finder.reconcile_hosts(scan, hosts, database, created.append)
+    return database["hosts"], created, log
 
 
 def test_hostnames_match():
@@ -219,41 +227,217 @@ def test_one_bad_host_does_not_stop_the_rest():
     log = finder.reconcile_hosts(
         [scanned("192.168.10.8", "printer"), scanned("192.168.10.9", "scanner")],
         hosts,
-        collection,
+        {"hosts": collection, "dashboards": MagicMock()},
         lambda h: None,
     )
     assert "Exception occurred for 192.168.10.8: db down" in log
     assert any("192.168.10.9" in line for line in log)
 
 
-@patch("alive.ping", return_value=True)
-@patch("socket.gethostbyname", return_value="192.168.10.98")
-def test_alive_checks_the_resolved_address(mock_dns, mock_ping):
-    result = alive.check_host(record("192.168.10.11", "laptop"))
-    mock_dns.assert_called_once_with("laptop")
+def test_merge_moves_uplinks_and_map_placements_to_the_kept_record():
+    hosts = [
+        record("192.168.10.98", "desktop", monitor=True),
+        record("192.168.10.11", "desktop", uplink="192.168.10.98"),
+        record("192.168.10.60", "switch", uplink="192.168.10.11", link_type="copper"),
+    ]
+    boards = [
+        {"_id": "a", "placements": [{"key": "192.168.10.11", "x": 10, "y": 20}]},
+        # both copies placed: the merged-away one's spot is dropped
+        {
+            "_id": "b",
+            "placements": [
+                {"key": "192.168.10.98", "x": 1, "y": 1},
+                {"key": "192.168.10.11", "x": 2, "y": 2},
+            ],
+        },
+        {"_id": "c", "placements": [{"key": "192.168.10.60", "x": 5, "y": 5}]},
+    ]
+    database = {"hosts": MagicMock(), "dashboards": MagicMock()}
+    database["dashboards"].find.return_value = boards
+    finder.reconcile_hosts(
+        [scanned("192.168.10.98", "desktop")], hosts, database, lambda h: None
+    )
+
+    kept_update = database["hosts"].update_one.call_args_list[0].args
+    assert kept_update[0] == {"mac": "192.168.10.98"}
+    assert kept_update[1]["$unset"] == {"uplink": "", "link_type": ""}
+    assert "uplink" not in kept_update[1]["$set"]
+    database["hosts"].update_one.assert_any_call(
+        {"mac": "192.168.10.60"}, {"$set": {"uplink": "192.168.10.98"}}
+    )
+    assert hosts[1]["uplink"] == "192.168.10.98"
+    assert database["dashboards"].update_one.call_args_list == [
+        (
+            (
+                {"_id": "a"},
+                {"$set": {"placements": [{"key": "192.168.10.98", "x": 10, "y": 20}]}},
+            ),
+        ),
+        (
+            (
+                {"_id": "b"},
+                {"$set": {"placements": [{"key": "192.168.10.98", "x": 1, "y": 1}]}},
+            ),
+        ),
+    ]
+
+
+@pytest.fixture
+def labyrinth_db():
+    db = serve.db["labyrinth"]
+    tearDown = lambda: [
+        db[c].delete_many({})
+        for c in ("hosts", "subnets", "services", "metrics-latest")
+    ]
+    tearDown()
+    yield db
+    tearDown()
+
+
+def test_moved_agent_metrics_stay_with_their_record(labyrinth_db, monkeypatch):
+    """
+    A Telegraf agent's config bakes in the IP it had then.  After its host moves,
+    a new device at the old IP must not be judged on the moved host's metrics
+    """
+    monkeypatch.setattr(serve.mc, "judge", lambda metric, service: True)
+    labyrinth_db["services"].insert_one(
+        {"name": "cpu", "display_name": "cpu", "type": "check"}
+    )
+    for mac, ip in (("10.0.0.5", "10.0.0.9"), ("device-new", "10.0.0.5")):
+        assert (
+            unwrap(serve.create_edit_host)(
+                {
+                    "mac": mac,
+                    "ip": ip,
+                    "subnet": "10.0.0",
+                    "group": "servers",
+                    "host": "",
+                    "services": ["cpu"],
+                }
+            )[1]
+            == 200
+        )
+    labyrinth_db["metrics-latest"].insert_one(
+        {
+            "name": "cpu",
+            "tags": {"mac": "10.0.0.5", "ip": "10.0.0.5", "name": "cpu"},
+            "fields": {"usage_idle": 90},
+            "timestamp": time.time(),
+        }
+    )
+
+    [subnet] = json.loads(unwrap(serve.dashboard)()[0])
+    found = {
+        h["mac"]: h["services"][0]["latest_metric"]
+        for g in subnet["groups"]
+        for h in g["hosts"]
+    }
+    assert found["10.0.0.5"]["tags"]["mac"] == "10.0.0.5"
+    assert found["device-new"] is None
+
+
+def test_alive_checks_the_resolved_address():
+    with patch("alive.ping", return_value=True) as mock_ping:
+        result = alive.check_host(record("192.168.10.11", "laptop"), "192.168.10.98")
     mock_ping.assert_called_once_with("192.168.10.98")
     assert result["up"] and result["address"] == "192.168.10.98"
 
 
 @patch("alive.ping", return_value=False)
-@patch("socket.gethostbyname", return_value="172.18.0.4")
-def test_alive_ignores_resolutions_outside_the_subnet(mock_dns, mock_ping):
+def test_alive_ignores_resolutions_outside_the_subnet(mock_ping):
     """e.g. a host named like a docker service resolving to the container"""
-    result = alive.check_host(record("192.168.10.244", "labyrinth"))
+    result = alive.check_host(record("192.168.10.244", "labyrinth"), "172.18.0.4")
     mock_ping.assert_called_once_with("192.168.10.244")
     assert result["address"] == "192.168.10.244"
 
 
 @patch("alive.check_port", return_value=True)
-@patch("socket.gethostbyname", side_effect=OSError("not found"))
-def test_alive_falls_back_to_the_ip_when_dns_fails(mock_dns, mock_port):
-    alive.check_host(record("192.168.10.11", "laptop", check_alive_port="22"))
+def test_alive_falls_back_to_the_ip_when_dns_fails(mock_port):
+    alive.check_host(record("192.168.10.11", "laptop", check_alive_port="22"), "")
     mock_port.assert_called_once_with("192.168.10.11", 22)
 
 
-@patch("alive.ping", return_value=True)
-@patch("socket.gethostbyname")
-def test_alive_skips_dns_for_names_that_are_not_hostnames(mock_dns, mock_ping):
-    alive.check_host(record("10.8.0.75", "Engraving Mailserver Larger"))
+class FakeRedis:
+    def __init__(self, cached=None):
+        self.data = dict(cached or {})
+        self.ttl = {}
+
+    def mget(self, keys):
+        return [self.data[k].encode() if k in self.data else None for k in keys]
+
+    def pipeline(self):
+        return self
+
+    def set(self, key, value, ex=None):
+        self.data[key] = value
+        self.ttl[key] = ex
+
+    def execute(self):
+        pass
+
+
+def test_resolve_names_looks_each_name_up_once_and_caches_it():
+    hosts = [
+        record("192.168.10.11", "laptop"),
+        record("192.168.10.12", "LAPTOP."),
+        record("192.168.10.13", "gone"),
+        record("10.8.0.75", "Engraving Mailserver Larger"),
+        record("192.168.10.14"),
+    ]
+    rc = FakeRedis()
+    answers = {"laptop": "192.168.10.98"}
+
+    def lookup(name):
+        if name not in answers:
+            raise OSError("not found")
+        return answers[name]
+
+    with patch("socket.gethostbyname", side_effect=lookup) as mock_dns:
+        assert alive.resolve_names(hosts, rc) == [
+            "192.168.10.98",
+            "192.168.10.98",
+            "",
+            "",
+            "",
+        ]
+    assert sorted(c.args[0] for c in mock_dns.call_args_list) == ["gone", "laptop"]
+    # "not found" is cached too, so a dead name isn't asked about every minute
+    assert rc.data == {"alive-dns:laptop": "192.168.10.98", "alive-dns:gone": ""}
+    assert set(rc.ttl.values()) == {alive.DNS_CACHE_SECONDS}
+
+    with patch("socket.gethostbyname") as mock_dns:
+        assert alive.resolve_names(hosts, rc)[0] == "192.168.10.98"
     mock_dns.assert_not_called()
-    mock_ping.assert_called_once_with("10.8.0.75")
+
+
+def test_resolve_names_bounds_concurrency_and_time(monkeypatch):
+    """A slow resolver costs one bounded wait, not a thread per host or a stuck run"""
+    monkeypatch.setattr(alive, "DNS_WORKERS", 2)
+    monkeypatch.setattr(alive, "DNS_TIMEOUT_SECONDS", 0.3)
+    active, peak, release = [0], [0], threading.Event()
+    lock = threading.Lock()
+
+    def slow(name):
+        with lock:
+            active[0] += 1
+            peak[0] = max(peak[0], active[0])
+        if name == "stuck":
+            release.wait(5)
+        else:
+            time.sleep(0.05)
+        with lock:
+            active[0] -= 1
+        return "192.168.10.50"
+
+    hosts = [record("192.168.10.{}".format(i), "host{}".format(i)) for i in range(6)]
+    hosts.append(record("192.168.10.99", "stuck"))
+    rc = FakeRedis()
+    started = time.monotonic()
+    with patch("socket.gethostbyname", side_effect=slow):
+        result = alive.resolve_names(hosts, rc)
+    release.set()
+
+    assert time.monotonic() - started < 1
+    assert peak[0] <= 2
+    assert result[-1] == ""
+    assert "alive-dns:stuck" not in rc.data  # retried next run, not cached as missing

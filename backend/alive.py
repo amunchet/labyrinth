@@ -4,7 +4,7 @@ Checks hosts alive
 
 Every host with an IP is pinged (or TCP-connected to when it has a
 `check_alive_port`) at the address its hostname resolves to, falling back to
-its last known IP, and the result is recorded in the Redis `alive` hash
+its last known IP (lookups are cached and rate-limited, see `resolve_names`), and the result is recorded in the Redis `alive` hash
 (IP -> JSON) so maps and the inventory can show live reachability for anything
 IP-reachable, not only hosts with Telegraf metrics.  Monitored hosts that are
 down are also sent to Alertmanager.
@@ -12,8 +12,10 @@ down are also sent to Alertmanager.
 import json
 import os
 import platform
+import queue
 import subprocess
 import socket
+import threading
 import time
 
 import redis
@@ -26,6 +28,10 @@ from contextlib import closing
 from common.hostnames import same_subnet
 
 ALIVE_KEY = "alive"
+DNS_KEY = "alive-dns:"
+DNS_CACHE_SECONDS = int(os.environ.get("ALIVE_DNS_CACHE_SECONDS") or 300)
+DNS_TIMEOUT_SECONDS = float(os.environ.get("ALIVE_DNS_TIMEOUT_SECONDS") or 10)
+DNS_WORKERS = int(os.environ.get("ALIVE_DNS_WORKERS") or 4)
 
 
 def ping(host):
@@ -59,24 +65,74 @@ def check_port(host, port):
         return False
 
 
-def check_host(host):
+def resolve_names(hosts, rc):
+    """
+    Resolves each host's name to an address, without flooding the resolver
+        - Answers, "not found" included, are cached in Redis for DNS_CACHE_SECONDS, so a
+          name is looked up a few times an hour instead of every minute
+        - Uncached names are looked up once each, DNS_WORKERS at a time, and the whole
+          batch gets DNS_TIMEOUT_SECONDS; a name still pending then is checked at its IP
+    Returns one address per host, "" where there is none
+    """
+    names = [str(h.get("host") or "").strip().rstrip(".").lower() for h in hosts]
+    wanted = sorted({n for n in names if n and " " not in n})
+    if not wanted:
+        return [""] * len(hosts)
+
+    found = {
+        n: a.decode()
+        for n, a in zip(wanted, rc.mget([DNS_KEY + n for n in wanted]))
+        if a is not None
+    }
+    pending = queue.Queue()
+    for n in wanted:
+        if n not in found:
+            pending.put(n)
+    resolved = {}
+
+    def work():
+        while True:
+            try:
+                name = pending.get_nowait()
+            except queue.Empty:
+                return
+            try:
+                resolved[name] = socket.gethostbyname(name)
+            except (OSError, UnicodeError):
+                resolved[name] = ""
+
+    # gethostbyname can't be cancelled, so a lookup that outlives the deadline is
+    # left to finish in a daemon thread rather than holding the run open
+    workers = [
+        threading.Thread(target=work, daemon=True)
+        for _ in range(min(DNS_WORKERS, pending.qsize()))
+    ]
+    for t in workers:
+        t.start()
+    deadline = time.monotonic() + DNS_TIMEOUT_SECONDS
+    for t in workers:
+        t.join(max(0, deadline - time.monotonic()))
+
+    done = dict(resolved)
+    if done:
+        pipe = rc.pipeline()
+        for n, a in done.items():
+            pipe.set(DNS_KEY + n, a, ex=DNS_CACHE_SECONDS)
+        pipe.execute()
+    found.update(done)
+    return [found.get(n, "") for n in names]
+
+
+def check_host(host, resolved=""):
     """
     Checks one host and returns its alive record
-        - The hostname is checked first, so a DHCP host that moved is found at its new IP.
-          A resolved address outside the host's /24 (a search-domain or container-name
-          collision) is ignored in favour of the last known IP
+        - `resolved` is the address its hostname resolves to (`resolve_names`), so a DHCP
+          host that moved is found at its new IP.  One outside the host's /24 (a
+          search-domain or container-name collision) is ignored in favour of the last known IP
         - A `check_alive_port` (stored as text by the UI) means a TCP check instead of ping
         - An unusable port marks only this host down, with the reason, instead of failing every check
     """
-    address = host["ip"]
-    name = str(host.get("host") or "").strip().rstrip(".")
-    if name and " " not in name:
-        try:
-            resolved = socket.gethostbyname(name)
-        except (OSError, UnicodeError):
-            resolved = ""
-        if same_subnet(resolved, address):
-            address = resolved
+    address = resolved if same_subnet(resolved, host["ip"]) else host["ip"]
 
     port = str(host.get("check_alive_port") or "").strip()
     result = {
@@ -109,11 +165,11 @@ def check_all_hosts():  # pragma: no cover
     with PidFile("labyrinth-alive"):
         hosts = [x for x in json.loads(unwrap(list_hosts)()[0]) if x.get("ip")]
 
+        rc = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
         with ThreadPoolExecutor(32) as pool:
-            results = list(pool.map(check_host, hosts))
+            results = list(pool.map(check_host, hosts, resolve_names(hosts, rc)))
 
         # Replace the whole hash atomically so removed hosts drop out
-        rc = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
         pipe = rc.pipeline()
         pipe.delete(ALIVE_KEY)
         if hosts:

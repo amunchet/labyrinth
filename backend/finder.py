@@ -261,7 +261,7 @@ def process_scan(input: Dict) -> Dict:
     return output
 
 
-def reconcile_hosts(scanned: List[Dict], hosts: List[Dict], collection, create_fn):
+def reconcile_hosts(scanned: List[Dict], hosts: List[Dict], database, create_fn):
     """
     Records one subnet's scan results against the known hosts.
 
@@ -271,11 +271,13 @@ def reconcile_hosts(scanned: List[Dict], hosts: List[Dict], collection, create_f
     matching stays within the /24 and skips a name answering at several IPs in
     this scan (multi-homed hosts, stale PTR records), so neither flaps a record
     between addresses.  Records the scan shows to be one device are merged
-    first.
+    first, and uplinks and map placements that pointed at a merged-away record
+    are moved to the one kept.
 
     `hosts` is every known host and is kept current as records change.
-    Returns a log line per change.
+    `database` is the labyrinth database.  Returns a log line per change.
     """
+    collection = database["hosts"]
     log = []
     found = []
     for item in scanned:
@@ -354,10 +356,34 @@ def reconcile_hosts(scanned: List[Dict], hosts: List[Dict], collection, create_f
             collection.delete_one({"mac": other["mac"]})
             hosts.remove(other)
         keep["ip"] = ip
-        collection.update_one(
-            {"mac": keep["mac"]},
-            {"$set": {k: v for k, v in keep.items() if k not in ("_id", "mac")}},
-        )
+        gone = {h["mac"] for h in group}
+        update = {}
+        if keep.get("uplink") in gone | {keep["mac"]}:
+            # It uplinked to a copy of itself
+            keep.pop("uplink")
+            keep.pop("link_type", None)
+            update["$unset"] = {"uplink": "", "link_type": ""}
+        update["$set"] = {k: v for k, v in keep.items() if k not in ("_id", "mac")}
+        collection.update_one({"mac": keep["mac"]}, update)
+        for h in hosts:
+            if h.get("uplink") in gone:
+                h["uplink"] = keep["mac"]
+                collection.update_one(
+                    {"mac": h["mac"]}, {"$set": {"uplink": keep["mac"]}}
+                )
+        for board in database["dashboards"].find({"placements": {"$exists": True}}):
+            placements = []
+            placed = keep["mac"] in [p.get("key") for p in board["placements"]]
+            for p in board["placements"]:
+                if p.get("key") in gone:
+                    if placed:
+                        continue
+                    p, placed = dict(p, key=keep["mac"]), True
+                placements.append(p)
+            if placements != board["placements"]:
+                database["dashboards"].update_one(
+                    {"_id": board["_id"]}, {"$set": {"placements": placements}}
+                )
         log.append(
             "Merged {} into {} ({})".format(
                 ", ".join(h["mac"] for h in group), keep["mac"], name or ip
@@ -658,7 +684,7 @@ def main(loop=True, stop_event=None):  # pragma: no cover
                 update_redis("\nHosts Check...", subnet)
                 hosts = json.loads(unwrap(list_hosts)()[0])
                 for line in reconcile_hosts(
-                    scanned, hosts, db["labyrinth"]["hosts"], unwrap(create_edit_host)
+                    scanned, hosts, db["labyrinth"], unwrap(create_edit_host)
                 ):
                     update_redis("\n" + line, subnet)
 
