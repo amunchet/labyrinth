@@ -14,6 +14,7 @@ Ansible helper functions
 
 """
 import os
+import re
 import subprocess
 import shutil
 import uuid
@@ -301,14 +302,142 @@ def run_ansible(
             totp_path, "{}/vars/{}.yml".format(RUN_DIR, secure_filename(totp_file))
         )
 
-    # Write vault password to a restrictive temp file (required by ansible-runner).
-    # The password is necessarily stored as plain text here because ansible-vault
-    # reads it from a file at runtime.
-    vault_pass_path = "{}/vault.pass".format(RUN_DIR)
-    fd = os.open(vault_pass_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w") as f:
-        f.write(vault_password)
+    write_vault_password(RUN_DIR, vault_password)
 
     # Run ansible and return HTML
 
     return RUN_DIR, playbook
+
+
+def write_vault_password(run_dir, vault_password):
+    """
+    Write the vault password to a restrictive file in the run directory.
+    It is necessarily plain text because ansible-vault reads it from a file at
+    runtime; the caller removes it as soon as the run ends.
+    """
+    fd = os.open(
+        "{}/vault.pass".format(run_dir), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600
+    )
+    with os.fdopen(fd, "w") as f:
+        f.write(vault_password)
+
+
+PROXMOX_PLAYBOOK_DIR = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "proxmox_deploy"
+)
+
+APT_ONLY = """set -e
+command -v apt-get >/dev/null || { echo "Only Debian/Ubuntu (apt-get) guests are supported" >&2; exit 3; }
+export DEBIAN_FRONTEND=noninteractive
+"""
+
+# Same verified-fingerprint InfluxData repo setup as backend/Dockerfile
+TELEGRAF_INSTALL = (
+    APT_ONLY
+    + """apt-get update -q
+apt-get install -y -q ca-certificates curl gnupg cron
+mkdir -p /etc/apt/keyrings
+curl -fsSL https://repos.influxdata.com/influxdata-archive.key -o /tmp/influxdata-archive.key
+fingerprint=$(gpg --batch --show-keys --with-colons /tmp/influxdata-archive.key | awk -F: '$1 == "fpr" { print $10; exit }')
+test "$fingerprint" = 24C975CBA61A024EE1B631787C3D57159FC2F927
+gpg --batch --yes --dearmor -o /etc/apt/keyrings/influxdata-archive.gpg /tmp/influxdata-archive.key
+rm /tmp/influxdata-archive.key
+echo 'deb [signed-by=/etc/apt/keyrings/influxdata-archive.gpg] https://repos.influxdata.com/debian stable main' > /etc/apt/sources.list.d/influxdata.list
+apt-get update -q
+apt-get install -y -q telegraf
+"""
+)
+
+# Same model as the SSH deploy playbook: no telegraf service, a once-a-minute
+# `telegraf --once` from cron.  Drops that playbook's crontab entry so a guest
+# moved over from SSH deploys doesn't report twice.
+TELEGRAF_SCHEDULE = """set -e
+(systemctl disable --now telegraf || service telegraf stop) >/dev/null 2>&1 || true
+crontab -l 2>/dev/null | grep -v -e '^#Ansible: Telegraf$' -e 'telegraf --once' | crontab -
+echo '* * * * * root /usr/bin/telegraf --once >/dev/null 2>&1' > /etc/cron.d/labyrinth-telegraf
+(systemctl enable --now cron || service cron start) >/dev/null 2>&1
+"""
+
+APT_UPGRADE = (
+    APT_ONLY
+    + """apt-get update -q
+apt-get upgrade -y -q -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold
+"""
+)
+
+# action -> (guest script, post script run after the Telegraf config is pushed)
+PROXMOX_ACTIONS = {
+    "telegraf": (TELEGRAF_INSTALL, TELEGRAF_SCHEDULE),
+    "apt_upgrade": (APT_UPGRADE, ""),
+    "script": (None, ""),
+}
+
+
+def prepare_proxmox_run(
+    targets: List, action: str, vault_password: str, credentials_file: str, script=""
+):
+    """
+    Lay out a run directory for proxmox_deploy/proxmox_guests.yml, which reaches
+    each target VM/LXC through its hypervisor using the per-node credentials in
+    the encrypted `credentials_file` (an uploaded become file).
+
+    :param targets - dicts of cluster, node, type (vm/lxc), vmid, name and
+                     telegraf_conf (the host's /src/uploads/telegraf/ name, or "")
+    :param action - a PROXMOX_ACTIONS key; "script" runs `script` instead
+    """
+    guest_script, post_script = PROXMOX_ACTIONS[action]
+    if action == "script":
+        guest_script = script
+    if not (guest_script or "").strip():
+        raise Exception("No script to run.")
+
+    credentials_file = secure_filename(credentials_file).replace(".yml", "")
+    if "{}.yml".format(credentials_file) not in os.listdir("/src/uploads/become"):
+        raise Exception("Credentials file not found: " + credentials_file)
+
+    RUN_DIR = "/run/{}".format(uuid.uuid1())
+    for folder in ["inventory", "project/files", "vars", "env"]:
+        os.makedirs("{}/{}".format(RUN_DIR, folder))
+
+    for name in ["proxmox_guests.yml", "proxmox_guest.yml"]:
+        shutil.copy(os.path.join(PROXMOX_PLAYBOOK_DIR, name), RUN_DIR + "/project/")
+
+    shutil.copy(
+        "/src/uploads/become/{}.yml".format(credentials_file),
+        RUN_DIR + "/vars/proxmox_credentials.yml",
+    )
+
+    # One inventory host per hypervisor; cluster names are free text
+    nodes = {}
+    for target in targets:
+        name = re.sub(r"[^A-Za-z0-9_.-]", "_", f"{target['cluster']}__{target['node']}")
+        node = nodes.setdefault(
+            name,
+            {
+                "proxmox_cluster": target["cluster"],
+                "proxmox_node": target["node"],
+                "proxmox_guests": [],
+            },
+        )
+        conf = ""
+        if target.get("telegraf_conf"):
+            conf = secure_filename(target["telegraf_conf"]) + ".conf"
+            shutil.copy("/src/uploads/telegraf/" + conf, RUN_DIR + "/project/files/")
+        node["proxmox_guests"].append(
+            {
+                "type": target["type"],
+                "vmid": str(target["vmid"]),
+                "name": target["name"],
+                "telegraf_conf": conf,
+            }
+        )
+
+    with open(RUN_DIR + "/inventory/hosts.yml", "w") as f:
+        yaml.safe_dump({"all": {"children": {"proxmox_nodes": {"hosts": nodes}}}}, f)
+    with open(RUN_DIR + "/env/extravars", "w") as f:
+        yaml.safe_dump(
+            {"guest_script": guest_script, "guest_post_script": post_script}, f
+        )
+
+    write_vault_password(RUN_DIR, vault_password)
+    return RUN_DIR, "proxmox_guests"
