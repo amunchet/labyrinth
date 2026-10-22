@@ -19,6 +19,13 @@
         <b-badge v-if="host.error" variant="danger">
           Error: {{ host.error }}
         </b-badge>
+        <b-badge
+          v-else-if="host.stale"
+          variant="warning"
+          :title="host.stale_error"
+        >
+          Unreachable - showing results from {{ age(host.fetched_at) }}
+        </b-badge>
         <b-badge v-else variant="success">Connected</b-badge>
       </b-col>
     </b-row>
@@ -27,7 +34,12 @@
     <b-collapse v-model="collapsed" class="mt-2">
       <div v-if="host.nodes && host.nodes.length > 0" class="nodes-grid mb-2">
         <div v-for="node in sortedNodes" :key="node.name" class="node-card">
-          <h6 class="text-secondary mb-2">{{ node.name }}</h6>
+          <h6 class="text-secondary mb-2">
+            {{ node.name }}
+            <b-badge v-if="node.stale" variant="warning" class="ml-1">
+              Unreachable - results from {{ age(node.fetched_at) }}
+            </b-badge>
+          </h6>
 
           <div class="node-panels">
             <div class="node-panel storage-panel">
@@ -133,6 +145,13 @@ export default {
     };
   },
   methods: {
+    age(epochSeconds) {
+      if (!epochSeconds) return "an earlier poll";
+      const minutes = Math.round((Date.now() / 1000 - epochSeconds) / 60);
+      if (minutes < 1) return "under a minute ago";
+      if (minutes < 120) return `${minutes} min ago`;
+      return `${Math.round(minutes / 60)} hours ago`;
+    },
     toNumber(value) {
       const n = Number(value);
       return Number.isFinite(n) ? n : 0;

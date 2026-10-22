@@ -388,6 +388,15 @@ def gather_all_disk_issues(
             )
             continue
 
+        # Last-known-good data is still checked, but the failed poll is reported
+        if cluster_data.get("stale"):
+            cluster_errors.append(
+                {
+                    "cluster": cluster.get("name"),
+                    "error": str(escape(str(cluster_data.get("stale_error")))),
+                }
+            )
+
         all_issues.extend(
             collect_disk_issues(
                 cluster_data,

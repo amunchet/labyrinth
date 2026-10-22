@@ -22,7 +22,11 @@ except ImportError:
 
 
 PROXMOX_CACHE_PREFIX = "proxmox-disk"
-PROXMOX_CACHE_TTL_SECONDS = int(os.environ.get("PROXMOX_CACHE_TTL_SECONDS", "90"))
+# The cron refresh rewrites this every 30s; the long TTL only bounds how long
+# last-known-good results survive while a cluster stays unreachable.
+PROXMOX_CACHE_TTL_SECONDS = int(
+    os.environ.get("PROXMOX_CACHE_TTL_SECONDS", str(7 * 24 * 60 * 60))
+)
 
 # Per-VM/LXC status fallback cache. Individual guest status calls
 # (get_vm_status / get_container_status) occasionally fail transiently
@@ -545,16 +549,59 @@ def delete_cached_proxmox_disk_data(cluster_or_identifier, redis_client=None) ->
 
 
 def fetch_and_cache_proxmox_disk_data(cluster: Dict, redis_client=None) -> Dict:
-    """Fetch live Proxmox data for a cluster and cache the normalized payload."""
+    """
+    Fetch live Proxmox data for a cluster and cache it. Whatever fails to
+    answer (the whole cluster, or single nodes) keeps its previous cached
+    results, flagged `stale`, instead of being replaced by an error or blanks.
+    """
     redis_client = redis_client or get_redis_client()
+    previous = get_cached_proxmox_disk_data(cluster, redis_client=redis_client)
     payload = get_proxmox_disk_data(
         cluster.get("host"), cluster, redis_client=redis_client
     )
+    now = time.time()
+
+    if not (previous and previous.get("nodes")):
+        payload["fetched_at"] = now
+        for node in payload.get("nodes") or []:
+            node["fetched_at"] = now
+        return set_cached_proxmox_disk_data(cluster, payload, redis_client=redis_client)
+
+    if payload.get("error") or not payload.get("nodes"):
+        previous.update(
+            stale=True,
+            stale_error=payload.get("error") or "No nodes returned",
+            last_attempt_at=now,
+            error=None,
+        )
+        return set_cached_proxmox_disk_data(
+            cluster, previous, redis_client=redis_client
+        )
+
+    # Every reachable node reports at least one datastore, so an empty list
+    # means its storage call timed out or failed.
+    previous_nodes = {node.get("name"): node for node in previous["nodes"]}
+    for i, node in enumerate(payload["nodes"]):
+        old = previous_nodes.get(node["name"])
+        if old and (node.get("status") != "online" or not node.get("storage")):
+            payload["nodes"][i] = dict(
+                old,
+                status=node.get("status"),
+                stale=True,
+                fetched_at=old.get("fetched_at", previous.get("fetched_at")),
+            )
+        else:
+            node["fetched_at"] = now
+
+    payload["fetched_at"] = now
     return set_cached_proxmox_disk_data(cluster, payload, redis_client=redis_client)
 
 
 def get_proxmox_disk_data_cached(cluster: Dict, redis_client=None) -> Dict:
-    """Return cached Proxmox data when available, otherwise fetch live data."""
+    """
+    Return cached Proxmox data (kept fresh by the cron refresh), fetching live
+    only when nothing has been cached yet.
+    """
     cached_payload = get_cached_proxmox_disk_data(cluster, redis_client=redis_client)
     if cached_payload is not None:
         return cached_payload
