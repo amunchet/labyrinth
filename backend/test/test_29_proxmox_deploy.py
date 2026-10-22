@@ -42,9 +42,7 @@ GUESTS = [
 @pytest.fixture
 def deploy(monkeypatch):
     """Live Proxmox data, uploaded files and the job launcher, all faked."""
-    monkeypatch.setattr(
-        serve, "_proxmox_guests_with_matches", lambda: ([], GUESTS, [])
-    )
+    monkeypatch.setattr(serve, "_proxmox_guests_with_matches", lambda: ([], GUESTS, []))
     files = {
         "/src/uploads/become": ["proxmox-root.yml"],
         "/src/uploads/telegraf": ["10.0.0.5.conf", "10.0.0.6.conf"],
@@ -242,10 +240,31 @@ def uploads():
 
 def test_prepare_run_groups_guests_by_hypervisor(uploads):
     targets = [
-        {"cluster": "north", "node": "pve3", "type": "vm", "vmid": 215, "name": "jupiter", "telegraf_conf": "10.99.0.5"},
-        {"cluster": "north", "node": "pve3", "type": "lxc", "vmid": "104", "name": "central", "telegraf_conf": ""},
+        {
+            "cluster": "north",
+            "node": "pve3",
+            "type": "vm",
+            "vmid": 215,
+            "name": "jupiter",
+            "telegraf_conf": "10.99.0.5",
+        },
+        {
+            "cluster": "north",
+            "node": "pve3",
+            "type": "lxc",
+            "vmid": "104",
+            "name": "central",
+            "telegraf_conf": "",
+        },
         # Same node name in another cluster is a different hypervisor
-        {"cluster": "south site", "node": "pve3", "type": "lxc", "vmid": "120", "name": "mirror", "telegraf_conf": ""},
+        {
+            "cluster": "south site",
+            "node": "pve3",
+            "type": "lxc",
+            "vmid": "120",
+            "name": "mirror",
+            "telegraf_conf": "",
+        },
     ]
     run_dir, playbook = ansible_helper.prepare_proxmox_run(
         targets, "telegraf", "vault-pw", "px-test"
@@ -270,7 +289,12 @@ def test_prepare_run_groups_guests_by_hypervisor(uploads):
     assert sorted(nodes) == ["north__pve3", "south_site__pve3"]
     assert nodes["north__pve3"]["proxmox_cluster"] == "north"
     assert nodes["north__pve3"]["proxmox_guests"] == [
-        {"type": "vm", "vmid": "215", "name": "jupiter", "telegraf_conf": "10.99.0.5.conf"},
+        {
+            "type": "vm",
+            "vmid": "215",
+            "name": "jupiter",
+            "telegraf_conf": "10.99.0.5.conf",
+        },
         {"type": "lxc", "vmid": "104", "name": "central", "telegraf_conf": ""},
     ]
     assert nodes["south_site__pve3"]["proxmox_cluster"] == "south site"
@@ -282,7 +306,15 @@ def test_prepare_run_groups_guests_by_hypervisor(uploads):
 
 
 def test_prepare_run_uses_the_custom_script(uploads):
-    targets = [{"cluster": "north", "node": "pve3", "type": "lxc", "vmid": "104", "name": "central"}]
+    targets = [
+        {
+            "cluster": "north",
+            "node": "pve3",
+            "type": "lxc",
+            "vmid": "104",
+            "name": "central",
+        }
+    ]
     run_dir, _ = ansible_helper.prepare_proxmox_run(
         targets, "script", "vault-pw", "px-test", script="uptime"
     )
@@ -293,8 +325,18 @@ def test_prepare_run_uses_the_custom_script(uploads):
 
 
 def test_prepare_run_refuses_empty_script_and_missing_credentials(uploads):
-    targets = [{"cluster": "north", "node": "pve3", "type": "lxc", "vmid": "104", "name": "central"}]
+    targets = [
+        {
+            "cluster": "north",
+            "node": "pve3",
+            "type": "lxc",
+            "vmid": "104",
+            "name": "central",
+        }
+    ]
     with pytest.raises(Exception, match="No script"):
-        ansible_helper.prepare_proxmox_run(targets, "script", "pw", "px-test", script=" ")
+        ansible_helper.prepare_proxmox_run(
+            targets, "script", "pw", "px-test", script=" "
+        )
     with pytest.raises(Exception, match="Credentials file not found"):
         ansible_helper.prepare_proxmox_run(targets, "apt_upgrade", "pw", "nope")

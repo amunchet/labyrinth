@@ -1667,12 +1667,15 @@ def run_proxmox_deploy(inp_data=""):
 
     _, guests, _ = _proxmox_guests_with_matches()
     known = {(g["cluster_name"], g["node"], g["type"], str(g["id"])): g for g in guests}
-    telegraf_confs = (
-        os.listdir("/src/uploads/telegraf") if action == "telegraf" else []
-    )
+    telegraf_confs = os.listdir("/src/uploads/telegraf") if action == "telegraf" else []
     targets, errors = [], []
     for item in selected:
-        key = (item.get("cluster_name"), item.get("node"), item.get("type"), str(item.get("id")))
+        key = (
+            item.get("cluster_name"),
+            item.get("node"),
+            item.get("type"),
+            str(item.get("id")),
+        )
         label = "/".join(str(x) for x in key)
         guest = known.get(key)
         if not guest:
