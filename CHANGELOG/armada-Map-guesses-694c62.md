@@ -16,3 +16,8 @@ tags and per-host service levels, subnet and group management, service and inges
 Alertmanager alert list/resolve (the MCP container now mounts `alertmanager/` read-only for the
 password), Proxmox disk/Telegraf/Graylog reports and clusters, and EC2 instances. Secrets, service
 deletion, scans and direct Ansible runs remain UI-only. Tested on both Mongo and Postgres.
+
+## 2026-10-22 13:35 CDT
+Fixed the new MCP tool tests erroring in the full suite on Postgres ("connection pool is closed"):
+they cached a database handle at import, which `test_27_db_connections` invalidates when it closes
+the shared client. They now go through the lazy `serve.db` on every use, like the other tests.

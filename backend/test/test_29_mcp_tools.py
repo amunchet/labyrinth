@@ -3,6 +3,7 @@
 MCP client tools beyond hosts/services: location maps and their images,
 subnets and groups, tags and service levels, alerts and monitoring reports.
 """
+
 import io
 import json
 import os
@@ -15,13 +16,12 @@ import serve
 from ai.mcp.client import IMAGES_DIR, LabyrinthClient
 from common.test import unwrap
 
-db = serve.db["labyrinth"]
 IMAGE = "test_29_floorplan.png"
 
 
 def tearDown():
     for collection in ["hosts", "subnets", "locations", "dashboards"]:
-        db[collection].delete_many({})
+        serve.db["labyrinth"][collection].delete_many({})
     if os.path.exists(os.path.join(IMAGES_DIR, IMAGE)):
         os.remove(os.path.join(IMAGES_DIR, IMAGE))
 
@@ -75,7 +75,7 @@ def test_map_create_place_and_move(client):
     assert [(x["key"], x["x"]) for x in moved["placements"]] == [("aa:01", 10.0)]
 
     # The stored map is what the frontend reads: no device details persisted
-    stored = db["dashboards"].find_one({"name": "North Floor"})
+    stored = serve.db["labyrinth"]["dashboards"].find_one({"name": "North Floor"})
     assert stored["placements"] == [{"key": "aa:01", "x": 10.0, "y": 20.0}]
     assert stored["background_image"] == IMAGE
 
@@ -105,7 +105,10 @@ def test_bad_placements_are_refused(client, placement, problem):
     client.save_map({"name": "Floor"})
     with pytest.raises(ValueError, match=problem):
         client.place_devices("Floor", [placement], [])
-    assert db["dashboards"].find_one({"name": "Floor"})["placements"] == []
+    assert (
+        serve.db["labyrinth"]["dashboards"].find_one({"name": "Floor"})["placements"]
+        == []
+    )
 
 
 def test_save_map_refuses_unknown_references(client):
@@ -146,14 +149,14 @@ def test_deleted_device_shows_as_missing_and_can_be_removed(client):
     client.save_map({"name": "Floor"})
     client.place_devices("Floor", [{"key": "aa:02", "x": 5, "y": 5}], [])
     # Bypass delete_host, which would also drop the placement
-    db["hosts"].delete_one({"mac": "aa:02"})
+    serve.db["labyrinth"]["hosts"].delete_one({"mac": "aa:02"})
 
     assert client.get_map("Floor")["placements"][0]["device"] is None
     assert client.place_devices("Floor", [], ["aa:02"])["placements"] == []
 
 
 def test_legacy_map_is_flagged(client):
-    db["dashboards"].insert_one({"name": "Old", "components": []})
+    serve.db["labyrinth"]["dashboards"].insert_one({"name": "Old", "components": []})
     assert client.list_maps()[0]["legacy"] is True
 
 
@@ -171,7 +174,7 @@ def test_map_image_is_scaled_jpeg_on_white(client):
 
 def test_tags_and_service_levels(client):
     assert client.set_host_tags("192.168.9.6", "core,poe")["tags"] == "core,poe"
-    key = db["hosts"].find_one({"host": "Patch panel"})["mac"]
+    key = serve.db["labyrinth"]["hosts"].find_one({"host": "Patch panel"})["mac"]
     # IP-less devices are tagged through their full record
     assert client.set_host_tags(key, "passive")["tags"] == "passive"
     assert client.list_tags() == ["core", "passive", "poe"]
@@ -198,14 +201,20 @@ def test_subnets_and_groups(client):
     with pytest.raises(ValueError, match="needs its"):
         client.save_subnet({"location": "North"})
 
-    db["hosts"].update_one({"mac": "aa:01"}, {"$set": {"group": "Switches"}})
+    serve.db["labyrinth"]["hosts"].update_one(
+        {"mac": "aa:01"}, {"$set": {"group": "Switches"}}
+    )
     assert client.list_groups("192.168.9") == [
         {"group": "Switches", "members": ["192.168.9.6"]}
     ]
     result = client.update_group(
         "192.168.9", "Switches", new_name="Core", monitor=True, add_service="ping"
     )
-    assert result == {"subnet": "192.168.9", "group": "Core", "members": ["192.168.9.6"]}
+    assert result == {
+        "subnet": "192.168.9",
+        "group": "Core",
+        "members": ["192.168.9.6"],
+    }
     host = client.get_host("aa:01")
     assert host["monitor"] is True and host["services"] == ["ping"]
     client.update_group("192.168.9", "Core", monitor=False, remove_service="ping")
