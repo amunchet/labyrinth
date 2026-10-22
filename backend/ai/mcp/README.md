@@ -187,7 +187,7 @@ which `common/auth.py` requires at import) as `-e` flags.
 
 ### Host Management
 - `mcp_list_hosts` - List all hosts
-- `mcp_get_host(host_key)` - Get a single host by MAC or IP
+- `mcp_get_host(host_key)` - Get a single host by MAC, IP or hostname (a hostname shared by several hosts matches none)
 - `mcp_create_or_update_host(host_json)` - Create/update a host (JSON string)
 - `mcp_add_service_to_host(host_key, service_name)` - Add a service to a host
 - `mcp_remove_service_from_host(host_key, service_name)` - Remove a service from a host

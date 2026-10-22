@@ -9,6 +9,7 @@ import os
 import signal
 import subprocess
 import threading
+import uuid
 import xmltodict
 from threading import Thread
 
@@ -19,8 +20,9 @@ from nmap import PortScannerYield as ps
 
 
 from common.single_run import RedisSingleRunLock, LockNotAcquired
+from common.hostnames import hostnames_match, same_subnet
 from common.test import unwrap
-from serve import list_subnet, list_subnets, create_edit_host, list_host, insert_metric
+from serve import db, list_subnet, list_subnets, list_hosts, create_edit_host, insert_metric
 
 
 def _int_from_env(name, default):
@@ -178,6 +180,10 @@ def scan(subnet: str, callback_fn, verbose=False) -> List:  # pragma: no cover
     return results
 
 
+# Field values a merge treats as unset
+EMPTY = ("", None, [], {})
+
+
 def convert_host(input: Dict) -> Dict:
     """
     Converts host information to Database format
@@ -246,6 +252,149 @@ def process_scan(input: Dict) -> Dict:
 
     output["timestamp"] = time.time()
     return output
+
+
+def reconcile_hosts(scanned: List[Dict], hosts: List[Dict], collection, create_fn):
+    """
+    Records one subnet's scan results against the known hosts.
+
+    A scanned host is matched on hostname first, then MAC, then IP, so a DHCP
+    host that moved keeps its record - and the record's key, which its
+    Telegraf agent tags metrics with - and only has its IP updated.  Hostname
+    matching stays within the /24 and skips a name answering at several IPs in
+    this scan (multi-homed hosts, stale PTR records), so neither flaps a record
+    between addresses.  Records the scan shows to be one device are merged
+    first.
+
+    `hosts` is every known host and is kept current as records change.
+    Returns a log line per change.
+    """
+    log = []
+    found = []
+    for item in scanned:
+        name = item["hostnames"][0].get("name", "") if item.get("hostnames") else ""
+        found.append(
+            (item, item["addresses"]["ipv4"], item["addresses"].get("mac", ""), name)
+        )
+
+    def unique_ip(name):
+        """The one IP this scan saw `name` at, else None"""
+        ips = {ip for _, ip, _, n in found if hostnames_match(n, name)}
+        return ips.pop() if len(ips) == 1 else None
+
+    def named(name, ip):
+        return [
+            h
+            for h in hosts
+            if h.get("mac")
+            and same_subnet(h.get("ip"), ip)
+            and hostnames_match(h.get("host"), name)
+        ]
+
+    def monitored(h):
+        return str(h.get("monitor")).lower() == "true"
+
+    def unreviewed(h):
+        """Scanner-made and never configured: unmonitored, and unnamed or still flagged new_host"""
+        return not monitored(h) and (
+            not h.get("host") or "new_host" in (h.get("services") or [])
+        )
+
+    def rank(ip):
+        """Orders duplicate records of one device, the one to keep first"""
+        return lambda h: (
+            monitored(h),
+            h.get("ip") == ip,
+            len(h.get("services") or []),
+            len(h),
+        )
+
+    # The scanned name's records in the /24 and the records at the scanned IP are
+    # one device.  Same-named records merge into the best configured one; other
+    # records at the IP are folded in only if unreviewed, so a configured host is
+    # never deleted for merely sharing an IP
+    for _, ip, _, name in found:
+        same_name = named(name, ip) if name and unique_ip(name) == ip else []
+        at_ip = [
+            h
+            for h in hosts
+            if h.get("mac") and h.get("ip") == ip and h not in same_name
+        ]
+        pool = [h for h in same_name if not unreviewed(h)] or same_name + at_ip
+        if not pool:
+            continue
+        keep = max(pool, key=rank(ip))
+        group = [
+            h
+            for h in same_name + at_ip
+            if h is not keep and (h in same_name or unreviewed(h))
+        ]
+        if not group:
+            continue
+        for other in group:
+            for k, v in other.items():
+                if k == "services":
+                    # new_host is the scanner's "review me" flag - it always fails,
+                    # so carrying it onto a monitored host would raise alerts
+                    keep["services"] = (keep.get("services") or []) + [
+                        x
+                        for x in v or []
+                        if x != "new_host" and x not in (keep.get("services") or [])
+                    ]
+                elif k not in ("_id", "mac", "ip", "host") and v not in EMPTY:
+                    if keep.get(k) in EMPTY:
+                        keep[k] = v
+            collection.delete_one({"mac": other["mac"]})
+            hosts.remove(other)
+        keep["ip"] = ip
+        collection.update_one(
+            {"mac": keep["mac"]},
+            {"$set": {k: v for k, v in keep.items() if k not in ("_id", "mac")}},
+        )
+        log.append(
+            "Merged {} into {} ({})".format(
+                ", ".join(h["mac"] for h in group), keep["mac"], name or ip
+            )
+        )
+
+    for item, ip, mac, name in found:
+        try:
+            unique = bool(name) and unique_ip(name) == ip
+            match = max(named(name, ip), key=rank(ip), default=None) if unique else None
+            if not match and mac:
+                match = next((h for h in hosts if h.get("mac") == mac), None)
+            if not match:
+                at_ip = [h for h in hosts if h.get("ip") == ip]
+                match = max(at_ip, key=rank(ip), default=None)
+
+            if not match:
+                new = convert_host(item)
+                if any(h.get("mac") == new["mac"] for h in hosts):
+                    # The IP key still belongs to a host that has since moved
+                    new["mac"] = "device-" + uuid.uuid4().hex[:12]
+                create_fn(new)
+                hosts.append(new)
+                log.append("Creating new host: {} ({})".format(new["mac"], ip))
+                continue
+
+            changes = {}
+            if match.get("ip") != ip:
+                changes["ip"] = ip
+                if not same_subnet(match.get("ip"), ip):
+                    changes["subnet"] = ".".join(ip.split(".")[:3])
+            if unique and not match.get("host"):
+                changes["host"] = name
+            if changes:
+                collection.update_one({"mac": match["mac"]}, {"$set": changes})
+                log.append(
+                    "Updated {} ({}): {}".format(
+                        match["mac"], match.get("host") or match.get("ip"), changes
+                    )
+                )
+                match.update(changes)
+        except Exception as exc:
+            log.append("Exception occurred for {}: {}".format(ip, exc))
+    return log
 
 
 class ScanSlots:
@@ -493,26 +642,22 @@ def main(loop=True, stop_event=None):  # pragma: no cover
                 update_redis("\nStarting {}".format(subnet), subnet)
                 results = scan(subnet, lambda x: update_redis(x, subnet))
 
-                # For each host, if it doesn't exist, create it.
+                scanned = [
+                    host
+                    for host in (next(iter(x["scan"].values()), None) for x in results)
+                    if host
+                ]
+
                 update_redis("\nHosts Check...", subnet)
-                for result in results:
-                    host = [x for x in result["scan"].values()]
-                    if not host:
-                        continue
-                    host = host[0]
+                hosts = json.loads(unwrap(list_hosts)()[0])
+                for line in reconcile_hosts(
+                    scanned, hosts, db["labyrinth"]["hosts"], unwrap(create_edit_host)
+                ):
+                    update_redis("\n" + line, subnet)
 
+                update_redis("\nInserting metrics...", subnet)
+                for host in scanned:
                     try:
-                        if "mac" in host["addresses"]:
-                            mac = host["addresses"]["mac"]
-                        else:
-                            mac = host["addresses"]["ipv4"]
-                        update_redis("\n" + str(mac), subnet)
-                        output = unwrap(list_host)(mac)[0]
-                        if output == "null":
-                            update_redis("\nCreating new host: {}".format(mac), subnet)
-                            unwrap(create_edit_host)(convert_host(host))
-
-                        update_redis("\nInserting metrics...", subnet)
                         metric = unwrap(insert_metric)(
                             {"metrics": [process_scan(host)]}
                         )
