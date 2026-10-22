@@ -496,9 +496,10 @@ class LabyrinthClient:
             if not match:
                 raise ValueError(f"No location named {merged['location']}")
             merged["location"] = match[0]
-        if merged.get("background_image") and merged[
-            "background_image"
-        ] not in self.list_map_images():
+        if (
+            merged.get("background_image")
+            and merged["background_image"] not in self.list_map_images()
+        ):
             raise ValueError(f"No uploaded image {merged['background_image']}")
         if "placements" in merged:
             merged["placements"] = self.clean_placements(merged["placements"])
