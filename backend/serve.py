@@ -1881,6 +1881,26 @@ def index_helper():  # pragma: no cover
     )
 
 
+DEFAULT_PORT_STALE_HOURS = 12
+
+
+def _port_stale_seconds():
+    """
+    How old a port scan can be before open/closed port checks report stale
+        - Scans of a subnet can be hours apart, so this is much longer than the
+          window for telegraf checks
+        - Set via the `port_stale_hours` setting
+    """
+    setting = db["labyrinth"]["settings"].find_one({"name": "port_stale_hours"})
+    try:
+        hours = float(setting["value"])
+    except (TypeError, KeyError, ValueError):
+        hours = DEFAULT_PORT_STALE_HOURS
+    if hours <= 0:
+        hours = DEFAULT_PORT_STALE_HOURS
+    return hours * 3600
+
+
 @app.route("/dashboard/<val>")
 @app.route("/dashboard/")
 @requires_auth_read
@@ -1926,6 +1946,8 @@ def dashboard(val="", report=False, flapping_delay=1300):
 
     # Get all services
     all_services = list(db["labyrinth"]["services"].find({}))
+
+    port_stale_seconds = _port_stale_seconds()
 
     # Get latest metrics
 
@@ -2005,7 +2027,9 @@ def dashboard(val="", report=False, flapping_delay=1300):
                 latest_metric = find_metric("open_ports", host)
                 found_service = service
 
-                result = mc.judge_port(latest_metric, service, host, stale_time=10000)
+                result = mc.judge_port(
+                    latest_metric, service, host, stale_time=port_stale_seconds
+                )
             else:
                 found_service = find_service(service)
 
@@ -2823,7 +2847,7 @@ def read_metrics(host, service="", count=100, option=""):
     # otherwise nearly every point in a History graph older than a few
     # minutes would be marked "-1"/stale and render as a failure.
     is_latest = option == "latest"
-    port_stale_time = 10000 if is_latest else float("inf")
+    port_stale_time = _port_stale_seconds() if is_latest else float("inf")
     check_stale_time = 600 if is_latest else float("inf")
 
     if service.strip() == "open_ports" or service.strip() == "closed_ports":
