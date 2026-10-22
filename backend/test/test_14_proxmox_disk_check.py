@@ -417,6 +417,36 @@ def test_gather_all_disk_issues_records_errors_without_skipping_other_clusters(
     assert issues[0]["type"] == "vm_qemu_missing"
 
 
+def test_gather_all_disk_issues_checks_stale_data_and_reports_failed_poll(
+    setup, monkeypatch
+):
+    """A cluster served from last-known-good data is still checked for issues,
+    and the poll failure behind it is reported."""
+    serve.db["labyrinth"]["proxmox_clusters"].insert_one(
+        {"name": "cluster-stale", "host": "10.1.1.3"}
+    )
+
+    def fake_get_cached(cluster, redis_client=None):
+        data = _cluster_data_with_missing_qemu_agent("cluster-stale", "10.1.1.3")
+        data.update(stale=True, stale_error="Failed to get Proxmox data")
+        return data
+
+    monkeypatch.setattr(
+        proxmox_disk_check.proxmox_helper,
+        "get_proxmox_disk_data_cached",
+        fake_get_cached,
+    )
+
+    issues, errors = proxmox_disk_check.gather_all_disk_issues(
+        80, db=serve.db, redis_client=object()
+    )
+
+    assert errors == [
+        {"cluster": "cluster-stale", "error": "Failed to get Proxmox data"}
+    ]
+    assert len(issues) == 1
+
+
 # ---------------------------------------------------------------------------
 # render_email_template - new section rendering
 # ---------------------------------------------------------------------------

@@ -243,4 +243,35 @@ describe("ProxmoxHostCard.vue", () => {
     expect(wrapper.find(".proxmox-host-card").exists()).toBe(true);
     expect(wrapper.text()).toContain("production");
   });
+
+  test("shows previous results with an unreachable badge when stale", () => {
+    const tenMinutesAgo = Date.now() / 1000 - 600;
+    wrapper = mount(ProxmoxHostCard, {
+      propsData: {
+        host: {
+          cluster_name: "prod-cluster",
+          error: null,
+          stale: true,
+          stale_error: "Failed to get Proxmox data",
+          fetched_at: tenMinutesAgo,
+          nodes: [
+            {
+              name: "node-1",
+              stale: true,
+              fetched_at: tenMinutesAgo,
+              storage: [{ name: "local", total: 1000, used: 500 }],
+              vms: [{ name: "vm-old", id: "100", status: "running" }],
+              containers: [],
+            },
+          ],
+        },
+      },
+    });
+
+    const text = wrapper.text();
+    expect(text).toContain("Unreachable - showing results from 10 min ago");
+    expect(text).toContain("Unreachable - results from 10 min ago");
+    expect(text).not.toContain("Connected");
+    expect(text).not.toContain("Error:");
+  });
 });
