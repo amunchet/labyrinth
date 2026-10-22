@@ -33,7 +33,9 @@ class LabyrinthClient:
         hosts = serve.db["labyrinth"]["hosts"]
         found = hosts.find_one({"$or": [{"mac": host_key}, {"ip": host_key}]})
         if not found:
-            named = [x for x in hosts.find({}) if hostnames_match(x.get("host"), host_key)]
+            named = [
+                x for x in hosts.find({}) if hostnames_match(x.get("host"), host_key)
+            ]
             found = named[0] if len(named) == 1 else None
         if found:
             found.pop("_id", None)

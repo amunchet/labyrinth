@@ -22,7 +22,14 @@ from nmap import PortScannerYield as ps
 from common.single_run import RedisSingleRunLock, LockNotAcquired
 from common.hostnames import hostnames_match, same_subnet
 from common.test import unwrap
-from serve import db, list_subnet, list_subnets, list_hosts, create_edit_host, insert_metric
+from serve import (
+    db,
+    list_subnet,
+    list_subnets,
+    list_hosts,
+    create_edit_host,
+    insert_metric,
+)
 
 
 def _int_from_env(name, default):

@@ -41,7 +41,9 @@ def reconcile(scan, hosts):
 
 def test_hostnames_match():
     assert hostnames_match("desktop-x.north.example.com", "DESKTOP-X")
-    assert hostnames_match("desktop-x.north.example.com.", "desktop-x.north.example.com")
+    assert hostnames_match(
+        "desktop-x.north.example.com.", "desktop-x.north.example.com"
+    )
     assert not hostnames_match("pollux.north.example.com", "pollux.south.example.com")
     assert not hostnames_match("", "")
     assert not hostnames_match("desktop-x", None)
@@ -92,9 +94,7 @@ def test_new_device_on_a_moved_hosts_old_ip_gets_its_own_key():
 def test_name_is_not_matched_across_subnets():
     """Same-named hosts on different subnets are different machines (or NICs)"""
     hosts = [record("192.168.10.243", "balexandria")]
-    collection, created, _ = reconcile(
-        [scanned("192.168.0.216", "balexandria")], hosts
-    )
+    collection, created, _ = reconcile([scanned("192.168.0.216", "balexandria")], hosts)
     assert hosts[0]["ip"] == "192.168.10.243"
     assert created[0]["ip"] == "192.168.0.216"
     collection.update_one.assert_not_called()
