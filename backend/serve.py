@@ -921,13 +921,15 @@ def put_structure():
     rc = redis.Redis(host=os.environ.get("REDIS_HOST"))
     rc.set("master.data", output)
 
-    # Add in the comments
-    full_structure = svcs.find_comments(lines)
-    for item in full_structure:
-        rc.set(
-            item["name"].replace("]", "").replace("[", "").strip(),
-            json.dumps(item, default=str),
+    # Add in the comments - in one round trip, there are thousands
+    comments = {
+        item["name"].replace("]", "").replace("[", "").strip(): json.dumps(
+            item, default=str
         )
+        for item in svcs.find_comments(lines)
+    }
+    if comments:
+        rc.mset(comments)
 
     return "Success", 200
 
