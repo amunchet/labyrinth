@@ -923,9 +923,10 @@ def put_structure():
 
     # Add in the comments - in one round trip, there are thousands
     comments = {
-        item["name"].replace("]", "").replace("[", "").strip(): json.dumps(
-            item, default=str
-        )
+        item["name"]
+        .replace("]", "")
+        .replace("[", "")
+        .strip(): json.dumps(item, default=str)
         for item in svcs.find_comments(lines)
     }
     if comments:
