@@ -12,6 +12,11 @@
             <Telegraf />
           </div>
         </b-tab>
+        <b-tab title="Monitoring" lazy>
+          <div class="main">
+            <Monitoring />
+          </div>
+        </b-tab>
         <b-tab title="AI Alerts" lazy>
           <div class="main">
             <AiAlerts />
@@ -29,6 +34,7 @@
 <script>
 import Icons from "@/views/Settings/Icons";
 import Telegraf from "@/views/Settings/Telegraf";
+import Monitoring from "@/views/Settings/Monitoring";
 import Maintenance from "@/views/Settings/Maintenance";
 import AiAlerts from "@/views/Settings/AiAlerts";
 export default {
@@ -41,6 +47,7 @@ export default {
   components: {
     Icons,
     Telegraf,
+    Monitoring,
     Maintenance,
     AiAlerts,
   },
