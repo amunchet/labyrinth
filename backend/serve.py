@@ -921,13 +921,16 @@ def put_structure():
     rc = redis.Redis(host=os.environ.get("REDIS_HOST"))
     rc.set("master.data", output)
 
-    # Add in the comments
-    full_structure = svcs.find_comments(lines)
-    for item in full_structure:
-        rc.set(
-            item["name"].replace("]", "").replace("[", "").strip(),
-            json.dumps(item, default=str),
-        )
+    # Add in the comments - in one round trip, there are thousands
+    comments = {
+        item["name"]
+        .replace("]", "")
+        .replace("[", "")
+        .strip(): json.dumps(item, default=str)
+        for item in svcs.find_comments(lines)
+    }
+    if comments:
+        rc.mset(comments)
 
     return "Success", 200
 
@@ -1944,6 +1947,8 @@ def dashboard(val="", report=False, flapping_delay=1300):
     # Get all the hosts
     hosts = [x for x in db["labyrinth"]["hosts"].find({})]
 
+    host_keys = {x.get("mac") for x in hosts if x.get("mac")}
+
     # Get all services
     all_services = list(db["labyrinth"]["services"].find({}))
 
@@ -1980,6 +1985,13 @@ def dashboard(val="", report=False, flapping_delay=1300):
                 and "ip" in item["tags"]
                 and "ip" in host
                 and item["tags"]["ip"] == host["ip"]
+                # Telegraf agents carry the IP their config was generated with, so a
+                # moved host's agent still reports its old IP.  Its mac tag is its own
+                # record's key: never credit its metrics to the new holder of that IP
+                and (
+                    item["tags"].get("mac") == host.get("mac")
+                    or item["tags"].get("mac") not in host_keys
+                )
             )
 
             if tag_name:
@@ -2567,10 +2579,9 @@ def alive_check(host):
     if not found or not found.get("ip"):
         return "Host not found, or it has no IP to check", 404
 
-    result = alive.check_host(found)
-    redis.Redis(host=os.environ.get("REDIS_HOST") or "redis").hset(
-        alive.ALIVE_KEY, found["ip"], json.dumps(result)
-    )
+    rc = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
+    result = alive.check_host(found, alive.resolve_names([found], rc)[0])
+    rc.hset(alive.ALIVE_KEY, found["ip"], json.dumps(result))
     return json.dumps(result), 200
 
 

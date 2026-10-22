@@ -29,7 +29,7 @@ Labyrinth is a network analyzer, mapper, and monitor built on NMap, Ansible, and
 4. Frontend polls the backend API to display topology and metrics
 5. `backend/watcher.py` judges service health and sends alerts to Alertmanager (`http://alertmanager:9093/api/v2/alerts`, password read from `/alertmanager/pass`); frontend can list/resolve them via `/alertmanager/alerts`
 6. Proxmox: `cron/proxmox_refresh.sh` refreshes the per-cluster Redis cache; `cron/disk_check.sh` runs `backend/proxmox_disk_check.py` hourly to email disk-space alerts
-7. `backend/alive.py` (cron, every minute) pings - or TCP-checks hosts with a `check_alive_port` - every host with an IP in parallel, replaces the Redis `alive` hash with the results, and alerts only for `monitor`ed hosts that are down
+7. `backend/alive.py` (cron, every minute) pings - or TCP-checks hosts with a `check_alive_port` - every host with an IP in parallel, at the address its hostname resolves to (only if that is in the host's /24, else the stored IP; `resolve_names` caches answers - "not found" included - in Redis `alive-dns:<name>` for `ALIVE_DNS_CACHE_SECONDS`, and looks up uncached names once each, `ALIVE_DNS_WORKERS` at a time, within `ALIVE_DNS_TIMEOUT_SECONDS` for the whole batch), replaces the Redis `alive` hash with the results, and alerts only for `monitor`ed hosts that are down
 8. AWS: `cron/ec2_check.sh` runs `backend/ec2_unmatched_check.py` hourly to email a list of EC2 instances that don't match any known Labyrinth host (matching logic shared with `serve.py` via `aws_helper.py`)
 9. Postgres backend only: `cron/compact_metrics.sh` daily rolls raw `metrics` rows older than `METRICS_RAW_RETENTION_DAYS` into `metrics_daily` aggregates; `cron/backup_db.sh` daily dumps the database to `/backups` for an external offsite system to pick up
 
@@ -167,6 +167,7 @@ docker-compose -f docker-compose-production.yml up --build -d
 
 **Network scanning:**
 - `backend/finder.py` runs an nmap ping sweep (`parse_ping_results`) followed by an all-ports scan of whatever answered, streams progress into Redis (`output-{subnet}`, appended, capped, TTL'd), and updates the `hosts` collection/table with discovered IPs/MACs. Triggered via `/scan/` or the cron job.
+- Host identity (`reconcile_hosts`): a scanned host is matched on **hostname first** (within its /24, and only when the name answers at one IP in that scan), then real MAC, then IP. A DHCP host that moved keeps its record and key (`mac`, which is the IP for every host nmap couldn't see a MAC for - i.e. any routed subnet) and only its `ip` is updated; Telegraf metrics keep matching because they are tagged with that key. Same-name records in a /24, plus unnamed unmonitored records at the IP the name now answers on, are merged into the monitored/most-configured one; uplinks and map placements that pointed at a merged-away record are moved to the kept one. A new host whose IP key is still held by a moved host gets a generated `device-` key. Name comparison (`common/hostnames.py`) treats a bare name as matching the first label of an FQDN.
 - `main()` is a resident process (`scan_subnets(loop=True)`): every subnet gets its own worker thread that rescans as soon as its previous scan finishes, so **each subnet's rescan interval is however long its own scan takes** - a five-minute subnet does not wait for a two-hour subnet. Cron still fires `finder.py` every minute, but the `labyrinth_finder_lock` Redis lock (`common/single_run.py`, heartbeat-extended) makes every tick a no-op while the resident finder is alive. The old "one pass per cron tick" design was there because a fixed 3600s lock TTL let a new resident finder start every hour; the heartbeat lock is what makes a single resident finder safe again - don't reintroduce a fixed `ex=` TTL.
 - The resident finder re-reads the subnet list every `FINDER_SUBNET_REFRESH_SECONDS` (new subnets get a worker, removed ones retire after their current scan), and recycles itself after `FINDER_MAX_RUNTIME_SECONDS` (default 6h): it releases the global lock *first* so the next cron tick starts a fresh finder immediately, then gives in-flight scans `FINDER_SHUTDOWN_GRACE_SECONDS` to finish (the per-subnet locks keep the two processes off the same subnet). A recycle therefore never pauses scanning, at the cost of two finder processes (two Postgres pools) overlapping for at most the grace period.
 - `FINDER_THREADS` caps how many subnets scan *concurrently* (FIFO-fair `ScanSlots`, `0` = unlimited); it is not a pass-wide worker pool any more. `/scan/` runs `main(loop=False)` - one scan of each subnet, then return - so it can't park forever in the backend's two-thread executor.
@@ -177,6 +178,7 @@ docker-compose -f docker-compose-production.yml up --build -d
 
 **Metric write cache (`insert_metric`/`metrics-go` -> `bulk_insert`):**
 - `bulk_insert` throttles writes **per metric series**, keyed on the Redis metric key (`last_metric_METRIC-...`), spaced by `METRICS_LATEST_MIN_INTERVAL` / `METRICS_HISTORY_MIN_INTERVAL`. Do not key the throttle on the host IP: that lets the first series drained for a host suppress every other series for that host in the same pass, which silently drops slow-moving metrics such as the finder's `open_ports` before their 120s Redis entry expires.
+- The dashboard's `find_metric` matches a metric to a host by `mac` tag or `ip` tag, but never by IP when the metric's `mac` tag is another host's key: a Telegraf config's `global_tags` (built in `Services.vue`) bake in the IP the host had then, so a moved host's agent keeps reporting its old IP, and those metrics must not be credited to the new device at that IP.
 - `metrics-latest` rows age out after 36000s (a Mongo TTL index; emulated by a sweep in `bulk_insert` on Postgres) and the dashboard judges `open_ports` with `stale_time=10000`, so a subnet has to be fully rescanned inside ~2.8 hours or its port services report stale.
 
 ## Key Files
@@ -202,106 +204,6 @@ docker-compose -f docker-compose-production.yml up --build -d
 - `MONGO_MIGRATION.md` - full design rationale, schema, and operational runbook for the Postgres migration
 
 <!-- BEGIN ARMADA GLOBAL INSTRUCTIONS (managed by Flagship) -->
-## Armada session policy
-
-You are running inside an Armada session. These rules come from the Flagship
-and apply to every session in the fleet. They sit on top of this project's own
-instructions, and they win wherever the two disagree.
-
-- Armada session: `Bugfix - ignored proxmox item`
-- Working branch: `armada/Bugfix---ignored-proxmox-item-fedaff`
-- Base branch: `master`
-- Session changelog: `CHANGELOG/armada-Bugfix---ignored-proxmox-item-fedaff.md`
-
-### Prefer Frontend -> Backend -> Database changes
-Prefer to change frontend issues only if possible.  If needed, backend changes are preferable to database schema modifications.  Sometimes all are needed, but prefer frontend only when possible - and when it would not compromise functionality or data integrity.
-
-### Commit and push your work
-
-- Commit as soon as a change is coherent on its own. Never end a turn with a
-  dirty working tree, and never wait to be asked to commit.
-- Push to `origin` right after committing, so the branch on the remote always
-  matches what you have locally.
-- This holds even when the working branch is the base branch. Armada sessions
-  are disposable and their history is the only durable record of the work, so
-  committing directly to `master` is expected here, not a mistake.
-- If a push is rejected because the remote moved ahead, pull with rebase and
-  push again. Report the failure only if that still does not resolve it.
-
-### Keep the branch mergeable
-
-- Whenever the working branch is not the base branch, verify the work still
-  merges cleanly into `master` before you consider a task finished.
-- Check without mutating the working tree, for example:
-  `git fetch origin && git merge-tree $(git merge-base HEAD origin/master) HEAD origin/master`
-- If that reports conflicts, resolve them now rather than leaving them for
-  whoever opens the pull request. Rebase or merge the base branch in, fix each
-  conflict on its merits, re-run the tests, then commit and push.
-- If a conflict genuinely needs a human decision, stop and say exactly which
-  files conflict and what the competing changes are.
-
-### Keep the changelog current
-
-- Record what you did in `CHANGELOG/armada-Bugfix---ignored-proxmox-item-fedaff.md` as part of the same commit that
-  makes the change.
-- The file is scoped to this branch, so it never conflicts with changelogs
-  written by other sessions.
-- Append one entry per meaningful change, newest last, in this shape:
-
-  ```markdown
-  ## 2025-01-31 14:22 UTC
-  Short description of what changed and why.
-  ```
-
-- Use Central Time (US/Chicago), and include both the date and the time. Get them from `date -u`
-  rather than guessing.
-- Describe the change in terms a reviewer would care about. Skip routine
-  mechanics like formatting passes or lint fixes unless they are the point of
-  the work.
-- This per-branch file is yours to maintain. A top-level auto-generated
-  `CHANGELOG.md`, if the project has one, is still off limits.
-
-### Coding style
-
-When writing, modifying, refactoring, or reviewing code, follow the shared
-`code-style` skill. Its rules apply unless this project's instructions
-explicitly require otherwise.
-
-### Report pull requests and reviews to Armada
-
-The Flagship learns about pull requests and reviews only from files in
-`.armada/` at the workspace root. Whichever skill or command you used, do this:
-
-- **After opening a pull request**, write `.armada/pr.json`:
-
-  ```json
-  {"schema": 1, "number": 0, "url": "<pull request or compare url>",
-   "head_branch": "armada/Bugfix---ignored-proxmox-item-fedaff", "base_branch": "master",
-   "head_sha": "<git rev-parse HEAD>", "ready_for_review": true,
-   "written_at": "<date -u +%Y-%m-%dT%H:%M:%SZ>"}
-  ```
-
-  `gh pr view --json number,url,headRefOid` supplies the real number, url and
-  sha. Without a number, `url` alone is enough.
-
-- **After reviewing the branch**, whatever else the review produced, write the
-  report a human reads to `.armada/review.md` and the verdict to
-  `.armada/review.json`:
-
-  ```json
-  {"schema": 1, "reviewer": "self", "pr_number": 0, "head_sha": "<sha>",
-   "base_branch": "master", "verdict": "comment",
-   "recommended_level": 2, "summary": "One paragraph.",
-   "findings": [{"severity": "medium", "file": "path.py", "line": 12,
-                 "title": "Short title", "detail": "What is wrong and why."}],
-   "tests": {"command": "<test command>", "ran": true, "passed": true,
-             "output_tail": "last few lines"},
-   "reviewed_at": "<date -u +%Y-%m-%dT%H:%M:%SZ>"}
-  ```
-
-  `verdict` is `approve`, `request_changes`, `comment` or `failed`; `severity`
-  is `high`, `medium`, `low` or `nit`; `reviewer` is `self` for your own work
-  and `agent` for someone else's.
-
-`.armada/` is not part of the repo - never commit it.
+This session's Armada instructions are in `CLAUDE.local.md`, which is kept out of git.
+Read it before starting if it has not been loaded already.
 <!-- END ARMADA GLOBAL INSTRUCTIONS -->
