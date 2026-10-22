@@ -1,79 +1,69 @@
-// TEMPLATE FILE - Copy this file
-import { config, shallowMount } from "@vue/test-utils";
+import { shallowMount } from "@vue/test-utils";
+import Monitoring from "@/views/Settings/Monitoring.vue";
+import Helper from "@/helper";
 
-//import { render } from '@vue/server-test-utils'
+jest.mock("@/helper", () => ({
+  apiCall: jest.fn(),
+  apiPost: jest.fn(),
+}));
 
-import Vue from "vue";
-import store from "@/store";
-import Instance from "@/views/Settings/Monitoring";
+const flush = () => new Promise((r) => setTimeout(r, 0));
 
-Vue.use(store);
+describe("Settings/Monitoring.vue", () => {
+  let wrapper;
+  let commit;
 
-config.mocks["$auth"] = {
-  profile: {
-    name: "Test Name",
-    picture: "Test.jpg",
-  },
-  idToken: 1,
-  login: function () {},
-  getAccessToken: function () {},
-};
+  const mountMonitoring = () =>
+    shallowMount(Monitoring, {
+      mocks: { $auth: {}, $store: { commit } },
+      stubs: ["font-awesome-icon"],
+    });
 
-config.mocks["loaded"] = true;
-
-let wrapper;
-
-beforeEach(() => {
-  wrapper = shallowMount(Instance, {
-    propsData: {
-      options: [
-        "All",
-        "utopiany",
-        "rousingr",
-        "cunningh",
-        "papayawi",
-        "elegantc",
-        "tidyseri",
-        "quirkyco",
-      ],
-      onChange() {
-        //console.log('select changed')
-      },
-    },
-    store,
-    methods: {},
-    stubs: [
-      "font-awesome-icon",
-      "b-modal",
-      "b-button",
-      "b-select",
-      "b-input",
-      "b-row",
-      "b-col",
-      "b-table",
-      "b-tab",
-      "b-tabs",
-      "b-spinner",
-      "b-container",
-      "b-textarea",
-      "b-avatar",
-      "b-form-file",
-      "b-img",
-      "b-modal",
-      "v-layer",
-      "v-stage",
-      "b-form-checkbox",
-      "v-transformer",
-    ],
+  beforeEach(() => {
+    jest.clearAllMocks();
+    commit = jest.fn();
   });
-});
 
-afterEach(() => {
-  wrapper.destroy();
-});
+  afterEach(() => {
+    wrapper.destroy();
+  });
 
-describe("SettingsMonitoring", () => {
-  test("is a Vue instance", () => {
-    expect(wrapper.isVueInstance).toBeTruthy();
+  test("loads port_stale_hours on mount", async () => {
+    Helper.apiCall.mockResolvedValue("8");
+    wrapper = mountMonitoring();
+    await flush();
+
+    expect(Helper.apiCall).toHaveBeenCalledWith(
+      "settings",
+      "port_stale_hours",
+      {}
+    );
+    expect(wrapper.vm.port_stale_hours).toBe("8");
+    expect(commit).not.toHaveBeenCalled();
+  });
+
+  test("an unset setting (481) is not reported as an error", async () => {
+    Helper.apiCall.mockRejectedValue({ status: 481 });
+    wrapper = mountMonitoring();
+    await flush();
+
+    expect(wrapper.vm.port_stale_hours).toBe("");
+    expect(commit).not.toHaveBeenCalled();
+  });
+
+  test("saving posts the value as the port_stale_hours setting", async () => {
+    Helper.apiCall.mockResolvedValue("12");
+    Helper.apiPost.mockResolvedValue("Success");
+    wrapper = mountMonitoring();
+    await flush();
+
+    wrapper.vm.port_stale_hours = "6";
+    wrapper.vm.savePortStaleHours();
+    await flush();
+
+    const formData = Helper.apiPost.mock.calls[0][4];
+    expect(formData.get("name")).toBe("port_stale_hours");
+    expect(formData.get("value")).toBe("6");
+    expect(commit).toHaveBeenCalledWith("updateError", "Success");
   });
 });

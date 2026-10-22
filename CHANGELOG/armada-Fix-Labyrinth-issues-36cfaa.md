@@ -15,3 +15,6 @@ Not changed: most of the remaining port noise is "No metric received". Port chec
 
 ## 2026-10-22 01:18 CDT
 Made the stale window for open/closed port checks configurable via a new `port_stale_hours` setting (Settings > Monitoring tab), defaulting to 12 hours instead of the hard-coded 10000s (~2.8h). finder.py rescans each subnet only every 4-8h in the north and less often in the south, so healthy hosts were constantly alerting "No metric received". Both the dashboard/alerting path and the latest-value `/metrics/<host>/open_ports/latest` judgement use the setting (history rows are still never judged stale). Unparseable or non-positive values fall back to 12h.
+
+## 2026-10-22 02:21 CDT
+Replaced the copy-pasted SettingsMonitoring spec, which SonarCloud flagged as 87.5% duplicated with SettingsTelegraf.spec.js. The new spec mocks Helper and tests the component's behavior: it loads port_stale_hours on mount, an unset setting (481) is not reported as an error, and saving posts the setting.
