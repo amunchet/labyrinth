@@ -19,3 +19,10 @@ root password can't go to an impostor); guests are re-resolved against live
 Proxmox data server-side; passwords and Telegraf configs stay out of run logs;
 one failing guest doesn't stop the rest. Verified end to end with ansible-core
 2.21 against stand-in `pct`/`qm` commands, plus backend tests.
+
+## 2026-10-22 17:32 CDT
+Fixed the MCP server judging every Telegraf-reporting guest as ~5 hours stale.
+Compose passed `TZ` to the MCP image as a build arg, but its Dockerfile never
+declared it, so the MCP container ran on UTC while the backend/cron containers
+that write the (naive, local-time) metric timestamps run on Central. The web UI
+was unaffected; agents using the MCP Telegraf/Graylog checks were not.
