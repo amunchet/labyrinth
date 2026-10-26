@@ -64,7 +64,7 @@ Labyrinth is a network analyzer, mapper, and monitor built on NMap, Ansible, and
 ### Locations, inventory and maps (`/locations/`, `/inventory/`, `frontend/labyrinth/src/views/Locations.vue`)
 
 - Hosts double as the device inventory. Optional `INVENTORY_FIELDS` on host docs (`serve.py`): `device_type` (one of `DEVICE_TYPES`), `location`, `rack`, `rack_unit` (lowest U), `rack_height`, `vendor`, `model`, `serial`, `uplink` (another host's key) + `link_type`, `proxmox_node`, `proxmox_vmid`. `_clean_inventory_fields` coerces/validates them on every host save and drops blank ones.
-- The host key is `mac`. A blank MAC is keyed by IP (as the finder does); IP-less "label" devices (unmanaged switches, patch panels) get a generated `device-<hex>` key and have no subnet, so they never appear on the subnet dashboard.
+- The host key is `mac`: a real MAC when known, otherwise a generated `device-<hex>` key - never an IP, since DHCP moves addresses between devices (older hosts may still have IP-shaped keys until the finder sees them move). Saving with a blank MAC and an IP updates the non-MAC host currently at that IP. IP-less "label" devices (unmanaged switches, patch panels) have no subnet, so they never appear on the subnet dashboard.
 - `locations` docs are `{name, name_key, address, notes, racks: [{name, units}]}`; hosts, subnets and maps refer to a location by name, so renames cascade (`create_edit_location`), a rack sent with `previous_name` keeps its hosts, and deleting a location only unassigns. On Postgres it is a JSONB table registered in `_JSONB_TABLE_INDEXES`, and `migrate_to_postgres.py` copies it.
 - `POST /host/<key>/inventory` updates just the inventory fields (validating location/rack/uplink); the UI's drag-and-drop and the MCP use it.
 - `GET /inventory/` returns all hosts, each with a computed `_live` block (effective type, effective location + `location_source` = explicit / proxmox / subnet, last `alive` record, service summary from the judged dashboard, rolled-up `status`: up/down/error/warning/unknown/none), plus `locations` and the cached Proxmox node -> VM/LXC tree matched to hosts (explicit `proxmox_node`/`proxmox_vmid`, else short hostname). It only reads the Proxmox Redis cache, never the live API. `_live` is never persisted (`create_edit_host` drops it).
@@ -171,6 +171,7 @@ docker-compose -f docker-compose-production.yml up --build -d
 - The resident finder re-reads the subnet list every `FINDER_SUBNET_REFRESH_SECONDS` (new subnets get a worker, removed ones retire after their current scan), and recycles itself after `FINDER_MAX_RUNTIME_SECONDS` (default 6h): it releases the global lock *first* so the next cron tick starts a fresh finder immediately, then gives in-flight scans `FINDER_SHUTDOWN_GRACE_SECONDS` to finish (the per-subnet locks keep the two processes off the same subnet). A recycle therefore never pauses scanning, at the cost of two finder processes (two Postgres pools) overlapping for at most the grace period.
 - `FINDER_THREADS` caps how many subnets scan *concurrently* (FIFO-fair `ScanSlots`, `0` = unlimited); it is not a pass-wide worker pool any more. `/scan/` runs `main(loop=False)` - one scan of each subnet, then return - so it can't park forever in the backend's two-thread executor.
 - A slow scan still degrades that subnet's own interval: however long a subnet's scan takes is how often its hosts' ports get rescanned.
+- Host identity (`backend/host_identity.py`): nmap sees no MACs from inside a Docker bridge network and most addresses are DHCP, so the finder matches each scanned device to a known host by real MAC, then reverse-DNS hostname (`resolved_hostname`, finder-written; the user-editable `host` is only a fallback for legacy records when it looks like a DNS name), then IP. A host found at a new address has its `ip`/`subnet` moved (old one kept as `previous_ip`) and, if its key was an IP, is re-keyed with uplinks and map placements cascaded. A host still at an address now seen to belong to a different device (other hostname or MAC) is displaced: `ip`/`subnet` cleared, `previous_ip`/`displaced_at` set, nothing deleted. Address-derived names (`ip-10-0-0-5...`) and names answered by several addresses in one scan (`android`) are not identity. Every match stamps `last_seen`.
 - `PORT_SCAN_ARGUMENTS` keeps `-p-` (needed to catch non-standard services) but must stay bounded by `-T4 --max-retries 2 --host-timeout`. Without those, one host that silently drops packets spends the full retry budget on each of 65535 ports and holds the whole pass open for hours.
 - Both the global and per-subnet locks use `RedisSingleRunLock`, so their TTLs only have to outlive a crash. Don't go back to a plain `set(..., ex=N)`: a scan that outran the guessed TTL lost its lock mid-scan *and* deleted the next scan's lock on the way out.
 - Tunables (env vars, defaults in `finder.py`): `FINDER_NMAP_ARGUMENTS`, `FINDER_HOST_TIMEOUT`, `FINDER_PING_TIMEOUT_SECONDS`, `FINDER_THREADS`, `FINDER_RESCAN_DELAY_SECONDS`, `FINDER_RETRY_DELAY_SECONDS`, `FINDER_SUBNET_REFRESH_SECONDS`, `FINDER_MAX_RUNTIME_SECONDS`, `FINDER_SHUTDOWN_GRACE_SECONDS`, `FINDER_OUTPUT_MAX_BYTES`, `FINDER_OUTPUT_TTL_SECONDS`.
@@ -185,6 +186,7 @@ docker-compose -f docker-compose-production.yml up --build -d
 - `metrics-go/` - Go Telegraf ingest service (`server.go` handler, `parse.go` batch parsing, `pyjson.go` Python-compatible key rendering, `counters.go` ingest counters)
 - `backend/ingest_counters.py` - read/reset side of the per-client ingest counters
 - `backend/finder.py` - network discovery
+- `backend/host_identity.py` - matching scanned devices to hosts across DHCP address changes
 - `backend/metrics.py` - service health judging
 - `backend/services.py` - Telegraf config parsing
 - `backend/ansible_helper.py` - Ansible validation/execution
@@ -208,10 +210,10 @@ You are running inside an Armada session. These rules come from the Flagship
 and apply to every session in the fleet. They sit on top of this project's own
 instructions, and they win wherever the two disagree.
 
-- Armada session: `Bugfix - ignored proxmox item`
-- Working branch: `armada/Bugfix---ignored-proxmox-item-fedaff`
+- Armada session: `Updating Layouts`
+- Working branch: `armada/Updating-Layouts-bdcf75`
 - Base branch: `master`
-- Session changelog: `CHANGELOG/armada-Bugfix---ignored-proxmox-item-fedaff.md`
+- Session changelog: `CHANGELOG/armada-Updating-Layouts-bdcf75.md`
 
 ### Prefer Frontend -> Backend -> Database changes
 Prefer to change frontend issues only if possible.  If needed, backend changes are preferable to database schema modifications.  Sometimes all are needed, but prefer frontend only when possible - and when it would not compromise functionality or data integrity.
@@ -242,7 +244,7 @@ Prefer to change frontend issues only if possible.  If needed, backend changes a
 
 ### Keep the changelog current
 
-- Record what you did in `CHANGELOG/armada-Bugfix---ignored-proxmox-item-fedaff.md` as part of the same commit that
+- Record what you did in `CHANGELOG/armada-Updating-Layouts-bdcf75.md` as part of the same commit that
   makes the change.
 - The file is scoped to this branch, so it never conflicts with changelogs
   written by other sessions.
@@ -276,7 +278,7 @@ The Flagship learns about pull requests and reviews only from files in
 
   ```json
   {"schema": 1, "number": 0, "url": "<pull request or compare url>",
-   "head_branch": "armada/Bugfix---ignored-proxmox-item-fedaff", "base_branch": "master",
+   "head_branch": "armada/Updating-Layouts-bdcf75", "base_branch": "master",
    "head_sha": "<git rev-parse HEAD>", "ready_for_review": true,
    "written_at": "<date -u +%Y-%m-%dT%H:%M:%SZ>"}
   ```

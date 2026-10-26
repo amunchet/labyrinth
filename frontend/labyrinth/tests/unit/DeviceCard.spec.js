@@ -70,6 +70,19 @@ describe("DeviceCard.vue", () => {
     expect(mount({ mac: "device-1a2b", ip: "" }).vm.real_mac).toBe(false);
   });
 
+  test("shows the last IP of a device another device displaced", () => {
+    let wrapper = mount({
+      mac: "device-1a2b",
+      ip: "",
+      previous_ip: "10.0.0.9",
+    });
+    expect(wrapper.text()).toContain("Last IP");
+    expect(wrapper.text()).toContain("10.0.0.9");
+
+    wrapper = mount({ previous_ip: "10.0.0.9" });
+    expect(wrapper.text()).not.toContain("Last IP");
+  });
+
   test("summarises rack position, hardware and guests", () => {
     let wrapper = mount(
       {

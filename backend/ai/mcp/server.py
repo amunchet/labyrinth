@@ -114,8 +114,9 @@ async def mcp_create_or_update_host(host_json: str) -> str:
     """
     Create or update a host/device (replaces the whole record; use
     mcp_set_device_inventory to change only location/rack/type fields).
-    Provide a JSON object string. `mac` is the key: omit it to key the device
-    by IP, or for IP-less devices (e.g. an unmanaged switch) to generate one.
+    Provide a JSON object string. `mac` is the key: omit it to update the
+    device currently at that IP, or to generate a key for a new device (keys
+    are never IPs, since DHCP moves them between devices).
     Optional inventory fields: device_type, location, rack, rack_unit,
     rack_height, vendor, model, serial, uplink (another device's key),
     link_type, proxmox_node, proxmox_vmid.

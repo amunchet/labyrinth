@@ -257,17 +257,18 @@ def test_tag_members_skip_ip_less_devices(setup):
     assert json.loads(a[0]) == ["10.0.0.5"]
 
 
-def test_blank_mac_is_keyed_by_ip(setup):
-    """Hosts without a known MAC are keyed by IP (as the finder does), subnet derived"""
+def test_blank_mac_gets_a_generated_key(setup):
+    """Hosts without a known MAC get a generated key (as the finder does), subnet derived"""
     make_host(ip="10.1.2.3", host="plc-gate")
-    host = get_host("10.1.2.3")
+    host = db["hosts"].find_one({"ip": "10.1.2.3"})
+    assert host["mac"].startswith("device-")
     assert host["subnet"] == "10.1.2"
     assert db["subnets"].find_one({"subnet": "10.1.2"})
 
-    # Saving again updates in place
+    # Saving again by IP updates in place
     make_host(ip="10.1.2.3", host="plc-gate-renamed", _live={"status": "up"})
     assert db["hosts"].count_documents({}) == 1
-    host = get_host("10.1.2.3")
+    host = get_host(host["mac"])
     assert host["host"] == "plc-gate-renamed"
     # A device read from /inventory/ and saved back does not persist its live block
     assert "_live" not in host
@@ -280,7 +281,7 @@ def test_legacy_blank_mac_host_is_rekeyed(setup):
 
     hosts = list(db["hosts"].find({}))
     assert len(hosts) == 1
-    assert hosts[0]["mac"] == "10.1.2.3"
+    assert hosts[0]["mac"].startswith("device-")
 
 
 def test_host_save_coerces_inventory_fields(setup):

@@ -23,6 +23,7 @@ import yaml
 import metrics as mc
 import watcher
 import alive
+import host_identity
 import ingest_counters
 
 import shutil
@@ -490,14 +491,25 @@ def create_edit_host(inp=""):
     hosts = db["labyrinth"]["hosts"]
     host["ip"] = str(host.get("ip") or "").strip()
 
-    # The MAC is the host key.  Like the finder, fall back to the IP when it
-    # is unknown; IP-less devices (e.g. unmanaged switches) get a generated
-    # key.  A blank key would make every blank-MAC host overwrite the last.
+    # The MAC is the host key.  Without one, saving by IP updates the host
+    # currently at that address, and anything else gets a generated key, as
+    # in the finder: an address-based key would name whichever device DHCP
+    # hands the address to next.  A blank key would make every blank-MAC host
+    # overwrite the last.
     if not host.get("mac"):
+        current = None
         if host["ip"]:
             # Re-key a legacy blank-MAC copy of this host rather than duplicate it
             hosts.delete_many({"mac": "", "ip": host["ip"]})
-        host["mac"] = host["ip"] or "device-" + uuid.uuid4().hex[:12]
+            current = next(
+                (
+                    x
+                    for x in hosts.find({"ip": host["ip"]})
+                    if not host_identity.is_real_mac(x.get("mac"))
+                ),
+                None,
+            )
+        host["mac"] = current["mac"] if current else host_identity.new_device_key()
 
     # A device without an IP belongs to no subnet: the dashboard orders a
     # subnet's hosts by their last octet, which an empty IP would crash
@@ -2814,6 +2826,10 @@ def read_metrics(host, service="", count=100, option=""):
     found_host = db["labyrinth"]["hosts"].find_one(
         {"$or": [{"mac": host}, {"ip": host}]}
     )
+    # Asked by key, a host's metrics are the ones tagged with its current IP:
+    # without a MAC its key is generated, and no agent tags metrics with that
+    if found_host and found_host.get("ip") and found_host["ip"] != host:
+        or_clause["$or"].append({"tags.ip": found_host["ip"]})
 
     found_service = db["labyrinth"]["services"].find_one({"display_name": service})
 
