@@ -23,3 +23,10 @@ Findings on the host that shaped it:
 Installed with `install.ps1` (approved by the user): the guard tasks, a logon autostart and a firewall rule. The
 end-to-end smoke test passes 45/45, and offline launch, quit and relaunch, self-update and rollback were exercised
 on the host.
+
+## 2026-10-30 01:32 CDT
+Installed the built CorelDRAW MCP package (coreldraw-mcp commit a6e4133, CorelDrawMCP-update-0.1.0.zip, sha256
+b2ff131f...4fe74) on the PC through the server's own update path: HTTP upload, then `server_update` (import check
+passed), then the launcher swap (healthy, `ok: true`; the previous version is kept for `server_rollback`). All 72
+installed files match the build, the elevated netguard copy matches, and config.toml was preserved. The end-to-end
+smoke test passes 45/45 against the updated install.
