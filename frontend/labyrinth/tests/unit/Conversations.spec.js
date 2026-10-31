@@ -98,6 +98,13 @@ describe("Conversations.vue", () => {
     expect(
       wrapper.vm.preview({ author: "system", kind: "run", text: "Run failed" })
     ).toBe("Ansible: Run failed");
+    // Whatever was said with an action follows its label
+    expect(
+      wrapper.vm.preview({ author: "agent", kind: "closed", text: "All done" })
+    ).toBe("Agent: Closed: All done");
+    expect(
+      wrapper.vm.preview({ author: "human", kind: "launched", text: "" })
+    ).toBe("You: Run launched");
     expect(
       wrapper.vm.statsSummary({
         ok: { a: 3, b: 2 },

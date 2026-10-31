@@ -36,3 +36,8 @@ conversations waiting on you, polled every 30s and refreshed after each action.
 The Deploy page's prepared-deployment card now has a become-file picker (preset
 to the agent's choice, required when the agent left it open), links back to its
 conversation, and notes when you declined it.
+
+## 2026-10-31 18:25 CDT
+The Conversations list previews a closed or declined conversation with what was
+said, so the agent's closing summary or your decline reason shows, not just
+"Closed".

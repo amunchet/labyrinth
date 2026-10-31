@@ -278,13 +278,14 @@ export default {
       if (!message) {
         return "";
       }
-      const labels = {
+      // The label for an action, then whatever was said with it (notes, a reason, a summary)
+      const label = {
         deploy: "Staged deploy of " + message.playbook + ".yml",
         launched: "Run launched",
-        declined: "Deployment declined",
+        declined: "Declined the deployment",
         closed: "Closed",
-      };
-      const text = labels[message.kind] || message.text;
+      }[message.kind];
+      const text = [label, message.text].filter((x) => x).join(": ");
       return this.authorName(message) + ": " + text;
     },
     // "3 ok, 1 changed, 1 failed" across all hosts
