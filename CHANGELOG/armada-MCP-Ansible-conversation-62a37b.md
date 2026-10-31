@@ -24,3 +24,15 @@ human to pick, and the human may swap it at deploy time. New admin routes:
 `/ansible_request/<id>/decline`. The agent still never runs anything: it
 stages and waits for a person with the vault password. Also commits the
 Flagship's move of the Armada session policy out of CLAUDE.md.
+
+## 2026-10-31 18:13 CDT
+Conversations UI. New Conversations page (`/conversations`, `/conversations/<id>`):
+the history of every agent conversation, and a timeline for each one showing the
+agent's messages and questions, staged deployments (status, playbook review,
+"Review and deploy" deep link, Decline), launches and run results, with a reply
+box and Close. It refreshes every 5s, so agent messages and run results show up
+on their own. The nav gets a Conversations item with a badge counting
+conversations waiting on you, polled every 30s and refreshed after each action.
+The Deploy page's prepared-deployment card now has a become-file picker (preset
+to the agent's choice, required when the agent left it open), links back to its
+conversation, and notes when you declined it.

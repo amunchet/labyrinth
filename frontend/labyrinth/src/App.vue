@@ -53,6 +53,18 @@
               <b-nav-item href="/deploy">
                 <router-link to="/deploy">Deploy</router-link>
               </b-nav-item>
+              <b-nav-item href="/conversations">
+                <router-link to="/conversations"
+                  >Conversations
+                  <b-badge
+                    v-if="waiting > 0"
+                    variant="warning"
+                    pill
+                    title="Waiting on you"
+                    >{{ waiting }}</b-badge
+                  ></router-link
+                >
+              </b-nav-item>
               <b-nav-item href="/alerts">
                 <router-link to="/alerts">Alerts</router-link>
               </b-nav-item>
@@ -103,9 +115,27 @@
 import Helper from "@/helper";
 export default {
   data() {
-    return {};
+    return {
+      // Conversations waiting on the human (nav badge)
+      waiting: 0,
+      waiting_timer: null,
+    };
   },
   methods: {
+    loadWaiting: /* istanbul ignore next */ async function () {
+      if (!this.$auth.profile) {
+        return;
+      }
+      try {
+        this.waiting = (
+          await Helper.apiCall("conversations", "waiting", this.$auth)
+        ).length;
+      } catch (e) {
+        // Deliberately quiet: non-admins can't list conversations, and a
+        // failed poll every 30s would toast (or, on a 401, log out) each time
+        this.waiting = 0;
+      }
+    },
     checkErrorMessage: function () {
       let msg = "";
       try {
@@ -123,6 +153,9 @@ export default {
     },
   },
   watch: {
+    $route: /* istanbul ignore next */ function () {
+      this.loadWaiting();
+    },
     "$store.state.error": function (val, prev) {
       //window.scrollTo(0, 0)
       if (val != undefined && val != "Logged in.") {
@@ -157,6 +190,9 @@ export default {
     },
   },
   mounted: /* istanbul ignore next */ function () {
+    this.loadWaiting();
+    this.waiting_timer = setInterval(this.loadWaiting, 30000);
+    this.$root.$on("conversations-changed", this.loadWaiting);
     try {
       let auth = this.$auth;
       if (window.location.href.indexOf("callback") == -1) {
@@ -184,6 +220,10 @@ export default {
     } catch (e) {
       this.$store.commit("updateError", e);
     }
+  },
+  beforeDestroy: /* istanbul ignore next */ function () {
+    clearInterval(this.waiting_timer);
+    this.$root.$off("conversations-changed", this.loadWaiting);
   },
   created: /* istanbul ignore next */ function () {
     let auth = this.$auth;
