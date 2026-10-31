@@ -36,10 +36,10 @@ Anything with an IP is pinged every minute (or TCP-checked, if the host has a *C
 ## Alerts and notification backoff
 Failing service checks on monitored hosts and monitored hosts that stop answering are sent to Alertmanager, which delivers them through the receivers in `alertmanager.yml` (Slack, email, ...). The Proxmox disk space and EC2 unmatched-instance checks email their own hourly digests.
 
-So a long-running problem doesn't bury everything else, repeat notifications back off exponentially (**Settings -> Monitoring -> Notification backoff**):
-- A new problem notifies right away. The first reminder follows after *First reminder after* (default 60 minutes), and each gap after that is *Multiplier* times longer (default 2), up to *Longest gap* (default 24 hours) - so reminders at 1h, 3h, 7h, 15h, then daily.
+So a long-running problem doesn't bury everything else, repeat notifications back off exponentially (**Settings -> Notifications**):
+- A new problem notifies right away. The first reminder follows after *First reminder after* (default 60 minutes), and each gap after that is *Multiplier* times longer (default 2), up to *Longest gap* (default 24 hours) - so reminders 1h, 3h, 7h, 15h and 31h after the first notification, then daily.
 - A problem that clears and later comes back counts as new again.
-- Between reminders, Labyrinth mutes the alert with an Alertmanager silence (created by *Labyrinth*, visible and expirable in the Alertmanager UI). The alert itself stays active, so the Alerts page still lists it.
+- Between reminders, Labyrinth mutes the alert with an Alertmanager silence (created by *Labyrinth*, visible and expirable in the Alertmanager UI). The alert itself stays active, so the Alerts page still lists it (as *suppressed*).
 - The digest emails go out whenever any issue in them is new or due a reminder, and always list every current issue.
 - Alertmanager's `repeat_interval` is still the shortest gap between repeats, so keep it at or below *First reminder after*.
 

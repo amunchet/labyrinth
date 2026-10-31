@@ -1229,8 +1229,9 @@ def save_alert_backoff():
     Saves notification backoff settings
         - JSON with any of `enabled`, `first_minutes`, `multiplier`,
           `max_hours`; omitted fields keep their current value
+        - Parsed whatever the Content-Type: Helper.apiPost sends none
     """
-    data = request.get_json(silent=True)
+    data = request.get_json(force=True, silent=True)
     if not isinstance(data, dict):
         return json.dumps({"error": ERROR_INVALID_JSON_BODY}), 400
 

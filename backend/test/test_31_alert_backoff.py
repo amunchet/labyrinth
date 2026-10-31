@@ -300,6 +300,16 @@ def test_settings_reject_values_that_would_break_the_schedule(
     assert watcher.backoff_settings(serve.db) == watcher.BACKOFF_DEFAULTS
 
 
+def test_settings_accept_json_sent_without_a_content_type(no_saved_backoff):
+    """The frontend's Helper.apiPost sends the JSON body with no Content-Type"""
+    with serve.app.test_request_context(
+        "/alert-backoff/settings", method="POST", data=json.dumps({"multiplier": 3})
+    ):
+        body, status = unwrap(serve.save_alert_backoff)()
+    assert status == 200
+    assert json.loads(body)["multiplier"] == 3
+
+
 def test_settings_reject_a_non_json_body(no_saved_backoff):
     with serve.app.test_request_context(
         "/alert-backoff/settings", method="POST", data="not json"

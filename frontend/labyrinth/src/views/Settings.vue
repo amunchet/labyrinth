@@ -17,6 +17,11 @@
             <Monitoring />
           </div>
         </b-tab>
+        <b-tab title="Notifications" lazy>
+          <div class="main">
+            <Notifications />
+          </div>
+        </b-tab>
         <b-tab title="AI Alerts" lazy>
           <div class="main">
             <AiAlerts />
@@ -36,6 +41,7 @@ import Icons from "@/views/Settings/Icons";
 import Telegraf from "@/views/Settings/Telegraf";
 import Monitoring from "@/views/Settings/Monitoring";
 import Maintenance from "@/views/Settings/Maintenance";
+import Notifications from "@/views/Settings/Notifications";
 import AiAlerts from "@/views/Settings/AiAlerts";
 export default {
   name: "Settings",
@@ -49,6 +55,7 @@ export default {
     Telegraf,
     Monitoring,
     Maintenance,
+    Notifications,
     AiAlerts,
   },
 };
