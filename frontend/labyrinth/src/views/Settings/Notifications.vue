@@ -36,6 +36,7 @@
           type="number"
           number
           min="1"
+          max="100"
           step="0.5"
           :disabled="!settings.enabled"
         />
@@ -51,6 +52,7 @@
           type="number"
           number
           min="1"
+          max="8760"
           :disabled="!settings.enabled"
         />
       </b-form-group>
@@ -106,8 +108,11 @@ export default {
       if (!(s.first_minutes > 0)) {
         return "The first reminder must come after more than 0 minutes.";
       }
-      if (!(s.multiplier >= 1)) {
-        return "The multiplier must be at least 1.";
+      if (!(s.multiplier >= 1 && s.multiplier <= 100)) {
+        return "The multiplier must be between 1 and 100.";
+      }
+      if (!(s.max_hours > 0 && s.max_hours <= 8760)) {
+        return "The longest gap must be more than 0 and at most 8760 hours (a year).";
       }
       if (!(s.max_hours * 60 >= s.first_minutes)) {
         return "The longest gap can't be shorter than the first reminder.";

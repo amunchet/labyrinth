@@ -65,7 +65,9 @@ describe("Settings/Notifications.vue", () => {
   test.each([
     [{ first_minutes: "" }, "more than 0 minutes"],
     [{ first_minutes: 0 }, "more than 0 minutes"],
-    [{ multiplier: 0.5 }, "at least 1"],
+    [{ multiplier: 0.5 }, "between 1 and 100"],
+    [{ multiplier: 1000 }, "between 1 and 100"],
+    [{ max_hours: 10000 }, "at most 8760 hours"],
     [{ first_minutes: 120, max_hours: 1 }, "can't be shorter"],
   ])("rejects %o before saving", async (change, message) => {
     await mountNotifications(defaults);

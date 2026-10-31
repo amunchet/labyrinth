@@ -71,6 +71,7 @@ def send_alert(
     severity="error",
     summary="A Service is failing.",
     url="",
+    starts_at=None,
     ends_at=None,
 ):
     """
@@ -81,6 +82,8 @@ def send_alert(
     :param instance - Host name
 
     :param serverity - defaults to error
+    :param starts_at - epoch time the problem started. Pass it with ends_at:
+        without it Alertmanager sets startsAt = endsAt, a time in the future
     :param ends_at - epoch time the alert stops firing unless sent again
         (Alertmanager's resolve_timeout when omitted; now = resolved)
     """
@@ -95,6 +98,8 @@ def send_alert(
         "annotations": {"summary": summary},
         "generatorURL": url or ALERTMANAGER + "/alerts",
     }
+    if starts_at is not None:
+        data["startsAt"] = _iso(starts_at)
     if ends_at is not None:
         data["endsAt"] = _iso(ends_at)
 
@@ -122,10 +127,15 @@ def _schedule(state, cfg, now):
 
 def _notify_grace():
     """
-    Seconds Alertmanager may take to send a newly firing alert: the longest
-    group_wait/group_interval in alertmanager.yml, at least Alertmanager's
-    default 5m group_interval, plus a minute. A silence starting sooner could
-    swallow that notification.
+    How long an alert stays unmuted when a notification is due, before the
+    silence holding back its next reminder starts
+        - Alertmanager sends only at group flushes, every group_interval, and
+          repeats only once repeat_interval has fully passed since the last
+          send. The first flush after a reminder falls due can be just short
+          of that, so the window spans two flushes: twice the longest
+          group_interval in alertmanager.yml (and at least the longest
+          group_wait, for new groups), plus a minute
+        - Alertmanager's defaults (30s, 5m) apply where they are unset
     """
     try:
         with open(ALERTMANAGER_CONFIG) as f:
@@ -133,15 +143,15 @@ def _notify_grace():
     except FileNotFoundError:
         config = None
     units = {"ms": 0.001, "s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
-    longest = 300  # Alertmanager's default group_interval
+    longest = {"group_wait": 30, "group_interval": 300}
     routes = [config.get("route") or {}] if isinstance(config, dict) else []
     while routes:
         route = routes.pop()
         routes.extend(route.get("routes") or [])
-        for name in ("group_wait", "group_interval"):
+        for name in longest:
             parts = re.findall(r"(\d+)(ms|s|m|h|d|w)", str(route.get(name, "")))
-            longest = max(longest, sum(int(n) * units[u] for n, u in parts))
-    return longest + 60
+            longest[name] = max(longest[name], sum(int(n) * units[u] for n, u in parts))
+    return max(longest["group_wait"], 2 * longest["group_interval"]) + 60
 
 
 def _unmute(state, now):
@@ -157,11 +167,14 @@ def _unmute(state, now):
     state["silence"] = None
 
 
-def report_problems(rc, source, alerts, cfg, hold):
+def report_problems(rc, source, alerts, cfg, hold, held=()):
     """
     Reports one check's failing problems to Alertmanager with notification backoff
         - `alerts` is every problem the check (`source`) sees failing right
           now, as send_alert() keyword arguments
+        - `held` are failing problems the check is holding back for now (the
+          watcher's flapping guard): already reported ones stay reported, the
+          rest are ignored, so missed runs don't resolve and re-announce them
         - Each is posted firing until `hold` seconds from now, so it stays
           firing while the check keeps running
         - New problems notify at once; reminders are muted with a silence
@@ -169,47 +182,66 @@ def report_problems(rc, source, alerts, cfg, hold):
         - Problems from the previous run that are no longer failing are
           resolved, and their silence is lifted
     """
+
+    def alert_key(alert):
+        return "|".join(alert[k] for k in LABELS.values())
+
     now = time.time()
-    alerts = {"|".join(a[k] for k in LABELS.values()): a for a in alerts}
     previous = json.loads(rc.get(BACKOFF_KEY.format(source)) or "{}")
+    alerts = {
+        **{alert_key(a): a for a in held if alert_key(a) in previous},
+        **{alert_key(a): a for a in alerts},
+    }
     grace = _notify_grace()
     current = {}
 
-    for key, alert in alerts.items():
-        send_alert(ends_at=now + hold, **alert)
-        state = previous.pop(key, {})
-        state["alert"] = {k: alert[k] for k in LABELS.values()}
+    try:
+        for key, alert in alerts.items():
+            state = current[key] = previous.pop(key, {})
+            state["alert"] = {k: alert[k] for k in LABELS.values()}
+            state.setdefault("since", now)
+            send_alert(starts_at=state["since"], ends_at=now + hold, **alert)
 
-        if not cfg["enabled"]:
+            if not cfg["enabled"]:
+                _unmute(state, now)
+                for name in ("sent", "next", "gap"):
+                    state.pop(name, None)
+            elif now >= state.get("next", 0):
+                _schedule(state, cfg, now)
+                state["silence"] = None
+                if state["next"] > now + grace:
+                    silence = {
+                        "matchers": [
+                            {"name": name, "value": alert[k], "isRegex": False}
+                            for name, k in LABELS.items()
+                        ],
+                        "startsAt": _iso(now + grace),
+                        "endsAt": _iso(state["next"]),
+                        "createdBy": "Labyrinth",
+                        "comment": "Notification backoff: {} sent, next reminder {}".format(
+                            state["sent"],
+                            time.strftime(
+                                "%Y-%m-%d %H:%M", time.localtime(state["next"])
+                            ),
+                        ),
+                    }
+                    res = _alertmanager("POST", "/silences", data=json.dumps(silence))
+                    res.raise_for_status()
+                    state["silence"] = res.json()["silenceID"]
+
+        for key in list(previous):
+            state = previous.pop(key)
             _unmute(state, now)
-            state = {"alert": state["alert"]}
-        elif now >= state.get("next", 0):
-            _schedule(state, cfg, now)
-            state["silence"] = None
-            if state["next"] > now + grace:
-                silence = {
-                    "matchers": [
-                        {"name": name, "value": alert[k], "isRegex": False}
-                        for name, k in LABELS.items()
-                    ],
-                    "startsAt": _iso(now + grace),
-                    "endsAt": _iso(state["next"]),
-                    "createdBy": "Labyrinth",
-                    "comment": "Notification backoff: {} sent, next reminder {}".format(
-                        state["sent"],
-                        time.strftime("%Y-%m-%d %H:%M", time.localtime(state["next"])),
-                    ),
-                }
-                res = _alertmanager("POST", "/silences", data=json.dumps(silence))
-                res.raise_for_status()
-                state["silence"] = res.json()["silenceID"]
-        current[key] = state
-
-    for state in previous.values():
-        _unmute(state, now)
-        send_alert(ends_at=now, summary="Recovered.", **state["alert"])
-
-    rc.set(BACKOFF_KEY.format(source), json.dumps(current))
+            send_alert(
+                starts_at=state["since"],
+                ends_at=now,
+                summary="Recovered.",
+                **state["alert"],
+            )
+    finally:
+        # Saved even when Alertmanager fails partway, so the silences already
+        # created stay tracked and unprocessed problems are kept for next run
+        rc.set(BACKOFF_KEY.format(source), json.dumps({**previous, **current}))
 
 
 def send_digest(rc, source, keys, cfg, send):
