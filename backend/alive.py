@@ -6,7 +6,7 @@ Every host with an IP is pinged (or TCP-connected to when it has a
 `check_alive_port`), and the result is recorded in the Redis `alive` hash
 (IP -> JSON) so maps and the inventory can show live reachability for anything
 IP-reachable, not only hosts with Telegraf metrics.  Monitored hosts that are
-down are also sent to Alertmanager.
+down are also sent to Alertmanager, with notification backoff (see watcher.py).
 """
 import json
 import os
@@ -83,7 +83,7 @@ def check_all_hosts():  # pragma: no cover
     # Imported here so serve can import this module for on-demand checks
     from pid import PidFile
     from common.test import unwrap
-    from serve import list_hosts
+    from serve import list_hosts, db
 
     with PidFile("labyrinth-alive"):
         hosts = [x for x in json.loads(unwrap(list_hosts)()[0]) if x.get("ip")]
@@ -102,18 +102,27 @@ def check_all_hosts():  # pragma: no cover
             )
         pipe.execute()
 
+        alerts = []
         for host, result in zip(hosts, results):
             if str(host.get("monitor")).lower() == "true" and not result["up"]:
                 alive_type = (
                     "Port Check" if result["method"] == "port" else "Ping Check"
                 )
-                watcher.send_alert(
-                    "Check Alive",
-                    alive_type,
-                    host["ip"],
-                    summary="{} did not respond to {}.".format(host["ip"], alive_type),
-                    severity="warning",
+                alerts.append(
+                    {
+                        "alert_name": "Check Alive",
+                        "service": alive_type,
+                        "instance": host["ip"],
+                        "summary": "{} did not respond to {}.".format(
+                            host["ip"], alive_type
+                        ),
+                        "severity": "warning",
+                    }
                 )
+        # Runs every minute, so a 5 minute hold rides out a skipped run
+        watcher.report_problems(
+            rc, "alive", alerts, watcher.backoff_settings(db), hold=300
+        )
 
 
 if __name__ == "__main__":  # pragma: no cover

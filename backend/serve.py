@@ -8,6 +8,7 @@ import functools
 import os
 import sys
 import json
+import math
 import socket
 import datetime
 import time
@@ -1212,6 +1213,58 @@ def delete_setting(setting):
     return "Success", 200
 
 
+@app.route("/alert-backoff/settings", methods=["GET"])
+@requires_auth_read
+def get_alert_backoff():
+    """
+    Notification backoff settings (see watcher.py), with defaults filled in
+    """
+    return json.dumps(watcher.backoff_settings(db)), 200
+
+
+@app.route("/alert-backoff/settings", methods=["POST"])
+@requires_auth_admin
+def save_alert_backoff():
+    """
+    Saves notification backoff settings
+        - JSON with any of `enabled`, `first_minutes`, `multiplier`,
+          `max_hours`; omitted fields keep their current value
+    """
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return json.dumps({"error": ERROR_INVALID_JSON_BODY}), 400
+
+    cfg = watcher.backoff_settings(db)
+    cfg.update({k: data[k] for k in watcher.BACKOFF_DEFAULTS if k in data})
+    numbers = [cfg[k] for k in ("first_minutes", "multiplier", "max_hours")]
+    if (
+        not isinstance(cfg["enabled"], bool)
+        or not all(
+            isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x)
+            for x in numbers
+        )
+        or cfg["first_minutes"] <= 0
+        or cfg["multiplier"] < 1
+        or cfg["max_hours"] * 60 < cfg["first_minutes"]
+    ):
+        return (
+            json.dumps(
+                {
+                    "error": "enabled must be true or false, the first reminder "
+                    "more than 0 minutes, the multiplier at least 1, and the "
+                    "longest gap no shorter than the first reminder"
+                }
+            ),
+            400,
+        )
+
+    db["labyrinth"]["settings"].delete_one({"name": watcher.BACKOFF_SETTING})
+    db["labyrinth"]["settings"].insert_one(
+        {"name": watcher.BACKOFF_SETTING, "value": cfg}
+    )
+    return json.dumps(cfg), 200
+
+
 @app.route("/settings/restart")
 @app.route("/settings/restart/<int:code>")
 @requires_auth_admin
@@ -2018,6 +2071,7 @@ def dashboard(val="", report=False, flapping_delay=1300):
         return None
 
     # Get the hosts latest metrics for states
+    alerts = []
     for host in [x for x in hosts if "services" in x]:
         service_results = {}
         for service in host["services"]:
@@ -2108,12 +2162,14 @@ def dashboard(val="", report=False, flapping_delay=1300):
                             ):
                                 severity = "warning"
                                 break
-                    watcher.send_alert(
-                        alert_name,
-                        metric_name,
-                        host_name,
-                        summary=summary,
-                        severity=severity,
+                    alerts.append(
+                        {
+                            "alert_name": alert_name,
+                            "service": metric_name,
+                            "instance": host_name,
+                            "summary": summary,
+                            "severity": severity,
+                        }
                     )
                 rc.set(key_name, time.time())
 
@@ -2125,6 +2181,13 @@ def dashboard(val="", report=False, flapping_delay=1300):
             }
         for item in service_results:
             host["services"] = [service_results[x] for x in service_results]
+
+    if report:  # pragma: no cover
+        # Cron runs the watcher every 10 minutes; a 30 minute hold keeps
+        # failing services firing across a slow or skipped run
+        watcher.report_problems(
+            rc, "watcher", alerts, watcher.backoff_settings(db), hold=1800
+        )
 
     # Sort hosts into subnets
     for item in hosts:

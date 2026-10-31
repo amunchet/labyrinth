@@ -20,6 +20,7 @@ from markupsafe import escape
 sys.path.insert(0, "/src")
 
 import proxmox_helper
+import watcher
 from ai import email_helper
 from db import get_shared_client
 
@@ -574,18 +575,33 @@ def check_and_alert_disk_space():
         for err in cluster_errors:
             print(f"Error fetching data for cluster {err['cluster']}: {err['error']}")
 
-        # If there are issues, send alert email
         if all_issues:
-            print(f"Found {len(all_issues)} disk space issues. Sending alert...")
+            print(f"Found {len(all_issues)} disk space issues.")
+        else:
+            print("No disk space issues found.")
 
+        def send():
             try:
                 send_alert_email(recipients, all_issues, threshold_percent)
-                print(f"Alert email sent to {len(recipients)} recipients.")
             except Exception as e:
                 print(f"Failed to send email: {e}")
                 raise
-        else:
-            print("No disk space issues found.")
+            print(f"Alert email sent to {len(recipients)} recipients.")
+
+        # One email lists every issue, and goes out whenever any of them is
+        # new or due a reminder under the notification backoff (watcher.py)
+        keys = [
+            ":".join(
+                str(issue.get(k))
+                for k in ("type", "cluster", "node", "name", "vm_id", "container_id")
+            )
+            for issue in all_issues
+        ]
+        redis_client = proxmox_helper.get_redis_client()
+        cfg = watcher.backoff_settings(db)
+        if not watcher.send_digest(redis_client, "proxmox-disk", keys, cfg, send):
+            if all_issues:
+                print("No issue is new or due a reminder yet; not emailing.")
 
     except Exception as e:
         print(f"Error in disk check: {e}")
