@@ -18,7 +18,7 @@ Labyrinth is a network analyzer, mapper, and monitor built on NMap, Ansible, and
 - `backend/ai/` - hourly AI summary job (`ai.sh` -> `backend/ai/main.py`, built on `ai_pipeline.py`/`ai_settings.py`) that pulls hosts/services/recent metrics from the database, sends them to ChatGPT (`chatgpt_helper.py`) for a plain-English summary, and delivers it by email/Slack (`email_helper.py`, `slack_helper.py`)
 - `backend/ai/mcp/` - standalone MCP server (own Dockerfile, runs as the `mcp` compose service on port 8765) exposing host/service/metric tools via `unwrap()`-wrapped Flask handlers, bypassing Auth0; guarded instead by an `MCP_KEY` pre-shared secret and reached externally through Caddy's `/mcp*` route
 - `backend/db/` - database adapter ecosystem (see below) - PostgreSQL/TimescaleDB by default, MongoDB as an explicit fallback
-- PostgreSQL + TimescaleDB - default data store (`DB_BACKEND=postgres`): JSONB tables for hosts/subnets/services/settings/proxmox_clusters/aws_accounts/themes/dashboards (= location maps)/locations, a TimescaleDB hypertable for `metrics`, a plain table for `metrics-latest`. See `MONGO_MIGRATION.md`.
+- PostgreSQL + TimescaleDB - default data store (`DB_BACKEND=postgres`): JSONB tables for hosts/subnets/services/settings/proxmox_clusters/aws_accounts/themes/dashboards (= location maps)/locations/ansible_runs/ansible_requests/conversations, a TimescaleDB hypertable for `metrics`, a plain table for `metrics-latest`. See `MONGO_MIGRATION.md`.
 - MongoDB - fallback data store (`DB_BACKEND=mongo`); prior default, still fully supported
 - Redis - write cache for metrics + temporary storage (Telegraf configs, scan output, autosave, job status, Proxmox cluster/guest status caches, `alive` hash of per-IP reachability)
 
@@ -75,6 +75,7 @@ Labyrinth is a network analyzer, mapper, and monitor built on NMap, Ansible, and
 - `cron/ai.sh` runs `backend/ai/main.py` hourly: `ai_pipeline.py`'s `process_dashboard()` pulls hosts/services and recent metrics from the database, slims them down, and `main()` sends the result to ChatGPT (`chatgpt_helper.py`) to produce a plain-English network summary, delivered via `email_helper.py`/`slack_helper.py`.
 - The prompt, model, recipients, subject template, and from-name are configurable under Settings -> AI Alerts (`/ai/settings` routes, stored in the generic `settings` collection/table); `backend/ai/ai_settings.py` reads them with built-in defaults, so `initial_prompt.txt` (gitignored - see `initial_prompt.txt.example`) is now only a fallback. `/ai/test-email` sends either a simple deliverability check or a full dashboard -> ChatGPT -> email run on demand.
 - `backend/ai/mcp/server.py` is a separate MCP (Model Context Protocol) server, run as its own Docker service (`mcp` in compose files) with its own `Dockerfile`/`requirements.txt`. It shares the backend's database/Redis (same `DB_BACKEND` selection, own `backend/ai/mcp/requirements.txt` needs the same driver pins kept in sync with `backend/requirements.txt`) and calls `serve.py` route handlers directly via `unwrap()`, so it exposes host/service/metric and location/inventory management tools (`mcp_list_hosts`, `mcp_create_or_update_host`, `mcp_add_service_to_host`, `mcp_list_services`, `mcp_read_metrics`, `mcp_get_inventory`, `mcp_set_device_inventory`, `mcp_save_location`, `mcp_check_device`, etc.) without Auth0. Because `unwrap()` removes the only authorization the handlers have, every HTTP request must instead carry the `MCP_KEY` pre-shared secret (`X-MCP-Key`, `Authorization: Bearer <key>`, or the bare `Authorization: <key>` form); the check lives in `backend/ai/mcp/auth.py` as ASGI middleware wrapping the whole app, and the server refuses to start if the key is unset. The transport is MCP streamable HTTP mounted at `/mcp`, served by `create_http_app()` (FastMCP itself is not ASGI-callable) and proxied externally by Caddy's `/mcp*` route. `server.py` also passes `transport_security` explicitly: FastMCP auto-enables DNS-rebinding protection whenever its own `settings.host` is loopback (which it is - `MCP_HOST` is uvicorn's bind address, not FastMCP's), and that answers `421 Invalid Host header` to everything arriving under a real domain through Caddy. The check is off unless `MCP_ALLOWED_HOSTS` pins an allowlist. Full tool/schema docs in `backend/ai/mcp/README.md`.
+- **Conversations** (`conversations` collection/table, `post_conversation_message` in `serve.py`, Conversations page `frontend/labyrinth/src/views/Conversations.vue`) are how the agent works with Ansible without production access: it stages deployments and asks questions, a human enters the vault password (or replies/declines), and the agent `mcp_wait_for_response`s for the human's turn. Every MCP-staged deployment belongs to a conversation, and runs launched from one post their result back into it from `run_ansible_background`. `pending`/`needs_human` track what the human still owes and drive the nav badge; an agent `question`/`deploy` also raises an `Agent needs a response` Alertmanager alert (best effort). The wait polls in `server.py` and holds a DB slot only per check - never wrap a long wait in `_blocking`.
 
 ## Development Workflows
 
@@ -202,106 +203,6 @@ docker-compose -f docker-compose-production.yml up --build -d
 - `MONGO_MIGRATION.md` - full design rationale, schema, and operational runbook for the Postgres migration
 
 <!-- BEGIN ARMADA GLOBAL INSTRUCTIONS (managed by Flagship) -->
-## Armada session policy
-
-You are running inside an Armada session. These rules come from the Flagship
-and apply to every session in the fleet. They sit on top of this project's own
-instructions, and they win wherever the two disagree.
-
-- Armada session: `Bugfix - ignored proxmox item`
-- Working branch: `armada/Bugfix---ignored-proxmox-item-fedaff`
-- Base branch: `master`
-- Session changelog: `CHANGELOG/armada-Bugfix---ignored-proxmox-item-fedaff.md`
-
-### Prefer Frontend -> Backend -> Database changes
-Prefer to change frontend issues only if possible.  If needed, backend changes are preferable to database schema modifications.  Sometimes all are needed, but prefer frontend only when possible - and when it would not compromise functionality or data integrity.
-
-### Commit and push your work
-
-- Commit as soon as a change is coherent on its own. Never end a turn with a
-  dirty working tree, and never wait to be asked to commit.
-- Push to `origin` right after committing, so the branch on the remote always
-  matches what you have locally.
-- This holds even when the working branch is the base branch. Armada sessions
-  are disposable and their history is the only durable record of the work, so
-  committing directly to `master` is expected here, not a mistake.
-- If a push is rejected because the remote moved ahead, pull with rebase and
-  push again. Report the failure only if that still does not resolve it.
-
-### Keep the branch mergeable
-
-- Whenever the working branch is not the base branch, verify the work still
-  merges cleanly into `master` before you consider a task finished.
-- Check without mutating the working tree, for example:
-  `git fetch origin && git merge-tree $(git merge-base HEAD origin/master) HEAD origin/master`
-- If that reports conflicts, resolve them now rather than leaving them for
-  whoever opens the pull request. Rebase or merge the base branch in, fix each
-  conflict on its merits, re-run the tests, then commit and push.
-- If a conflict genuinely needs a human decision, stop and say exactly which
-  files conflict and what the competing changes are.
-
-### Keep the changelog current
-
-- Record what you did in `CHANGELOG/armada-Bugfix---ignored-proxmox-item-fedaff.md` as part of the same commit that
-  makes the change.
-- The file is scoped to this branch, so it never conflicts with changelogs
-  written by other sessions.
-- Append one entry per meaningful change, newest last, in this shape:
-
-  ```markdown
-  ## 2025-01-31 14:22 UTC
-  Short description of what changed and why.
-  ```
-
-- Use Central Time (US/Chicago), and include both the date and the time. Get them from `date -u`
-  rather than guessing.
-- Describe the change in terms a reviewer would care about. Skip routine
-  mechanics like formatting passes or lint fixes unless they are the point of
-  the work.
-- This per-branch file is yours to maintain. A top-level auto-generated
-  `CHANGELOG.md`, if the project has one, is still off limits.
-
-### Coding style
-
-When writing, modifying, refactoring, or reviewing code, follow the shared
-`code-style` skill. Its rules apply unless this project's instructions
-explicitly require otherwise.
-
-### Report pull requests and reviews to Armada
-
-The Flagship learns about pull requests and reviews only from files in
-`.armada/` at the workspace root. Whichever skill or command you used, do this:
-
-- **After opening a pull request**, write `.armada/pr.json`:
-
-  ```json
-  {"schema": 1, "number": 0, "url": "<pull request or compare url>",
-   "head_branch": "armada/Bugfix---ignored-proxmox-item-fedaff", "base_branch": "master",
-   "head_sha": "<git rev-parse HEAD>", "ready_for_review": true,
-   "written_at": "<date -u +%Y-%m-%dT%H:%M:%SZ>"}
-  ```
-
-  `gh pr view --json number,url,headRefOid` supplies the real number, url and
-  sha. Without a number, `url` alone is enough.
-
-- **After reviewing the branch**, whatever else the review produced, write the
-  report a human reads to `.armada/review.md` and the verdict to
-  `.armada/review.json`:
-
-  ```json
-  {"schema": 1, "reviewer": "self", "pr_number": 0, "head_sha": "<sha>",
-   "base_branch": "master", "verdict": "comment",
-   "recommended_level": 2, "summary": "One paragraph.",
-   "findings": [{"severity": "medium", "file": "path.py", "line": 12,
-                 "title": "Short title", "detail": "What is wrong and why."}],
-   "tests": {"command": "<test command>", "ran": true, "passed": true,
-             "output_tail": "last few lines"},
-   "reviewed_at": "<date -u +%Y-%m-%dT%H:%M:%SZ>"}
-  ```
-
-  `verdict` is `approve`, `request_changes`, `comment` or `failed`; `severity`
-  is `high`, `medium`, `low` or `nit`; `reviewer` is `self` for your own work
-  and `agent` for someone else's.
-
-`.armada/` is not part of the repo - never commit it.
+This session's Armada instructions are in `CLAUDE.local.md`, which is kept out of git.
+Read it before starting if it has not been loaded already.
 <!-- END ARMADA GLOBAL INSTRUCTIONS -->
