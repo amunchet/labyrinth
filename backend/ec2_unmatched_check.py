@@ -11,6 +11,8 @@ EC2 inventory Labyrinth doesn't know how to monitor yet.
 import os
 import sys
 from typing import List, Dict, Optional, Tuple
+
+import redis
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from datetime import datetime
 
@@ -18,6 +20,7 @@ from datetime import datetime
 sys.path.insert(0, "/src")
 
 import aws_helper
+import watcher
 from ai import email_helper
 from db import get_shared_client
 
@@ -214,18 +217,31 @@ def check_and_alert_unmatched_instances():
             )
 
         if unmatched_instances:
-            print(
-                f"Found {len(unmatched_instances)} unmatched EC2 instance(s). Sending alert..."
-            )
+            print(f"Found {len(unmatched_instances)} unmatched EC2 instance(s).")
+        else:
+            print("No unmatched EC2 instances found.")
 
+        def send():
             try:
                 send_alert_email(recipients, unmatched_instances)
-                print(f"Alert email sent to {len(recipients)} recipients.")
             except Exception as e:
                 print(f"Failed to send email: {e}")
                 raise
-        else:
-            print("No unmatched EC2 instances found.")
+            print(f"Alert email sent to {len(recipients)} recipients.")
+
+        # One email lists every instance, and goes out whenever any of them is
+        # new or due a reminder under the notification backoff (watcher.py)
+        keys = [
+            "{}:{}:{}".format(
+                i.get("account_name"), i.get("region"), i.get("instance_id")
+            )
+            for i in unmatched_instances
+        ]
+        redis_client = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
+        cfg = watcher.backoff_settings(db)
+        if not watcher.send_digest(redis_client, "ec2-unmatched", keys, cfg, send):
+            if unmatched_instances:
+                print("No instance is new or due a reminder yet; not emailing.")
 
     except Exception as e:
         print(f"Error in EC2 unmatched check: {e}")

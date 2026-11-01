@@ -1212,6 +1212,64 @@ def delete_setting(setting):
     return "Success", 200
 
 
+@app.route("/alert-backoff/settings", methods=["GET"])
+@requires_auth_read
+def get_alert_backoff():
+    """
+    Notification backoff settings (see watcher.py), with defaults filled in
+    """
+    return json.dumps(watcher.backoff_settings(db)), 200
+
+
+@app.route("/alert-backoff/settings", methods=["POST"])
+@requires_auth_admin
+def save_alert_backoff():
+    """
+    Saves notification backoff settings
+        - JSON with any of `enabled`, `first_minutes`, `multiplier`,
+          `max_hours`; omitted fields keep their current value
+        - Parsed whatever the Content-Type: Helper.apiPost sends none
+    """
+    data = request.get_json(force=True, silent=True)
+    if not isinstance(data, dict):
+        return json.dumps({"error": ERROR_INVALID_JSON_BODY}), 400
+
+    cfg = watcher.backoff_settings(db)
+    cfg.update({k: data[k] for k in watcher.BACKOFF_DEFAULTS if k in data})
+    first, multiplier, max_hours = (
+        cfg[k] for k in ("first_minutes", "multiplier", "max_hours")
+    )
+    # Written as ranges so NaN, infinity and huge numbers all fail: a gap
+    # too large for a timestamp would break every watcher run
+    if not (
+        isinstance(cfg["enabled"], bool)
+        and all(
+            isinstance(x, (int, float)) and not isinstance(x, bool)
+            for x in (first, multiplier, max_hours)
+        )
+        and 0 < max_hours <= 8760
+        and 0 < first <= max_hours * 60
+        and 1 <= multiplier <= 100
+    ):
+        return (
+            json.dumps(
+                {
+                    "error": "enabled must be true or false, the multiplier "
+                    "between 1 and 100, the longest gap more than 0 and at most "
+                    "8760 hours (a year), and the first reminder more than 0 "
+                    "minutes and no longer than the longest gap"
+                }
+            ),
+            400,
+        )
+
+    db["labyrinth"]["settings"].delete_one({"name": watcher.BACKOFF_SETTING})
+    db["labyrinth"]["settings"].insert_one(
+        {"name": watcher.BACKOFF_SETTING, "value": cfg}
+    )
+    return json.dumps(cfg), 200
+
+
 @app.route("/settings/restart")
 @app.route("/settings/restart/<int:code>")
 @requires_auth_admin
@@ -2018,6 +2076,7 @@ def dashboard(val="", report=False, flapping_delay=1300):
         return None
 
     # Get the hosts latest metrics for states
+    alerts, held = [], []
     for host in [x for x in hosts if "services" in x]:
         service_results = {}
         for service in host["services"]:
@@ -2078,43 +2137,49 @@ def dashboard(val="", report=False, flapping_delay=1300):
                         json.dumps(found_service, default=str) or "",
                     )
 
+                # Handle found_service severity
+                severity = "error"
+                if "service_level" in host and host["service_level"] == "warning":
+                    severity = "warning"
+                elif "service_levels" in host:
+                    for item in host["service_levels"]:
+                        # Check for open_ports and closed_ports, which are special
+                        if (
+                            item
+                            and "service" in item
+                            and found_service
+                            and item["service"] == found_service
+                            and "level" in item
+                            and item["level"] == "warning"
+                        ):
+                            severity = "warning"
+                        if (
+                            item
+                            and "service" in item
+                            and found_service
+                            and "display_name" in found_service
+                            and item["service"] == found_service["display_name"]
+                            and "level" in item
+                            and item["level"] == "warning"
+                        ):
+                            severity = "warning"
+                            break
+                alert = {
+                    "alert_name": alert_name,
+                    "service": metric_name,
+                    "instance": host_name,
+                    "summary": summary,
+                    "severity": severity,
+                }
+
+                # Only alert once a service has also failed the previous run,
+                # but a gap between runs doesn't count as recovering
                 key_name = f"{alert_name}{metric_name}{host_name}".replace(" ", "")
                 found_key = rc.get(key_name)
                 if found_key and time.time() - float(found_key) < flapping_delay:
-                    # Handle found_service severity
-                    severity = "error"
-                    if "service_level" in host and host["service_level"] == "warning":
-                        severity = "warning"
-                    elif "service_levels" in host:
-                        for item in host["service_levels"]:
-                            # Check for open_ports and closed_ports, which are special
-                            if (
-                                item
-                                and "service" in item
-                                and found_service
-                                and item["service"] == found_service
-                                and "level" in item
-                                and item["level"] == "warning"
-                            ):
-                                severity = "warning"
-                            if (
-                                item
-                                and "service" in item
-                                and found_service
-                                and "display_name" in found_service
-                                and item["service"] == found_service["display_name"]
-                                and "level" in item
-                                and item["level"] == "warning"
-                            ):
-                                severity = "warning"
-                                break
-                    watcher.send_alert(
-                        alert_name,
-                        metric_name,
-                        host_name,
-                        summary=summary,
-                        severity=severity,
-                    )
+                    alerts.append(alert)
+                else:
+                    held.append(alert)
                 rc.set(key_name, time.time())
 
             service_results[service] = {
@@ -2125,6 +2190,13 @@ def dashboard(val="", report=False, flapping_delay=1300):
             }
         for item in service_results:
             host["services"] = [service_results[x] for x in service_results]
+
+    if report:  # pragma: no cover
+        # Cron runs the watcher every 10 minutes; a 30 minute hold keeps
+        # failing services firing across a slow or skipped run
+        watcher.report_problems(
+            rc, "watcher", alerts, watcher.backoff_settings(db), hold=1800, held=held
+        )
 
     # Sort hosts into subnets
     for item in hosts:
@@ -4357,8 +4429,17 @@ def _get_ec2_test_email_recipients(data):
 
 if __name__ == "__main__":  # pragma: no cover
     if len(sys.argv) > 1 and sys.argv[1] == "watcher":
-        index_helper()
-        unwrap(dashboard)(report=True)
+        # One run at a time: overlapping runs would each create silences for
+        # the same due reminders, and only one would be tracked
+        try:
+            with single_run(
+                redis.Redis(host=os.environ.get("REDIS_HOST") or "redis"),
+                "labyrinth-watcher",
+            ):
+                index_helper()
+                unwrap(dashboard)(report=True)
+        except LockNotAcquired as exc:
+            print("Skipping watcher run - {}".format(exc))
     elif len(sys.argv) > 1 and sys.argv[1] == "updater":
         # Metrics transfer: Redis (short-lived, overwritten in place) ->
         # Postgres (permanent). Cron fires this every minute; the lock makes
