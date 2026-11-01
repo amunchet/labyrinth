@@ -1726,7 +1726,6 @@ def create_ansible_request(inp_data=""):
     if isinstance(hosts, str):
         hosts = [x.strip() for x in hosts.split(",") if x.strip()]
     content = data.get("playbook_content", "")
-    conversation_id = data.get("conversation_id", "")
 
     if not playbook or not hosts:
         return "playbook and hosts are required", 482
@@ -1736,10 +1735,13 @@ def create_ansible_request(inp_data=""):
     ):
         return "Become file not found: {}".format(escape(become_file)), 483
 
-    if conversation_id and not db["labyrinth"]["conversations"].find_one(
-        {"conversation_id": conversation_id}
-    ):
-        return "Conversation not found", 404
+    conversation = None
+    if data.get("conversation_id"):
+        conversation = db["labyrinth"]["conversations"].find_one(
+            {"conversation_id": data["conversation_id"]}
+        )
+        if not conversation:
+            return "Conversation not found", 404
 
     requests = db["labyrinth"]["ansible_requests"]
     playbook_exists = "{}.yml".format(playbook) in os.listdir("/src/uploads/ansible")
@@ -1760,10 +1762,13 @@ def create_ansible_request(inp_data=""):
     elif not playbook_exists:
         return "Playbook not found: {}".format(escape(playbook)), 484
 
-    if not conversation_id:
-        conversation_id = start_conversation(
+    if not conversation:
+        conversation = start_conversation(
             data.get("notes") or "Deploy {}".format(playbook)
-        )["conversation_id"]
+        )
+    # The stored id, never the submitted one: it goes back in the response
+    # (py/reflective-xss)
+    conversation_id = conversation["conversation_id"]
 
     request_id = str(uuid.uuid4())
     requests.insert_one(

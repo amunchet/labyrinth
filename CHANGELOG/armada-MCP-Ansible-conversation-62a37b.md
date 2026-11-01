@@ -57,3 +57,11 @@ deployment from what the human owes. The Conversations page reports a failing
 poll once instead of every 5s, no longer flashes a spinner on an empty list,
 says when a conversation can't be loaded, and marks a deployment dropped by
 closing the conversation "Not deployed".
+
+## 2026-11-01 01:23 CST
+Fixes CodeQL alert #701 (py/reflective-xss, high) on PR #84:
+`create_ansible_request` returned the submitted `conversation_id` in its
+response. It now looks the conversation up once and uses the stored id from then
+on, so no request value is echoed back (the project's error-response rule).
+Behavior is unchanged: an unknown id is still refused with a 404 before anything
+is staged.
