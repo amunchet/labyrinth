@@ -17,6 +17,7 @@ BACKEND_ROOT = Path(__file__).resolve().parents[2]
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.append(str(BACKEND_ROOT))
 
+from common.hostnames import hostnames_match  # type: ignore
 from common.test import unwrap  # type: ignore
 import serve  # type: ignore
 
@@ -50,25 +51,17 @@ class LabyrinthClient:
         return json.loads(raw)
 
     def get_host(self, host_key: str) -> Optional[Dict[str, Any]]:
-        # Try MAC/IP lookup directly for flexibility
-        found = serve.db["labyrinth"]["hosts"].find_one(
-            {"$or": [{"mac": host_key}, {"ip": host_key}]}
-        )
+        """Finds a host by MAC/IP key, else by hostname when only one host has it"""
+        hosts = serve.db["labyrinth"]["hosts"]
+        found = hosts.find_one({"$or": [{"mac": host_key}, {"ip": host_key}]})
+        if not found:
+            named = [
+                x for x in hosts.find({}) if hostnames_match(x.get("host"), host_key)
+            ]
+            found = named[0] if len(named) == 1 else None
         if found:
             found.pop("_id", None)
-            return found
-        # Fallback to API that only accepts MAC
-        raw, status = unwrap(serve.list_host)(host_key)
-        if status != 200:
-            return None
-        try:
-            data = json.loads(raw)
-            if isinstance(data, dict):
-                data.pop("_id", None)
-                return data
-        except Exception:
-            return None
-        return None
+        return found
 
     def create_or_update_host(self, host: Dict[str, Any]) -> str:
         # Without a mac the backend keys the host by IP (or generates a key for
