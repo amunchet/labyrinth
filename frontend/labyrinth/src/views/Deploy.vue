@@ -248,7 +248,19 @@
     <b-row v-if="deep_link">
       <b-col>
         <b-card border-variant="primary" class="text-left">
-          <h4>Prepared Deployment</h4>
+          <h4>
+            Prepared Deployment
+            <router-link
+              v-if="deep_link.conversation_id"
+              class="float-right small"
+              :to="'/conversations/' + deep_link.conversation_id"
+            >
+              <font-awesome-icon icon="comments" size="1x" /> Conversation
+            </router-link>
+          </h4>
+          <b-alert show variant="secondary" v-if="deep_link.declined_at">
+            You declined this deployment. It can still be deployed.
+          </b-alert>
           <p v-if="deep_link.notes">{{ deep_link.notes }}</p>
           <ul>
             <li>
@@ -261,7 +273,20 @@
               >
             </li>
             <li>
-              Become file: <b>{{ deep_link.become_file }}.yml</b>
+              Become file:
+              <b-select
+                size="sm"
+                class="w-auto"
+                v-model="deep_link.become_file"
+                :state="deep_link.become_file != ''"
+                :options="[
+                  { text: 'Choose a become file', value: '' },
+                  ...(files_list['become'] || []).map((f) => ({
+                    text: f,
+                    value: f.replace(/\.yml$/, ''),
+                  })),
+                ]"
+              />
             </li>
           </ul>
           <b-button
@@ -288,7 +313,7 @@
               class="mt-3"
               style="width: 100%"
               variant="primary"
-              :disabled="running || !vault_password"
+              :disabled="running || !vault_password || !deep_link.become_file"
             >
               <b-spinner small v-if="running" /> Deploy
             </b-button>
@@ -1293,7 +1318,10 @@ export default {
           let formData = new FormData();
           formData.append(
             "data",
-            JSON.stringify({ vault_password: this.vault_password })
+            JSON.stringify({
+              vault_password: this.vault_password,
+              become_file: link.become_file,
+            })
           );
           const response = await Helper.apiPost(
             "ansible_request/",

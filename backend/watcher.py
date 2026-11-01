@@ -55,11 +55,14 @@ def _iso(epoch):
 def _alertmanager(method, path, **kwargs):
     """Calls the Alertmanager v2 API with the shared admin password"""
     password = open("/alertmanager/pass").read()
+    # Bounded: callers include request handlers and the MCP server's few DB
+    # slots, which a hung (not down) Alertmanager would otherwise hold forever
     return requests.request(
         method,
         ALERTMANAGER + path,
         auth=("admin", password),
         headers={"Content-Type": "application/json"},
+        timeout=10,
         **kwargs,
     )
 

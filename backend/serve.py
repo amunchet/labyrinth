@@ -1523,6 +1523,11 @@ def utc_now():
     return datetime.datetime.now(datetime.timezone.utc).isoformat()
 
 
+def labyrinth_url(path):
+    """Absolute UI link for a path, from LABYRINTH_URL (relative when it is unset)."""
+    return os.environ.get("LABYRINTH_URL", "").rstrip("/") + path
+
+
 def run_ansible_background(job_id, data):
     """Run Ansible in the background, streaming logs to Redis and recording the outcome in `ansible_runs`."""
     redis_client = redis.Redis(host=os.environ.get("REDIS_HOST"))
@@ -1641,6 +1646,26 @@ def run_ansible_background(job_id, data):
             },
         )
 
+        # The agent waiting in the conversation wakes on this message
+        if data.get("conversation_id"):
+            post_conversation_message(
+                data["conversation_id"],
+                "system",
+                "run",
+                (
+                    "Run succeeded"
+                    if final.get("outcome") == "success"
+                    else "Run failed"
+                ),
+                request_id=data.get("request_id", ""),
+                job_id=job_id,
+                status=final.get("status", "error"),
+                outcome=final.get("outcome", "failed"),
+                error=final.get("error", ""),
+                stats=stats,
+                failures=failures[:20],
+            )
+
 
 def start_ansible_job(job_id, data):
     """Queue a run: Redis status for live polling, an `ansible_runs` record, then the background process."""
@@ -1653,6 +1678,7 @@ def start_ansible_job(job_id, data):
         {
             "job_id": job_id,
             "request_id": data.get("request_id", ""),
+            "conversation_id": data.get("conversation_id", ""),
             "playbook": data["playbook"],
             "hosts": hosts,
             "become_file": data["become_file"],
@@ -1852,7 +1878,9 @@ def create_ansible_request(inp_data=""):
     Stages a deployment (hosts, playbook, become file) for a human to launch from
     the Deploy page with just the vault password.  An optional `playbook_content`
     carries an AI-generated playbook, held to the same rules as AI chat drafts and
-    saved only when the human deploys it.
+    saved only when the human deploys it.  The become file may be left for the
+    human to pick.  Every staged deployment belongs to a conversation: the one
+    given in `conversation_id`, else a new one.
     """
     if inp_data:
         data = inp_data
@@ -1869,11 +1897,21 @@ def create_ansible_request(inp_data=""):
         hosts = [x.strip() for x in hosts.split(",") if x.strip()]
     content = data.get("playbook_content", "")
 
-    if not playbook or not become_file or not hosts:
-        return "playbook, become_file and hosts are required", 482
+    if not playbook or not hosts:
+        return "playbook and hosts are required", 482
 
-    if "{}.yml".format(become_file) not in os.listdir("/src/uploads/become"):
+    if become_file and "{}.yml".format(become_file) not in os.listdir(
+        "/src/uploads/become"
+    ):
         return "Become file not found: {}".format(escape(become_file)), 483
+
+    conversation = None
+    if data.get("conversation_id"):
+        conversation = db["labyrinth"]["conversations"].find_one(
+            {"conversation_id": data["conversation_id"]}
+        )
+        if not conversation:
+            return "Conversation not found", 404
 
     requests = db["labyrinth"]["ansible_requests"]
     playbook_exists = "{}.yml".format(playbook) in os.listdir("/src/uploads/ansible")
@@ -1894,10 +1932,19 @@ def create_ansible_request(inp_data=""):
     elif not playbook_exists:
         return "Playbook not found: {}".format(escape(playbook)), 484
 
+    if not conversation:
+        conversation = start_conversation(
+            data.get("notes") or "Deploy {}".format(playbook)
+        )
+    # The stored id, never the submitted one: it goes back in the response
+    # (py/reflective-xss)
+    conversation_id = conversation["conversation_id"]
+
     request_id = str(uuid.uuid4())
     requests.insert_one(
         {
             "request_id": request_id,
+            "conversation_id": conversation_id,
             "playbook": playbook,
             "playbook_content": content,
             "generated": bool(content),
@@ -1909,7 +1956,23 @@ def create_ansible_request(inp_data=""):
             "created_at": utc_now(),
         }
     )
-    return {"request_id": request_id, "path": f"/deploy?request={request_id}"}, 200
+    message = post_conversation_message(
+        conversation_id,
+        "agent",
+        "deploy",
+        data.get("notes", ""),
+        request_id=request_id,
+        playbook=playbook,
+        hosts=hosts,
+        become_file=become_file,
+        generated=bool(content),
+    )
+    return {
+        "request_id": request_id,
+        "path": f"/deploy?request={request_id}",
+        "conversation_id": conversation_id,
+        "notified": message["notified"],
+    }, 200
 
 
 @app.route("/ansible_request/<request_id>")
@@ -1936,7 +1999,8 @@ def get_ansible_request(request_id):
 @requires_auth_admin
 def deploy_ansible_request(request_id, inp_data=""):
     """
-    Launches a staged deployment; the human supplies only the vault password.
+    Launches a staged deployment; the human supplies only the vault password,
+    plus the become file when the agent left it open (or to swap it).
     Generated content is saved server-side first, so what runs is exactly what
     was staged and reviewed.
     """
@@ -1954,12 +2018,21 @@ def deploy_ansible_request(request_id, inp_data=""):
     if not staged:
         return "Request not found", 404
 
+    become_file = (
+        secure_filename(data.get("become_file", "")).replace(".yml", "")
+        or staged["become_file"]
+    )
+    if not become_file:
+        return "Choose a become file", 482
+    if "{}.yml".format(become_file) not in os.listdir("/src/uploads/become"):
+        return "Become file not found", 483
+
     if staged["playbook_content"]:
         try:
             result = ansible_helper.persist_reviewed_playbook(
                 staged["playbook"],
                 staged["playbook_content"],
-                staged["become_file"],
+                become_file,
                 forbidden_hosts=staged["hosts"],
             )
         except (ValueError, OSError):
@@ -1977,19 +2050,253 @@ def deploy_ansible_request(request_id, inp_data=""):
             )
 
     job_id = f"ansible_job_{uuid.uuid4()}"
+    conversation_id = staged.get("conversation_id", "")
     start_ansible_job(
         job_id,
         {
             "request_id": request_id,
+            "conversation_id": conversation_id,
             "hosts": staged["hosts"],
             "playbook": staged["playbook"],
             "vault_password": data["vault_password"],
-            "become_file": staged["become_file"],
+            "become_file": become_file,
             "ssh_key": staged.get("ssh_key", ""),
             "totp_file": data.get("totp_file") or staged.get("totp_file", ""),
         },
     )
+    if conversation_id:
+        post_conversation_message(
+            conversation_id,
+            "human",
+            "launched",
+            request_id=request_id,
+            job_id=job_id,
+            become_file=become_file,
+        )
     return {"job_id": job_id, "status": "started"}, 200
+
+
+@app.route("/ansible_request/<request_id>/decline", methods=["POST"])
+@requires_auth_admin
+def decline_ansible_request(request_id, inp_data=""):
+    """The human turns a staged deployment down, optionally saying why, and the agent is told."""
+    if inp_data:
+        data = inp_data
+    else:  # pragma: no cover
+        data = request.form.get("data") or "{}"
+    data = json.loads(data)
+
+    requests = db["labyrinth"]["ansible_requests"]
+    staged = requests.find_one({"request_id": request_id})
+    if not staged:
+        return "Request not found", 404
+    requests.update_one(
+        {"request_id": request_id}, {"$set": {"declined_at": utc_now()}}
+    )
+    if staged.get("conversation_id"):
+        post_conversation_message(
+            staged["conversation_id"],
+            "human",
+            "declined",
+            data.get("text", ""),
+            request_id=request_id,
+        )
+    return "Declined", 200
+
+
+# Agent conversations
+#
+# A conversation is the record of one piece of work an agent (via the MCP
+# server) carries out with a human: its messages and questions, the
+# deployments it staged, the human's replies, and the results of the runs the
+# human launched.  The agent can stage and ask but never run anything; it
+# waits for the human's turn instead.  `pending` lists what the human still
+# owes - open questions and staged deployments; an open conversation with
+# anything pending `needs_human` (derived on read, never stored).
+
+
+def start_conversation(title):
+    """Open a new, empty conversation and return its record."""
+    now = utc_now()
+    conversation = {
+        "conversation_id": str(uuid.uuid4()),
+        "title": (title or "").strip()[:200] or "Untitled",
+        "status": "open",
+        "pending": [],
+        "messages": [],
+        "created_at": now,
+        "updated_at": now,
+    }
+    db["labyrinth"]["conversations"].insert_one(dict(conversation))
+    return conversation
+
+
+def post_conversation_message(conversation_id, author, kind, text="", **fields):
+    """
+    Append a message (author agent, human or system) and update what the
+    conversation is waiting on.  An agent `question` or `deploy` puts it on the
+    human and raises an Alertmanager alert; a human `reply` answers every open
+    question, `launched`/`declined` settle that deployment, and `closed`
+    settles everything.  Returns the message, or None for an unknown
+    conversation.
+    """
+    conversations = db["labyrinth"]["conversations"]
+    found = conversations.find_one({"conversation_id": conversation_id})
+    if not found:
+        return None
+
+    message = {
+        "id": uuid.uuid4().hex[:12],
+        "at": utc_now(),
+        "author": author,
+        "kind": kind,
+        "text": text,
+        **fields,
+    }
+    # Every change is an atomic operator on the stored document, never a value
+    # computed from `found`: the agent's parallel tool calls, a forked run's
+    # result and the human's reply can all land at once, and a write built
+    # from a stale read would undo the others.
+    update = {"$set": {"updated_at": message["at"]}, "$push": {"messages": message}}
+    if kind == "question":
+        update["$push"]["pending"] = {"type": "question", "id": message["id"]}
+    elif kind == "deploy":
+        update["$push"]["pending"] = {"type": "deploy", "id": fields["request_id"]}
+    elif kind == "reply":
+        update["$pull"] = {"pending": {"type": "question"}}
+    elif kind in ("launched", "declined"):
+        update["$pull"] = {"pending": {"type": "deploy", "id": fields["request_id"]}}
+    elif kind == "closed":
+        update["$set"]["pending"] = []
+
+    # Whoever speaks reopens a closed conversation; a late run result does not
+    if kind == "closed":
+        update["$set"]["status"] = "closed"
+    elif author != "system":
+        update["$set"]["status"] = "open"
+
+    conversations.update_one({"conversation_id": conversation_id}, update)
+
+    if author == "agent" and kind in ("question", "deploy"):
+        path = (
+            "/deploy?request={}".format(fields["request_id"])
+            if kind == "deploy"
+            else "/conversations/{}".format(conversation_id)
+        )
+        summary = text or "Deployment of {} staged for review".format(
+            fields.get("playbook")
+        )
+        # Best effort: the nav badge still flags it if Alertmanager is down.
+        # One alert per ask: with the conversation's labels alone, a second ask
+        # within resolve_timeout merged into the first alert and never notified.
+        try:
+            message["notified"] = watcher.send_alert(
+                "Agent needs a response",
+                found["title"],
+                "{}/{}".format(conversation_id, message["id"]),
+                severity="warning",
+                summary=summary[:500],
+                url=labyrinth_url(path),
+            ).ok
+        except (OSError, requests.RequestException):
+            message["notified"] = False
+    return message
+
+
+@app.route("/conversations/")
+@app.route("/conversations/<state>")
+@requires_auth_admin
+def list_conversations(state=""):
+    """
+    Conversations, most recently active first, without their messages.
+    state "waiting" keeps only those waiting on the human (the nav badge).
+    """
+    if state not in ("", "waiting"):
+        return "Unknown state; use waiting or leave it out", 404
+    found = (
+        db["labyrinth"]["conversations"]
+        .find({"status": "open"} if state else {})
+        .sort("updated_at", -1)
+        .limit(200)
+    )
+    listed = []
+    for x in found:
+        needs_human = x["status"] == "open" and bool(x["pending"])
+        if state and not needs_human:
+            continue
+        listed.append(
+            {
+                **{k: v for k, v in x.items() if k not in ("_id", "messages")},
+                "needs_human": needs_human,
+                "message_count": len(x["messages"]),
+                "last_message": x["messages"][-1] if x["messages"] else None,
+            }
+        )
+    return json.dumps(listed), 200
+
+
+@app.route("/conversation/<conversation_id>")
+@requires_auth_admin
+def get_conversation(conversation_id):
+    """
+    One conversation with all its messages, plus each deployment it staged
+    (under `requests`, by request_id) along with the runs launched from it.
+    """
+    found = db["labyrinth"]["conversations"].find_one(
+        {"conversation_id": conversation_id}
+    )
+    if not found:
+        return "Conversation not found", 404
+    found.pop("_id", None)
+    found["needs_human"] = found["status"] == "open" and bool(found["pending"])
+
+    staged = {}
+    for x in db["labyrinth"]["ansible_requests"].find(
+        {"conversation_id": conversation_id}
+    ):
+        x.pop("_id", None)
+        staged[x["request_id"]] = {**x, "runs": []}
+    for x in (
+        db["labyrinth"]["ansible_runs"]
+        .find({"conversation_id": conversation_id})
+        .sort("created_at", 1)
+    ):
+        if x["request_id"] in staged:
+            staged[x["request_id"]]["runs"].append(
+                {k: v for k, v in x.items() if k not in ("_id", "logs")}
+            )
+    found["requests"] = staged
+    return json.dumps(found), 200
+
+
+@app.route("/conversation/<conversation_id>/reply", methods=["POST"])
+@requires_auth_admin
+def reply_conversation(conversation_id, inp_data=""):
+    """The human answers the agent; this answers every open question."""
+    if inp_data:
+        data = inp_data
+    else:  # pragma: no cover
+        data = request.form.get("data") or "{}"
+    text = json.loads(data).get("text", "").strip()
+    if not text:
+        return "Reply text is required", 482
+    if not post_conversation_message(conversation_id, "human", "reply", text):
+        return "Conversation not found", 404
+    return "Sent", 200
+
+
+@app.route("/conversation/<conversation_id>/close", methods=["POST"])
+@requires_auth_admin
+def close_conversation(conversation_id, inp_data=""):
+    """The human ends a conversation, dropping whatever it still waited on."""
+    if inp_data:
+        data = inp_data
+    else:  # pragma: no cover
+        data = request.form.get("data") or "{}"
+    text = json.loads(data).get("text", "").strip()
+    if not post_conversation_message(conversation_id, "human", "closed", text):
+        return "Conversation not found", 404
+    return "Closed", 200
 
 
 @app.route("/mac/<old_mac>/<new_mac>/")
