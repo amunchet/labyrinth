@@ -26,3 +26,9 @@ Compose passed `TZ` to the MCP image as a build arg, but its Dockerfile never
 declared it, so the MCP container ran on UTC while the backend/cron containers
 that write the (naive, local-time) metric timestamps run on Central. The web UI
 was unaffected; agents using the MCP Telegraf/Graylog checks were not.
+
+## 2026-11-01 01:22 CST
+Merged master in for review. Master had added a README section on alert
+notification backoff where this branch added its Proxmox guest deploy section;
+both are kept. Master had also landed the identical MCP timezone fix
+separately, so that change merged cleanly with no net difference.
