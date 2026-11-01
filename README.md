@@ -43,6 +43,23 @@ So a long-running problem doesn't bury everything else, repeat notifications bac
 - The digest emails go out whenever any issue in them is new or due a reminder, and always list every current issue.
 - Alertmanager's `repeat_interval` is still the shortest gap between repeats, so keep it at or below *First reminder after*.
 
+## Deploying to Proxmox guests
+**Deploy → Deploy to Proxmox Guests** runs an action inside any running VM or LXC without SSH access to the guests themselves: Ansible connects only to the Proxmox hypervisors, then reaches LXCs through `pct exec` and VMs through the QEMU guest agent (`qm guest exec`, so the agent must be installed and allow `guest-exec`). Actions are *install and configure Telegraf* (installs Telegraf from the fingerprint-verified InfluxData repo, pushes the guest's own saved config - the one for its matching Labyrinth host's IP - and schedules `telegraf --once` from cron, as the SSH deploy does), *apt update and upgrade*, or a custom shell script. Debian/Ubuntu guests only. The work lives in `backend/proxmox_deploy/` and the `/proxmox_deploy/` route.
+
+The hypervisor logins are root access to every guest, so they only ever live in an Ansible Vault file, encrypted offline (`ansible-vault create proxmox-root.yml`) and uploaded like any other become file. It is decrypted by Ansible only for the run, with the vault password typed on the Deploy page:
+
+```yaml
+proxmox_nodes:
+  north:                # cluster name, as configured in Labyrinth
+    pve3:               # node name, as Proxmox reports it
+      ansible_host: 192.168.9.103
+      ansible_user: root          # optional, default root; others use sudo
+      ansible_password: "..."
+      ssh_host_key: "ssh-ed25519 AAAA..."   # /etc/ssh/ssh_host_ed25519_key.pub on the node
+```
+
+`ssh_host_key` is required: connections use strict host key checking against it, so the root password is never sent to a host that isn't the real hypervisor. A run fails before touching any guest if a targeted node is missing from the file. The Telegraf config and passwords are kept out of the run log; one guest failing doesn't stop the others, and the run ends listing every failed guest. This route is deliberately not exposed through the MCP server.
+
 ## Upgrading an existing install
 
 `install.sh` copies `caddy/Caddyfile.sample` to `caddy/Caddyfile` only if that file does not already exist, so an existing deployment keeps its own Caddyfile.  To pick up the Go metrics ingest service, add the nested `handle` blocks from `caddy/Caddyfile.sample` to your `caddy/Caddyfile`:

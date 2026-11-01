@@ -1,0 +1,48 @@
+---
+# One guest, run from its hypervisor. A failure is recorded in guest_failures
+# instead of stopping the hypervisor's remaining guests.
+#
+# `qm guest exec` exits 0 whatever the guest command did and reports the real
+# result as JSON, so VM results are judged on its exitcode (absent on timeout).
+
+- name: "{{ guest.type }} {{ guest.vmid }} ({{ guest.name }})"
+  vars:
+    guest_exec: >-
+      {{ ['pct', 'exec', guest.vmid | string, '--'] if guest.type == 'lxc'
+         else ['qm', 'guest', 'exec', guest.vmid | string, '--timeout', '1800', '--'] }}
+    guest_exec_stdin: >-
+      {{ ['pct', 'exec', guest.vmid | string, '--'] if guest.type == 'lxc'
+         else ['qm', 'guest', 'exec', guest.vmid | string, '--timeout', '300', '--pass-stdin', '1', '--'] }}
+    guest_failed: >-
+      {{ result.rc != 0 or (guest.type == 'vm'
+         and (result.stdout | from_json).exitcode | default(-1) != 0) }}
+  block:
+    - name: "Run script in {{ guest.type }} {{ guest.vmid }} ({{ guest.name }})"
+      ansible.builtin.command:
+        argv: "{{ guest_exec + ['sh', '-c', guest_script] }}"
+      register: result
+      failed_when: guest_failed | bool
+      timeout: 2100
+
+    # no_log: the config carries the Telegraf ingest key and would bloat the run log
+    - name: "Push Telegraf config to {{ guest.type }} {{ guest.vmid }} ({{ guest.name }})"
+      ansible.builtin.command:
+        argv: "{{ guest_exec_stdin + ['sh', '-c', telegraf_conf_write] }}"
+        stdin: "{{ lookup('ansible.builtin.file', playbook_dir ~ '/files/' ~ guest.telegraf_conf) }}"
+      register: result
+      failed_when: guest_failed | bool
+      no_log: true
+      when: guest.telegraf_conf | length > 0
+
+    - name: "Run post script in {{ guest.type }} {{ guest.vmid }} ({{ guest.name }})"
+      ansible.builtin.command:
+        argv: "{{ guest_exec + ['sh', '-c', guest_post_script] }}"
+      register: result
+      failed_when: guest_failed | bool
+      timeout: 600
+      when: guest_post_script | length > 0
+
+  rescue:
+    - name: "Record failure of {{ guest.type }} {{ guest.vmid }} ({{ guest.name }})"
+      ansible.builtin.set_fact:
+        guest_failures: "{{ guest_failures + [guest.type ~ ' ' ~ guest.vmid ~ ' (' ~ guest.name ~ ')'] }}"

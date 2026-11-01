@@ -1537,14 +1537,23 @@ def run_ansible_background(job_id, data):
     stats = None
     final = {}
     try:
-        RUN_DIR, playbook = ansible_helper.run_ansible(
-            data["hosts"],
-            data["playbook"],
-            data["vault_password"],
-            data["become_file"],
-            ssh_key_file=data.get("ssh_key", ""),
-            totp_file=data.get("totp_file", ""),
-        )
+        if data.get("proxmox_targets"):
+            RUN_DIR, playbook = ansible_helper.prepare_proxmox_run(
+                data["proxmox_targets"],
+                data["proxmox_action"],
+                data["vault_password"],
+                data["become_file"],
+                script=data.get("proxmox_script", ""),
+            )
+        else:
+            RUN_DIR, playbook = ansible_helper.run_ansible(
+                data["hosts"],
+                data["playbook"],
+                data["vault_password"],
+                data["become_file"],
+                ssh_key_file=data.get("ssh_key", ""),
+                totp_file=data.get("totp_file", ""),
+            )
         redis_client.hset(job_id, "status", "running")
         db["labyrinth"]["ansible_runs"].update_one(
             {"job_id": job_id},
@@ -1700,6 +1709,115 @@ def run_ansible_endpoint(inp_data=""):
     job_id = f"ansible_job_{uuid.uuid4()}"
     start_ansible_job(job_id, data)
 
+    return {"job_id": job_id, "status": "started"}, 200
+
+
+@app.route("/proxmox_deploy/", methods=["POST"])
+@requires_auth_admin
+def run_proxmox_deploy(inp_data=""):
+    """
+    Run an action (Telegraf install, apt upgrade, custom script) inside chosen
+    Proxmox VMs/LXCs by connecting only to their hypervisors, with the per-node
+    root credentials from an encrypted vault file. Guests are re-resolved
+    against live Proxmox data rather than trusting the request.
+    """
+    if inp_data:
+        data = inp_data
+    else:  # pragma: no cover
+        data = request.form.get("data")
+        if not data:
+            return "Invalid data", 481
+
+    data = json.loads(data)
+    action = data.get("action", "")
+    script = data.get("script", "")
+    credentials_file = secure_filename(data.get("credentials_file", "")).replace(
+        ".yml", ""
+    )
+    selected = data.get("guests") or []
+    if (
+        action not in ansible_helper.PROXMOX_ACTIONS
+        or not credentials_file
+        or not data.get("vault_password")
+        or not selected
+        or (action == "script" and not script.strip())
+    ):
+        return (
+            "action, credentials_file, vault_password, guests (and script for the script action) are required",
+            482,
+        )
+    if "{}.yml".format(credentials_file) not in os.listdir("/src/uploads/become"):
+        return "Credentials file not found", 483
+
+    _, guests, _ = _proxmox_guests_with_matches()
+    known = {(g["cluster_name"], g["node"], g["type"], str(g["id"])): g for g in guests}
+    telegraf_confs = os.listdir("/src/uploads/telegraf") if action == "telegraf" else []
+    targets, errors = [], []
+    # Errors name a guest by its position in the request and use fixed text:
+    # echoing submitted values back would be reflected XSS
+    for position, item in enumerate(selected, start=1):
+        key = (
+            item.get("cluster_name"),
+            item.get("node"),
+            item.get("type"),
+            str(item.get("id")),
+        )
+        guest = known.get(key)
+        if not guest:
+            errors.append({"guest": position, "problem": "not found on Proxmox"})
+            continue
+        if not guest["running"]:
+            errors.append({"guest": position, "problem": "not running"})
+            continue
+
+        conf = ""
+        if action == "telegraf":
+            ips = {m["ip"] for m in guest["labyrinth_matches"] if m.get("ip")}
+            if len(ips) != 1:
+                errors.append(
+                    {
+                        "guest": position,
+                        "problem": "needs exactly one matching Labyrinth host IP to pick its Telegraf config",
+                    }
+                )
+                continue
+            conf = secure_filename(ips.pop())
+            if f"{conf}.conf" not in telegraf_confs:
+                errors.append(
+                    {"guest": position, "problem": "no Telegraf config saved"}
+                )
+                continue
+
+        targets.append(
+            {
+                "cluster": guest["cluster_name"],
+                "node": guest["node"],
+                "type": guest["type"],
+                "vmid": str(guest["id"]),
+                "name": guest["name"],
+                "telegraf_conf": conf,
+            }
+        )
+
+    if errors:
+        return {"errors": errors}, 484
+
+    job_id = f"ansible_job_{uuid.uuid4()}"
+    start_ansible_job(
+        job_id,
+        {
+            "playbook": f"proxmox:{action}",
+            "hosts": [
+                f"{t['cluster']}/{t['node']}/{t['type']} {t['vmid']} ({t['name']})"
+                for t in targets
+            ],
+            "become_file": credentials_file,
+            "vault_password": data["vault_password"],
+            "proxmox_targets": targets,
+            "proxmox_action": action,
+            "proxmox_script": script,
+        },
+    )
     return {"job_id": job_id, "status": "started"}, 200
 
 
