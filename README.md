@@ -33,6 +33,16 @@ The **Locations** page tracks where everything physically is, across buildings a
 
 Anything with an IP is pinged every minute (or TCP-checked, if the host has a *Check TCP Port*, e.g. `80` for a web-controlled PLC), so its status shows on maps right away; only hosts set to *Monitor* raise alerts. The same inventory is available to AI agents through the MCP server (see `backend/ai/mcp/README.md`).
 
+## Alerts and notification backoff
+Failing service checks on monitored hosts and monitored hosts that stop answering are sent to Alertmanager, which delivers them through the receivers in `alertmanager.yml` (Slack, email, ...). The Proxmox disk space and EC2 unmatched-instance checks email their own hourly digests.
+
+So a long-running problem doesn't bury everything else, repeat notifications back off exponentially (**Settings -> Notifications**):
+- A new problem notifies right away. The first reminder follows after *First reminder after* (default 60 minutes), and each gap after that is *Multiplier* times longer (default 2), up to *Longest gap* (default 24 hours) - so reminders 1h, 3h, 7h, 15h and 31h after the first notification, then daily.
+- A problem that clears and later comes back counts as new again.
+- Between reminders, Labyrinth mutes the alert with an Alertmanager silence (created by *Labyrinth*, visible and expirable in the Alertmanager UI). The alert itself stays active, so the Alerts page still lists it (as *suppressed*).
+- The digest emails go out whenever any issue in them is new or due a reminder, and always list every current issue.
+- Alertmanager's `repeat_interval` is still the shortest gap between repeats, so keep it at or below *First reminder after*.
+
 ## Upgrading an existing install
 
 `install.sh` copies `caddy/Caddyfile.sample` to `caddy/Caddyfile` only if that file does not already exist, so an existing deployment keeps its own Caddyfile.  To pick up the Go metrics ingest service, add the nested `handle` blocks from `caddy/Caddyfile.sample` to your `caddy/Caddyfile`:

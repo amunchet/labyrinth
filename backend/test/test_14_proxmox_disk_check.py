@@ -27,6 +27,10 @@ def cleanup_test_data():
     """Clean up disk-check test data."""
     serve.db["labyrinth"]["proxmox_clusters"].delete_many({})
     serve.db["labyrinth"]["settings"].delete_many({})
+    # Notification backoff remembers which issues were already emailed
+    proxmox_disk_check.proxmox_helper.get_redis_client().delete(
+        proxmox_disk_check.watcher.BACKOFF_KEY.format("proxmox-disk")
+    )
 
 
 @pytest.fixture

@@ -338,7 +338,7 @@ def test_bad_input_is_refused(db, alerts):
 def test_alert_links_to_the_ask(db, monkeypatch):
     """The real alert payload, only HTTP mocked: one alert per ask, linking to it."""
     monkeypatch.setenv("LABYRINTH_URL", "https://lab.example")
-    with patch("watcher.requests.post") as post, patch(
+    with patch("watcher.requests.request") as post, patch(
         "watcher.open", mock_open(read_data="pw"), create=True
     ):
         post.return_value.ok = True
@@ -346,7 +346,7 @@ def test_alert_links_to_the_ask(db, monkeypatch):
             "Grow /var", "OK to extend it?", needs_response=True
         )
     assert started["notified"] is True
-    assert post.call_args.args == ("http://alertmanager:9093/api/v2/alerts",)
+    assert post.call_args.args == ("POST", "http://alertmanager:9093/api/v2/alerts")
     assert post.call_args.kwargs["timeout"] == 10
     (alert,) = json.loads(post.call_args.kwargs["data"])
     assert alert["generatorURL"] == started["url"]

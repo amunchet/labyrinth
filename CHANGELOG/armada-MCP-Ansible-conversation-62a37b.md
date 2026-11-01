@@ -65,3 +65,13 @@ response. It now looks the conversation up once and uses the stored id from then
 on, so no request value is echoed back (the project's error-response rule).
 Behavior is unchanged: an unknown id is still refused with a 404 before anything
 is staged.
+
+## 2026-11-01 01:33 CST
+Merged master (#83, exponential alert backoff) into the branch. The only
+conflict was `backend/watcher.py`: #83 rewrote it around an `_alertmanager()`
+helper and fixed the same `generatorURL` bug this branch had fixed, so master's
+version is kept and this branch's remaining change, a 10s timeout, moves into
+`_alertmanager()` so alerts, silences and silence deletes are all bounded. The
+conversation alert test now intercepts `requests.request`. CLAUDE.md notes that
+conversation asks call `send_alert` directly rather than `report_problems()`,
+since an ask is a one-off event, not a recurring check.
