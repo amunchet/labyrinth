@@ -37,11 +37,20 @@ class FakeRedis:
 def db():
     runs = serve.db["labyrinth"]["ansible_runs"]
     requests = serve.db["labyrinth"]["ansible_requests"]
-    runs.delete_many({})
-    requests.delete_many({})
+    # Every staged deployment opens a conversation (see test_31_conversations)
+    conversations = serve.db["labyrinth"]["conversations"]
+    for collection in (runs, requests, conversations):
+        collection.delete_many({})
     yield runs, requests
-    runs.delete_many({})
-    requests.delete_many({})
+    for collection in (runs, requests, conversations):
+        collection.delete_many({})
+
+
+@pytest.fixture(autouse=True)
+def alerts():
+    """Staging a deployment alerts the human; keep that off the real Alertmanager."""
+    with patch("serve.watcher.send_alert") as send:
+        yield send
 
 
 @pytest.fixture

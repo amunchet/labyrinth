@@ -40,7 +40,7 @@ from ai.mcp.auth import (  # type: ignore
 )
 
 try:
-    from mcp.server.fastmcp import FastMCP as _FastMCP, Image as MCPImage
+    from mcp.server.fastmcp import Context, FastMCP as _FastMCP, Image as MCPImage
     from mcp.server.transport_security import TransportSecuritySettings
 except ImportError as exc:  # pragma: no cover
     raise SystemExit(
@@ -479,22 +479,26 @@ async def mcp_list_become_files() -> List[str]:
 async def mcp_prepare_deployment(
     hosts: str,
     playbook: str,
-    become_file: str,
+    become_file: str = "",
     playbook_content: str = "",
     ssh_key: str = "",
     notes: str = "",
+    conversation_id: str = "",
 ) -> Dict[str, Any]:
     """
-    Stage an Ansible deployment and return a deep link to the Deploy page.
+    Stage an Ansible deployment for a human and return a deep link to it.
 
     hosts: comma-separated IPs or MACs.  playbook: playbook name (without .yml).
-    become_file: one of mcp_list_become_files.  playbook_content: optional new
-    playbook YAML, saved under `playbook` only when the human deploys.  It must
-    use `hosts: all` (targets come from `hosts`, never the YAML), must not set
-    vars_files or any password, and may not reuse the name of a playbook a
-    human wrote (an earlier generated one is fine).  Nothing runs until a human
-    opens deploy_url and enters the vault password.  Read results back with
-    mcp_get_deployment_request / mcp_get_deployment.
+    become_file: one of mcp_list_become_files, or blank to let the human pick.
+    playbook_content: optional new playbook YAML, saved under `playbook` only
+    when the human deploys.  It must use `hosts: all` (targets come from
+    `hosts`, never the YAML), must not set vars_files or any password, and may
+    not reuse the name of a playbook a human wrote (an earlier generated one is
+    fine).  notes: what this does and why, shown to the human.
+    conversation_id: the conversation this belongs to (from
+    mcp_start_conversation); blank starts a new one.  The human is alerted;
+    nothing runs until they open deploy_url and enter the vault password.
+    Then call mcp_wait_for_response for the outcome.
     """
     return await _blocking(
         client.prepare_deployment,
@@ -505,6 +509,7 @@ async def mcp_prepare_deployment(
             "playbook_content": playbook_content,
             "ssh_key": ssh_key,
             "notes": notes,
+            "conversation_id": conversation_id,
         },
     )
 
@@ -528,6 +533,85 @@ async def mcp_get_deployment(job_id: str, log_tail: int = 200) -> Dict[str, Any]
     and the last `log_tail` log lines (0 for all).  Running jobs include live logs.
     """
     return await _blocking(client.get_deployment, job_id, log_tail)
+
+
+@app.tool()
+async def mcp_start_conversation(
+    title: str, message: str = "", needs_response: bool = False
+) -> Dict[str, Any]:
+    """
+    Open a conversation with the human: the recorded thread for one piece of
+    work, shown under Conversations in Labyrinth.  Stage deployments into it
+    (mcp_prepare_deployment with its conversation_id), talk with
+    mcp_send_message, and take turns with mcp_wait_for_response.  An optional
+    first message is posted at once; needs_response=true makes it a question
+    that alerts the human.
+    """
+    return await _blocking(client.start_conversation, title, message, needs_response)
+
+
+@app.tool()
+async def mcp_send_message(
+    conversation_id: str, text: str, needs_response: bool = False
+) -> Dict[str, Any]:
+    """
+    Post a message to a conversation.  needs_response=true makes it a question:
+    the conversation is flagged as waiting on the human and they are alerted.
+    Then call mcp_wait_for_response for their answer.
+    """
+    return await _blocking(client.send_message, conversation_id, text, needs_response)
+
+
+# Seconds between checks while mcp_wait_for_response waits
+WAIT_POLL_SECONDS = 5
+
+
+@app.tool()
+async def mcp_wait_for_response(
+    conversation_id: str, ctx: Context, since: int = -1, timeout_seconds: int = 300
+) -> Dict[str, Any]:
+    """
+    Wait for the human's turn in a conversation: a reply, a declined
+    deployment, the result of a run they launched, or closing it.  Returns as
+    soon as one arrives, or after timeout_seconds (max 1800) with
+    answered=false - call again to keep waiting.  since: a message_count from
+    an earlier result, to wait for anything newer; by default it waits for
+    whatever follows your own last message.  new_messages holds everything
+    after `since`; a "run" message carries the outcome, stats and failed
+    tasks, and mcp_get_deployment(job_id) the logs.
+    """
+    timeout = min(max(timeout_seconds, 0), 1800)
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while True:
+        # Only each check holds a database slot, never the whole wait
+        state = await _blocking(client.check_response, conversation_id, since)
+        remaining = deadline - loop.time()
+        if state["answered"] or state["status"] == "closed" or remaining <= 0:
+            return {**state, "timed_out": remaining <= 0 and not state["answered"]}
+        await ctx.report_progress(timeout - remaining, timeout)
+        await asyncio.sleep(min(WAIT_POLL_SECONDS, remaining))
+
+
+@app.tool()
+async def mcp_get_conversation(conversation_id: str) -> Dict[str, Any]:
+    """
+    A conversation's full history - messages, what it still waits on
+    (`pending`), and each deployment it staged with the runs launched from it.
+    """
+    return await _blocking(client.get_conversation, conversation_id)
+
+
+@app.tool()
+async def mcp_list_conversations(waiting_only: bool = False) -> List[Dict[str, Any]]:
+    """Conversations, most recently active first; waiting_only keeps those waiting on the human."""
+    return await _blocking(client.list_conversations, waiting_only)
+
+
+@app.tool()
+async def mcp_close_conversation(conversation_id: str, summary: str = "") -> str:
+    """Close a finished conversation with a short summary; anything it still waited on is dropped."""
+    return await _blocking(client.close_conversation, conversation_id, summary)
 
 
 def create_http_app():

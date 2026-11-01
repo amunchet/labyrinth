@@ -248,8 +248,87 @@ class LabyrinthClient:
         raw, status = unwrap(serve.create_ansible_request)(json.dumps(data))
         if status != 200:
             raise RuntimeError(f"create_ansible_request failed ({status}): {raw}")
-        base = os.environ.get("LABYRINTH_URL", "").rstrip("/")
-        return {**raw, "hosts": hosts, "deploy_url": base + raw["path"]}
+        return {
+            **raw,
+            "hosts": hosts,
+            "deploy_url": serve.labyrinth_url(raw["path"]),
+            "conversation_url": serve.labyrinth_url(
+                "/conversations/" + raw["conversation_id"]
+            ),
+        }
+
+    def start_conversation(
+        self, title: str, text: str = "", needs_response: bool = False
+    ) -> Dict[str, Any]:
+        conversation_id = serve.start_conversation(title)["conversation_id"]
+        result = {
+            "conversation_id": conversation_id,
+            "url": serve.labyrinth_url("/conversations/" + conversation_id),
+        }
+        if text.strip():
+            result.update(self.send_message(conversation_id, text, needs_response))
+        return result
+
+    def send_message(
+        self, conversation_id: str, text: str, needs_response: bool = False
+    ) -> Dict[str, Any]:
+        if not text.strip():
+            raise ValueError("text is required")
+        message = serve.post_conversation_message(
+            conversation_id,
+            "agent",
+            "question" if needs_response else "message",
+            text.strip(),
+        )
+        if not message:
+            raise ValueError("Conversation not found")
+        return {"message_id": message["id"], "notified": message.get("notified", False)}
+
+    def list_conversations(self, waiting_only: bool = False) -> List[Dict[str, Any]]:
+        return call(serve.list_conversations, "waiting" if waiting_only else "")
+
+    def get_conversation(self, conversation_id: str) -> Dict[str, Any]:
+        return call(serve.get_conversation, conversation_id)
+
+    def close_conversation(self, conversation_id: str, summary: str = "") -> str:
+        if not serve.post_conversation_message(
+            conversation_id, "agent", "closed", summary.strip()
+        ):
+            raise ValueError("Conversation not found")
+        return "Closed"
+
+    def check_response(self, conversation_id: str, since: int = -1) -> Dict[str, Any]:
+        """
+        Where a conversation stands for an agent waiting on it.  It has been
+        answered once the human or Ansible spoke after message `since` (by
+        default, after the agent's own last message): a reply, a declined
+        deployment, a finished run, or closing it.  A launch alone only means
+        a run is under way.
+        """
+        conversation = self.get_conversation(conversation_id)
+        messages = conversation["messages"]
+        if since < 0:
+            since = max(
+                (i + 1 for i, m in enumerate(messages) if m["author"] == "agent"),
+                default=0,
+            )
+        new = messages[since:]
+        return {
+            "conversation_id": conversation_id,
+            "answered": any(
+                m["author"] != "agent" and m["kind"] != "launched" for m in new
+            ),
+            "status": conversation["status"],
+            "waiting_on_human": conversation["pending"],
+            "runs_in_progress": [
+                run["job_id"]
+                for staged in conversation["requests"].values()
+                for run in staged["runs"]
+                if run["status"] in ("queued", "running")
+            ],
+            "new_messages": new,
+            "message_count": len(messages),
+        }
 
     def get_deployment_request(self, request_id: str) -> Dict[str, Any]:
         raw, status = unwrap(serve.get_ansible_request)(request_id)

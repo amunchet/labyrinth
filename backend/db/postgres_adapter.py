@@ -41,8 +41,18 @@ _JSONB_TABLE_INDEXES = {
     "themes": [("name", False)],
     "dashboards": [("name", False)],
     "locations": [("name_key", False)],
-    "ansible_runs": [("job_id", False), ("request_id", False), ("created_at", False)],
-    "ansible_requests": [("request_id", False), ("playbook", False)],
+    "ansible_runs": [
+        ("job_id", False),
+        ("request_id", False),
+        ("conversation_id", False),
+        ("created_at", False),
+    ],
+    "ansible_requests": [
+        ("request_id", False),
+        ("playbook", False),
+        ("conversation_id", False),
+    ],
+    "conversations": [("conversation_id", False), ("updated_at", False)],
 }
 
 _METRICS_TABLES = ("metrics", "metrics_latest")
