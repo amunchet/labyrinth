@@ -5,8 +5,10 @@ Tests for backend/ec2_unmatched_check.py and its serve.py wiring
 """
 
 import json
+import os
 
 import pytest
+import redis
 
 import ec2_unmatched_check
 import serve
@@ -19,6 +21,10 @@ def cleanup_test_data():
     serve.db["labyrinth"]["aws_accounts"].delete_many({})
     serve.db["labyrinth"]["hosts"].delete_many({})
     serve.db["labyrinth"]["settings"].delete_many({})
+    # Notification backoff remembers which instances were already emailed
+    redis.Redis(host=os.environ.get("REDIS_HOST") or "redis").delete(
+        ec2_unmatched_check.watcher.BACKOFF_KEY.format("ec2-unmatched")
+    )
 
 
 @pytest.fixture

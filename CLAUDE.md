@@ -27,9 +27,9 @@ Labyrinth is a network analyzer, mapper, and monitor built on NMap, Ansible, and
 2. Telegraf agents collect metrics and POST to `/metrics` with a `TELEGRAF_KEY` header (checked via the `requires_header` decorator, not Auth0). In deployed stacks this is served by `metrics-go`; the Flask route remains as a fallback
 3. Metrics are written to Redis first (short-lived, 120s TTL, overwritten in place), then bulk-moved to the database once a minute by `cron/bulk_write.sh` (`serve.py`'s `bulk_insert()`). Only one transfer runs at a time - a run that overruns the minute makes the next tick wait, via the Redis lock in `backend/common/single_run.py` (fencing token + heartbeat-extended TTL). See "Redis -> Postgres metrics transfer" in `MONGO_MIGRATION.md`
 4. Frontend polls the backend API to display topology and metrics
-5. `backend/watcher.py` judges service health and sends alerts to Alertmanager (`http://alertmanager:9093/api/v2/alerts`, password read from `/alertmanager/pass`); frontend can list/resolve them via `/alertmanager/alerts`
+5. `serve.py watcher` (cron, every 10 minutes) judges service health via `dashboard(report=True)` and hands the failing checks to `backend/watcher.py`, which sends them to Alertmanager (`http://alertmanager:9093/api/v2/alerts`, password read from `/alertmanager/pass`) with notification backoff (see below); frontend can list/resolve them via `/alertmanager/alerts`
 6. Proxmox: `cron/proxmox_refresh.sh` refreshes the per-cluster Redis cache; `cron/disk_check.sh` runs `backend/proxmox_disk_check.py` hourly to email disk-space alerts
-7. `backend/alive.py` (cron, every minute) pings - or TCP-checks hosts with a `check_alive_port` - every host with an IP in parallel, replaces the Redis `alive` hash with the results, and alerts only for `monitor`ed hosts that are down
+7. `backend/alive.py` (cron, every minute) pings - or TCP-checks hosts with a `check_alive_port` - every host with an IP in parallel, replaces the Redis `alive` hash with the results, and alerts (with notification backoff) only for `monitor`ed hosts that are down
 8. AWS: `cron/ec2_check.sh` runs `backend/ec2_unmatched_check.py` hourly to email a list of EC2 instances that don't match any known Labyrinth host (matching logic shared with `serve.py` via `aws_helper.py`)
 9. Postgres backend only: `cron/compact_metrics.sh` daily rolls raw `metrics` rows older than `METRICS_RAW_RETENTION_DAYS` into `metrics_daily` aggregates; `cron/backup_db.sh` daily dumps the database to `/backups` for an external offsite system to pick up
 
@@ -53,6 +53,15 @@ Labyrinth is a network analyzer, mapper, and monitor built on NMap, Ansible, and
 - `collect_disk_issues` in `proxmox_disk_check.py` turns cluster payloads into threshold-based issues (datastore/vm/container) and always surfaces VMs whose QEMU guest agent is inferred missing, regardless of threshold - a running VM with `maxdisk > 0` and `disk == 0` is a real "we can't measure this" case, not a clean bill of health.
 - Email alerts render via Jinja2 (`backend/templates/disk_space_alert.html`, autoescaped) through `email_helper`.
 - Exceptional opt-out: the `proxmox_qemu_agent_ignore_vms` setting (Settings > Disk Space > "QEMU Guest Agent Exceptions") lists VMs by name/VMID (optionally `cluster/target`) whose missing-agent warning must be suppressed - `proxmox_helper.apply_qemu_agent_ignore_list` flags them with `qemu_guest_agent_ignored` at read time (never in the Redis cache), `collect_disk_issues` skips their `vm_qemu_missing` issue, and the UI shows a muted marker instead of the warning icon. Meant only for guests that cannot run the agent (e.g. macOS).
+
+### Notification backoff (`backend/watcher.py`)
+
+- Every alert source goes through it: `watcher.report_problems()` for the Alertmanager alerts (the watcher's service checks, `alive.py`), `watcher.send_digest()` for the hourly Proxmox disk and EC2 digest emails. Settings live in the `alert_backoff` settings doc (`enabled`, `first_minutes`, `multiplier` 1-100, `max_hours` up to 8760 - bounded because a gap too large for a timestamp would break every run; `GET`/`POST /alert-backoff/settings`, Settings > Notifications - `frontend/labyrinth/src/views/Settings/Notifications.vue`). `watcher.backoff_settings()` fills in the defaults.
+- Schedule: a new problem notifies at once, the first reminder follows after `first_minutes`, and each later gap is `multiplier` times longer, capped at `max_hours`. The current gap is stored, not recomputed from the count, so it can't overflow.
+- `report_problems()` takes **every** failing problem from one run of a check (`source`) and posts each one with `endsAt = now + hold`, longer than the check's interval. That keeps alerts firing for as long as the problem lasts. Alerts used to fall back on Alertmanager's 5 minute `resolve_timeout` while the watcher only re-posted every 10 minutes, so they flapped FIRING/RESOLVED and flooded Slack. Problems missing from a run count as recovered: they are resolved explicitly (`endsAt = now`) and their backoff is forgotten, so they notify at once if they fail again. Never call it with only part of a source's problems. Failures the check is only holding back go in `held`: the watcher's flapping guard holds back a first failure, and also any failure after a gap of more than `flapping_delay` between runs. A held problem that is already reported stays reported, so a restart or missed cron ticks don't resolve and then re-announce every alert. Posts also carry `startsAt` (first seen), because without it Alertmanager sets `startsAt = endsAt`, a time in the future.
+- Reminders are muted with an Alertmanager silence per alert (exact match on alertname/service/instance/severity, `createdBy: Labyrinth`) from `now + grace` until the next reminder. The grace is twice the slowest `group_interval` in `alertmanager.yml` (at least the slowest `group_wait`; Alertmanager's defaults apply where unset), plus a minute. Alertmanager sends a repeat only at a flush, and only once `repeat_interval` has *fully* passed since the last send. So the first flush after a reminder falls due can fall just short of it, and the window has to span two flushes. A shorter grace swallows reminders. Recovery or disabling backoff expires the silence. An expire that fails is only logged, because the user may already have expired the silence by hand.
+- A severity change is a different alert (new labels): the old one is resolved and the new one notifies.
+- State is one JSON blob per source at `alert-backoff:<source>` in Redis (`watcher`, `alive`, `proxmox-disk`, `ec2-unmatched`), rewritten every run. `report_problems()` saves it in a `finally`, so silences created before an Alertmanager call fails stay tracked. The `serve.py watcher` cron entry runs under the `labyrinth-watcher` `single_run` lock, so overlapping runs can't create duplicate silences. `send_digest()` saves only after `send()` returns, so a failed email is retried on the next run. Its known gap: issues from an AWS account (or a Proxmox cluster with nothing cached) that fails to answer drop out, and are emailed as new once it answers again. Digest reminders due within 5 minutes count as due, because hourly cron runs drift.
 
 ### Telegraf ingest and per-client counters (`metrics-go/`, `backend/ingest_counters.py`)
 
@@ -190,7 +199,7 @@ docker-compose -f docker-compose-production.yml up --build -d
 - `backend/ansible_helper.py` - Ansible validation/execution
 - `backend/proxmox_helper.py` / `backend/proxmox_disk_check.py` - Proxmox cluster querying, caching, and disk-space alert emails
 - `backend/aws_helper.py` / `backend/ec2_unmatched_check.py` - EC2 inventory, EC2<->host matching, and unmatched-instance alert emails (see `cron/ec2_check.sh`)
-- `backend/watcher.py` - Alertmanager alert dispatch
+- `backend/watcher.py` - Alertmanager alert dispatch and notification backoff (silences, digest email scheduling)
 - `backend/alive.py` - minute-by-minute ping/TCP reachability checks recorded in Redis
 - `frontend/labyrinth/src/views/Locations.vue`, `src/components/LocationMap.vue` - locations, floor-plan maps, racks
 - `backend/ai/main.py` / `backend/ai/ai_pipeline.py` / `backend/ai/ai_settings.py` - hourly AI dashboard summary job, its dashboard->ChatGPT->email pipeline, and the configurable prompt/model/recipient settings
@@ -202,106 +211,6 @@ docker-compose -f docker-compose-production.yml up --build -d
 - `MONGO_MIGRATION.md` - full design rationale, schema, and operational runbook for the Postgres migration
 
 <!-- BEGIN ARMADA GLOBAL INSTRUCTIONS (managed by Flagship) -->
-## Armada session policy
-
-You are running inside an Armada session. These rules come from the Flagship
-and apply to every session in the fleet. They sit on top of this project's own
-instructions, and they win wherever the two disagree.
-
-- Armada session: `Bugfix - ignored proxmox item`
-- Working branch: `armada/Bugfix---ignored-proxmox-item-fedaff`
-- Base branch: `master`
-- Session changelog: `CHANGELOG/armada-Bugfix---ignored-proxmox-item-fedaff.md`
-
-### Prefer Frontend -> Backend -> Database changes
-Prefer to change frontend issues only if possible.  If needed, backend changes are preferable to database schema modifications.  Sometimes all are needed, but prefer frontend only when possible - and when it would not compromise functionality or data integrity.
-
-### Commit and push your work
-
-- Commit as soon as a change is coherent on its own. Never end a turn with a
-  dirty working tree, and never wait to be asked to commit.
-- Push to `origin` right after committing, so the branch on the remote always
-  matches what you have locally.
-- This holds even when the working branch is the base branch. Armada sessions
-  are disposable and their history is the only durable record of the work, so
-  committing directly to `master` is expected here, not a mistake.
-- If a push is rejected because the remote moved ahead, pull with rebase and
-  push again. Report the failure only if that still does not resolve it.
-
-### Keep the branch mergeable
-
-- Whenever the working branch is not the base branch, verify the work still
-  merges cleanly into `master` before you consider a task finished.
-- Check without mutating the working tree, for example:
-  `git fetch origin && git merge-tree $(git merge-base HEAD origin/master) HEAD origin/master`
-- If that reports conflicts, resolve them now rather than leaving them for
-  whoever opens the pull request. Rebase or merge the base branch in, fix each
-  conflict on its merits, re-run the tests, then commit and push.
-- If a conflict genuinely needs a human decision, stop and say exactly which
-  files conflict and what the competing changes are.
-
-### Keep the changelog current
-
-- Record what you did in `CHANGELOG/armada-Bugfix---ignored-proxmox-item-fedaff.md` as part of the same commit that
-  makes the change.
-- The file is scoped to this branch, so it never conflicts with changelogs
-  written by other sessions.
-- Append one entry per meaningful change, newest last, in this shape:
-
-  ```markdown
-  ## 2025-01-31 14:22 UTC
-  Short description of what changed and why.
-  ```
-
-- Use Central Time (US/Chicago), and include both the date and the time. Get them from `date -u`
-  rather than guessing.
-- Describe the change in terms a reviewer would care about. Skip routine
-  mechanics like formatting passes or lint fixes unless they are the point of
-  the work.
-- This per-branch file is yours to maintain. A top-level auto-generated
-  `CHANGELOG.md`, if the project has one, is still off limits.
-
-### Coding style
-
-When writing, modifying, refactoring, or reviewing code, follow the shared
-`code-style` skill. Its rules apply unless this project's instructions
-explicitly require otherwise.
-
-### Report pull requests and reviews to Armada
-
-The Flagship learns about pull requests and reviews only from files in
-`.armada/` at the workspace root. Whichever skill or command you used, do this:
-
-- **After opening a pull request**, write `.armada/pr.json`:
-
-  ```json
-  {"schema": 1, "number": 0, "url": "<pull request or compare url>",
-   "head_branch": "armada/Bugfix---ignored-proxmox-item-fedaff", "base_branch": "master",
-   "head_sha": "<git rev-parse HEAD>", "ready_for_review": true,
-   "written_at": "<date -u +%Y-%m-%dT%H:%M:%SZ>"}
-  ```
-
-  `gh pr view --json number,url,headRefOid` supplies the real number, url and
-  sha. Without a number, `url` alone is enough.
-
-- **After reviewing the branch**, whatever else the review produced, write the
-  report a human reads to `.armada/review.md` and the verdict to
-  `.armada/review.json`:
-
-  ```json
-  {"schema": 1, "reviewer": "self", "pr_number": 0, "head_sha": "<sha>",
-   "base_branch": "master", "verdict": "comment",
-   "recommended_level": 2, "summary": "One paragraph.",
-   "findings": [{"severity": "medium", "file": "path.py", "line": 12,
-                 "title": "Short title", "detail": "What is wrong and why."}],
-   "tests": {"command": "<test command>", "ran": true, "passed": true,
-             "output_tail": "last few lines"},
-   "reviewed_at": "<date -u +%Y-%m-%dT%H:%M:%SZ>"}
-  ```
-
-  `verdict` is `approve`, `request_changes`, `comment` or `failed`; `severity`
-  is `high`, `medium`, `low` or `nit`; `reviewer` is `self` for your own work
-  and `agent` for someone else's.
-
-`.armada/` is not part of the repo - never commit it.
+This session's Armada instructions are in `CLAUDE.local.md`, which is kept out of git.
+Read it before starting if it has not been loaded already.
 <!-- END ARMADA GLOBAL INSTRUCTIONS -->

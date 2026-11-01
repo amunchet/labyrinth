@@ -33,6 +33,16 @@ The **Locations** page tracks where everything physically is, across buildings a
 
 Anything with an IP is pinged every minute (or TCP-checked, if the host has a *Check TCP Port*, e.g. `80` for a web-controlled PLC), so its status shows on maps right away; only hosts set to *Monitor* raise alerts. The same inventory is available to AI agents through the MCP server (see `backend/ai/mcp/README.md`).
 
+## Alerts and notification backoff
+Failing service checks on monitored hosts and monitored hosts that stop answering are sent to Alertmanager, which delivers them through the receivers in `alertmanager.yml` (Slack, email, ...). The Proxmox disk space and EC2 unmatched-instance checks email their own hourly digests.
+
+So a long-running problem doesn't bury everything else, repeat notifications back off exponentially (**Settings -> Notifications**):
+- A new problem notifies right away. The first reminder follows after *First reminder after* (default 60 minutes), and each gap after that is *Multiplier* times longer (default 2), up to *Longest gap* (default 24 hours) - so reminders 1h, 3h, 7h, 15h and 31h after the first notification, then daily.
+- A problem that clears and later comes back counts as new again.
+- Between reminders, Labyrinth mutes the alert with an Alertmanager silence (created by *Labyrinth*, visible and expirable in the Alertmanager UI). The alert itself stays active, so the Alerts page still lists it (as *suppressed*).
+- The digest emails go out whenever any issue in them is new or due a reminder, and always list every current issue.
+- Alertmanager's `repeat_interval` is still the shortest gap between repeats, so keep it at or below *First reminder after*.
+
 ## Deploying to Proxmox guests
 **Deploy → Deploy to Proxmox Guests** runs an action inside any running VM or LXC without SSH access to the guests themselves: Ansible connects only to the Proxmox hypervisors, then reaches LXCs through `pct exec` and VMs through the QEMU guest agent (`qm guest exec`, so the agent must be installed and allow `guest-exec`). Actions are *install and configure Telegraf* (installs Telegraf from the fingerprint-verified InfluxData repo, pushes the guest's own saved config - the one for its matching Labyrinth host's IP - and schedules `telegraf --once` from cron, as the SSH deploy does), *apt update and upgrade*, or a custom shell script. Debian/Ubuntu guests only. The work lives in `backend/proxmox_deploy/` and the `/proxmox_deploy/` route.
 
