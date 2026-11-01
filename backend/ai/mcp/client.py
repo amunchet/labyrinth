@@ -265,7 +265,7 @@ class LabyrinthClient:
             "conversation_id": conversation_id,
             "url": serve.labyrinth_url("/conversations/" + conversation_id),
         }
-        if text:
+        if text.strip():
             result.update(self.send_message(conversation_id, text, needs_response))
         return result
 

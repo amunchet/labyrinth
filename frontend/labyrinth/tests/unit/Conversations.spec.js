@@ -27,6 +27,7 @@ const conversation = {
   messages: [],
   requests: {
     "r-new": { generated: true, runs: [] },
+    "r-closed": { runs: [] },
     "r-declined": { declined_at: "2026-10-31T00:00:00+00:00", runs: [] },
     "r-running": { runs: [{ status: "running" }] },
     "r-ok": {
@@ -72,6 +73,8 @@ describe("Conversations.vue", () => {
     wrapper.vm.conversation = conversation;
     const label = (id) => wrapper.vm.requestState(id).label;
     expect(label("r-new")).toBe("Waiting for your vault password");
+    // Not pending any more (the conversation was closed) and never launched
+    expect(label("r-closed")).toBe("Not deployed");
     expect(label("r-declined")).toBe("Declined");
     expect(label("r-running")).toBe("Running");
     expect(label("r-ok")).toBe("Succeeded");

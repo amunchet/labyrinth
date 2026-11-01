@@ -27,8 +27,9 @@ def send_alert(
     :param instance - Host name
 
     :param serverity - defaults to error
+    :param url - link shown as the alert's source (generatorURL)
     """
-    url = "http://alertmanager:9093/api/v2/alerts"
+    endpoint = "http://alertmanager:9093/api/v2/alerts"
     headers = {"Content-Type": "application/json"}
     data = {
         "status": "firing",
@@ -39,12 +40,19 @@ def send_alert(
             "instance": instance,
         },
         "annotations": {"summary": summary},
-        "generatorURL": url,
+        # Alerts without a link of their own keep the endpoint, as they always have
+        "generatorURL": url or endpoint,
     }
 
     password = open("/alertmanager/pass").read()
 
+    # Bounded: callers include request handlers and the MCP server's DB slots,
+    # which a hung (not down) Alertmanager would otherwise hold forever
     retval = requests.post(
-        url, headers=headers, data=json.dumps([data]), auth=("admin", password)
+        endpoint,
+        headers=headers,
+        data=json.dumps([data]),
+        auth=("admin", password),
+        timeout=10,
     )
     return retval

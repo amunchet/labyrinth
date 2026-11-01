@@ -1936,8 +1936,8 @@ def decline_ansible_request(request_id, inp_data=""):
 # deployments it staged, the human's replies, and the results of the runs the
 # human launched.  The agent can stage and ask but never run anything; it
 # waits for the human's turn instead.  `pending` lists what the human still
-# owes - open questions and staged deployments - and `needs_human` mirrors it
-# so the nav badge can filter on it.
+# owes - open questions and staged deployments; an open conversation with
+# anything pending `needs_human` (derived on read, never stored).
 
 
 def start_conversation(title):
@@ -1945,9 +1945,8 @@ def start_conversation(title):
     now = utc_now()
     conversation = {
         "conversation_id": str(uuid.uuid4()),
-        "title": (title or "Untitled").strip()[:200],
+        "title": (title or "").strip()[:200] or "Untitled",
         "status": "open",
-        "needs_human": False,
         "pending": [],
         "messages": [],
         "created_at": now,
@@ -1959,7 +1958,7 @@ def start_conversation(title):
 
 def post_conversation_message(conversation_id, author, kind, text="", **fields):
     """
-    Append a message (author agent, human or system) and recompute what the
+    Append a message (author agent, human or system) and update what the
     conversation is waiting on.  An agent `question` or `deploy` puts it on the
     human and raises an Alertmanager alert; a human `reply` answers every open
     question, `launched`/`declined` settle that deployment, and `closed`
@@ -1979,38 +1978,29 @@ def post_conversation_message(conversation_id, author, kind, text="", **fields):
         "text": text,
         **fields,
     }
-    pending = found["pending"]
+    # Every change is an atomic operator on the stored document, never a value
+    # computed from `found`: the agent's parallel tool calls, a forked run's
+    # result and the human's reply can all land at once, and a write built
+    # from a stale read would undo the others.
+    update = {"$set": {"updated_at": message["at"]}, "$push": {"messages": message}}
     if kind == "question":
-        pending.append({"type": "question", "id": message["id"]})
+        update["$push"]["pending"] = {"type": "question", "id": message["id"]}
     elif kind == "deploy":
-        pending.append({"type": "deploy", "id": fields["request_id"]})
+        update["$push"]["pending"] = {"type": "deploy", "id": fields["request_id"]}
     elif kind == "reply":
-        pending = [x for x in pending if x["type"] != "question"]
+        update["$pull"] = {"pending": {"type": "question"}}
     elif kind in ("launched", "declined"):
-        pending = [x for x in pending if x["id"] != fields["request_id"]]
+        update["$pull"] = {"pending": {"type": "deploy", "id": fields["request_id"]}}
     elif kind == "closed":
-        pending = []
+        update["$set"]["pending"] = []
 
     # Whoever speaks reopens a closed conversation; a late run result does not
     if kind == "closed":
-        status = "closed"
-    elif author == "system":
-        status = found["status"]
-    else:
-        status = "open"
+        update["$set"]["status"] = "closed"
+    elif author != "system":
+        update["$set"]["status"] = "open"
 
-    conversations.update_one(
-        {"conversation_id": conversation_id},
-        {
-            "$set": {
-                "pending": pending,
-                "needs_human": bool(pending),
-                "status": status,
-                "updated_at": message["at"],
-            },
-            "$push": {"messages": message},
-        },
-    )
+    conversations.update_one({"conversation_id": conversation_id}, update)
 
     if author == "agent" and kind in ("question", "deploy"):
         path = (
@@ -2021,12 +2011,14 @@ def post_conversation_message(conversation_id, author, kind, text="", **fields):
         summary = text or "Deployment of {} staged for review".format(
             fields.get("playbook")
         )
-        # Best effort: the nav badge still flags it if Alertmanager is down
+        # Best effort: the nav badge still flags it if Alertmanager is down.
+        # One alert per ask: with the conversation's labels alone, a second ask
+        # within resolve_timeout merged into the first alert and never notified.
         try:
             message["notified"] = watcher.send_alert(
                 "Agent needs a response",
                 found["title"],
-                conversation_id,
+                "{}/{}".format(conversation_id, message["id"]),
                 severity="warning",
                 summary=summary[:500],
                 url=labyrinth_url(path),
@@ -2048,23 +2040,24 @@ def list_conversations(state=""):
         return "Unknown state; use waiting or leave it out", 404
     found = (
         db["labyrinth"]["conversations"]
-        .find({"needs_human": True} if state else {})
+        .find({"status": "open"} if state else {})
         .sort("updated_at", -1)
         .limit(200)
     )
-    return (
-        json.dumps(
-            [
-                {
-                    **{k: v for k, v in x.items() if k not in ("_id", "messages")},
-                    "message_count": len(x["messages"]),
-                    "last_message": x["messages"][-1] if x["messages"] else None,
-                }
-                for x in found
-            ]
-        ),
-        200,
-    )
+    listed = []
+    for x in found:
+        needs_human = x["status"] == "open" and bool(x["pending"])
+        if state and not needs_human:
+            continue
+        listed.append(
+            {
+                **{k: v for k, v in x.items() if k not in ("_id", "messages")},
+                "needs_human": needs_human,
+                "message_count": len(x["messages"]),
+                "last_message": x["messages"][-1] if x["messages"] else None,
+            }
+        )
+    return json.dumps(listed), 200
 
 
 @app.route("/conversation/<conversation_id>")
@@ -2080,6 +2073,7 @@ def get_conversation(conversation_id):
     if not found:
         return "Conversation not found", 404
     found.pop("_id", None)
+    found["needs_human"] = found["status"] == "open" and bool(found["pending"])
 
     staged = {}
     for x in db["labyrinth"]["ansible_requests"].find(

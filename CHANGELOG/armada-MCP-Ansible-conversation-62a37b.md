@@ -41,3 +41,19 @@ conversation, and notes when you declined it.
 The Conversations list previews a closed or declined conversation with what was
 said, so the agent's closing summary or your decline reason shows, not just
 "Closed".
+
+## 2026-10-31 19:04 CDT
+Fixes from reviewing PR #84. Conversation alerts now carry their deploy or
+conversation link: `watcher.send_alert` had been overwriting its own `url`
+parameter with the Alertmanager endpoint, so every alert's source was the
+internal API. Its Alertmanager call gets a 10s timeout, since it now runs inside
+MCP tool calls whose few DB slots a hung Alertmanager would hold forever. Each
+ask is its own alert (`instance` = conversation/message), because a second ask
+within Alertmanager's resolve timeout merged into the first and never notified.
+`pending` now only changes through atomic `$push`/`$pull`, and `needs_human`
+is derived on read: parallel tool calls, a forked run's result and a human
+reply landing together could undo each other's changes, dropping a staged
+deployment from what the human owes. The Conversations page reports a failing
+poll once instead of every 5s, no longer flashes a spinner on an empty list,
+says when a conversation can't be loaded, and marks a deployment dropped by
+closing the conversation "Not deployed".

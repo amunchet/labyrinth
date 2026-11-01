@@ -7,7 +7,10 @@
         deployments it staged, your answers, and how each run went. The agent
         never runs anything itself. It waits for you here.
       </p>
-      <b-spinner v-if="loading" class="m-2" />
+      <p v-if="load_failed && conversations === null" class="text-muted">
+        Conversations could not be loaded.
+      </p>
+      <b-spinner v-else-if="conversations === null" class="m-2" />
       <p v-else-if="conversations.length == 0" class="text-muted">
         No conversations yet.
       </p>
@@ -38,7 +41,10 @@
       <router-link to="/conversations">
         <font-awesome-icon icon="arrow-left" size="1x" /> All conversations
       </router-link>
-      <b-spinner v-if="!conversation" class="m-2 d-block" />
+      <p v-if="load_failed && !conversation" class="mt-3 text-muted">
+        This conversation could not be loaded.
+      </p>
+      <b-spinner v-else-if="!conversation" class="m-2 d-block" />
       <div v-else>
         <h3 class="mt-2">
           {{ conversation.title }}
@@ -214,9 +220,10 @@ export default {
   name: "Conversations",
   data() {
     return {
-      conversations: [],
+      // null until the first answer arrives
+      conversations: null,
       conversation: null,
-      loading: false,
+      load_failed: false,
       reply: "",
       sending: false,
       timer: null,
@@ -230,6 +237,7 @@ export default {
   watch: {
     conversation_id: /* istanbul ignore next */ function () {
       this.conversation = null;
+      this.load_failed = false;
       this.reply = "";
       this.load();
     },
@@ -258,9 +266,13 @@ export default {
       const staged = this.staged(request_id);
       const run = staged.runs[staged.runs.length - 1];
       if (!run) {
-        return staged.declined_at
-          ? { label: "Declined", variant: "secondary" }
-          : { label: "Waiting for your vault password", variant: "warning" };
+        if (staged.declined_at) {
+          return { label: "Declined", variant: "secondary" };
+        }
+        // Closing a conversation drops its unlaunched deployments
+        return this.isPending("deploy", request_id)
+          ? { label: "Waiting for your vault password", variant: "warning" }
+          : { label: "Not deployed", variant: "secondary" };
       }
       if (run.status == "queued" || run.status == "running") {
         return { label: "Running", variant: "info" };
@@ -316,17 +328,20 @@ export default {
             this.$auth
           );
         } else {
-          this.loading = this.conversations.length == 0;
           this.conversations = await Helper.apiCall(
             "conversations",
             "",
             this.$auth
           );
         }
+        this.load_failed = false;
       } catch (e) {
-        this.$store.commit("updateError", e);
+        // Polls repeat every 5s; report a failure once, not on every poll
+        if (!this.load_failed) {
+          this.$store.commit("updateError", e);
+        }
+        this.load_failed = true;
       }
-      this.loading = false;
     },
     // POSTs a human action, then refreshes this page and the nav badge
     post: /* istanbul ignore next */ async function (

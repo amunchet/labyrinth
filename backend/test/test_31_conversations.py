@@ -5,7 +5,7 @@ results of the runs the human launched.
 """
 
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
 import requests
@@ -115,7 +115,10 @@ def test_question_flags_the_human_until_they_reply(db, alerts, redis_stub):
 
     # The alert points at the conversation, where the human can answer
     alerts.assert_called_once()
-    assert alerts.call_args.args[1:] == ("Rotate nginx certs", conversation_id)
+    assert alerts.call_args.args[1:] == (
+        "Rotate nginx certs",
+        "{}/{}".format(conversation_id, started["message_id"]),
+    )
     assert alerts.call_args.kwargs["url"] == started["url"]
 
     waiting = json.loads(unwrap(serve.list_conversations)("waiting")[0])
@@ -304,7 +307,11 @@ def test_alertmanager_down_still_records_the_question(db, alerts):
 
 def test_bad_input_is_refused(db, alerts):
     client = LabyrinthClient()
-    conversation_id = client.start_conversation("Empty")["conversation_id"]
+    conversation_id = client.start_conversation("Empty", " ")["conversation_id"]
+    # Blank titles and first messages are left out rather than stored empty
+    assert _conversation(conversation_id)["messages"] == []
+    assert client.start_conversation("  ")["conversation_id"]
+    assert serve.db["labyrinth"]["conversations"].find_one({"title": "Untitled"})
 
     assert unwrap(serve.reply_conversation)(conversation_id, '{"text": " "}')[1] == 482
     assert unwrap(serve.reply_conversation)("missing", '{"text": "hi"}')[1] == 404
@@ -326,3 +333,58 @@ def test_bad_input_is_refused(db, alerts):
     assert listed[0]["conversation_id"] == conversation_id
     assert listed[0]["message_count"] == 1
     assert client.list_conversations(waiting_only=True) == []
+
+
+def test_alert_links_to_the_ask(db, monkeypatch):
+    """The real alert payload, only HTTP mocked: one alert per ask, linking to it."""
+    monkeypatch.setenv("LABYRINTH_URL", "https://lab.example")
+    with patch("watcher.requests.post") as post, patch(
+        "watcher.open", mock_open(read_data="pw"), create=True
+    ):
+        post.return_value.ok = True
+        started = LabyrinthClient().start_conversation(
+            "Grow /var", "OK to extend it?", needs_response=True
+        )
+    assert started["notified"] is True
+    assert post.call_args.args == ("http://alertmanager:9093/api/v2/alerts",)
+    assert post.call_args.kwargs["timeout"] == 10
+    (alert,) = json.loads(post.call_args.kwargs["data"])
+    assert alert["generatorURL"] == started["url"]
+    assert alert["labels"]["instance"] == "{}/{}".format(
+        started["conversation_id"], started["message_id"]
+    )
+    assert alert["annotations"]["summary"] == "OK to extend it?"
+
+
+def test_simultaneous_posts_keep_each_others_changes(db, alerts):
+    """A post that read the conversation before another one landed must not undo it."""
+    conversation_id = LabyrinthClient().start_conversation("Race")["conversation_id"]
+    collection_type = type(serve.db["labyrinth"]["conversations"])
+    real_find_one = collection_type.find_one
+    raced = []
+
+    def find_one_then_race(self, *args, **kwargs):
+        found = real_find_one(self, *args, **kwargs)
+        if not raced:
+            raced.append(True)
+            # A parallel tool call lands between this read and its write
+            serve.post_conversation_message(conversation_id, "agent", "question", "B?")
+        return found
+
+    with patch.object(collection_type, "find_one", find_one_then_race):
+        serve.post_conversation_message(conversation_id, "agent", "question", "A?")
+
+    found = _conversation(conversation_id)
+    assert [m["text"] for m in found["messages"]] == ["B?", "A?"]
+    assert len(found["pending"]) == 2
+    assert found["needs_human"] is True
+
+    # A late run result neither revives answered questions nor reopens
+    unwrap(serve.close_conversation)(conversation_id, "{}")
+    serve.post_conversation_message(conversation_id, "system", "run", "Run failed")
+    found = _conversation(conversation_id)
+    assert (found["status"], found["pending"], found["needs_human"]) == (
+        "closed",
+        [],
+        False,
+    )
