@@ -127,14 +127,31 @@ def test_rejects_the_whole_deploy_when_any_guest_is_unusable(deploy):
     )
 
     assert status == 484
-    errors = json.loads(resp)["errors"]
-    assert errors == [
-        "north/pve6/lxc/999: not found on Proxmox",
-        "north/pve6/lxc/119: not running",
-        "south/pve3/lxc/120: needs exactly one matching Labyrinth host IP to pick its Telegraf config, found 0",
-        "south/pve2/vm/112: needs exactly one matching Labyrinth host IP to pick its Telegraf config, found 2",
+    one_ip = "needs exactly one matching Labyrinth host IP to pick its Telegraf config"
+    assert resp["errors"] == [
+        {"guest": 2, "problem": "not found on Proxmox"},
+        {"guest": 3, "problem": "not running"},
+        {"guest": 4, "problem": one_ip},
+        {"guest": 5, "problem": one_ip},
     ]
     deploy.assert_not_called()
+
+
+def test_errors_never_echo_submitted_values(deploy):
+    payload = "<script>alert(1)</script>"
+    resp, status = _post(
+        guests=[_pick(payload, payload, payload, payload)],
+        credentials_file="proxmox-root",
+    )
+
+    assert status == 484
+    assert resp == {"errors": [{"guest": 1, "problem": "not found on Proxmox"}]}
+
+    resp, status = _post(
+        guests=[_pick("north", "pve3", "vm", 215)], credentials_file=payload
+    )
+    assert status == 483
+    assert "script" not in resp
 
 
 def test_rejects_guest_without_saved_telegraf_config(deploy, monkeypatch):
@@ -146,9 +163,7 @@ def test_rejects_guest_without_saved_telegraf_config(deploy, monkeypatch):
     resp, status = _post(guests=[_pick("north", "pve4", "vm", 107)])
 
     assert status == 484
-    assert json.loads(resp)["errors"] == [
-        "north/pve4/vm/107: no Telegraf config saved for 10.0.0.20"
-    ]
+    assert resp["errors"] == [{"guest": 1, "problem": "no Telegraf config saved"}]
 
 
 @pytest.mark.parametrize(

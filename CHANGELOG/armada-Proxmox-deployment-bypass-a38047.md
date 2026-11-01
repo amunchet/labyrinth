@@ -32,3 +32,12 @@ Merged master in for review. Master had added a README section on alert
 notification backoff where this branch added its Proxmox guest deploy section;
 both are kept. Master had also landed the identical MCP timezone fix
 separately, so that change merged cleanly with no net difference.
+
+## 2026-11-01 02:51 CST
+Fixed a reflected XSS in `POST /proxmox_deploy/` that CodeQL failed the PR
+on. When guests couldn't be deployed, the 484 response repeated the submitted
+cluster/node/type/id back as text/html. It now returns JSON naming each guest by
+its position in the request, with fixed problem text, and the 483 "credentials
+file not found" response no longer repeats the file name. Also merged master's
+MCP Ansible conversations work (#84), which merged cleanly alongside the
+Proxmox deploy path.

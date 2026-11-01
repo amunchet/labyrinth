@@ -1747,26 +1747,27 @@ def run_proxmox_deploy(inp_data=""):
             482,
         )
     if "{}.yml".format(credentials_file) not in os.listdir("/src/uploads/become"):
-        return "Credentials file not found: {}".format(escape(credentials_file)), 483
+        return "Credentials file not found", 483
 
     _, guests, _ = _proxmox_guests_with_matches()
     known = {(g["cluster_name"], g["node"], g["type"], str(g["id"])): g for g in guests}
     telegraf_confs = os.listdir("/src/uploads/telegraf") if action == "telegraf" else []
     targets, errors = [], []
-    for item in selected:
+    # Errors name a guest by its position in the request and use fixed text:
+    # echoing submitted values back would be reflected XSS
+    for position, item in enumerate(selected, start=1):
         key = (
             item.get("cluster_name"),
             item.get("node"),
             item.get("type"),
             str(item.get("id")),
         )
-        label = "/".join(str(x) for x in key)
         guest = known.get(key)
         if not guest:
-            errors.append(f"{label}: not found on Proxmox")
+            errors.append({"guest": position, "problem": "not found on Proxmox"})
             continue
         if not guest["running"]:
-            errors.append(f"{label}: not running")
+            errors.append({"guest": position, "problem": "not running"})
             continue
 
         conf = ""
@@ -1774,12 +1775,17 @@ def run_proxmox_deploy(inp_data=""):
             ips = {m["ip"] for m in guest["labyrinth_matches"] if m.get("ip")}
             if len(ips) != 1:
                 errors.append(
-                    f"{label}: needs exactly one matching Labyrinth host IP to pick its Telegraf config, found {len(ips)}"
+                    {
+                        "guest": position,
+                        "problem": "needs exactly one matching Labyrinth host IP to pick its Telegraf config",
+                    }
                 )
                 continue
             conf = secure_filename(ips.pop())
             if f"{conf}.conf" not in telegraf_confs:
-                errors.append(f"{label}: no Telegraf config saved for {conf}")
+                errors.append(
+                    {"guest": position, "problem": "no Telegraf config saved"}
+                )
                 continue
 
         targets.append(
@@ -1794,7 +1800,7 @@ def run_proxmox_deploy(inp_data=""):
         )
 
     if errors:
-        return json.dumps({"errors": errors}), 484
+        return {"errors": errors}, 484
 
     job_id = f"ansible_job_{uuid.uuid4()}"
     start_ansible_job(
