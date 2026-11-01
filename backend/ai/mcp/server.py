@@ -40,7 +40,7 @@ from ai.mcp.auth import (  # type: ignore
 )
 
 try:
-    from mcp.server.fastmcp import FastMCP as _FastMCP
+    from mcp.server.fastmcp import FastMCP as _FastMCP, Image as MCPImage
     from mcp.server.transport_security import TransportSecuritySettings
 except ImportError as exc:  # pragma: no cover
     raise SystemExit(
@@ -125,6 +125,41 @@ async def mcp_create_or_update_host(host_json: str) -> str:
 
 
 @app.tool()
+async def mcp_delete_host(host_key: str) -> str:
+    """Delete a host/device by key/MAC or IP; uplinks to it and its map placements are dropped."""
+    return await _blocking(client.delete_host, host_key)
+
+
+@app.tool()
+async def mcp_list_tags() -> List[str]:
+    """List every tag in use across hosts."""
+    return await _blocking(client.list_tags)
+
+
+@app.tool()
+async def mcp_list_hosts_by_tag(tag: str) -> List[Dict[str, Any]]:
+    """Hosts carrying a tag, or a service of that name (case-insensitive)."""
+    return await _blocking(client.list_hosts_by_tag, tag)
+
+
+@app.tool()
+async def mcp_set_host_tags(host_key: str, tags: str) -> Dict[str, Any]:
+    """Replace a host's tags with a comma-separated list (blank clears them)."""
+    return await _blocking(client.set_host_tags, host_key, tags)
+
+
+@app.tool()
+async def mcp_set_service_level(
+    host_key: str, service: str, level: str = ""
+) -> Dict[str, Any]:
+    """
+    Override how a failing service on one host is reported: "warning" or
+    "error"; blank clears the override.
+    """
+    return await _blocking(client.set_service_level, host_key, service, level)
+
+
+@app.tool()
 async def mcp_add_service_to_host(host_key: str, service_name: str) -> Dict[str, Any]:
     """Attach a service (display_name) to a host."""
     return await _blocking(client.add_service_to_host, host_key, service_name)
@@ -160,6 +195,77 @@ async def mcp_create_or_update_service(service_json: str) -> str:
     """Create or update a service definition. Provide a JSON object string."""
     service = json.loads(service_json)
     return await _blocking(client.create_or_update_service, service)
+
+
+@app.tool()
+async def mcp_get_service(name: str) -> Dict[str, Any]:
+    """Full definition of one service by display name."""
+    return await _blocking(client.get_service, name)
+
+
+@app.tool()
+async def mcp_get_metric_counts(host_key: str) -> Dict[str, Any]:
+    """Telegraf ingest counters for a host: requests and metrics sent, plus the last hour per minute."""
+    return await _blocking(client.get_metric_counts, host_key)
+
+
+@app.tool()
+async def mcp_list_subnets() -> List[str]:
+    """List subnet prefixes (e.g. 192.168.1)."""
+    return await _blocking(client.list_subnets)
+
+
+@app.tool()
+async def mcp_get_subnet(subnet: str) -> Dict[str, Any]:
+    """One subnet's settings (origin, links, location, colors, ...)."""
+    return await _blocking(client.get_subnet, subnet)
+
+
+@app.tool()
+async def mcp_save_subnet(subnet_json: str) -> Dict[str, Any]:
+    """
+    Create or update a subnet. JSON with "subnet" (prefix, e.g. 192.168.1) plus
+    any fields to set, e.g. "location"; fields left out keep their values.
+    """
+    return await _blocking(client.save_subnet, json.loads(subnet_json))
+
+
+@app.tool()
+async def mcp_delete_subnet(subnet: str) -> str:
+    """Delete a subnet record. Its hosts are not deleted."""
+    return await _blocking(client.delete_subnet, subnet)
+
+
+@app.tool()
+async def mcp_list_groups(subnet: str) -> List[Dict[str, Any]]:
+    """A subnet's host groups, each with its members' IPs."""
+    return await _blocking(client.list_groups, subnet)
+
+
+@app.tool()
+async def mcp_update_group(
+    subnet: str,
+    group: str,
+    new_name: str = "",
+    monitor: Optional[bool] = None,
+    icon: str = "",
+    add_service: str = "",
+    remove_service: str = "",
+) -> Dict[str, Any]:
+    """
+    Change every host in a subnet's group at once: rename the group, turn
+    monitoring on/off, set the icon, or add/remove a service.
+    """
+    return await _blocking(
+        client.update_group,
+        subnet,
+        group,
+        new_name,
+        monitor,
+        icon,
+        add_service,
+        remove_service,
+    )
 
 
 @app.tool()
@@ -233,6 +339,122 @@ async def mcp_set_device_inventory(host_key: str, fields_json: str) -> Dict[str,
 async def mcp_check_device(host_key: str) -> Dict[str, Any]:
     """Ping (or TCP-check, if the device has a check port) a device now and record the result."""
     return await _blocking(client.check_device, host_key)
+
+
+@app.tool()
+async def mcp_list_maps(location: str = "") -> List[Dict[str, Any]]:
+    """
+    List location maps (floor plans with placed devices), optionally for one
+    location. "legacy" maps come from the old editor and have no placements yet.
+    """
+    return await _blocking(client.list_maps, location)
+
+
+@app.tool()
+async def mcp_get_map(name: str) -> Dict[str, Any]:
+    """
+    One map with its placements: {key, x, y, device}, x/y being percent of
+    the image's width/height from its top-left corner.
+    """
+    return await _blocking(client.get_map, name)
+
+
+@app.tool()
+async def mcp_save_map(map_json: str) -> Dict[str, Any]:
+    """
+    Create or update a map. JSON: {"name", "location", "background_image"
+    (from mcp_list_map_images), "default" (show on Home; only one map is),
+    "placements": [{"key", "x", "y"}]}. Fields left out of an update keep
+    their values; placements given replace them all (use mcp_place_devices to
+    change a few). Include "previous_name" to rename.
+    """
+    return await _blocking(client.save_map, json.loads(map_json))
+
+
+@app.tool()
+async def mcp_place_devices(
+    map_name: str, placements_json: str = "[]", remove: str = ""
+) -> Dict[str, Any]:
+    """
+    Place or move devices on a map without touching the others.
+    placements_json: [{"key": "<device key, MAC or IP>", "x": 0-100,
+    "y": 0-100}], percent of the image from its top-left corner.  remove:
+    comma-separated device keys/IPs to take off the map.
+    """
+    return await _blocking(
+        client.place_devices,
+        map_name,
+        json.loads(placements_json),
+        [x.strip() for x in remove.split(",") if x.strip()],
+    )
+
+
+@app.tool()
+async def mcp_delete_map(name: str) -> str:
+    """Delete a map. Its devices and image file are not affected."""
+    return await _blocking(client.delete_map, name)
+
+
+@app.tool()
+async def mcp_list_map_images() -> List[str]:
+    """List uploaded map/floor plan image files."""
+    return await _blocking(client.list_map_images)
+
+
+@app.tool()
+async def mcp_get_map_image(name: str, max_size: int = 1600) -> MCPImage:
+    """
+    View an uploaded map image (JPEG, scaled to fit max_size pixels). Read it
+    to work out where rooms and areas are before placing devices.
+    """
+    return MCPImage(
+        data=await _blocking(client.get_map_image, name, max_size), format="jpeg"
+    )
+
+
+@app.tool()
+async def mcp_list_alerts() -> List[Dict[str, Any]]:
+    """Active Alertmanager alerts (labels, annotations, fingerprint, times)."""
+    return await _blocking(client.list_alerts)
+
+
+@app.tool()
+async def mcp_resolve_alert(fingerprint: str) -> str:
+    """Resolve an active alert by its fingerprint (from mcp_list_alerts)."""
+    return await _blocking(client.resolve_alert, fingerprint)
+
+
+@app.tool()
+async def mcp_get_proxmox_disk_space(refresh: bool = False) -> Dict[str, Any]:
+    """
+    Disk, VM and LXC usage for every Proxmox cluster, from the cache unless
+    refresh=true (a live query, which can take a while).
+    """
+    return await _blocking(client.get_proxmox_disk_space, refresh)
+
+
+@app.tool()
+async def mcp_get_proxmox_telegraf_check(stale_minutes: int = 15) -> Dict[str, Any]:
+    """Which Proxmox VMs/LXCs map to a Labyrinth host that is reporting Telegraf metrics."""
+    return await _blocking(client.get_proxmox_telegraf_check, stale_minutes)
+
+
+@app.tool()
+async def mcp_get_proxmox_graylog_check() -> Dict[str, Any]:
+    """Which Proxmox VMs/LXCs are forwarding logs to Graylog (check_graylog)."""
+    return await _blocking(client.get_proxmox_graylog_check)
+
+
+@app.tool()
+async def mcp_list_proxmox_clusters() -> List[Dict[str, Any]]:
+    """Configured Proxmox clusters (without token secrets)."""
+    return await _blocking(client.list_proxmox_clusters)
+
+
+@app.tool()
+async def mcp_get_ec2_instances() -> Dict[str, Any]:
+    """EC2 instances across configured AWS accounts, with Labyrinth host matches."""
+    return await _blocking(client.get_ec2_instances)
 
 
 @app.tool()

@@ -1283,3 +1283,107 @@ def test_refresh_proxmox_disk_space_flags_ignored_qemu_vms(setup, monkeypatch):
     vms = json.loads(response[0])["proxmox_hosts"][0]["nodes"][0]["vms"]
     assert vms[0]["qemu_guest_agent_ignored"] is True
     assert vms[1]["qemu_guest_agent_ignored"] is False
+
+
+# ---------------------------------------------------------------------------
+# Last-known-good fallback when a poll fails
+# ---------------------------------------------------------------------------
+
+STALE_CLUSTER = {"_id": "c1", "name": "cluster-1", "host": "10.1.1.1"}
+
+
+def _node(name, status="online", storage=True):
+    return {
+        "name": name,
+        "status": status,
+        "storage": [{"name": "local", "total": 100, "used": 10}] if storage else [],
+        "vms": [{"id": 100, "name": f"vm-{name}", "status": "running"}],
+        "containers": [],
+    }
+
+
+def _poll(monkeypatch, fake_redis, payload):
+    monkeypatch.setattr(
+        proxmox_helper, "get_proxmox_disk_data", lambda *a, **k: payload
+    )
+    return proxmox_helper.fetch_and_cache_proxmox_disk_data(
+        STALE_CLUSTER, redis_client=fake_redis
+    )
+
+
+def test_unreachable_cluster_keeps_previous_results(monkeypatch):
+    """A failed cluster poll serves the previous results, flagged stale."""
+    fake_redis = FakeRedis()
+    good = _poll(monkeypatch, fake_redis, {"nodes": [_node("pve1")], "error": None})
+
+    result = _poll(
+        monkeypatch, fake_redis, {"error": "Failed to get Proxmox data", "host": "x"}
+    )
+
+    assert result["error"] is None
+    assert result["stale"] is True
+    assert result["stale_error"] == "Failed to get Proxmox data"
+    assert result["nodes"] == good["nodes"]
+    assert result["fetched_at"] == good["fetched_at"]
+
+    # The page reads the same stale payload back from Redis
+    cached = proxmox_helper.get_proxmox_disk_data_cached(
+        STALE_CLUSTER, redis_client=fake_redis
+    )
+    assert cached["stale"] is True
+    assert cached["nodes"] == good["nodes"]
+
+
+def test_unreachable_node_keeps_previous_results(monkeypatch):
+    """A node whose storage call failed keeps its previous results; others update."""
+    fake_redis = FakeRedis()
+    good = _poll(
+        monkeypatch,
+        fake_redis,
+        {"nodes": [_node("pve1"), _node("pve2")], "error": None},
+    )
+
+    fresh_pve1 = _node("pve1")
+    fresh_pve1["vms"] = []
+    result = _poll(
+        monkeypatch,
+        fake_redis,
+        {"nodes": [fresh_pve1, _node("pve2", storage=False)], "error": None},
+    )
+
+    pve1, pve2 = result["nodes"]
+    assert pve1["vms"] == [] and not pve1.get("stale")
+    assert pve2["stale"] is True
+    assert pve2["vms"] == good["nodes"][1]["vms"]
+    assert pve2["storage"] == good["nodes"][1]["storage"]
+    assert pve2["fetched_at"] == good["nodes"][1]["fetched_at"]
+
+    # A second failure keeps the original timestamp, not the failed poll's
+    again = _poll(
+        monkeypatch,
+        fake_redis,
+        {"nodes": [_node("pve1"), _node("pve2", status="offline")], "error": None},
+    )
+    assert again["nodes"][1]["stale"] is True
+    assert again["nodes"][1]["status"] == "offline"
+    assert again["nodes"][1]["fetched_at"] == good["nodes"][1]["fetched_at"]
+
+
+def test_recovered_cluster_clears_stale_flag(monkeypatch):
+    """Once the cluster answers again, fresh results replace the stale ones."""
+    fake_redis = FakeRedis()
+    _poll(monkeypatch, fake_redis, {"nodes": [_node("pve1")], "error": None})
+    _poll(monkeypatch, fake_redis, {"error": "timeout"})
+
+    result = _poll(monkeypatch, fake_redis, {"nodes": [_node("pve1")], "error": None})
+
+    assert "stale" not in result
+    assert "stale_error" not in result
+
+
+def test_failed_first_poll_still_reports_error(monkeypatch):
+    """With nothing cached yet, a failed poll surfaces its error as before."""
+    result = _poll(monkeypatch, FakeRedis(), {"error": "Could not retrieve nodes"})
+
+    assert result["error"] == "Could not retrieve nodes"
+    assert "stale" not in result

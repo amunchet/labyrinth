@@ -172,8 +172,10 @@ services:
       - labyrinth
     volumes:
       - ./backend:/app/backend
-      # Read-only: MCP reads playbooks/become files; the Deploy page does the writing
+      # Read-only: MCP reads playbooks/become files and map images; the UI does the writing
       - ./backend/uploads:/src/uploads:ro
+      # Read-only: the Alertmanager password, for listing/resolving alerts
+      - ./alertmanager:/alertmanager:ro
     environment:
       DB_BACKEND: postgres
       POSTGRES_HOST: postgres

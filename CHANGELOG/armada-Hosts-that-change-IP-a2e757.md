@@ -34,3 +34,6 @@ Follow-ups from the branch self-review:
   - The whole batch gets 10 seconds. A name still pending after that is checked at its stored IP and retried on the next run.
   - Tunable through `ALIVE_DNS_CACHE_SECONDS`, `ALIVE_DNS_WORKERS` and `ALIVE_DNS_TIMEOUT_SECONDS`.
   - Previously, up to 32 uncached and unbounded `gethostbyname` calls ran every minute.
+
+## 2026-11-01 01:28 CT
+Merged master (alert notification backoff #83, MCP map tools #81, Proxmox last-known-good #79, longer port timeouts #80, MCP timezone fix). The only real conflict was in `alive.py`: master now batches down hosts into `watcher.report_problems()` for backoff instead of calling `send_alert()` per host. The merged version uses master's batching but keeps this branch's hostname as the alert `instance` and the resolved address in the summary. Backoff state is keyed on `instance`, so keying on the hostname means a monitored host that is down and changes IP keeps its backoff state rather than being announced again as a new problem. The CLAUDE.md data-flow entry for alive now describes both changes. Backend suite: 1059 passed, 6 failed. All 6 need a live Alertmanager or icon upload directories, which the test sandbox does not provide.

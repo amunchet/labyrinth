@@ -3,11 +3,14 @@ Thin wrapper around existing backend functions using unwrap, backing the
 host/service/metric tools of the standalone MCP server (mcp/server.py).
 """
 
+import io
 import json
 import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+from PIL import Image
 
 # Make backend modules importable when running from backend/ai/mcp
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
@@ -17,6 +20,25 @@ if str(BACKEND_ROOT) not in sys.path:
 from common.hostnames import hostnames_match  # type: ignore
 from common.test import unwrap  # type: ignore
 import serve  # type: ignore
+
+IMAGES_DIR = "/src/uploads/images"
+
+
+def call(fn, *args, decode=True, **request_kwargs):
+    """
+    Call a route handler, raising on a non-2xx status, and decode its JSON
+    (decode=False for handlers that answer plain text such as "Success").
+        - request_kwargs (query_string, ...) build a request context for
+          handlers that read Flask's request object
+    """
+    if request_kwargs:
+        with serve.app.test_request_context(**request_kwargs):
+            raw, status = unwrap(fn)(*args)
+    else:
+        raw, status = unwrap(fn)(*args)
+    if not 200 <= status < 300:
+        raise RuntimeError(f"{fn.__name__} failed ({status}): {raw}")
+    return json.loads(raw) if decode else raw
 
 
 class LabyrinthClient:
@@ -240,3 +262,329 @@ class LabyrinthClient:
         if log_tail > 0:
             run["logs"] = run.get("logs", [])[-log_tail:]
         return run
+
+    def delete_host(self, host_key: str) -> str:
+        _, status = unwrap(serve.delete_host)(host_key)
+        if status != 200:
+            raise ValueError("Host not found")
+        return "Success"
+
+    def list_tags(self) -> List[str]:
+        return call(serve.list_tags)
+
+    def list_hosts_by_tag(self, tag: str) -> List[Dict[str, Any]]:
+        hosts = call(serve.list_hosts_by_tag, tag)
+        for host in hosts:
+            host.pop("_id", None)
+        return hosts
+
+    def set_host_tags(self, host_key: str, tags: str) -> Dict[str, Any]:
+        host = self.get_host(host_key)
+        if not host:
+            raise ValueError("Host not found")
+        if host.get("ip"):
+            call(serve.update_host_tags, host["ip"], tags, decode=False)
+        else:
+            host["tags"] = tags
+            self.create_or_update_host(host)
+        return self.get_host(host["mac"])
+
+    def set_service_level(
+        self, host_key: str, service: str, level: str
+    ) -> Dict[str, Any]:
+        if level not in ("warning", "error", ""):
+            raise ValueError("level must be warning, error or blank to clear")
+        host = self.get_host(host_key)
+        if not host or not host.get("ip"):
+            raise ValueError("No host with an IP found for that key")
+        call(serve.update_host_service_level, host["ip"], service, level, decode=False)
+        return self.get_host(host["mac"])
+
+    def get_service(self, name: str) -> Dict[str, Any]:
+        found = call(serve.read_service, name)
+        if not found:
+            raise ValueError(f"No service named {name}")
+        found[0].pop("_id", None)
+        return found[0]
+
+    def get_metric_counts(self, host_key: str) -> Dict[str, Any]:
+        return call(serve.read_metric_counts, host_key)
+
+    # Subnets and their host groups
+
+    def list_subnets(self) -> List[str]:
+        return call(serve.list_subnets)
+
+    def get_subnet(self, subnet: str) -> Dict[str, Any]:
+        raw, status = unwrap(serve.list_subnet)(subnet)
+        if status != 200:
+            raise ValueError(f"No subnet {subnet}")
+        found = json.loads(raw)
+        found.pop("_id", None)
+        return found
+
+    def save_subnet(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create or update a subnet; fields left out of an update keep their values"""
+        if not data.get("subnet"):
+            raise ValueError("A subnet needs its `subnet` prefix, e.g. 192.168.1")
+        merged = serve.db["labyrinth"]["subnets"].find_one({"subnet": data["subnet"]})
+        merged = {**(merged or {"origin": {}, "links": {}}), **data}
+        merged.pop("_id", None)
+        call(serve.create_edit_subnet, merged, decode=False)
+        return self.get_subnet(data["subnet"])
+
+    def delete_subnet(self, subnet: str) -> str:
+        _, status = unwrap(serve.delete_subnet)(subnet)
+        if status != 200:
+            raise ValueError(f"No subnet {subnet}")
+        return "Success"
+
+    def list_groups(self, subnet: str) -> List[Dict[str, Any]]:
+        return [
+            {
+                "group": group,
+                "members": call(serve.list_subnets_group_members, subnet, group),
+            }
+            for group in sorted(call(serve.list_subnets_groups, subnet))
+        ]
+
+    def update_group(
+        self,
+        subnet: str,
+        group: str,
+        new_name: str = "",
+        monitor: Optional[bool] = None,
+        icon: str = "",
+        add_service: str = "",
+        remove_service: str = "",
+    ) -> Dict[str, Any]:
+        """Apply group-wide changes to every host in a subnet's group"""
+        if not call(serve.list_subnets_group_members, subnet, group):
+            raise ValueError(f"No group {group} in subnet {subnet}")
+        if monitor is not None:
+            call(serve.group_monitor, subnet, group, str(monitor), decode=False)
+        if icon:
+            call(serve.group_icon, subnet, group, icon, decode=False)
+        if add_service:
+            call(serve.group_add_service, subnet, group, add_service, decode=False)
+        if remove_service:
+            call(
+                serve.group_delete_service, subnet, group, remove_service, decode=False
+            )
+        if new_name and new_name != group:
+            call(serve.group_rename, subnet, group, new_name, decode=False)
+            group = new_name
+        return {
+            "subnet": subnet,
+            "group": group,
+            "members": call(serve.list_subnets_group_members, subnet, group),
+        }
+
+    # Location maps: a floor plan image with devices placed at percentage
+    # positions (0-100 from the image's left/top).  Stored as custom dashboards.
+
+    def list_maps(self, location: str = "") -> List[Dict[str, Any]]:
+        retval = []
+        for found in call(serve.list_custom_dashboards):
+            if location and (found.get("location") or "").casefold() != (
+                location.casefold()
+            ):
+                continue
+            retval.append(
+                {
+                    "name": found["name"],
+                    "location": found.get("location", ""),
+                    "background_image": found.get("background_image", ""),
+                    "default": bool(found.get("default")),
+                    "placed": len(found.get("placements") or []),
+                    # The old dashboard editor stored IPs at pixel offsets
+                    "legacy": "placements" not in found and "components" in found,
+                }
+            )
+        return retval
+
+    def get_map(self, name: str) -> Dict[str, Any]:
+        """A map with each placement's device (None if it no longer exists)"""
+        raw, status = unwrap(serve.list_custom_dashboards)(name)
+        if status != 200:
+            raise ValueError(f"No map named {name}")
+        found = json.loads(raw)[0]
+        found.pop("_id", None)
+        placements = found.get("placements") or []
+        hosts = {}
+        if placements:
+            hosts = {
+                x["mac"]: x
+                for x in serve.db["labyrinth"]["hosts"].find(
+                    {"mac": {"$in": [x["key"] for x in placements]}}
+                )
+            }
+        for placement in placements:
+            host = hosts.get(placement["key"])
+            placement["device"] = host and {
+                "name": host.get("host", ""),
+                "ip": host.get("ip", ""),
+                "device_type": host.get("device_type", ""),
+            }
+        return found
+
+    def device_key(self, key_or_ip: str) -> str:
+        """The host key for a device given by key/MAC or IP"""
+        host = serve.db["labyrinth"]["hosts"].find_one(
+            {"$or": [{"mac": key_or_ip}, {"ip": key_or_ip}]}
+        )
+        if not host:
+            raise ValueError(f"No device with key or IP {key_or_ip}")
+        return host["mac"]
+
+    def clean_placements(self, placements: Any) -> List[Dict[str, Any]]:
+        """Validated placements keyed by host key, one per device (last wins)"""
+        if not isinstance(placements, list):
+            raise ValueError("placements must be a list of {key, x, y}")
+        cleaned = {}
+        for item in placements:
+            key = self.device_key(str(item.get("key") or ""))
+            try:
+                x, y = float(item["x"]), float(item["y"])
+            except (KeyError, TypeError, ValueError):
+                raise ValueError(f"Placement for {key} needs numeric x and y")
+            if not (0 <= x <= 100 and 0 <= y <= 100):
+                raise ValueError(f"Placement for {key} must be within 0-100")
+            cleaned[key] = {"key": key, "x": round(x, 2), "y": round(y, 2)}
+        return list(cleaned.values())
+
+    def save_map(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Create or update a map; fields left out of an update keep their
+        values, and "previous_name" renames.  Only one map is the Home default.
+        """
+        data = dict(data)
+        data.pop("_id", None)
+        previous = str(data.pop("previous_name", "") or "").strip()
+        name = str(data.get("name") or "").strip()
+        if not name:
+            raise ValueError("A map needs a name")
+        maps = {x["name"]: x for x in call(serve.list_custom_dashboards)}
+        if previous and previous != name and name in maps:
+            raise ValueError(f"A map named {name} already exists")
+        current = maps.get(previous or name)
+        if previous and not current:
+            raise ValueError(f"No map named {previous}")
+
+        merged = current or {
+            "location": "",
+            "background_image": "",
+            "default": False,
+            "placements": [],
+        }
+        merged = {**merged, **data, "name": name}
+        merged.pop("_id", None)
+
+        if merged.get("location"):
+            match = [
+                x["name"]
+                for x in self.list_locations()
+                if x["name"].casefold() == merged["location"].strip().casefold()
+            ]
+            if not match:
+                raise ValueError(f"No location named {merged['location']}")
+            merged["location"] = match[0]
+        if (
+            merged.get("background_image")
+            and merged["background_image"] not in self.list_map_images()
+        ):
+            raise ValueError(f"No uploaded image {merged['background_image']}")
+        if "placements" in merged:
+            merged["placements"] = self.clean_placements(merged["placements"])
+
+        if merged.get("default"):
+            for other in maps.values():
+                if other.get("default") and other["name"] not in (name, previous):
+                    other = {**other, "default": False}
+                    other.pop("_id", None)
+                    call(
+                        serve.create_edit_custom_dashboard,
+                        other["name"],
+                        other,
+                        decode=False,
+                    )
+        call(serve.create_edit_custom_dashboard, name, merged, decode=False)
+        if previous and previous != name:
+            call(serve.delete_custom_dashboard, previous, decode=False)
+        return self.get_map(name)
+
+    def place_devices(
+        self, map_name: str, placements: Any, remove: List[str]
+    ) -> Dict[str, Any]:
+        """Place or move devices on a map, and take others off it"""
+        current = self.get_map(map_name)
+        new = self.clean_placements(placements)
+        dropped = {x["key"] for x in new}
+        for key in remove:
+            host = serve.db["labyrinth"]["hosts"].find_one(
+                {"$or": [{"mac": key}, {"ip": key}]}
+            )
+            # A deleted device can still be named by its old key
+            dropped.add(host["mac"] if host else key)
+        kept = [
+            {"key": x["key"], "x": x["x"], "y": x["y"]}
+            for x in current.get("placements") or []
+            if x["key"] not in dropped
+        ]
+        return self.save_map({"name": map_name, "placements": kept + new})
+
+    def delete_map(self, name: str) -> str:
+        if not any(x["name"] == name for x in self.list_maps()):
+            raise ValueError(f"No map named {name}")
+        call(serve.delete_custom_dashboard, name, decode=False)
+        return "Success"
+
+    def list_map_images(self) -> List[str]:
+        return call(serve.custom_dashboard_list_images)
+
+    def get_map_image(self, name: str, max_size: int = 1600) -> bytes:
+        """An uploaded map image as JPEG, scaled to fit within max_size pixels"""
+        if name not in self.list_map_images():
+            raise ValueError(f"No uploaded image {name}")
+        with Image.open(os.path.join(IMAGES_DIR, name)) as img:
+            img = img.convert("RGBA")
+            img.thumbnail((max_size, max_size))
+            # Transparent areas of a floor plan read as paper, not black
+            flat = Image.new("RGB", img.size, "white")
+            flat.paste(img, mask=img.getchannel("A"))
+        out = io.BytesIO()
+        flat.save(out, "JPEG", quality=85)
+        return out.getvalue()
+
+    # Alerts and monitoring reports
+
+    def list_alerts(self) -> List[Dict[str, Any]]:
+        return call(serve.list_alerts)
+
+    def resolve_alert(self, fingerprint: str) -> str:
+        found = [x for x in self.list_alerts() if x.get("fingerprint") == fingerprint]
+        if not found:
+            raise ValueError(f"No active alert with fingerprint {fingerprint}")
+        call(serve.resolve_alert, found[0], decode=False)
+        return "Success"
+
+    def get_proxmox_disk_space(self, refresh: bool = False) -> Dict[str, Any]:
+        if refresh:
+            return call(serve.refresh_proxmox_disk_space)
+        return call(serve.get_proxmox_disk_space)
+
+    def get_proxmox_telegraf_check(self, stale_minutes: int = 15) -> Dict[str, Any]:
+        return call(
+            serve.get_proxmox_telegraf_check,
+            query_string={"stale_minutes": stale_minutes},
+        )
+
+    def get_proxmox_graylog_check(self) -> Dict[str, Any]:
+        return call(serve.get_proxmox_graylog_check)
+
+    def list_proxmox_clusters(self) -> List[Dict[str, Any]]:
+        # The route already drops token_secret
+        return call(serve.list_proxmox_clusters)
+
+    def get_ec2_instances(self) -> Dict[str, Any]:
+        return call(serve.get_aws_ec2_instances)

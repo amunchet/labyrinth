@@ -2,7 +2,10 @@
   <b-container class="mt-3">
     <b-tabs content-class="mt-3" lazy>
       <b-tab title="Active Alerts" active class="text-left">
-        <p>List of active alerts.</p>
+        <p>
+          List of active alerts. Suppressed alerts are muted, usually until
+          their next reminder (Settings > Notifications).
+        </p>
         <div v-if="active_alerts_loading">
           <b-spinner class="m-2" />
         </div>
@@ -11,12 +14,22 @@
           style="max-width: 100%"
           :items="active_alerts"
           v-else
-          :fields="['resolve', 'labels', 'annotations', 'receivers', 'time']"
+          :fields="[
+            'resolve',
+            'state',
+            'labels',
+            'annotations',
+            'receivers',
+            'time',
+          ]"
         >
           <template v-slot:cell(resolve)="item">
             <b-button variant="primary" @click="resolveAlert(item.item)">
               <font-awesome-icon icon="check" size="1x" />
             </b-button>
+          </template>
+          <template v-slot:cell(state)="item">
+            {{ item.item.status.state }}
           </template>
           <template v-slot:cell(labels)="item">
             <b-row v-for="(j, idx) in item.item.labels" v-bind:key="idx">

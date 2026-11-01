@@ -1,5 +1,10 @@
 FROM python:3.11-slim
 
+# Same timezone as the backend and cron: stored metric timestamps are naive
+# local time, so freshness checks run here must use the same clock.
+ARG TZ
+ENV TZ=${TZ}
+
 ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app/backend
 

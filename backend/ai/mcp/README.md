@@ -192,13 +192,25 @@ which `common/auth.py` requires at import) as `-e` flags.
 - `mcp_add_service_to_host(host_key, service_name)` - Add a service to a host
 - `mcp_remove_service_from_host(host_key, service_name)` - Remove a service from a host
 - `mcp_replace_host_services(host_key, services_json)` - Replace entire services list (JSON array string)
+- `mcp_delete_host(host_key)` - Delete a host; uplinks to it and its map placements are dropped
+- `mcp_list_tags` / `mcp_list_hosts_by_tag(tag)` / `mcp_set_host_tags(host_key, tags)` - Tags (comma-separated)
+- `mcp_set_service_level(host_key, service, level)` - Report one host's failing service as `warning`/`error`; blank clears
 
 ### Service Management
 - `mcp_list_services(include_full)` - List services (names only or full records)
 - `mcp_create_or_update_service(service_json)` - Create/update a service definition (JSON string)
+- `mcp_get_service(name)` - One service's full definition
 
 ### Metrics
 - `mcp_read_metrics(host_key, service, count)` - Read latest metrics for a host
+- `mcp_get_metric_counts(host_key)` - Telegraf ingest counters for a host
+
+### Subnets and Groups
+- `mcp_list_subnets` / `mcp_get_subnet(subnet)` - Subnet prefixes / one subnet's settings
+- `mcp_save_subnet(subnet_json)` - Create or update a subnet; fields left out keep their values
+- `mcp_delete_subnet(subnet)` - Delete a subnet record (its hosts stay)
+- `mcp_list_groups(subnet)` - A subnet's host groups with member IPs
+- `mcp_update_group(subnet, group, new_name, monitor, icon, add_service, remove_service)` - Group-wide changes
 
 ### Locations and Inventory
 Hosts double as the device inventory (servers, VMs/LXCs, PCs, switches, bridges, PLCs, ...), including IP-less "label" devices such as unmanaged switches.
@@ -208,6 +220,26 @@ Hosts double as the device inventory (servers, VMs/LXCs, PCs, switches, bridges,
 - `mcp_get_inventory(location, device_type, status)` - Devices with live status (optionally filtered), plus locations and the Proxmox node -> VM/LXC tree
 - `mcp_set_device_inventory(host_key, fields_json)` - Change only a device's inventory fields (location, rack, type, uplink, ...); blank values clear a field
 - `mcp_check_device(host_key)` - Ping (or TCP-check) a device right now and record the result
+
+### Location Maps
+A map is a floor plan image with devices placed on it. Positions are percentages (0-100) of the image's width and height from its top-left corner, so they don't depend on the image's resolution.
+- `mcp_list_maps(location)` - Maps, optionally for one location (`legacy` = old-editor map without placements)
+- `mcp_get_map(name)` - One map with its placements and each placed device's name/IP/type
+- `mcp_list_map_images` / `mcp_get_map_image(name, max_size)` - Uploaded floor plans; the image comes back as JPEG content the agent can look at
+- `mcp_save_map(map_json)` - Create/update a map (`name`, `location`, `background_image`, `default`, `placements`); `previous_name` renames; only one map is the Home default
+- `mcp_place_devices(map_name, placements_json, remove)` - Place/move some devices (by key, MAC or IP) or take them off, leaving the rest
+- `mcp_delete_map(name)` - Delete a map (devices and image file stay)
+
+Images are uploaded and deleted in the UI; the MCP container mounts uploads read-only.
+
+### Alerts and Monitoring Reports
+- `mcp_list_alerts` / `mcp_resolve_alert(fingerprint)` - Active Alertmanager alerts / resolve one
+- `mcp_get_proxmox_disk_space(refresh)` - Proxmox storage/VM/LXC usage (cached unless `refresh`)
+- `mcp_get_proxmox_telegraf_check(stale_minutes)` / `mcp_get_proxmox_graylog_check` - Guests not reporting Telegraf metrics / not forwarding to Graylog
+- `mcp_list_proxmox_clusters` - Configured clusters, without token secrets
+- `mcp_get_ec2_instances` - EC2 instances across AWS accounts with host matches
+
+Deliberately not exposed: credentials and secrets (settings, Telegraf key, Alertmanager config, Proxmox/AWS account create/update, AI settings), service deletion (it removes snippet files, which the MCP container can't write), network scans (nmap runs in the cron container), and running Ansible directly (a human launches runs from the Deploy page).
 
 ### Ansible Deployments
 - `mcp_list_playbooks` / `mcp_get_playbook(name)` - List / read saved playbooks

@@ -2784,3 +2784,56 @@ def test_list_aws_accounts_with_secrets_redacted(setup):
     for account in data:
         assert "secret_access_key" not in account or account["secret_access_key"] == ""
         assert "session_token" not in account or account["session_token"] == ""
+
+
+# ---------------------------------------------------------------------------
+# Port scan stale window
+# ---------------------------------------------------------------------------
+
+
+def test_port_stale_seconds_default(setup):
+    """No setting falls back to 12 hours."""
+    assert serve._port_stale_seconds() == 12 * 3600
+
+
+def test_port_stale_seconds_from_setting(setup):
+    """The port_stale_hours setting controls the window."""
+    unwrap(serve.save_setting)("port_stale_hours", "2.5")
+    assert serve._port_stale_seconds() == 2.5 * 3600
+
+
+@pytest.mark.parametrize("value", ["abc", "0", "-3"])
+def test_port_stale_seconds_invalid_setting(setup, value):
+    """Unparseable or non-positive settings fall back to the default."""
+    unwrap(serve.save_setting)("port_stale_hours", value)
+    assert serve._port_stale_seconds() == 12 * 3600
+
+
+def test_read_metrics_port_judgement_uses_stale_setting(setup):
+    """An 8 hour old scan passes under the default window but not a 4 hour one."""
+    serve.db["labyrinth"]["hosts"].insert_one(
+        {"mac": "port-stale-host", "ip": "10.9.9.9", "open_ports": [22]}
+    )
+    serve.db["labyrinth"]["metrics-latest"].insert_one(
+        {
+            "name": "open_ports",
+            "tags": {
+                "mac": "port-stale-host",
+                "labyrinth_name": "open_ports",
+            },
+            "fields": {"ports": [22]},
+            "timestamp": datetime.datetime.now().timestamp() - 8 * 3600,
+        }
+    )
+
+    def latest_judgement():
+        return json.loads(
+            unwrap(serve.read_metrics)(
+                "port-stale-host", "open_ports", option="latest"
+            )[0]
+        )[0]["judgement"]
+
+    assert latest_judgement() is True
+
+    unwrap(serve.save_setting)("port_stale_hours", "4")
+    assert latest_judgement() == -1
