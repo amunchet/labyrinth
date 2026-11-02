@@ -1,0 +1,75 @@
+---
+# Runs guest_script (then, per guest, its Telegraf config and guest_post_script)
+# inside Proxmox VMs/LXCs by connecting only to their hypervisors: LXCs through
+# `pct exec`, VMs through the QEMU guest agent (`qm guest exec`).
+#
+# Labyrinth's /proxmox_deploy/ endpoint lays out the run: one inventory host per
+# hypervisor with its guests in `proxmox_guests`, the scripts as extravars, and
+# the encrypted per-node credentials file at ../vars/proxmox_credentials.yml.
+# Not meant to be run by hand or edited from the Deploy page.
+
+- name: Check hypervisor credentials and pin their SSH host keys
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../vars/proxmox_credentials.yml
+  tasks:
+    # Assert reports the failing expression, never the values, so no secrets leak
+    - name: Every targeted hypervisor has credentials and a pinned host key
+      ansible.builtin.assert:
+        that:
+          - hostvars[item].proxmox_cluster in proxmox_nodes
+          - hostvars[item].proxmox_node in proxmox_nodes[hostvars[item].proxmox_cluster]
+          - proxmox_nodes[hostvars[item].proxmox_cluster][hostvars[item].proxmox_node].ansible_host is defined
+          - proxmox_nodes[hostvars[item].proxmox_cluster][hostvars[item].proxmox_node].ansible_password is defined
+          - proxmox_nodes[hostvars[item].proxmox_cluster][hostvars[item].proxmox_node].ssh_host_key is defined
+        fail_msg: >-
+          proxmox_nodes.{{ hostvars[item].proxmox_cluster }}.{{ hostvars[item].proxmox_node }}
+          needs ansible_host, ansible_password and ssh_host_key in the credentials file
+        quiet: true
+      loop: "{{ groups['proxmox_nodes'] }}"
+
+    - name: Pin hypervisor SSH host keys
+      ansible.builtin.copy:
+        dest: "{{ playbook_dir }}/../known_hosts"
+        mode: "0600"
+        content: |
+          {% for host in groups['proxmox_nodes'] %}
+          {% set node = proxmox_nodes[hostvars[host].proxmox_cluster][hostvars[host].proxmox_node] %}
+          {{ node.ansible_host }} {{ node.ssh_host_key }}
+          {% endfor %}
+
+- name: Run on Proxmox guests through their hypervisor
+  hosts: proxmox_nodes
+  gather_facts: false
+  vars_files:
+    - ../vars/proxmox_credentials.yml
+  vars:
+    node_credentials: "{{ proxmox_nodes[proxmox_cluster][proxmox_node] }}"
+    ansible_host: "{{ node_credentials.ansible_host }}"
+    ansible_user: "{{ node_credentials.ansible_user | default('root') }}"
+    ansible_password: "{{ node_credentials.ansible_password }}"
+    ansible_become_password: "{{ node_credentials.ansible_become_password | default(node_credentials.ansible_password) }}"
+    # Password auth must never go to an unverified host
+    ansible_ssh_common_args: "-o StrictHostKeyChecking=yes -o UserKnownHostsFile={{ playbook_dir }}/../known_hosts"
+    telegraf_conf_write: >-
+      umask 027 && mkdir -p /etc/telegraf
+      && cat > /etc/telegraf/telegraf.conf.labyrinth
+      && (chgrp telegraf /etc/telegraf/telegraf.conf.labyrinth 2>/dev/null || true)
+      && mv /etc/telegraf/telegraf.conf.labyrinth /etc/telegraf/telegraf.conf
+    guest_failures: []
+  # Proxmox ships without sudo, so only escalate for non-root logins
+  become: "{{ (node_credentials.ansible_user | default('root')) != 'root' }}"
+  tasks:
+    - name: Run on each guest
+      ansible.builtin.include_tasks: proxmox_guest.yml
+      loop: "{{ proxmox_guests }}"
+      loop_control:
+        loop_var: guest
+        label: "{{ guest.type }} {{ guest.vmid }} ({{ guest.name }})"
+
+    - name: Every guest succeeded
+      ansible.builtin.fail:
+        msg: "Failed on: {{ guest_failures | join(', ') }}"
+      when: guest_failures | length > 0

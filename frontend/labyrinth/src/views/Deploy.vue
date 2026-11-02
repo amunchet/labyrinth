@@ -442,6 +442,203 @@
             </b-tab>
 
             <b-tab
+              title="Deploy to Proxmox Guests"
+              class="text-left"
+              @click="
+                () => {
+                  isTesting = false;
+                  selected_host = null;
+                  selected_group = '';
+                  selected_subnet = '';
+                  selected_tag = '';
+                  ips = [];
+                  loadProxmoxGuests();
+                }
+              "
+            >
+              <p class="text-muted">
+                Connects only to the Proxmox hypervisors and runs inside each
+                selected guest as root: LXCs through <code>pct exec</code>, VMs
+                through the QEMU guest agent. Debian/Ubuntu guests only.
+              </p>
+              <b-row>
+                <b-col>
+                  Hypervisor credentials (encrypted vault file):
+                  <b-select
+                    v-if="files_list['become'] != undefined"
+                    :options="files_list['become']"
+                    v-model="proxmox.credentials_file"
+                    :state="proxmox.credentials_file != ''"
+                  />
+                  <b-spinner v-else class="m-2" />
+                  <b-button
+                    class="mt-2 mr-3"
+                    size="sm"
+                    variant="success"
+                    @click="
+                      () => {
+                        generated_ansible = { type: 'Username and Password' };
+                        generated_vault_file = '';
+                        $bvModal.show('add_vault');
+                      }
+                    "
+                  >
+                    + Add Ansible Vault File
+                  </b-button>
+                  <b-button
+                    variant="link"
+                    class="p-0 mt-2"
+                    v-b-toggle.proxmox_credentials_help
+                  >
+                    Credentials file format
+                  </b-button>
+                  <b-collapse id="proxmox_credentials_help">
+                    <p class="mb-1">
+                      Create it offline with
+                      <code>ansible-vault create proxmox-root.yml</code> and
+                      upload it with <i>+ Add Ansible Vault File</i>. One entry
+                      per hypervisor, under the cluster and node names Proxmox
+                      reports:
+                    </p>
+                    <pre class="proxmox_format">{{
+                      proxmox_credentials_format
+                    }}</pre>
+                    <p class="mb-1">
+                      <code>ssh_host_key</code> pins the hypervisor's SSH key so
+                      the root password is never sent to an impostor. Read it on
+                      the node itself:
+                      <code>cat /etc/ssh/ssh_host_ed25519_key.pub</code> (drop
+                      the trailing comment).
+                    </p>
+                  </b-collapse>
+                </b-col>
+                <b-col>
+                  Vault Password:<br />
+                  <b-input
+                    :state="vault_password != ''"
+                    type="password"
+                    v-model="vault_password"
+                  />
+                </b-col>
+              </b-row>
+              <b-row class="mt-3">
+                <b-col>
+                  Action:
+                  <b-select
+                    v-model="proxmox.action"
+                    :options="proxmox_actions"
+                  />
+                  <b-textarea
+                    v-if="proxmox.action == 'script'"
+                    v-model="proxmox.script"
+                    rows="6"
+                    class="mt-2 text-monospace"
+                    placeholder="Shell script, run with sh -c as root inside each guest"
+                  />
+                </b-col>
+              </b-row>
+              <b-row class="mt-3">
+                <b-col>
+                  <b-spinner v-if="proxmox.loading" class="m-2" />
+                  <b-table
+                    v-else
+                    small
+                    striped
+                    responsive
+                    :items="proxmox.guests"
+                    :fields="proxmox_fields"
+                  >
+                    <template #cell(selected)="row">
+                      <b-checkbox
+                        v-model="row.item.selected"
+                        :disabled="proxmoxProblem(row.item) != ''"
+                      />
+                    </template>
+                    <template #cell(id)="row">
+                      {{ row.item.type.toUpperCase() }} {{ row.item.id }}
+                    </template>
+                    <template #cell(match)="row">
+                      {{ proxmoxIps(row.item).join(", ") }}
+                      <span class="text-danger" v-if="proxmoxProblem(row.item)">
+                        {{ proxmoxProblem(row.item) }}
+                      </span>
+                    </template>
+                  </b-table>
+                  <b-button
+                    variant="link"
+                    class="p-0"
+                    @click="
+                      () =>
+                        proxmox.guests.forEach(
+                          (g) => (g.selected = proxmoxProblem(g) == '')
+                        )
+                    "
+                  >
+                    Select all usable
+                  </b-button>
+                  &middot;
+                  <b-button
+                    variant="link"
+                    class="p-0"
+                    @click="
+                      () => proxmox.guests.forEach((g) => (g.selected = false))
+                    "
+                  >
+                    Clear
+                  </b-button>
+                </b-col>
+              </b-row>
+              <b-button
+                size="lg"
+                class="mt-3"
+                style="width: 100%"
+                variant="primary"
+                :disabled="
+                  running ||
+                  !proxmox.credentials_file ||
+                  !vault_password ||
+                  proxmoxSelected().length == 0 ||
+                  (proxmox.action == 'script' && !proxmox.script.trim())
+                "
+                @click="runProxmoxDeploy()"
+              >
+                <b-spinner small v-if="running" /> Run on
+                {{ proxmoxSelected().length }} guest<span
+                  v-if="proxmoxSelected().length != 1"
+                  >s</span
+                >
+              </b-button>
+              <b-alert
+                show
+                class="mt-3"
+                v-if="proxmox.run"
+                :variant="
+                  proxmox.run.outcome == 'success' ? 'success' : 'danger'
+                "
+              >
+                <b>{{
+                  proxmox.run.outcome == "success" ? "Succeeded" : "Failed"
+                }}</b>
+                <span v-if="proxmox.run.error"> - {{ proxmox.run.error }}</span>
+                <ul class="mb-0" v-if="(proxmox.run.failures || []).length > 0">
+                  <li
+                    v-for="(failure, idx) in proxmox.run.failures"
+                    :key="'proxmox_failure' + idx"
+                  >
+                    {{ failure.host }} - {{ failure.task }}: {{ failure.msg }}
+                  </li>
+                </ul>
+              </b-alert>
+              <div class="playbook_result" v-if="proxmox.logs.length > 0">
+                <pre
+                  v-for="(item, idx) in proxmox.logs"
+                  :key="'proxmox_log' + idx"
+                  >{{ (item || "").replace(/^\s+/gm, " ") }}</pre
+                >
+              </div>
+            </b-tab>
+
+            <b-tab
               title="Deployment Testing"
               class="bg-dark text-success"
               @click="
@@ -746,6 +943,45 @@ export default {
       deep_link_playbook: "",
       deep_link_logs: [],
       deep_link_run: null,
+
+      // Deploy to Proxmox guests through their hypervisors
+      proxmox: {
+        credentials_file: "",
+        action: "telegraf",
+        script: "",
+        guests: [],
+        loading: false,
+        logs: [],
+        run: null,
+      },
+      proxmox_actions: [
+        {
+          value: "telegraf",
+          text: "Install and configure Telegraf (each guest's saved config)",
+        },
+        { value: "apt_upgrade", text: "apt update and upgrade" },
+        { value: "script", text: "Custom shell script" },
+      ],
+      proxmox_fields: [
+        { key: "selected", label: "" },
+        { key: "cluster_name", label: "Cluster" },
+        "node",
+        { key: "id", label: "Guest" },
+        "name",
+        { key: "check_status", label: "Telegraf check" },
+        { key: "match", label: "Labyrinth host" },
+      ],
+      proxmox_credentials_format: [
+        "proxmox_nodes:",
+        "  north:            # cluster name",
+        "    pve3:           # node name",
+        "      ansible_host: 192.168.9.103",
+        "      ansible_user: root            # optional, default root",
+        '      ansible_password: "XXXXXXX"',
+        '      ssh_host_key: "ssh-ed25519 AAAA..."',
+        "    pve4:",
+        "      ...",
+      ].join("\n"),
     };
   },
   watch: {
@@ -1182,6 +1418,113 @@ export default {
       this.sample_loading = false;
     },
 
+    // Every VM/LXC with its Labyrinth host match, from the Telegraf check
+    loadProxmoxGuests: /* istanbul ignore next */ async function () {
+      this.proxmox.loading = true;
+      try {
+        const res = await Helper.apiCall(
+          "disk-space/proxmox",
+          "telegraf-check",
+          this.$auth
+        );
+        const payload = typeof res === "string" ? JSON.parse(res) : res;
+        this.proxmox.guests = (payload.guests || []).map((g) => ({
+          ...g,
+          selected: false,
+        }));
+      } catch (e) {
+        this.$store.commit("updateError", e);
+      }
+      this.proxmox.loading = false;
+    },
+    proxmoxIps: function (guest) {
+      return [
+        ...new Set(guest.labyrinth_matches.map((m) => m.ip).filter((x) => x)),
+      ];
+    },
+    // Why a guest can't take the chosen action ("" when it can); the backend enforces the same rules
+    proxmoxProblem: function (guest) {
+      if (!guest.running) {
+        return "Not running";
+      }
+      if (this.proxmox.action != "telegraf") {
+        return "";
+      }
+      const ips = this.proxmoxIps(guest);
+      if (ips.length != 1) {
+        return "Needs exactly one matching Labyrinth host";
+      }
+      if (!(this.files_list["telegraf"] || []).includes(ips[0] + ".conf")) {
+        return "No Telegraf config saved";
+      }
+      return "";
+    },
+    proxmoxSelected: function () {
+      return this.proxmox.guests.filter(
+        (g) => g.selected && this.proxmoxProblem(g) == ""
+      );
+    },
+    runProxmoxDeploy: /* istanbul ignore next */ async function () {
+      this.running = true;
+      this.proxmox.logs = [];
+      this.proxmox.run = null;
+      let formData = new FormData();
+      formData.append(
+        "data",
+        JSON.stringify({
+          action: this.proxmox.action,
+          script: this.proxmox.script,
+          credentials_file: this.proxmox.credentials_file,
+          vault_password: this.vault_password,
+          guests: this.proxmoxSelected().map((g) => ({
+            cluster_name: g.cluster_name,
+            node: g.node,
+            type: g.type,
+            id: g.id,
+          })),
+        })
+      );
+
+      let job_id = "";
+      try {
+        const response = await Helper.apiPost(
+          "proxmox_deploy",
+          "",
+          "",
+          this.$auth,
+          formData,
+          false,
+          1
+        );
+        job_id = (await response.json()).job_id;
+        await this.pollAnsibleJob(job_id, (logs) => {
+          this.proxmox.logs = logs;
+        });
+      } catch (e) {
+        const message = "" + (e.message || e);
+        this.$store.commit(
+          "updateError",
+          message.indexOf("484") != -1
+            ? "Error: Some selected guests changed on Proxmox and can no longer be deployed. Reload the guest list and try again."
+            : message
+        );
+      }
+
+      // The recorded run carries the outcome and failed tasks, even on error
+      if (job_id) {
+        try {
+          this.proxmox.run = await Helper.apiCall(
+            "ansible_run",
+            job_id,
+            this.$auth
+          );
+        } catch (e) {
+          this.$store.commit("updateError", e);
+        }
+      }
+      this.running = false;
+    },
+
     loadFilesList: /* istanbul ignore next */ async function (type) {
       let auth = this.$auth;
       Helper.apiCall("uploads", type, auth)
@@ -1317,6 +1660,12 @@ pre {
 }
 *::-webkit-scrollbar-thumb {
   background: darkgrey;
+}
+
+.proxmox_format {
+  white-space: pre;
+  background-color: lightgrey;
+  padding: 0.5rem !important;
 }
 
 .playbook_result {
