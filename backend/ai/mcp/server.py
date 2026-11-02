@@ -102,7 +102,7 @@ async def mcp_list_hosts() -> List[Dict[str, Any]]:
 
 @app.tool()
 async def mcp_get_host(host_key: str) -> Dict[str, Any]:
-    """Fetch a single host by MAC or IP."""
+    """Fetch a single host by MAC, IP or (unambiguous) hostname."""
     host = await _blocking(client.get_host, host_key)
     if not host:
         raise ValueError("Host not found")

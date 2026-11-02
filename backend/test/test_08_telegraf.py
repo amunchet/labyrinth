@@ -3,6 +3,7 @@
 Tests for the TOML work
 """
 import os
+import copy
 import json
 import shutil
 
@@ -28,17 +29,26 @@ def mkdir():
     return "Done"
 
 
-@pytest.fixture
-def setup():
-    # Clear redis
-    rc = redis.Redis(host="redis")
-    for key in rc.keys("*"):
-        rc.delete(key)
+# Parsed configs by text.  The comment-preserving TOML decoder takes seconds on
+# the 8,600-line sample, and every test here parses the same text
+PARSED = {}
+real_loads = toml.loads
 
+
+def cached_loads(s, decoder=None):
+    """toml.loads, parsing each distinct text only once"""
+    if s not in PARSED:
+        PARSED[s] = real_loads(s, decoder=decoder)
+    return copy.deepcopy(PARSED[s])
+
+
+@pytest.fixture(scope="module")
+def parsed():
+    """Parses the sample config once, checking its comments survived"""
     lines = services.prepare("/src/test/sample_telegraf.conf")
     decoder = toml.TomlPreserveCommentDecoder(beforeComments=True)
 
-    x = toml.loads("\n".join(lines), decoder=decoder)
+    x = cached_loads("\n".join(lines), decoder=decoder)
 
     assert x["agent"]["interval"].val.val == "10s"
     assert [x for x in decoder.before_tags if "interval" in x["name"]][0][
@@ -50,7 +60,18 @@ def setup():
     # TODO: Test Duplicate keys
 
     # TODO: Multiline Arrays
-    yield (x, decoder)
+    return (x, decoder)
+
+
+@pytest.fixture
+def setup(parsed, monkeypatch):
+    # Clear redis
+    rc = redis.Redis(host="redis")
+    for key in rc.keys("*"):
+        rc.delete(key)
+
+    monkeypatch.setattr(serve.toml, "loads", cached_loads)
+    yield parsed
 
 
 def test_output(mkdir):
