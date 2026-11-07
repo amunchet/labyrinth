@@ -27,6 +27,11 @@ from werkzeug.utils import secure_filename
 from typing import List
 
 
+# Where a vault keeps its logins: `standard` sets the connection variables at its
+# top level, `proxmox` is the per-hypervisor proxmox_nodes layout
+VAULT_FORMATS = ("standard", "proxmox")
+
+
 def check_file(filename, file_type, raw=""):
     """
     Verifies the file uploaded is a valid file of the specified type
@@ -117,6 +122,17 @@ def check_file(filename, file_type, raw=""):
         return False
 
 
+def load_plays(raw):
+    """The plays of a playbook, whose YAML documents are each a list of them."""
+    plays = []
+    for doc in yaml.safe_load_all(raw):
+        if isinstance(doc, list):
+            plays.extend(doc)
+        elif doc is not None:
+            plays.append(doc)
+    return plays
+
+
 def validate_ai_playbook(raw, forbidden_hosts=None):
     """Reject unsafe agent-generated playbook structure before Ansible runs it.
 
@@ -125,17 +141,9 @@ def validate_ai_playbook(raw, forbidden_hosts=None):
     groups and may not embed credentials or a concrete IP/hostname.
     """
     try:
-        docs = list(yaml.safe_load_all(raw))
+        plays = load_plays(raw)
     except yaml.YAMLError:
         return "Invalid YAML syntax."
-    # yaml.safe_load_all wraps each YAML document; a playbook is a sequence of
-    # play dicts, so each document is a list.  Flatten one level.
-    plays = []
-    for doc in docs:
-        if isinstance(doc, list):
-            plays.extend(doc)
-        elif doc is not None:
-            plays.append(doc)
     if not plays or any(not isinstance(play, dict) for play in plays):
         return "The playbook must contain one or more Ansible plays."
 
@@ -189,10 +197,7 @@ def persist_reviewed_playbook(filename, raw, vars_file, forbidden_hosts=None):
     validation_error = validate_ai_playbook(raw, forbidden_hosts=forbidden_hosts)
     if validation_error:
         raise ValueError(validation_error)
-    # Each YAML document of a playbook is a list of plays
-    plays = []
-    for doc in yaml.safe_load_all(raw):
-        plays.extend(doc if isinstance(doc, list) else [doc])
+    plays = load_plays(raw)
     for play in plays:
         play["vars_files"] = [
             "/src/uploads/become/{}.yml".format(
@@ -213,6 +218,7 @@ def run_ansible(
     become_file: str,
     ssh_key_file="",
     totp_file="",
+    vault_format="standard",
 ):
     """
     Runs ansible playbook
@@ -225,6 +231,7 @@ def run_ansible(
 
     :param ssh_key_file - SSH key to use for hosts (optional)
     :param totp_file - TOTP secret file for 2FA hosts (optional)
+    :param vault_format - a VAULT_FORMATS value, how `become_file` lays out its logins
 
     ```
     ansible_runner.run(\
@@ -273,6 +280,29 @@ def run_ansible(
         raise Exception("Become file not found" + str(old_become))
 
     shutil.copy(old_become, "{}/vars/{}.yml".format(RUN_DIR, become_file))
+
+    if vault_format == "proxmox":
+        # Ansible picks each target's own login at run time: the vault stays
+        # encrypted here, and group vars keep it away from localhost plays
+        group_vars = "{}/inventory/group_vars/clients".format(RUN_DIR)
+        os.makedirs(group_vars)
+        shutil.copy(old_become, group_vars + "/proxmox_credentials.yml")
+        shutil.copy(PROXMOX_PLAYBOOK_DIR + "/proxmox_login_vars.yml", group_vars)
+
+        run_playbook = "{}/project/{}.yml".format(RUN_DIR, playbook)
+        with open(run_playbook) as f:
+            plays = load_plays(f.read())
+        # A saved playbook still names the vault it was last saved with, and a
+        # play's vars_files would beat these group vars
+        for play in plays:
+            if "vars_files" in play:
+                play["vars_files"] = [
+                    x for x in play["vars_files"] if not x.startswith(BECOME_DIR)
+                ]
+        with open(PROXMOX_PLAYBOOK_DIR + "/proxmox_login.yml") as f:
+            plays = yaml.safe_load(f) + plays
+        with open(run_playbook, "w") as f:
+            yaml.safe_dump(plays, f, sort_keys=False)
 
     # SSH key file (optional)
     if ssh_key_file:

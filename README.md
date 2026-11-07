@@ -58,7 +58,12 @@ proxmox_nodes:
       ssh_host_key: "ssh-ed25519 AAAA..."   # /etc/ssh/ssh_host_ed25519_key.pub on the node
 ```
 
-`ssh_host_key` is required: connections use strict host key checking against it, so the root password is never sent to a host that isn't the real hypervisor. A run fails before touching any guest if a targeted node is missing from the file. The Telegraf config and passwords are kept out of the run log; one guest failing doesn't stop the others, and the run ends listing every failed guest. This route is deliberately not exposed through the MCP server.
+`ssh_host_key` is required: connections use strict host key checking against it, so the root password is never sent to a host that isn't the real hypervisor (a wrong or unusable key fails with Ansible's "Host Key checking is enabled" error). A run fails before touching any guest if a targeted node is missing from the file. The Telegraf config and passwords are kept out of the run log; one guest failing doesn't stop the others, and the run ends listing every failed guest. This route is deliberately not exposed through the MCP server.
+
+### Running ordinary playbooks on the hypervisors
+The same file logs in to the Proxmox nodes themselves for any other playbook, so there is only one set of hypervisor credentials to keep. Pick it as the become file and set **Vault format** to *Proxmox* - on the Deploy page, on a Prepared Deployment, or with `vault_format: proxmox` when an agent stages one (deploy links carry it as `&vault_format=proxmox`). The default *Standard* format is the usual one, with `ansible_user`/`ansible_ssh_pass` at the top of the file.
+
+In the Proxmox format each target host logs in with the `proxmox_nodes` entry whose `ansible_host` is that host's address: its `ansible_user` (default root), `ansible_password`, and `ansible_become_password` if it has one, with the same strict `ssh_host_key` check. Root logins escalate with `su`, since Proxmox ships without sudo. The run checks every target first and connects to nothing if any has no complete entry. The vault a playbook was last saved with (its `vars_files`) is ignored for the run, so the chosen file always wins. A run can read every login in the vault, not just its targets', so review an agent's playbook before deploying it this way.
 
 ## Upgrading an existing install
 

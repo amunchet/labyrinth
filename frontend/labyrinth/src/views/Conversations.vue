@@ -108,6 +108,9 @@
                   ? message.become_file + ".yml"
                   : "you choose when deploying"
               }}</b>
+              <span v-if="message.vault_format == 'proxmox'">
+                (Proxmox vault format)</span
+              >
             </div>
             <b-button
               v-if="staged(message.request_id).generated"
@@ -259,7 +262,7 @@ export default {
       );
     },
     staged(request_id) {
-      return (this.conversation.requests || {})[request_id] || { runs: [] };
+      return this.conversation.requests?.[request_id] || { runs: [] };
     },
     // Where a staged deployment stands, from its latest run
     requestState(request_id) {

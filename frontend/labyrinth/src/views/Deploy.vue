@@ -288,6 +288,21 @@
                 ]"
               />
             </li>
+            <li>
+              Vault format:
+              <b-select
+                size="sm"
+                class="w-auto"
+                v-model="deep_link.vault_format"
+                :options="vault_formats"
+              />
+              <div
+                class="small text-muted"
+                v-if="deep_link.vault_format == 'proxmox'"
+              >
+                {{ proxmox_vault_help }}
+              </div>
+            </li>
           </ul>
           <b-button
             variant="link"
@@ -510,6 +525,11 @@
                       <code>cat /etc/ssh/ssh_host_ed25519_key.pub</code> (drop
                       the trailing comment).
                     </p>
+                    <p class="mb-1">
+                      The same file can log in to the hypervisors themselves for
+                      a normal playbook: choose it as the Become Password file
+                      with the <i>Proxmox</i> vault format.
+                    </p>
                   </b-collapse>
                 </b-col>
                 <b-col>
@@ -689,7 +709,13 @@
                 :state="selected['become'] != ''"
               />
               <b-spinner v-else class="m-2" />
-              <br />
+              <div class="mt-3">
+                Vault format:
+                <b-select v-model="vault_format" :options="vault_formats" />
+                <div class="small text-muted" v-if="vault_format == 'proxmox'">
+                  {{ proxmox_vault_help }}
+                </div>
+              </div>
               <b-button
                 class="mt-3"
                 variant="success"
@@ -918,6 +944,21 @@ export default {
       vault_password: "",
       ansible_user: "",
 
+      // Where the chosen vault keeps its logins
+      vault_format: "standard",
+      vault_formats: [
+        {
+          value: "standard",
+          text: "Standard (ansible_user, ansible_ssh_pass)",
+        },
+        {
+          value: "proxmox",
+          text: "Proxmox (proxmox_nodes, one per hypervisor)",
+        },
+      ],
+      proxmox_vault_help:
+        "Each target logs in with the proxmox_nodes entry whose ansible_host is its address, and must present that entry's ssh_host_key.",
+
       selected_playbook: "",
       playbook_contents: "",
       playbook_loaded: true,
@@ -1066,9 +1107,9 @@ export default {
       formData.append("file", this.generated_vault_file);
       formData.append("filename", this.generated_ansible.filename);
       Helper.apiPost("upload", "/" + type, auth.accessToken, auth, formData)
-        .then((res) => {
+        .then(async (res) => {
           this.$store.commit("updateError", res);
-          this.loadFilesList(type);
+          await this.loadFilesList(type);
           this.$bvModal.hide("add_vault");
         })
         .catch((e) => {
@@ -1089,10 +1130,10 @@ export default {
           formData,
           true
         )
-          .then((res) => {
+          .then(async (res) => {
             //this.$store.commit("updateError", res);
             this.selected[type] = res;
-            this.loadFilesList(type);
+            await this.loadFilesList(type);
           })
           .catch((e) => {
             if (("" + e).indexOf("521") != -1) {
@@ -1231,6 +1272,7 @@ export default {
         become_file: this.selected["become"].replace(".yml", ""),
         ssh_key: this.selected["ssh"],
         totp_file: this.selected["totp"] || "",
+        vault_format: this.vault_format,
       };
 
       try {
@@ -1270,16 +1312,22 @@ export default {
       const query = this.$route.query;
       const ips = query.ips?.split(",").filter((x) => x != "") || [];
       if (query.request) {
-        this.deep_link = await Helper.apiCall(
+        const staged = await Helper.apiCall(
           "ansible_request",
           query.request,
           this.$auth
         );
+        // Requests staged before formats existed carry none
+        this.deep_link = {
+          ...staged,
+          vault_format: staged.vault_format || "standard",
+        };
       } else if (query.playbook && query.become && ips.length > 0) {
         this.deep_link = {
           hosts: ips,
           playbook: query.playbook.replace(/.yml$/, ""),
           become_file: query.become.replace(/.yml$/, ""),
+          vault_format: query.vault_format || "standard",
           ssh_key: query.ssh || "",
           generated: false,
           notes: "",
@@ -1321,6 +1369,7 @@ export default {
             JSON.stringify({
               vault_password: this.vault_password,
               become_file: link.become_file,
+              vault_format: link.vault_format,
             })
           );
           const response = await Helper.apiPost(
@@ -1340,6 +1389,7 @@ export default {
             vault_password: this.vault_password,
             become_file: link.become_file,
             ssh_key: link.ssh_key,
+            vault_format: link.vault_format,
           });
         }
         await this.pollAnsibleJob(job_id, (logs) => {
@@ -1385,6 +1435,9 @@ export default {
       });
       if (this.selected["ssh"]) {
         params.set("ssh", this.selected["ssh"]);
+      }
+      if (this.vault_format != "standard") {
+        params.set("vault_format", this.vault_format);
       }
       const url = `${window.location.origin}/deploy?${params}`;
       try {

@@ -1520,6 +1520,8 @@ def save_ansible_file(fname, inp_data="", vars_file=""):
 # Cap on stored log characters per run, keeping the tail (the play recap lives there)
 ANSIBLE_LOG_LIMIT = 1_000_000
 
+INVALID_VAULT_FORMAT = "vault_format must be standard or proxmox"
+
 
 def utc_now():
     """Current UTC time as an ISO string, the format stored on ansible runs/requests."""
@@ -1556,6 +1558,7 @@ def run_ansible_background(job_id, data):
                 data["become_file"],
                 ssh_key_file=data.get("ssh_key", ""),
                 totp_file=data.get("totp_file", ""),
+                vault_format=data.get("vault_format", "standard"),
             )
         redis_client.hset(job_id, "status", "running")
         db["labyrinth"]["ansible_runs"].update_one(
@@ -1685,6 +1688,7 @@ def start_ansible_job(job_id, data):
             "playbook": data["playbook"],
             "hosts": hosts,
             "become_file": data["become_file"],
+            "vault_format": data.get("vault_format", "standard"),
             "status": "queued",
             "created_at": utc_now(),
         }
@@ -1708,6 +1712,8 @@ def run_ansible_endpoint(inp_data=""):
     required_keys = ["hosts", "playbook", "vault_password", "become_file"]
     if not all(key in data for key in required_keys):
         return "Invalid data", 482
+    if data.get("vault_format", "standard") not in ansible_helper.VAULT_FORMATS:
+        return INVALID_VAULT_FORMAT, 482
 
     job_id = f"ansible_job_{uuid.uuid4()}"
     start_ansible_job(job_id, data)
@@ -1815,6 +1821,7 @@ def run_proxmox_deploy(inp_data=""):
                 for t in targets
             ],
             "become_file": credentials_file,
+            "vault_format": "proxmox",
             "vault_password": data["vault_password"],
             "proxmox_targets": targets,
             "proxmox_action": action,
@@ -1901,6 +1908,7 @@ def create_ansible_request(inp_data=""):
 
     playbook = secure_filename(data.get("playbook", "")).replace(".yml", "")
     become_file = secure_filename(data.get("become_file", "")).replace(".yml", "")
+    vault_format = data.get("vault_format") or "standard"
     hosts = data.get("hosts", [])
     if isinstance(hosts, str):
         hosts = [x.strip() for x in hosts.split(",") if x.strip()]
@@ -1908,6 +1916,8 @@ def create_ansible_request(inp_data=""):
 
     if not playbook or not hosts:
         return "playbook and hosts are required", 482
+    if vault_format not in ansible_helper.VAULT_FORMATS:
+        return INVALID_VAULT_FORMAT, 482
 
     if become_file and "{}.yml".format(become_file) not in os.listdir(
         "/src/uploads/become"
@@ -1959,6 +1969,7 @@ def create_ansible_request(inp_data=""):
             "generated": bool(content),
             "hosts": hosts,
             "become_file": become_file,
+            "vault_format": vault_format,
             "ssh_key": data.get("ssh_key", ""),
             "totp_file": data.get("totp_file", ""),
             "notes": data.get("notes", ""),
@@ -1974,6 +1985,7 @@ def create_ansible_request(inp_data=""):
         playbook=playbook,
         hosts=hosts,
         become_file=become_file,
+        vault_format=vault_format,
         generated=bool(content),
     )
     return {
@@ -2009,9 +2021,9 @@ def get_ansible_request(request_id):
 def deploy_ansible_request(request_id, inp_data=""):
     """
     Launches a staged deployment; the human supplies only the vault password,
-    plus the become file when the agent left it open (or to swap it).
-    Generated content is saved server-side first, so what runs is exactly what
-    was staged and reviewed.
+    plus the become file when the agent left it open (or to swap it, or its
+    vault format).  Generated content is saved server-side first, so what runs
+    is exactly what was staged and reviewed.
     """
     if inp_data:
         data = inp_data
@@ -2035,6 +2047,10 @@ def deploy_ansible_request(request_id, inp_data=""):
         return "Choose a become file", 482
     if "{}.yml".format(become_file) not in os.listdir("/src/uploads/become"):
         return "Become file not found", 483
+    # Requests staged before formats existed carry none
+    vault_format = data.get("vault_format") or staged.get("vault_format", "standard")
+    if vault_format not in ansible_helper.VAULT_FORMATS:
+        return INVALID_VAULT_FORMAT, 482
 
     if staged["playbook_content"]:
         try:
@@ -2069,6 +2085,7 @@ def deploy_ansible_request(request_id, inp_data=""):
             "playbook": staged["playbook"],
             "vault_password": data["vault_password"],
             "become_file": become_file,
+            "vault_format": vault_format,
             "ssh_key": staged.get("ssh_key", ""),
             "totp_file": data.get("totp_file") or staged.get("totp_file", ""),
         },

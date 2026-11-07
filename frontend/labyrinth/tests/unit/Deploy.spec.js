@@ -167,5 +167,124 @@ describe("Deploy.vue", () => {
       expect(wrapper.vm.deep_link.request_id).toBe("req-1");
       expect(wrapper.vm.deep_link_playbook).toBe(content);
     });
+
+    test("a staged request keeps the agent's vault format", async () => {
+      jest.spyOn(Helper, "apiCall").mockResolvedValue({
+        request_id: "req-2",
+        hosts: ["10.0.0.7"],
+        playbook: "patch",
+        become_file: "proxmox-root",
+        vault_format: "proxmox",
+        generated: true,
+        playbook_content: "",
+      });
+      wrapper.vm.$route = { query: { request: "req-2" } };
+      await wrapper.vm.loadDeepLink();
+
+      expect(wrapper.vm.deep_link.vault_format).toBe("proxmox");
+    });
+
+    test("a request staged before formats existed reads as standard", async () => {
+      jest.spyOn(Helper, "apiCall").mockResolvedValue({
+        request_id: "req-3",
+        hosts: ["10.0.0.7"],
+        playbook: "patch",
+        become_file: "creds",
+        generated: true,
+        playbook_content: "",
+      });
+      wrapper.vm.$route = { query: { request: "req-3" } };
+      await wrapper.vm.loadDeepLink();
+
+      expect(wrapper.vm.deep_link.vault_format).toBe("standard");
+    });
+
+    test("a deploy link carries the vault format", async () => {
+      jest.spyOn(Helper, "apiCall").mockResolvedValue("- hosts: all\n");
+      wrapper.vm.$route = {
+        query: {
+          ips: "10.0.0.5",
+          playbook: "patch",
+          become: "proxmox-root",
+          vault_format: "proxmox",
+        },
+      };
+      await wrapper.vm.loadDeepLink();
+
+      expect(wrapper.vm.deep_link.vault_format).toBe("proxmox");
+    });
+
+    test("copying a deploy link only names a non-standard format", async () => {
+      const writeText = jest.fn().mockResolvedValue();
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: { writeText },
+      });
+      jest.spyOn(Helper, "apiCall").mockResolvedValue("- hosts: all\n");
+      wrapper.vm.selected_host = "10.0.0.5";
+      wrapper.vm.selected_playbook = "patch.yml";
+      wrapper.vm.selected.become = "proxmox-root.yml";
+
+      await wrapper.vm.copyDeployLink();
+      expect(writeText.mock.calls[0][0]).not.toContain("vault_format");
+
+      wrapper.vm.vault_format = "proxmox";
+      await wrapper.vm.copyDeployLink();
+      expect(writeText.mock.calls[1][0]).toContain("vault_format=proxmox");
+    });
+  });
+
+  describe("vault format", () => {
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    const apiData = (api) => JSON.parse(api.mock.calls[0][4].get("data"));
+
+    test("a manual deploy sends the chosen format", async () => {
+      const api = jest.spyOn(Helper, "apiPost").mockResolvedValue({
+        json: async () => ({ job_id: "job-1", status: "started" }),
+      });
+      jest
+        .spyOn(Helper, "apiCall")
+        .mockResolvedValue({ status: "completed", logs: [], results: "" });
+      wrapper.vm.selected_host = "10.0.0.5";
+      wrapper.vm.selected_playbook = "patch.yml";
+      wrapper.vm.selected.become = "proxmox-root.yml";
+      wrapper.vm.vault_password = "pw";
+      wrapper.vm.vault_format = "proxmox";
+
+      await wrapper.vm.runPlaybook();
+
+      expect(apiData(api)).toMatchObject({
+        become_file: "proxmox-root",
+        vault_format: "proxmox",
+      });
+    }, 10000);
+
+    test("the prepared deployment sends the format chosen on it", async () => {
+      const api = jest.spyOn(Helper, "apiPost").mockResolvedValue({
+        json: async () => ({ job_id: "job-2", status: "started" }),
+      });
+      jest
+        .spyOn(Helper, "apiCall")
+        .mockResolvedValue({ status: "completed", logs: [], failures: [] });
+      wrapper.vm.vault_password = "pw";
+      wrapper.vm.deep_link = {
+        request_id: "req-4",
+        hosts: ["10.0.0.5"],
+        playbook: "patch",
+        become_file: "proxmox-root",
+        vault_format: "proxmox",
+      };
+
+      await wrapper.vm.deployDeepLink();
+
+      expect(apiData(api)).toEqual({
+        vault_password: "pw",
+        become_file: "proxmox-root",
+        vault_format: "proxmox",
+      });
+    }, 10000);
   });
 });
