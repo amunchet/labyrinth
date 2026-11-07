@@ -51,7 +51,9 @@
     ansible_user: "{{ node_credentials.ansible_user | default('root') }}"
     ansible_password: "{{ node_credentials.ansible_password }}"
     ansible_become_password: "{{ node_credentials.ansible_become_password | default(node_credentials.ansible_password) }}"
-    # Password auth must never go to an unverified host
+    # Password auth must never go to an unverified host. ansible-runner turns host key
+    # checking off, and ssh would take its StrictHostKeyChecking=no over the one below
+    ansible_host_key_checking: true
     ansible_ssh_common_args: "-o StrictHostKeyChecking=yes -o UserKnownHostsFile={{ playbook_dir }}/../known_hosts"
     telegraf_conf_write: >-
       umask 027 && mkdir -p /etc/telegraf

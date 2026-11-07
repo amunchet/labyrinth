@@ -108,6 +108,9 @@
                   ? message.become_file + ".yml"
                   : "you choose when deploying"
               }}</b>
+              <span v-if="message.vault_format == 'proxmox'">
+                (Proxmox vault format)</span
+              >
             </div>
             <b-button
               v-if="staged(message.request_id).generated"

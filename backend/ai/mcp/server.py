@@ -484,6 +484,7 @@ async def mcp_prepare_deployment(
     ssh_key: str = "",
     notes: str = "",
     conversation_id: str = "",
+    vault_format: str = "standard",
 ) -> Dict[str, Any]:
     """
     Stage an Ansible deployment for a human and return a deep link to it.
@@ -496,9 +497,13 @@ async def mcp_prepare_deployment(
     not reuse the name of a playbook a human wrote (an earlier generated one is
     fine).  notes: what this does and why, shown to the human.
     conversation_id: the conversation this belongs to (from
-    mcp_start_conversation); blank starts a new one.  The human is alerted;
-    nothing runs until they open deploy_url and enter the vault password.
-    Then call mcp_wait_for_response for the outcome.
+    mcp_start_conversation); blank starts a new one.  vault_format: where
+    become_file keeps its logins, `standard` (top-level ansible_user and
+    ansible_ssh_pass) or `proxmox` (the proxmox_nodes file such as proxmox-root,
+    for logging in to the hypervisors themselves: every host must be a node's
+    ansible_host in it).  The human is alerted; nothing runs until they open
+    deploy_url and enter the vault password.  Then call mcp_wait_for_response
+    for the outcome.
     """
     return await _blocking(
         client.prepare_deployment,
@@ -510,6 +515,7 @@ async def mcp_prepare_deployment(
             "ssh_key": ssh_key,
             "notes": notes,
             "conversation_id": conversation_id,
+            "vault_format": vault_format,
         },
     )
 

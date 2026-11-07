@@ -1,0 +1,36 @@
+---
+# First play of a normal playbook run whose vault is in the Proxmox format; the
+# logins themselves come from proxmox_login_vars.yml. On localhost, so a target
+# without a login stops the run before anything connects.
+
+- name: Check Proxmox logins and pin their SSH host keys
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    usable_hosts: >-
+      {{ groups['clients'] | map('extract', hostvars)
+         | selectattr('proxmox_login.ansible_password', 'defined')
+         | selectattr('proxmox_login.ssh_host_key', 'defined')
+         | map(attribute='inventory_hostname') | list }}
+    missing_hosts: "{{ groups['clients'] | difference(usable_hosts) }}"
+  tasks:
+    # One assert, not a loop: a run's failure list only shows a task's own message.
+    # Assert reports the failing expression, never the values, so no secrets leak
+    - name: Every target host has a login and a pinned host key
+      ansible.builtin.assert:
+        that: missing_hosts | length == 0
+        fail_msg: >-
+          No proxmox_nodes entry with ansible_password and ssh_host_key has
+          ansible_host {{ missing_hosts | join(', ') }}. Is this vault in the
+          Proxmox format?
+        quiet: true
+
+    - name: Pin SSH host keys
+      ansible.builtin.copy:
+        dest: "{{ playbook_dir }}/../known_hosts"
+        mode: "0600"
+        content: |
+          {% for host in groups['clients'] %}
+          {{ host }} {{ hostvars[host].proxmox_login.ssh_host_key }}
+          {% endfor %}

@@ -1,0 +1,19 @@
+---
+# Group vars for a normal playbook run whose vault is in the Proxmox format: the
+# connection variables a standard vault sets at its top level, read instead from
+# the proxmox_nodes entry whose ansible_host is the target host.
+
+proxmox_login: >-
+  {{ (proxmox_nodes | default({})).values() | map('dict2items') | flatten | map(attribute='value')
+     | selectattr('ansible_host', 'defined')
+     | selectattr('ansible_host', 'equalto', inventory_hostname)
+     | first | default({}) }}
+ansible_user: "{{ proxmox_login.ansible_user | default('root') }}"
+ansible_password: "{{ proxmox_login.ansible_password }}"
+ansible_become_password: "{{ proxmox_login.ansible_become_password | default(proxmox_login.ansible_password) }}"
+# Proxmox ships without sudo, but root can always su to whoever the playbook asks for
+ansible_become_method: "{{ 'su' if ansible_user == 'root' else 'sudo' }}"
+# Password auth must never go to an unverified host. ansible-runner turns host key
+# checking off, and ssh would take its StrictHostKeyChecking=no over the one below
+ansible_host_key_checking: true
+ansible_ssh_common_args: "-o StrictHostKeyChecking=yes -o UserKnownHostsFile={{ playbook_dir }}/../known_hosts"

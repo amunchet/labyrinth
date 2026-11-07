@@ -305,6 +305,98 @@ def test_create_request_for_existing_playbook(db, uploads):
 GENERATED = "- hosts: all\n  tasks:\n    - ping:\n"
 
 
+def test_staged_vault_format_reaches_the_run(db, fake_redis, uploads):
+    runs, requests = db
+    resp, _ = unwrap(serve.create_ansible_request)(_request(vault_format="proxmox"))
+    request_id = resp["request_id"]
+    assert requests.find_one({"request_id": request_id})["vault_format"] == "proxmox"
+
+    with patch("serve.Process") as process:
+        out, status = _deploy(request_id, vault_password="pw")
+    assert status == 200
+    assert process.call_args.kwargs["args"][1]["vault_format"] == "proxmox"
+    assert runs.find_one({"job_id": out["job_id"]})["vault_format"] == "proxmox"
+
+
+def test_human_can_change_the_staged_vault_format(db, fake_redis, uploads):
+    resp, _ = unwrap(serve.create_ansible_request)(_request(vault_format="proxmox"))
+    with patch("serve.Process") as process:
+        _deploy(resp["request_id"], vault_password="pw", vault_format="standard")
+    assert process.call_args.kwargs["args"][1]["vault_format"] == "standard"
+
+
+def test_request_staged_without_a_format_deploys_as_standard(db, fake_redis, uploads):
+    runs, requests = db
+    resp, _ = unwrap(serve.create_ansible_request)(_request())
+    request_id = resp["request_id"]
+    assert requests.find_one({"request_id": request_id})["vault_format"] == "standard"
+
+    # Requests staged before formats existed have no field at all
+    requests.update_one({"request_id": request_id}, {"$unset": {"vault_format": ""}})
+    with patch("serve.Process"):
+        out, status = _deploy(request_id, vault_password="pw")
+    assert status == 200
+    assert runs.find_one({"job_id": out["job_id"]})["vault_format"] == "standard"
+
+
+def test_unknown_vault_format_is_refused_without_echoing_it(db, fake_redis, uploads):
+    _, requests = db
+    bad = "<script>alert(1)</script>"
+    body, status = unwrap(serve.create_ansible_request)(_request(vault_format=bad))
+    assert status == 482
+    assert bad not in body
+    assert requests.count_documents({}) == 0
+
+    resp, _ = unwrap(serve.create_ansible_request)(_request())
+    with patch("serve.Process") as process:
+        body, status = _deploy(
+            resp["request_id"], vault_password="pw", vault_format=bad
+        )
+        assert status == 482
+        assert bad not in body
+
+        body, status = unwrap(serve.run_ansible_endpoint)(
+            json.dumps(
+                {
+                    "hosts": "10.0.0.5",
+                    "playbook": "pb",
+                    "vault_password": "secret",
+                    "become_file": "creds",
+                    "vault_format": bad,
+                }
+            )
+        )
+        assert status == 482
+        assert bad not in body
+    process.assert_not_called()
+
+
+def test_background_run_reads_the_vault_in_the_chosen_format(db, fake_redis):
+    runs, _ = db
+    runs.insert_one({"job_id": "job-format"})
+    data = {
+        "hosts": "10.0.0.5",
+        "playbook": "pb",
+        "vault_password": "pw",
+        "become_file": "creds",
+    }
+    thread = MagicMock()
+    thread.is_alive.return_value = False
+    for job, expected in [({}, "standard"), ({"vault_format": "proxmox"}, "proxmox")]:
+        with patch(
+            "serve.ansible_helper.run_ansible", return_value=("/tmp/RUN_DIR_X", "pb")
+        ) as run_ansible, patch(
+            "serve.ansible_runner.run_async",
+            return_value=(thread, MagicMock(events=[])),
+        ), patch(
+            "serve.os.listdir", return_value=[]
+        ), patch(
+            "serve.shutil.rmtree"
+        ):
+            serve.run_ansible_background("job-format", {**data, **job})
+        assert run_ansible.call_args.kwargs["vault_format"] == expected
+
+
 def test_create_request_with_generated_playbook(db, uploads):
     _, requests = db
     resp, status = unwrap(serve.create_ansible_request)(
@@ -510,6 +602,21 @@ def test_mcp_get_deployment_trims_logs(db, fake_redis):
         client.get_deployment("missing")
     with pytest.raises(ValueError):
         client.get_deployment_request("missing")
+
+
+def test_mcp_stages_the_vault_format(db, uploads):
+    _, requests = db
+    with patch.object(LabyrinthClient, "get_host", return_value=None):
+        result = LabyrinthClient().prepare_deployment(
+            {
+                "hosts": ["10.0.0.5"],
+                "playbook": "existing",
+                "become_file": "creds",
+                "vault_format": "proxmox",
+            }
+        )
+    found = requests.find_one({"request_id": result["request_id"]})
+    assert found["vault_format"] == "proxmox"
 
 
 def test_persist_reviewed_playbook_attaches_become_file():
