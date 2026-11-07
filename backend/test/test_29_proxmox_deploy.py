@@ -7,6 +7,7 @@ encrypted become file.
 import json
 import os
 import shutil
+import subprocess
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -355,3 +356,224 @@ def test_prepare_run_refuses_empty_script_and_missing_credentials(uploads):
         )
     with pytest.raises(Exception, match="Credentials file not found"):
         ansible_helper.prepare_proxmox_run(targets, "apt_upgrade", "pw", "nope")
+
+
+# A normal playbook run logging in to the hypervisors themselves with the same vault
+
+NODES = {
+    "proxmox_nodes": {
+        "north": {
+            "pve3": {
+                "ansible_host": "10.99.0.3",
+                "ansible_user": "admin",
+                "ansible_password": "node3-pw",
+                "ansible_become_password": "node3-sudo-pw",
+                "ssh_host_key": "ssh-ed25519 NODE3",
+            },
+            # An entry the run doesn't need can be incomplete
+            "pve4": {"ansible_user": "root"},
+        },
+        "south": {
+            "pve1": {
+                "ansible_host": "10.99.0.1",
+                "ansible_password": "node1-pw",
+                "ssh_host_key": "ssh-ed25519 NODE1",
+            },
+        },
+    }
+}
+
+# Connects to nothing: reports what each target would log in with.  It still names
+# a vault it was saved with, which doesn't exist here, so a run must not load it.
+PROBE = """
+- hosts: localhost
+  gather_facts: false
+  vars_files:
+    - /src/uploads/become/saved-with.yml
+  tasks:
+    - ansible.builtin.debug:
+        msg: "{{ proxmox_nodes is defined }}"
+- hosts: all
+  connection: local
+  gather_facts: false
+  become: true
+  vars_files:
+    - /src/uploads/become/saved-with.yml
+    - other_vars.yml
+  tasks:
+    - ansible.builtin.debug:
+        msg: >-
+          {{ [ansible_user, ansible_password, ansible_become_password,
+              ansible_become_method, ansible_host_key_checking] }}
+"""
+
+
+@pytest.fixture
+def proxmox_run():
+    """Prepare and really run a playbook against a vault in the Proxmox format."""
+    os.makedirs("/src/uploads/ansible", exist_ok=True)
+    os.makedirs("/src/uploads/become", exist_ok=True)
+    with open("/src/uploads/ansible/px-probe.yml", "w") as f:
+        f.write(PROBE)
+    run_dirs = []
+
+    def run(hosts, vault=NODES):
+        with open("/src/uploads/become/px-nodes.yml", "w") as f:
+            yaml.safe_dump(vault, f)
+        with open("/tmp/px-vault.pass", "w") as f:
+            f.write("vault-pw")
+        subprocess.run(
+            [
+                "ansible-vault",
+                "encrypt",
+                "--vault-password-file",
+                "/tmp/px-vault.pass",
+                "/src/uploads/become/px-nodes.yml",
+            ],
+            check=True,
+            capture_output=True,
+        )
+        run_dir, playbook = ansible_helper.run_ansible(
+            hosts, "px-probe", "vault-pw", "px-nodes", vault_format="proxmox"
+        )
+        run_dirs.append(run_dir)
+        with open(run_dir + "/project/other_vars.yml", "w") as f:
+            f.write("other: kept\n")
+        result = subprocess.run(
+            [
+                "ansible-playbook",
+                "-i",
+                "../inventory",
+                "--vault-password-file",
+                "../vault.pass",
+                f"{playbook}.yml",
+            ],
+            cwd=run_dir + "/project",
+            env={**os.environ, "ANSIBLE_STDOUT_CALLBACK": "json"},
+            capture_output=True,
+            text=True,
+        )
+        return run_dir, result
+
+    yield run
+    for path in ["ansible/px-probe.yml", "become/px-nodes.yml"]:
+        os.remove("/src/uploads/" + path)
+    os.remove("/tmp/px-vault.pass")
+    for run_dir in run_dirs:
+        shutil.rmtree(run_dir, ignore_errors=True)
+
+
+def test_each_target_logs_in_with_its_own_entry(proxmox_run):
+    run_dir, result = proxmox_run("10.99.0.3,10.99.0.1")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    plays = json.loads(result.stdout)["plays"]
+    assert [p["play"]["name"] for p in plays[1:]] == ["localhost", "all"]
+    assert plays[-1]["tasks"][0]["hosts"]["10.99.0.3"]["msg"] == [
+        "admin",
+        "node3-pw",
+        "node3-sudo-pw",
+        "sudo",
+        True,
+    ]
+    # Defaults: root, the login password for become, and su because Proxmox has no sudo
+    assert plays[-1]["tasks"][0]["hosts"]["10.99.0.1"]["msg"] == [
+        "root",
+        "node1-pw",
+        "node1-pw",
+        "su",
+        True,
+    ]
+    # The logins stay with the targets, away from a playbook's local plays
+    assert plays[1]["tasks"][0]["hosts"]["localhost"]["msg"] is False
+
+    with open(run_dir + "/known_hosts") as f:
+        assert sorted(f.read().splitlines()) == [
+            "10.99.0.1 ssh-ed25519 NODE1",
+            "10.99.0.3 ssh-ed25519 NODE3",
+        ]
+
+
+@pytest.mark.parametrize(
+    "hosts,vault,missing",
+    [
+        ("10.99.0.3,10.99.0.9", NODES, "10.99.0.9"),
+        # A standard vault read as the Proxmox format
+        ("10.99.0.3", {"ansible_user": "root", "ansible_ssh_pass": "pw"}, "10.99.0.3"),
+        # Password auth without a pinned key must never happen
+        (
+            "10.99.0.3",
+            {
+                "proxmox_nodes": {
+                    "north": {
+                        "pve3": {"ansible_host": "10.99.0.3", "ansible_password": "pw"}
+                    }
+                }
+            },
+            "10.99.0.3",
+        ),
+    ],
+)
+def test_run_stops_before_any_host_without_a_usable_login(
+    proxmox_run, hosts, vault, missing
+):
+    _, result = proxmox_run(hosts, vault)
+
+    assert result.returncode != 0
+    output = json.loads(result.stdout)
+    assert len(output["plays"]) == 1
+    failed = output["plays"][0]["tasks"][0]["hosts"]["localhost"]
+    # The task's own message, which is what a run's failure list shows
+    assert f"ansible_host {missing}." in failed["msg"]
+    assert "node3-pw" not in result.stdout
+
+
+def test_saved_playbook_is_only_changed_in_the_run(proxmox_run):
+    run_dir, _ = proxmox_run("10.99.0.3")
+
+    with open("/src/uploads/ansible/px-probe.yml") as f:
+        assert f.read() == PROBE
+    with open(run_dir + "/project/px-probe.yml") as f:
+        plays = yaml.safe_load(f)
+    assert plays[0]["name"] == "Check Proxmox logins and pin their SSH host keys"
+    assert plays[1]["vars_files"] == []
+    # Only the vault a playbook was saved with goes; other vars files stay
+    assert plays[2]["vars_files"] == ["other_vars.yml"]
+
+
+def test_vault_stays_encrypted_in_the_run_directory(proxmox_run):
+    run_dir, _ = proxmox_run("10.99.0.3")
+
+    with open(run_dir + "/inventory/group_vars/clients/proxmox_credentials.yml") as f:
+        assert f.read().startswith("$ANSIBLE_VAULT")
+
+
+def test_standard_format_leaves_the_playbook_alone():
+    os.makedirs("/src/uploads/ansible", exist_ok=True)
+    os.makedirs("/src/uploads/become", exist_ok=True)
+    shutil.copy("/src/test/ansible/vars/vault.yml", "/src/uploads/become/px-test.yml")
+    with open("/src/uploads/ansible/px-probe.yml", "w") as f:
+        f.write(PROBE)
+
+    run_dir, _ = ansible_helper.run_ansible("10.99.0.3", "px-probe", "pw", "px-test")
+
+    with open(run_dir + "/project/px-probe.yml") as f:
+        assert f.read() == PROBE
+    assert os.listdir(run_dir + "/inventory") == ["hosts"]
+    shutil.rmtree(run_dir)
+    os.remove("/src/uploads/ansible/px-probe.yml")
+    os.remove("/src/uploads/become/px-test.yml")
+
+
+@pytest.mark.parametrize("name", ["proxmox_login_vars.yml", "proxmox_guests.yml"])
+def test_password_logins_turn_host_key_checking_back_on(name):
+    """
+    ansible-runner defaults ANSIBLE_HOST_KEY_CHECKING to False, which puts
+    StrictHostKeyChecking=no ahead of ansible_ssh_common_args, and ssh takes the
+    first value: with an unusable pin the password would go to any host.
+    """
+    with open(os.path.join(ansible_helper.PROXMOX_PLAYBOOK_DIR, name)) as f:
+        data = yaml.safe_load(f)
+    play_vars = data if isinstance(data, dict) else data[-1]["vars"]
+    assert play_vars["ansible_host_key_checking"] is True
+    assert "StrictHostKeyChecking=yes" in play_vars["ansible_ssh_common_args"]
