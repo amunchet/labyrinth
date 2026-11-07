@@ -262,7 +262,7 @@ export default {
       );
     },
     staged(request_id) {
-      return (this.conversation.requests || {})[request_id] || { runs: [] };
+      return this.conversation.requests?.[request_id] || { runs: [] };
     },
     // Where a staged deployment stands, from its latest run
     requestState(request_id) {

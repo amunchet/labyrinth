@@ -1107,9 +1107,9 @@ export default {
       formData.append("file", this.generated_vault_file);
       formData.append("filename", this.generated_ansible.filename);
       Helper.apiPost("upload", "/" + type, auth.accessToken, auth, formData)
-        .then((res) => {
+        .then(async (res) => {
           this.$store.commit("updateError", res);
-          this.loadFilesList(type);
+          await this.loadFilesList(type);
           this.$bvModal.hide("add_vault");
         })
         .catch((e) => {
@@ -1130,10 +1130,10 @@ export default {
           formData,
           true
         )
-          .then((res) => {
+          .then(async (res) => {
             //this.$store.commit("updateError", res);
             this.selected[type] = res;
-            this.loadFilesList(type);
+            await this.loadFilesList(type);
           })
           .catch((e) => {
             if (("" + e).indexOf("521") != -1) {
