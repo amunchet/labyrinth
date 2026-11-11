@@ -251,22 +251,37 @@ class LabyrinthClient:
         }
 
     def start_conversation(
-        self, title: str, text: str = "", needs_response: bool = False
+        self,
+        title: str,
+        text: str = "",
+        needs_response: bool = False,
+        armada_callback: str = "",
     ) -> Dict[str, Any]:
         conversation_id = serve.start_conversation(title)["conversation_id"]
         result = {
             "conversation_id": conversation_id,
             "url": serve.labyrinth_url("/conversations/" + conversation_id),
+            "armada_request": False,
         }
         if text.strip():
-            result.update(self.send_message(conversation_id, text, needs_response))
+            result.update(
+                self.send_message(
+                    conversation_id, text, needs_response, armada_callback
+                )
+            )
         return result
 
     def send_message(
-        self, conversation_id: str, text: str, needs_response: bool = False
+        self,
+        conversation_id: str,
+        text: str,
+        needs_response: bool = False,
+        armada_callback: str = "",
     ) -> Dict[str, Any]:
+        """armada_callback: the agent's Armada session, saved before the message so its ask reaches Armada."""
         if not text.strip():
             raise ValueError("text is required")
+        serve.save_armada_callback(conversation_id, armada_callback)
         message = serve.post_conversation_message(
             conversation_id,
             "agent",
@@ -275,7 +290,11 @@ class LabyrinthClient:
         )
         if not message:
             raise ValueError("Conversation not found")
-        return {"message_id": message["id"], "notified": message.get("notified", False)}
+        return {
+            "message_id": message["id"],
+            "notified": message.get("notified", False),
+            "armada_request": message.get("armada_request", False),
+        }
 
     def list_conversations(self, waiting_only: bool = False) -> List[Dict[str, Any]]:
         return call(serve.list_conversations, "waiting" if waiting_only else "")
