@@ -18,3 +18,10 @@ A playbook that imports `gunbroker.orders` directly, tests it, and commits and p
 The alexandria-reports-fix run succeeded.
 reports.py now imports gunbroker.orders directly and completed a test run in the cron container.
 Pushed to Alexandria master as 0489973; only backend/reports.py was committed.
+
+## 2026-11-10 20:30 CST
+Removed the startup `pip3 install -r /src/requirements.txt` from Alexandria's cron/entrypoint.sh.
+Ubuntu 24.04 rejects that install (PEP 668), so it errored on every container start, and the image already installs those requirements.
+Rebuilt and recreated the cron container, checked a clean start, and pushed to Alexandria master as a4e0760.
+Found that the hourly ALEXANDRIA_ERROR emails (a Graylog south event) come from balexandria (192.168.0.216), not alexandria.
+Balexandria's bitnami Redis has crash-looped since 2026-11-04 on "appendonlydir: Permission denied", so its cron cannot resolve `redis`.
