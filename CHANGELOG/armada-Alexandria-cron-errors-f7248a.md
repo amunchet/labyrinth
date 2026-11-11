@@ -25,3 +25,10 @@ Ubuntu 24.04 rejects that install (PEP 668), so it errored on every container st
 Rebuilt and recreated the cron container, checked a clean start, and pushed to Alexandria master as a4e0760.
 Found that the hourly ALEXANDRIA_ERROR emails (a Graylog south event) come from balexandria (192.168.0.216), not alexandria.
 Balexandria's bitnami Redis has crash-looped since 2026-11-04 on "appendonlydir: Permission denied", so its cron cannot resolve `redis`.
+
+## 2026-11-10 21:16 CST
+Fixed balexandria's (192.168.0.216) Redis crash loop, the source of the hourly ALEXANDRIA_ERROR emails.
+The data dir redis_data was owned by 1000:1000, but the bitnami container runs as 1001, so Redis 7 could not create appendonlydir.
+Backed it up to redis_data.bak-20261111.tgz and chowned it to 1001:1001; Redis migrated the old AOF and stays up, and the cron container reaches it.
+No compose or git change on balexandria.
+Killed Labyrinth run ansible_job_5c0061f1, which had hung about 24h in its own ansible-playbook process on 192.168.10.244.
