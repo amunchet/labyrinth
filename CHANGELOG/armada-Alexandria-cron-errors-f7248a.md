@@ -32,3 +32,6 @@ The data dir redis_data was owned by 1000:1000, but the bitnami container runs a
 Backed it up to redis_data.bak-20261111.tgz and chowned it to 1001:1001; Redis migrated the old AOF and stays up, and the cron container reaches it.
 No compose or git change on balexandria.
 Killed Labyrinth run ansible_job_5c0061f1, which had hung about 24h in its own ansible-playbook process on 192.168.10.244.
+
+## 2026-11-10 23:08 CST
+Removed venus's unused Redis container (mars-redis-1, crash-looping since 11-04, 10,279 restarts) via the Labyrinth playbook venus-redis-remove (job ansible_job_9d8b87d7). In amunchet/mars, Redis backs only the Gunbroker Reports feature, which is off on an Ebay deployment. The playbook confirmed this on the deployed checkout (04ede97) before acting: MARKETPLACE=ebay, redis imported only by serve.py/reports.py, and reports.py gated to Gunbroker. redis_data is left on disk. The redis service is still in docker-compose.yml-production, so a later `docker compose up -d` on venus would recreate it.
