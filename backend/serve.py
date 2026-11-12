@@ -6,6 +6,7 @@ Labyrinth Web backend
 # Permissions scope names
 import functools
 import os
+import re
 import sys
 import json
 import socket
@@ -1958,6 +1959,8 @@ def create_ansible_request(inp_data=""):
     # The stored id, never the submitted one: it goes back in the response
     # (py/reflective-xss)
     conversation_id = conversation["conversation_id"]
+    # Before the deploy message, which is what raises the Armada request
+    save_armada_callback(conversation_id, data.get("armada_callback", ""))
 
     request_id = str(uuid.uuid4())
     requests.insert_one(
@@ -1993,6 +1996,7 @@ def create_ansible_request(inp_data=""):
         "path": f"/deploy?request={request_id}",
         "conversation_id": conversation_id,
         "notified": message["notified"],
+        "armada_request": message["armada_request"],
     }, 200
 
 
@@ -2139,6 +2143,48 @@ def decline_ansible_request(request_id, inp_data=""):
 # waits for the human's turn instead.  `pending` lists what the human still
 # owes - open questions and staged deployments; an open conversation with
 # anything pending `needs_human` (derived on read, never stored).
+#
+# An agent working in an Armada session hands over that session's callback
+# URL (`armada_callback`).  Each ask then also raises an Armada request, kept
+# in `armada_requests` with the URL it went to, and the human's answer
+# finishes them, which tells the agent to look again.  The URL is the only
+# credential for the session, so neither field is ever logged or returned.
+
+ARMADA_CALLBACK = re.compile(r"https?://[^/@\s]+/api/session-callback/[0-9a-f]{64}")
+ARMADA_PRIVATE = ("armada_callback", "armada_requests")
+
+
+def save_armada_callback(conversation_id, callback):
+    """
+    Follow the Armada session the agent is in now; anything that is not a
+    session-callback URL (including blank, outside Armada) is ignored.
+    """
+    if ARMADA_CALLBACK.fullmatch(callback or ""):
+        db["labyrinth"]["conversations"].update_one(
+            {"conversation_id": conversation_id},
+            {"$set": {"armada_callback": callback}},
+        )
+
+
+def swap_armada_requests(conversation_id, change):
+    """
+    Atomically replace a conversation's Armada requests with change(current)
+    and return current.  A compare-and-swap on the whole list, since the
+    adapters offer neither $addToSet nor find_one_and_update: of two parallel
+    answers only one takes the requests, and a parallel ask is never lost.
+    """
+    conversations = db["labyrinth"]["conversations"]
+    while True:
+        found = conversations.find_one({"conversation_id": conversation_id})
+        current = found.get("armada_requests")
+        if conversations.update_one(
+            {
+                "conversation_id": conversation_id,
+                "armada_requests": ({"$exists": False} if current is None else current),
+            },
+            {"$set": {"armada_requests": change(current or [])}},
+        ).matched_count:
+            return current or []
 
 
 def start_conversation(title):
@@ -2226,6 +2272,46 @@ def post_conversation_message(conversation_id, author, kind, text="", **fields):
             ).ok
         except (OSError, requests.RequestException):
             message["notified"] = False
+
+        # Best effort too, and never logging the URL: it is the credential
+        message["armada_request"] = False
+        callback = found.get("armada_callback")
+        if callback:
+            try:
+                response = requests.post(
+                    callback,
+                    json={
+                        "url": labyrinth_url(path),
+                        "title": ("Labyrinth: " + found["title"])[:200],
+                        "message": summary[:1000],
+                    },
+                    timeout=10,
+                )
+                response.raise_for_status()
+                entry = {"callback": callback, "id": response.json()["id"]}
+                swap_armada_requests(
+                    conversation_id,
+                    lambda current: (
+                        current + [entry] if entry not in current else current
+                    ),
+                )
+                message["armada_request"] = True
+            except (OSError, ValueError, KeyError, requests.RequestException):
+                print("Armada request failed for conversation", conversation_id)
+
+    # The human's turn is over (as check_response counts it: a launch alone is
+    # not), so finish what was raised in Armada.  So does closing, whoever
+    # closes: the asks are dropped and nothing would finish them later.
+    elif found.get("armada_requests") and (
+        kind == "closed" or (author != "agent" and kind != "launched")
+    ):
+        for entry in swap_armada_requests(conversation_id, lambda current: []):
+            try:
+                requests.delete(
+                    "{}/{}".format(entry["callback"], entry["id"]), timeout=10
+                ).raise_for_status()
+            except (OSError, requests.RequestException):
+                print("Finishing an Armada request failed for", conversation_id)
     return message
 
 
@@ -2252,7 +2338,11 @@ def list_conversations(state=""):
             continue
         listed.append(
             {
-                **{k: v for k, v in x.items() if k not in ("_id", "messages")},
+                **{
+                    k: v
+                    for k, v in x.items()
+                    if k not in ("_id", "messages", *ARMADA_PRIVATE)
+                },
                 "needs_human": needs_human,
                 "message_count": len(x["messages"]),
                 "last_message": x["messages"][-1] if x["messages"] else None,
@@ -2273,7 +2363,8 @@ def get_conversation(conversation_id):
     )
     if not found:
         return "Conversation not found", 404
-    found.pop("_id", None)
+    for key in ("_id", *ARMADA_PRIVATE):
+        found.pop(key, None)
     found["needs_human"] = found["status"] == "open" and bool(found["pending"])
 
     staged = {}

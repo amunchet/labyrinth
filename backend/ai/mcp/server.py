@@ -94,6 +94,12 @@ async def _blocking(fn, *args, **kwargs):
         return await asyncio.to_thread(fn, *args, **kwargs)
 
 
+def _armada_callback(ctx: Context) -> str:
+    """This Armada session's callback URL, or blank outside Armada (validated where it is saved)."""
+    request = ctx.request_context.request
+    return request.headers.get("x-armada-callback", "").strip() if request else ""
+
+
 @app.tool()
 async def mcp_list_hosts() -> List[Dict[str, Any]]:
     """List all hosts in Labyrinth."""
@@ -479,6 +485,7 @@ async def mcp_list_become_files() -> List[str]:
 async def mcp_prepare_deployment(
     hosts: str,
     playbook: str,
+    ctx: Context,
     become_file: str = "",
     playbook_content: str = "",
     ssh_key: str = "",
@@ -502,8 +509,16 @@ async def mcp_prepare_deployment(
     ansible_ssh_pass) or `proxmox` (the proxmox_nodes file such as proxmox-root,
     for logging in to the hypervisors themselves: every host must be a node's
     ansible_host in it).  The human is alerted; nothing runs until they open
-    deploy_url and enter the vault password.  Then call mcp_wait_for_response
-    for the outcome.
+    deploy_url and enter the vault password.
+
+    If armada_request is true, end your turn: Armada alerts the human and
+    will type "[Armada] Request completed" into your session when they have
+    answered, declined, closed the conversation, or a run they launched has
+    finished.  Then call mcp_wait_for_response(conversation_id,
+    timeout_seconds=0) to read what happened.  If it shows nothing new (the
+    human pressed Done in Armada without acting in Labyrinth), tell the user
+    and stop.  If armada_request is false, call mcp_wait_for_response as
+    before.
     """
     return await _blocking(
         client.prepare_deployment,
@@ -516,6 +531,7 @@ async def mcp_prepare_deployment(
             "notes": notes,
             "conversation_id": conversation_id,
             "vault_format": vault_format,
+            "armada_callback": _armada_callback(ctx),
         },
     )
 
@@ -543,7 +559,7 @@ async def mcp_get_deployment(job_id: str, log_tail: int = 200) -> Dict[str, Any]
 
 @app.tool()
 async def mcp_start_conversation(
-    title: str, message: str = "", needs_response: bool = False
+    title: str, ctx: Context, message: str = "", needs_response: bool = False
 ) -> Dict[str, Any]:
     """
     Open a conversation with the human: the recorded thread for one piece of
@@ -552,20 +568,49 @@ async def mcp_start_conversation(
     mcp_send_message, and take turns with mcp_wait_for_response.  An optional
     first message is posted at once; needs_response=true makes it a question
     that alerts the human.
+
+    If armada_request is true, end your turn: Armada alerts the human and
+    will type "[Armada] Request completed" into your session when they have
+    answered, declined, closed the conversation, or a run they launched has
+    finished.  Then call mcp_wait_for_response(conversation_id,
+    timeout_seconds=0) to read what happened.  If it shows nothing new (the
+    human pressed Done in Armada without acting in Labyrinth), tell the user
+    and stop.  If armada_request is false, call mcp_wait_for_response as
+    before.
     """
-    return await _blocking(client.start_conversation, title, message, needs_response)
+    return await _blocking(
+        client.start_conversation,
+        title,
+        message,
+        needs_response,
+        _armada_callback(ctx),
+    )
 
 
 @app.tool()
 async def mcp_send_message(
-    conversation_id: str, text: str, needs_response: bool = False
+    conversation_id: str, text: str, ctx: Context, needs_response: bool = False
 ) -> Dict[str, Any]:
     """
     Post a message to a conversation.  needs_response=true makes it a question:
     the conversation is flagged as waiting on the human and they are alerted.
-    Then call mcp_wait_for_response for their answer.
+
+    If armada_request is true, end your turn: Armada alerts the human and
+    will type "[Armada] Request completed" into your session when they have
+    answered, declined, closed the conversation, or a run they launched has
+    finished.  Then call mcp_wait_for_response(conversation_id,
+    timeout_seconds=0) to read what happened.  If it shows nothing new (the
+    human pressed Done in Armada without acting in Labyrinth), tell the user
+    and stop.  If armada_request is false, call mcp_wait_for_response as
+    before.
     """
-    return await _blocking(client.send_message, conversation_id, text, needs_response)
+    return await _blocking(
+        client.send_message,
+        conversation_id,
+        text,
+        needs_response,
+        _armada_callback(ctx),
+    )
 
 
 # Seconds between checks while mcp_wait_for_response waits
@@ -585,6 +630,11 @@ async def mcp_wait_for_response(
     whatever follows your own last message.  new_messages holds everything
     after `since`; a "run" message carries the outcome, stats and failed
     tasks, and mcp_get_deployment(job_id) the logs.
+
+    If the ask returned armada_request=true, don't wait here: end your turn
+    and, once "[Armada] Request completed" arrives, call this with
+    timeout_seconds=0.  If that shows nothing new (the human pressed Done in
+    Armada without acting in Labyrinth), tell the user and stop.
     """
     timeout = min(max(timeout_seconds, 0), 1800)
     loop = asyncio.get_running_loop()

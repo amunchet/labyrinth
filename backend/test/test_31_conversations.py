@@ -388,3 +388,262 @@ def test_simultaneous_posts_keep_each_others_changes(db, alerts):
         [],
         False,
     )
+
+
+# Armada session callbacks: each ask raises an Armada request, and the human's
+# answer finishes it so the agent is told to look again.
+
+CALLBACK = "https://flagship.example/api/session-callback/" + "ab" * 32
+
+
+@pytest.fixture
+def armada():
+    """Mocks Armada: every POST answers with a new request id, every DELETE clears."""
+    ids = iter("id{}".format(n) for n in range(100))
+    with patch("serve.requests.post") as post, patch("serve.requests.delete") as delete:
+        post.side_effect = lambda *a, **k: MagicMock(
+            **{"json.return_value": {"id": next(ids)}}
+        )
+        yield post, delete
+
+
+def _stored(conversation_id):
+    return serve.db["labyrinth"]["conversations"].find_one(
+        {"conversation_id": conversation_id}
+    )
+
+
+def _question(text="Is tonight OK?"):
+    return LabyrinthClient().start_conversation(
+        "Rotate certs", text, needs_response=True, armada_callback=CALLBACK
+    )
+
+
+def test_without_armada_nothing_is_sent(db, alerts, uploads, redis_stub, armada):
+    post, delete = armada
+    client = LabyrinthClient()
+    asked = client.start_conversation("Plain", "OK?", needs_response=True)
+    assert asked["armada_request"] is False
+    staged = client.prepare_deployment(
+        {"hosts": ["10.0.0.5"], "playbook": "existing", "become_file": "creds"}
+    )
+    assert staged["armada_request"] is False
+    unwrap(serve.reply_conversation)(asked["conversation_id"], '{"text": "yes"}')
+    unwrap(serve.decline_ansible_request)(staged["request_id"], "{}")
+    post.assert_not_called()
+    delete.assert_not_called()
+    assert "armada_callback" not in _stored(asked["conversation_id"])
+
+
+def test_deploy_without_a_conversation_raises_a_request(db, alerts, uploads, armada):
+    post, delete = armada
+    staged = LabyrinthClient().prepare_deployment(
+        {
+            "hosts": ["10.0.0.5"],
+            "playbook": "existing",
+            "become_file": "creds",
+            "notes": "Restart telegraf",
+            "armada_callback": CALLBACK,
+        }
+    )
+    assert staged["armada_request"] is True
+    post.assert_called_once()
+    assert post.call_args.args == (CALLBACK,)
+    assert post.call_args.kwargs["json"] == {
+        "url": staged["deploy_url"],
+        "title": "Labyrinth: Restart telegraf",
+        "message": "Restart telegraf",
+    }
+    assert post.call_args.kwargs["timeout"] == 10
+    assert _stored(staged["conversation_id"])["armada_requests"] == [
+        {"callback": CALLBACK, "id": "id0"}
+    ]
+
+
+def test_question_then_reply_finishes_the_request(db, alerts, armada):
+    post, delete = armada
+    asked = _question("x" * 1500)
+    assert asked["armada_request"] is True
+    assert post.call_args.kwargs["json"]["url"] == asked["url"]
+    assert len(post.call_args.kwargs["json"]["message"]) == 1000
+    delete.assert_not_called()
+
+    unwrap(serve.reply_conversation)(asked["conversation_id"], '{"text": "yes"}')
+    delete.assert_called_once_with(CALLBACK + "/id0", timeout=10)
+    assert _stored(asked["conversation_id"])["armada_requests"] == []
+    # Nothing outstanding: a second reply sends nothing
+    unwrap(serve.reply_conversation)(asked["conversation_id"], '{"text": "again"}')
+    delete.assert_called_once()
+
+
+def test_launch_alone_does_not_finish_but_the_run_result_does(
+    db, alerts, uploads, redis_stub, armada
+):
+    post, delete = armada
+    staged = LabyrinthClient().prepare_deployment(
+        {
+            "hosts": ["10.0.0.5"],
+            "playbook": "existing",
+            "become_file": "creds",
+            "armada_callback": CALLBACK,
+        }
+    )
+    out, status, _ = _deploy(staged["request_id"], vault_password="pw")
+    assert status == 200
+    delete.assert_not_called()
+
+    _finish_run(
+        out["job_id"], staged["conversation_id"], staged["request_id"], _recap()
+    )
+    delete.assert_called_once_with(CALLBACK + "/id0", timeout=10)
+
+
+@pytest.mark.parametrize("finish", ["declined", "closed", "agent closed"])
+def test_decline_and_close_finish_everything(db, alerts, uploads, armada, finish):
+    post, delete = armada
+    conversation_id = _question()["conversation_id"]
+    staged = LabyrinthClient().prepare_deployment(
+        {
+            "hosts": ["10.0.0.5"],
+            "playbook": "existing",
+            "become_file": "creds",
+            "conversation_id": conversation_id,
+        }
+    )
+    assert staged["armada_request"] is True
+    if finish == "declined":
+        unwrap(serve.decline_ansible_request)(staged["request_id"], "{}")
+    elif finish == "closed":
+        unwrap(serve.close_conversation)(conversation_id, "{}")
+    else:
+        LabyrinthClient().close_conversation(conversation_id, "Done")
+    assert sorted(x.args[0] for x in delete.call_args_list) == [
+        CALLBACK + "/id0",
+        CALLBACK + "/id1",
+    ]
+    assert _stored(conversation_id)["armada_requests"] == []
+
+
+def test_two_questions_with_the_same_id_finish_once(db, alerts, armada):
+    post, delete = armada
+    post.side_effect = None
+    post.return_value.json.return_value = {"id": "same"}
+    conversation_id = _question()["conversation_id"]
+    LabyrinthClient().send_message(conversation_id, "And this?", True, CALLBACK)
+    assert post.call_count == 2
+    assert _stored(conversation_id)["armada_requests"] == [
+        {"callback": CALLBACK, "id": "same"}
+    ]
+    unwrap(serve.reply_conversation)(conversation_id, '{"text": "yes"}')
+    delete.assert_called_once_with(CALLBACK + "/same", timeout=10)
+
+
+def test_a_newer_session_takes_over_but_old_requests_finish_where_they_went(
+    db, alerts, armada
+):
+    post, delete = armada
+    conversation_id = _question()["conversation_id"]
+    newer = CALLBACK.replace("ab" * 32, "cd" * 32)
+    LabyrinthClient().send_message(conversation_id, "Still there?", True, newer)
+    assert post.call_args.args == (newer,)
+    unwrap(serve.reply_conversation)(conversation_id, '{"text": "yes"}')
+    assert [x.args[0] for x in delete.call_args_list] == [
+        CALLBACK + "/id0",
+        newer + "/id1",
+    ]
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        {"side_effect": requests.ConnectionError("down")},
+        {
+            "return_value": MagicMock(
+                **{"raise_for_status.side_effect": requests.HTTPError("500")}
+            )
+        },
+        {"return_value": MagicMock(**{"json.side_effect": ValueError("not json")})},
+    ],
+)
+def test_armada_down_still_records_the_ask(db, alerts, armada, capsys, failure):
+    post, delete = armada
+    post.side_effect = None
+    post.configure_mock(**failure)
+    asked = _question()
+    assert asked["armada_request"] is False
+    found = _conversation(asked["conversation_id"])
+    assert found["needs_human"] is True
+    assert _stored(asked["conversation_id"]).get("armada_requests") in (None, [])
+    assert CALLBACK not in capsys.readouterr().out
+
+
+def test_failed_finish_still_records_the_answer(db, alerts, armada, capsys):
+    post, delete = armada
+    delete.side_effect = requests.ConnectionError("down")
+    conversation_id = _question()["conversation_id"]
+    assert (
+        unwrap(serve.reply_conversation)(conversation_id, '{"text": "yes"}')[1] == 200
+    )
+    assert _conversation(conversation_id)["messages"][-1]["kind"] == "reply"
+    assert CALLBACK not in capsys.readouterr().out
+
+
+def test_callback_is_never_returned(db, alerts, armada):
+    conversation_id = _question()["conversation_id"]
+    client = LabyrinthClient()
+    for shown in (
+        unwrap(serve.get_conversation)(conversation_id)[0],
+        unwrap(serve.list_conversations)("")[0],
+        unwrap(serve.list_conversations)("waiting")[0],
+        json.dumps(client.check_response(conversation_id, 0)),
+    ):
+        assert "session-callback" not in shown and "armada_requests" not in shown
+
+
+@pytest.mark.parametrize(
+    "callback",
+    [
+        "",
+        "https://flagship.example/api/other/" + "ab" * 32,
+        "https://user@flagship.example/api/session-callback/" + "ab" * 32,
+        CALLBACK + "/extra",
+        "ftp://flagship.example/api/session-callback/" + "ab" * 32,
+    ],
+)
+def test_invalid_callback_is_ignored(db, alerts, armada, callback):
+    post, delete = armada
+    asked = LabyrinthClient().start_conversation(
+        "Odd", "OK?", needs_response=True, armada_callback=callback
+    )
+    assert asked["armada_request"] is False
+    post.assert_not_called()
+    assert "armada_callback" not in _stored(asked["conversation_id"])
+
+
+def test_racing_asks_both_keep_their_request(db, alerts, armada):
+    """An ask stored while another was being stored must not be lost."""
+    conversation_id = _question()["conversation_id"]
+    collection_type = type(serve.db["labyrinth"]["conversations"])
+    real_update_one = collection_type.update_one
+    raced = []
+
+    def update_one_after_race(self, filt, update, *args, **kwargs):
+        if "armada_requests" in filt and not raced:
+            raced.append(True)
+            # A parallel ask stores its request between this read and write
+            real_update_one(
+                self,
+                {"conversation_id": conversation_id},
+                {"$set": {"armada_requests": [{"callback": CALLBACK, "id": "other"}]}},
+            )
+        return real_update_one(self, filt, update, *args, **kwargs)
+
+    serve.db["labyrinth"]["conversations"].update_one(
+        {"conversation_id": conversation_id}, {"$set": {"armada_requests": []}}
+    )
+    with patch.object(collection_type, "update_one", update_one_after_race):
+        LabyrinthClient().send_message(conversation_id, "More?", True, CALLBACK)
+    assert _stored(conversation_id)["armada_requests"] == [
+        {"callback": CALLBACK, "id": "other"},
+        {"callback": CALLBACK, "id": "id1"},
+    ]
