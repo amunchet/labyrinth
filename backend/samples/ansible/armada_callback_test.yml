@@ -1,0 +1,52 @@
+---
+# Armada Callback Test
+#
+# Purpose: A harmless, read-only playbook for exercising the agent
+#          conversation -> Labyrinth deploy -> Armada callback loop end to end.
+#          It changes nothing on the targets: it reports who and where it ran,
+#          waits a few seconds so the run is visibly "in progress", and
+#          finishes with a recognizable marker line.
+#
+# Usage (from an Armada session with the Labyrinth MCP server):
+#   1. The agent calls mcp_start_conversation, then mcp_prepare_deployment with
+#      this file's YAML as playbook_content (playbook "armada_callback_test"),
+#      the target hosts and a become file, and ends its turn.
+#   2. The human opens the deploy link in Labyrinth and enters the vault
+#      password.
+#   3. When the run finishes, its result is posted to the conversation and
+#      Armada types "[Armada] Request completed" into the agent's session.
+#   4. The agent reads the result with mcp_wait_for_response(timeout_seconds=0)
+#      and should see the "ARMADA CALLBACK TEST OK" line below.
+#
+# Optional extra var:
+#   callback_test_fail: true  -> fail deliberately, to test the failure path.
+#
+# Requirements: SSH access only. No become, no packages, no files written.
+
+- hosts: all
+  gather_facts: false
+  vars:
+    callback_test_delay: 5
+    callback_test_fail: false
+  tasks:
+    - name: Report where the run landed
+      command: uname -n
+      register: callback_test_host
+      changed_when: false
+
+    - name: Show target details
+      debug:
+        msg: "Reached {{ inventory_hostname }} ({{ callback_test_host.stdout }})"
+
+    - name: Hold the run open briefly
+      pause:
+        seconds: "{{ callback_test_delay | int }}"
+
+    - name: Fail on purpose when asked
+      fail:
+        msg: "ARMADA CALLBACK TEST FAILED (deliberate) on {{ inventory_hostname }}"
+      when: callback_test_fail | bool
+
+    - name: Finish with a recognizable marker
+      debug:
+        msg: "ARMADA CALLBACK TEST OK on {{ inventory_hostname }}"

@@ -54,3 +54,17 @@ Installs `samples/telegraf/check_graylog.sh`, the Telegraf exec check behind the
 - `target_reachable` - TCP connect succeeds (UDP targets only need to resolve)
 - `suspended` - rsyslog's last forwarding action log line is "suspended"
 - `status` - human-readable first failure, or `ok`
+
+---
+
+## armada_callback_test.yml
+
+A read-only playbook for testing the agent conversation -> deploy -> Armada callback loop. It runs `uname -n`, pauses a few seconds, and prints `ARMADA CALLBACK TEST OK on <host>`. Set `callback_test_fail: true` to exercise the failure path instead.
+
+**Steps:**
+1. From an Armada session, the agent stages it with `mcp_prepare_deployment` (passing the YAML as `playbook_content`) and ends its turn.
+2. Open the deploy link in Labyrinth, enter the vault password and run it.
+3. The result is posted to the conversation and Armada types `[Armada] Request completed` into the agent's session.
+
+**Requirements:**
+- SSH access to the targets. No become, no changes made.
