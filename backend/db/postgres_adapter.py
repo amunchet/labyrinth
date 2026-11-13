@@ -41,6 +41,7 @@ _JSONB_TABLE_INDEXES = {
     "themes": [("name", False)],
     "dashboards": [("name", False)],
     "locations": [("name_key", False)],
+    "unifi_controllers": [("name_key", False)],
     "ansible_runs": [
         ("job_id", False),
         ("request_id", False),

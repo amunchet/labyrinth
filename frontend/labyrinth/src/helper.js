@@ -95,6 +95,12 @@ export default {
     unknown: { label: "Not checked yet", variant: "secondary" },
     none: { label: "No IP (not monitored)", variant: "light" },
   },
+  // Where a device's location came from (`_live.location_source`), if not its own
+  locationSources: {
+    subnet: "its subnet",
+    proxmox: "its Proxmox node",
+    unifi: "its UniFi site",
+  },
   deviceIcon(device) {
     let type = deviceTypes[device._live ? device._live.type : ""];
     return type ? type.icon : "circle";

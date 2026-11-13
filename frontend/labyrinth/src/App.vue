@@ -37,6 +37,9 @@
             <b-nav-item href="/aws">
               <router-link to="/aws">AWS</router-link>
             </b-nav-item>
+            <b-nav-item href="/unifi">
+              <router-link to="/unifi">UniFi</router-link>
+            </b-nav-item>
           </b-navbar-nav>
 
           <!-- Right aligned nav items -->

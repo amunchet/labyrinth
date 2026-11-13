@@ -323,7 +323,10 @@ async def mcp_get_inventory(
     vm, lxc, pc, laptop, switch, router, firewall, ap, bridge, plc, iot, camera,
     printer, phone, ups, storage, patch-panel, other) and status (up, down,
     error, warning, unknown, none = no IP/label only). A device's location is
-    explicit, else inherited from its Proxmox node, else from its subnet.
+    explicit, else inherited from its Proxmox node, else from the UniFi site it
+    is seen at, else from its subnet. `unifi` is what UniFi knows of it (state,
+    the switch and port it is plugged into); `effective_uplink` is its own
+    uplink, else that switch or access point.
     """
     return await _blocking(client.get_inventory, location, device_type, status)
 
@@ -461,6 +464,21 @@ async def mcp_list_proxmox_clusters() -> List[Dict[str, Any]]:
 async def mcp_get_ec2_instances() -> Dict[str, Any]:
     """EC2 instances across configured AWS accounts, with Labyrinth host matches."""
     return await _blocking(client.get_ec2_instances)
+
+
+@app.tool()
+async def mcp_get_unifi(
+    refresh: bool = False, include_ports: bool = False
+) -> Dict[str, Any]:
+    """
+    UniFi controllers with their sites' devices (state, IP, what each is
+    plugged into, its clients and how much connects through it), Protect
+    cameras, and current problems (offline devices/cameras, controllers not
+    answering). Cached from the last minute unless refresh=true (a live poll).
+    include_ports=true adds each switch's ports with what is plugged into them;
+    `key` fields are the matching Labyrinth device keys.
+    """
+    return await _blocking(client.get_unifi, refresh, include_ports)
 
 
 @app.tool()

@@ -139,6 +139,7 @@ describe("LocationMap.vue", () => {
         { key: "A", x: 0, y: 0 },
         { key: "B", x: 100, y: 100 },
         { key: "C", x: 50, y: 50 },
+        { key: "E", x: 75, y: 25 },
       ],
     };
     wrapper = mount({
@@ -148,6 +149,8 @@ describe("LocationMap.vue", () => {
         device("B"),
         device("C", { uplink: "A" }, { status: "down" }),
         device("D", { uplink: "A" }),
+        // UniFi's view, when the device has no uplink of its own
+        device("E", {}, { uplink: "B", link_type: "fiber" }),
       ],
     });
     expect(wrapper.vm.links).toStrictEqual([
@@ -168,6 +171,15 @@ describe("LocationMap.vue", () => {
         y2: 0,
         type: "ethernet",
         state: "down",
+      },
+      {
+        key: "E",
+        x1: 75,
+        y1: 25,
+        x2: 100,
+        y2: 100,
+        type: "fiber",
+        state: "up",
       },
     ]);
   });

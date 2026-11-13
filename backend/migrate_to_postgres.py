@@ -53,6 +53,7 @@ COLLECTIONS = [
     "themes",
     "dashboards",
     "locations",
+    "unifi_controllers",
     "metrics-latest",
     "metrics",
 ]

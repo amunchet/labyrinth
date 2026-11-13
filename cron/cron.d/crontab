@@ -4,6 +4,7 @@
 * * * * * sleep 30; /bin/bash /cron/proxmox_refresh.sh >> /var/log/proxmox_refresh
 */10 * * * * /bin/bash /cron/watcher.sh > /var/log/watcher
 * * * * * /bin/bash /cron/alive.sh > /var/log/alive
+* * * * * /bin/bash /cron/unifi_refresh.sh > /var/log/unifi_refresh
 0 * * * * /bin/bash /cron/ai.sh > /var/log/ai
 1 0 * * * /bin/bash /cron/level_expire.sh > /var/log/level_expire
 0 * * * * /bin/bash /cron/disk_check.sh > /var/log/disk_check

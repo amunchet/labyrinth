@@ -275,6 +275,77 @@ describe("Locations.vue", () => {
     expect(wrapper.vm.rack_key).toBe("PC");
   });
 
+  test("devices UniFi sees cabled to a racked switch are suggested for its rack", () => {
+    let ports = [
+      { idx: 1, connected: [{ mac: "SRV" }] },
+      { idx: 2, connected: [{ mac: "HV" }, { mac: "VM" }] },
+      { idx: 3, connected: [{ mac: "NAS" }, { mac: "NAS-2" }] },
+      { idx: 25, connected: [{ mac: "GW", upstream: true }] },
+    ];
+    let on = (key, port, extra = {}) => ({
+      unifi: { uplink: { key: key, port: port, wireless: false, ...extra } },
+    });
+    setInventory([
+      device("SW", { rack: "Rack A", rack_unit: 5 }, { unifi: { ports } }),
+      device("SRV", {}, on("SW", 1)),
+      device("HV", {}, on("SW", 2)),
+      device("NAS", { rack_height: 2 }, { type: "storage", ...on("SW", 3) }),
+      device("PHONE", {}, { type: "phone", ...on("SW", 4) }),
+      device("LAPTOP", {}, on("SW", null, { wireless: true })),
+      device("FAR", {}, on("ELSEWHERE", 1)),
+    ]);
+    // Nearest free slot, below the switch first: SRV takes U4, so the 2U NAS
+    // is nearer at U6-7 than at U2-3
+    expect(
+      wrapper.vm.rack_suggestions.map((x) => [
+        x.device._live.key,
+        x.rack,
+        x.unit,
+        x.port,
+      ])
+    ).toStrictEqual([
+      ["SRV", "Rack A", 4, 1],
+      ["NAS", "Rack A", 6, 3],
+    ]);
+    expect(wrapper.vm.rack_suggestions[0].switch_name).toBe("SW");
+  });
+
+  test("a full rack suggests nothing", () => {
+    let taken = new Set([1, 2, 3, 5]);
+    let near = { bottom: 5, top: 5 };
+    expect(wrapper.vm.freeUnit(taken, 5, 1, near)).toBe(4);
+    expect(wrapper.vm.freeUnit(taken, 5, 2, near)).toBe(null);
+  });
+
+  test("the device list shows the switch port UniFi sees a device on", () => {
+    setInventory([
+      device("SW", { host: "core-sw" }),
+      device(
+        "SRV",
+        {},
+        {
+          uplink: "SW",
+          link_type: "ethernet",
+          unifi: { uplink: { key: "SW", name: "USW-48", port: 7 } },
+        }
+      ),
+      device(
+        "PC",
+        {},
+        {
+          uplink: "",
+          link_type: "",
+          unifi: { uplink: { key: "", name: "USW-Lite-8", port: 3 } },
+        }
+      ),
+    ]);
+    expect(wrapper.vm.device_rows.map((x) => x.uplink)).toStrictEqual([
+      "",
+      "core-sw port 7 (ethernet)",
+      "USW-Lite-8 port 3",
+    ]);
+  });
+
   test("new devices start at the current location", () => {
     wrapper.setData({ selected: "Plant" });
     wrapper.vm.addDevice();

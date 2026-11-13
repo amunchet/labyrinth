@@ -184,6 +184,10 @@ class LabyrinthClient:
                 "services": live["services"],
                 "proxmox": live["proxmox"],
                 "parent": live["parent"],
+                # Its own uplink, else the switch or access point UniFi sees it on
+                "effective_uplink": live["uplink"],
+                "unifi": live["unifi"]
+                and {k: v for k, v in live["unifi"].items() if k != "ports"},
             }
             for field in list(serve.INVENTORY_FIELDS) + [
                 "group",
@@ -686,3 +690,15 @@ class LabyrinthClient:
 
     def get_ec2_instances(self) -> Dict[str, Any]:
         return call(serve.get_aws_ec2_instances)
+
+    def get_unifi(
+        self, refresh: bool = False, include_ports: bool = False
+    ) -> Dict[str, Any]:
+        """UniFi status, with switch ports (long lists) only when asked for"""
+        data = call(serve.refresh_unifi if refresh else serve.unifi_status)
+        if not include_ports:
+            for controller in data["controllers"]:
+                for site in controller["sites"]:
+                    for device in site["devices"]:
+                        device.pop("ports", None)
+        return data
