@@ -5104,7 +5104,8 @@ def create_edit_unifi_controller(inp=""):
         "protect": bool(given("protect", False)),
         "add_devices": bool(given("add_devices", True)),
     }
-    # Otherwise an admin could send credentials they cannot read anywhere
+    # Saved secrets stay with the URL they were entered for, so an admin cannot
+    # send credentials they are unable to read to an address of their choosing
     keep = existing.get("url") == doc["url"]
     for field in ("api_key", "username", "password"):
         doc[field] = str(data.get(field) or "").strip() or (
