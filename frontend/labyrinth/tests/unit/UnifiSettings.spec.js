@@ -108,6 +108,13 @@ describe("UnifiSettings.vue", () => {
     expect(wrapper.vm.form.api_key).toBe("");
     // The saved key is kept, so the form is complete without one
     expect(wrapper.vm.form_problem).toBe("");
+    // ... but only at the same address: a new URL needs it again
+    wrapper.setData({ form: { ...wrapper.vm.form, url: "https://10.9.9.9" } });
+    expect(wrapper.vm.form_problem).toBe(
+      "Enter the API key again for the new URL."
+    );
+    wrapper.setData({ form: { ...wrapper.vm.form, url: "https://10.0.0.1/" } });
+    expect(wrapper.vm.form_problem).toBe("");
     wrapper.vm.resetForm();
     expect(wrapper.vm.form._id).toBe("");
   });

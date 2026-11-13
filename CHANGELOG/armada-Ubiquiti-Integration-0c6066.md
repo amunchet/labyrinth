@@ -21,3 +21,10 @@ UniFi integration, alongside Proxmox and AWS: a **UniFi** page (Network, Cameras
 Fixes found by screenshotting the UniFi and Locations pages with realistic demo data:
 - Rack suggestions no longer offer UniFi's own switches and APs (a desk switch cabled to the core was being suggested into the core rack), and fill the free slots below the switch before any above it (a server was being placed between the switch and the gateway).
 - A switch port now lists an offline UniFi device on it as "not connected now", as it already did for disconnected clients.
+
+## 2026-11-13 16:23 CST
+Fixes from reviewing PR #88:
+- Renaming a location now carries over to UniFi site mappings, and deleting one unmaps its sites. Before, a renamed location's UniFi devices vanished from the Locations page until the site was mapped again.
+- Changing a controller's URL now requires its API key or password again, so saved credentials are never sent to a new address unseen (the settings form says so too).
+- Only wired clients are remembered after they disconnect: wireless ones say nothing about cabling and piled up on guest Wi-Fi.
+- The connection budget in MONGO_MIGRATION.md now counts the per-minute UniFi refresh.

@@ -12,8 +12,8 @@ Cron runs this module every minute (cron/unifi_refresh.sh):
     - Protect cameras come from the official Protect API with an API key, else
       from Protect's own API with the login session
     - Snapshots are cached in Redis (`unifi:<controller id>`).  A controller
-      that fails to answer keeps its last snapshot, flagged stale, and clients
-      that drop off are remembered at their last port for
+      that fails to answer keeps its last snapshot, flagged stale, and wired
+      clients that drop off are remembered at their last switch port for
       UNIFI_CLIENT_MEMORY_DAYS, so a powered-off server still shows where it
       is cabled
     - UniFi devices and cameras not yet in Labyrinth become hosts (unless the
@@ -340,8 +340,10 @@ def refresh(controller, rc):
     """
     Fetches a controller and caches its snapshot
         - On failure the last snapshot is kept, flagged stale, with the error
-        - Clients that dropped off stay at their last port, inactive, for
-          CLIENT_MEMORY_SECONDS; cameras are kept while Protect fails
+        - Wired clients that dropped off stay at their last switch port,
+          inactive, for CLIENT_MEMORY_SECONDS.  Wireless ones say nothing about
+          cabling, and on guest Wi-Fi would pile up.  Cameras are kept while
+          Protect fails
     Returns the snapshot
     """
     key = CACHE_KEY.format(controller["_id"])
@@ -367,7 +369,9 @@ def refresh(controller, rc):
                 continue
             for c in old_sites.get(site["site"], {}).get("clients", []):
                 if (
-                    c["mac"] not in active
+                    c["uplink"]
+                    and not c["uplink"]["wireless"]
+                    and c["mac"] not in active
                     and now - c["last_seen"] < CLIENT_MEMORY_SECONDS
                 ):
                     site["clients"].append(dict(c, active=False))

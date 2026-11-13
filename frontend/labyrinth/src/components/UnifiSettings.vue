@@ -22,7 +22,9 @@
             v-if="form.auth == 'api_key'"
             label="API key"
             :description="
-              form.has_api_key ? 'Leave blank to keep the saved key.' : ''
+              form.has_api_key && keeps_secrets
+                ? 'Leave blank to keep the saved key.'
+                : ''
             "
           >
             <b-input
@@ -38,7 +40,7 @@
             <b-form-group
               label="Password"
               :description="
-                form.has_password
+                form.has_password && keeps_secrets
                   ? 'Leave blank to keep the saved password.'
                   : ''
               "
@@ -180,6 +182,7 @@ const emptyForm = () => ({
   password: "",
   has_api_key: false,
   has_password: false,
+  saved_url: "",
   protect: false,
   add_devices: true,
   verify_ssl: false,
@@ -211,6 +214,14 @@ export default {
         this.locations.map((x) => x.name)
       );
     },
+    keeps_secrets() {
+      // The saved key and password are only reused at the address they were
+      // entered for (the backend asks for them again at a new one)
+      return (
+        !!this.form._id &&
+        this.form.url.trim().replace(/\/+$/, "") == this.form.saved_url
+      );
+    },
     form_problem() {
       let form = this.form;
       if (!form.name.trim()) {
@@ -219,14 +230,18 @@ export default {
       if (!/^https?:\/\/[^/\s]+\/?$/.test(form.url.trim())) {
         return "The URL is just the address, like https://192.168.1.1";
       }
-      if (form.auth == "api_key" && !form.api_key && !form.has_api_key) {
-        return "Enter the API key.";
+      let again =
+        form._id && !this.keeps_secrets ? " again for the new URL" : "";
+      let saved_key = form.has_api_key && this.keeps_secrets;
+      if (form.auth == "api_key" && !form.api_key && !saved_key) {
+        return "Enter the API key" + again + ".";
       }
+      let saved_password = form.has_password && this.keeps_secrets;
       if (
         form.auth == "login" &&
-        !(form.username && (form.password || form.has_password))
+        !(form.username && (form.password || saved_password))
       ) {
-        return "Enter the local account's username and password.";
+        return "Enter the local account's username and password" + again + ".";
       }
       return "";
     },
@@ -263,6 +278,7 @@ export default {
       this.form = {
         ...emptyForm(),
         ...controller,
+        saved_url: controller.url,
         api_key: "",
         password: "",
       };
@@ -275,9 +291,14 @@ export default {
     save: /* istanbul ignore next */ async function () {
       this.saving = true;
       let data = { ...this.form };
-      ["has_api_key", "has_password", "created", "updated", "name_key"].forEach(
-        (x) => delete data[x]
-      );
+      [
+        "has_api_key",
+        "has_password",
+        "saved_url",
+        "created",
+        "updated",
+        "name_key",
+      ].forEach((x) => delete data[x]);
       if (!data._id) {
         delete data._id;
       }

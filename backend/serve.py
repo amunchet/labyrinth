@@ -2994,13 +2994,27 @@ def list_locations():
     )
 
 
+def _move_unifi_sites(old, new):
+    """Points UniFi site mappings at a renamed location, or unmaps them when `new` is blank"""
+    controllers = db["labyrinth"]["unifi_controllers"]
+    for controller in controllers.find({}):
+        sites = controller.get("sites") or []
+        moved = [
+            dict(x, location=new) if x.get("location") == old else x for x in sites
+        ]
+        if moved != sites:
+            controllers.update_one(
+                {"_id": controller["_id"]}, {"$set": {"sites": moved}}
+            )
+
+
 @app.route("/location/", methods=["POST"])
 @requires_auth_write
 def create_edit_location(inp=""):
     """
     Creates a location, or updates one when `_id` is given
-        - Names are unique (case-insensitive) and stored by name on hosts, subnets and maps,
-          so a rename is carried over to all of them
+        - Names are unique (case-insensitive) and stored by name on hosts, subnets, maps
+          and UniFi site mappings, so a rename is carried over to all of them
         - A rack sent with `previous_name` was renamed and keeps its hosts; hosts in racks
           that no longer exist are un-racked
     """
@@ -3069,6 +3083,7 @@ def create_edit_location(inp=""):
             labyrinth[collection].update_many(
                 {"location": existing["name"]}, {"$set": {"location": name}}
             )
+        _move_unifi_sites(existing["name"], name)
     for previous, new in renamed_racks.items():
         labyrinth["hosts"].update_many(
             {"location": name, "rack": previous}, {"$set": {"rack": new}}
@@ -3085,7 +3100,7 @@ def create_edit_location(inp=""):
 @app.route("/location/<location_id>", methods=["DELETE"])
 @requires_auth_write
 def delete_location(location_id):
-    """Deletes a location; its hosts, subnets and maps become unassigned, not deleted"""
+    """Deletes a location; its hosts, subnets, maps and UniFi sites become unassigned, not deleted"""
     try:
         object_id = _validate_object_id(location_id)
     except ValueError:
@@ -3107,6 +3122,7 @@ def delete_location(location_id):
     labyrinth["dashboards"].update_many(
         {"location": found["name"]}, {"$set": {"location": ""}}
     )
+    _move_unifi_sites(found["name"], "")
     return "Success", 200
 
 
@@ -5038,7 +5054,8 @@ def create_edit_unifi_controller(inp=""):
     Creates a UniFi controller, or updates one when `_id` is given
         - `url` is the console's address; `auth` is "api_key" (UniFi OS) or
           "login" (a local account, which also works on a self-hosted Network
-          application).  A blank API key or password keeps the saved one
+          application).  A blank API key or password keeps the saved one,
+          unless the URL changes: saved secrets are never sent to a new address
         - `protect` also watches its Protect cameras; `add_devices` adds its
           devices and cameras to the inventory
         - `sites` maps UniFi site names to Labyrinth locations, and a site with
@@ -5087,13 +5104,18 @@ def create_edit_unifi_controller(inp=""):
         "protect": bool(given("protect", False)),
         "add_devices": bool(given("add_devices", True)),
     }
+    # Otherwise an admin could send credentials they cannot read anywhere
+    keep = existing.get("url") == doc["url"]
     for field in ("api_key", "username", "password"):
-        doc[field] = str(data.get(field) or "").strip() or existing.get(field, "")
+        doc[field] = str(data.get(field) or "").strip() or (
+            existing.get(field, "") if keep or field == "username" else ""
+        )
+    again = " again for the new URL" if existing and not keep else ""
     doc["auth"] = given("auth") or ("api_key" if doc["api_key"] else "login")
     if doc["auth"] == "api_key" and not doc["api_key"]:
-        return "Enter the API key", 407
+        return "Enter the API key" + again, 407
     if doc["auth"] == "login" and not (doc["username"] and doc["password"]):
-        return "Enter the local account's username and password", 407
+        return "Enter the local account's username and password" + again, 407
     if doc["auth"] not in ("api_key", "login"):
         return "auth must be api_key or login", 407
 

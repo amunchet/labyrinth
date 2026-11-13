@@ -494,11 +494,13 @@ def test_outage_keeps_last_snapshot_and_remembers_clients(setup, fake, monkeypat
     controller that stops answering keeps its last snapshot, flagged stale
     """
     unifi_helper.refresh(CONTROLLER, rc)
-    fake.clients = [x for x in fake.clients if x["mac"] != PVE]
+    fake.clients = [x for x in fake.clients if x["mac"] not in (PVE, LAPTOP)]
     snapshot = unifi_helper.refresh(CONTROLLER, rc)
     clients = {c["mac"]: c for c in snapshot["sites"][0]["clients"]}
     assert clients[key(PVE)]["active"] is False
     assert clients[key(PVE)]["uplink"]["port"] == 1
+    # Wireless clients say nothing about cabling, so they are not remembered
+    assert key(LAPTOP) not in clients
 
     _, by_host, devices = linked([{"mac": "10.0.0.10", "ip": "10.0.0.10"}])
     assert ports_of(devices[key(CORE)])[1] == ["pve1"]
@@ -743,10 +745,27 @@ def test_controller_routes(setup):
     assert not rc.exists(unifi_helper.LOGIN_WAIT_KEY.format(controller_id))
     assert rc.exists(unifi_helper.CACHE_KEY.format(controller_id))
 
-    a = unwrap(serve.create_edit_unifi_controller)(
+    # Saved secrets are never sent to a new address unseen
+    body, status = unwrap(serve.create_edit_unifi_controller)(
         {"_id": controller_id, "url": "https://other.test"}
     )
+    assert (body, status) == (
+        "Enter the local account's username and password again for the new URL",
+        407,
+    )
+    assert rc.exists(unifi_helper.CACHE_KEY.format(controller_id))
+    a = unwrap(serve.create_edit_unifi_controller)(
+        {"_id": controller_id, "url": "https://other.test", "password": "new"}
+    )
     assert a[1] == 200
+    saved = serve.db["labyrinth"]["unifi_controllers"].find_one(
+        {"name_key": "hq console"}
+    )
+    assert (saved["url"], saved["username"], saved["password"]) == (
+        "https://other.test",
+        "viewer",
+        "new",
+    )
     assert not rc.exists(unifi_helper.CACHE_KEY.format(controller_id))
 
     assert unwrap(serve.create_edit_unifi_controller)({"_id": "nope"})[1] == 400
@@ -762,6 +781,40 @@ def test_controller_routes(setup):
     assert not rc.exists(unifi_helper.CACHE_KEY.format(controller_id))
     assert unwrap(serve.delete_unifi_controller)(controller_id)[1] == 404
     assert unwrap(serve.delete_unifi_controller)("nope")[1] == 400
+
+
+def test_location_rename_and_delete_carry_over_to_sites(setup):
+    """UniFi site mappings follow a location's rename, and are unmapped when it is deleted"""
+    hq = json.loads(unwrap(serve.create_edit_location)({"name": "HQ"})[0])["_id"]
+    unwrap(serve.create_edit_location)({"name": "Lab"})
+    body, status = make_controller(
+        sites=[
+            {"site": "default", "location": "HQ"},
+            {"site": "lab", "location": "Lab"},
+            {"site": "spare", "location": "HQ", "monitor": False},
+        ]
+    )
+    assert status == 200, body
+
+    def sites():
+        controller = serve.db["labyrinth"]["unifi_controllers"].find_one({})
+        return [(x["site"], x["location"], x["monitor"]) for x in controller["sites"]]
+
+    assert (
+        unwrap(serve.create_edit_location)({"_id": hq, "name": "Head Office"})[1] == 200
+    )
+    assert sites() == [
+        ("default", "Head Office", True),
+        ("lab", "Lab", True),
+        ("spare", "Head Office", False),
+    ]
+
+    assert unwrap(serve.delete_location)(hq)[1] == 200
+    assert sites() == [
+        ("default", "", True),
+        ("lab", "Lab", True),
+        ("spare", "", False),
+    ]
 
 
 def test_status_and_refresh_routes(setup, fake):
