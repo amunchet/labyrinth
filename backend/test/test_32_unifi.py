@@ -398,6 +398,9 @@ def test_link_ports_uplinks_and_hosts(setup, fake):
         25: ["UDM Pro"],
     }
     assert core["ports"][-1]["connected"][0]["upstream"]
+    # The offline EDGE switch is listed on its port, as not connected now
+    assert core["ports"][3]["connected"][0]["active"] is False
+    assert core["ports"][0]["connected"][0]["active"] is True
     assert ports_of(gw) == {1: ["printer"], 11: ["USW-Pro-48"]}
 
     assert (

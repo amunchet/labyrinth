@@ -485,7 +485,7 @@ def link(controllers, hosts, rc):
                         "ip": item["ip"],
                         "key": item["key"],
                         "device": is_device,
-                        "active": item.get("active", True),
+                        "active": item.get("active", not item.get("offline")),
                     }
                 )
             own = ports.get((item["mac"], up.get("local_port")))
@@ -497,7 +497,7 @@ def link(controllers, hosts, rc):
                         "ip": parent["ip"],
                         "key": parent["key"],
                         "device": True,
-                        "active": True,
+                        "active": not parent["offline"],
                         "upstream": True,
                     }
                 )

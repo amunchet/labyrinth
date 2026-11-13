@@ -293,9 +293,15 @@ describe("Locations.vue", () => {
       device("PHONE", {}, { type: "phone", ...on("SW", 4) }),
       device("LAPTOP", {}, on("SW", null, { wireless: true })),
       device("FAR", {}, on("ELSEWHERE", 1)),
+      // UniFi's own switches are left to place by hand
+      device(
+        "SW2",
+        {},
+        { type: "switch", unifi: { ...on("SW", 24).unifi, kind: "device" } }
+      ),
     ]);
-    // Nearest free slot, below the switch first: SRV takes U4, so the 2U NAS
-    // is nearer at U6-7 than at U2-3
+    // The nearest free slot below the switch: SRV takes U4, so the 2U NAS
+    // goes to U2-3 rather than above the switch
     expect(
       wrapper.vm.rack_suggestions.map((x) => [
         x.device._live.key,
@@ -305,14 +311,16 @@ describe("Locations.vue", () => {
       ])
     ).toStrictEqual([
       ["SRV", "Rack A", 4, 1],
-      ["NAS", "Rack A", 6, 3],
+      ["NAS", "Rack A", 2, 3],
     ]);
     expect(wrapper.vm.rack_suggestions[0].switch_name).toBe("SW");
   });
 
-  test("a full rack suggests nothing", () => {
-    let taken = new Set([1, 2, 3, 5]);
+  test("slots above the switch are used once below is full, and a full rack suggests nothing", () => {
     let near = { bottom: 5, top: 5 };
+    expect(wrapper.vm.freeUnit(new Set([4, 5]), 7, 1, near)).toBe(3);
+    expect(wrapper.vm.freeUnit(new Set([1, 2, 3, 4, 5]), 7, 1, near)).toBe(6);
+    let taken = new Set([1, 2, 3, 5]);
     expect(wrapper.vm.freeUnit(taken, 5, 1, near)).toBe(4);
     expect(wrapper.vm.freeUnit(taken, 5, 2, near)).toBe(null);
   });

@@ -270,8 +270,9 @@
                   >
                 </b-card-header>
                 <small class="text-muted px-2 pt-1"
-                  >UniFi sees these plugged into a switch in a rack here, alone
-                  on their port; each goes to the free slot nearest it.</small
+                  >UniFi sees these plugged into a switch in a rack here; each
+                  goes to the nearest free slot below that switch, or above it
+                  once below is full.</small
                 >
                 <div
                   v-for="item in rack_suggestions"
@@ -575,9 +576,11 @@ export default {
     },
     rack_suggestions() {
       // Unracked devices UniFi sees plugged into a switch racked here are most
-      // likely in that rack: each gets the free slot nearest the switch.  Not
-      // ones that live elsewhere by type, nor ones sharing their port (a
-      // hypervisor's VMs, a desk switch) unless they are rack equipment
+      // likely in that rack: each gets the free slot nearest the switch,
+      // below it first.  Not UniFi's own switches and APs (downstream ones
+      // are mostly in other closets), ones that live elsewhere by type, nor
+      // ones sharing their port (a hypervisor's VMs, a desk switch) unless
+      // they are rack equipment
       let elsewhere = [
         "pc",
         "laptop",
@@ -611,11 +614,13 @@ export default {
       });
       let retval = [];
       this.unracked.forEach((device) => {
-        let uplink = (device._live.unifi || {}).uplink;
+        let unifi = device._live.unifi || {};
+        let uplink = unifi.uplink;
         let found = uplink && uplink.key && racked[uplink.key];
         if (
           !found ||
           uplink.wireless ||
+          unifi.kind == "device" ||
           elsewhere.includes(device._live.type)
         ) {
           return;
@@ -793,8 +798,8 @@ export default {
       this.$bvModal.show("location_form");
     },
     freeUnit(taken, units, height, near) {
-      // Bottom U of the free block of `height` nearest the rack item `near`,
-      // below it before above it; null when the rack is full
+      // Bottom U of the free block of `height` nearest below the rack item
+      // `near`, else nearest above it; null when the rack is full
       let best = null;
       let best_score = Infinity;
       for (let bottom = 1; bottom + height - 1 <= units; bottom++) {
@@ -804,7 +809,7 @@ export default {
           free = free && !taken.has(u);
         }
         let score =
-          top < near.bottom ? near.bottom - top : bottom - near.top + 0.5;
+          top < near.bottom ? near.bottom - top : units + bottom - near.top;
         if (free && score < best_score) {
           best = bottom;
           best_score = score;
