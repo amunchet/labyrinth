@@ -1,3 +1,17 @@
+{
+	# An Armada session's callback URL is its only credential, and Caddy's own
+	# logs (reverse_proxy warnings, http.log.error) print every request header
+	# except the Authorization/Cookie family.  Drop it before anything is written.
+	log default {
+		format filter {
+			wrap json
+			fields {
+				request>headers>X-Armada-Callback delete
+			}
+		}
+	}
+}
+
 {$DOMAIN} {
 	encode zstd gzip
 

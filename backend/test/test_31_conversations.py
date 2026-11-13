@@ -574,7 +574,36 @@ def test_armada_down_still_records_the_ask(db, alerts, armada, capsys, failure):
     found = _conversation(asked["conversation_id"])
     assert found["needs_human"] is True
     assert _stored(asked["conversation_id"]).get("armada_requests") in (None, [])
-    assert CALLBACK not in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "Armada request failed" in out
+    assert CALLBACK not in out and "session-callback" not in out
+
+
+def test_failure_reason_is_logged_without_the_url(db, alerts, armada, capsys):
+    """requests puts the URL in its error text, so only the status or error type is logged."""
+    post, delete = armada
+    post.side_effect = requests.ConnectionError(
+        "HTTPSConnectionPool: Max retries exceeded with url: " + CALLBACK
+    )
+    _question()
+    rejected = MagicMock(status_code=400)
+    post.side_effect = None
+    post.return_value = MagicMock(
+        **{"raise_for_status.side_effect": requests.HTTPError(response=rejected)}
+    )
+    _question()
+    out = capsys.readouterr().out
+    assert "ConnectionError" in out and "HTTP 400" in out
+    assert "session-callback" not in out
+
+
+def test_relative_labyrinth_url_skips_armada(db, alerts, armada, monkeypatch, capsys):
+    """Without LABYRINTH_URL the link is relative, which Armada rejects; say so instead."""
+    post, delete = armada
+    monkeypatch.delenv("LABYRINTH_URL")
+    assert _question()["armada_request"] is False
+    post.assert_not_called()
+    assert "LABYRINTH_URL is not set" in capsys.readouterr().out
 
 
 def test_failed_finish_still_records_the_answer(db, alerts, armada, capsys):

@@ -2166,6 +2166,17 @@ def save_armada_callback(conversation_id, callback):
         )
 
 
+def armada_failure(exc):
+    """
+    Why an Armada call failed, safe to log: the HTTP status or the error's
+    type.  Never str(exc): requests puts the callback URL in its messages.
+    """
+    response = getattr(exc, "response", None)
+    if response is not None:
+        return "HTTP {}".format(response.status_code)
+    return type(exc).__name__
+
+
 def swap_armada_requests(conversation_id, change):
     """
     Atomically replace a conversation's Armada requests with change(current)
@@ -2276,12 +2287,17 @@ def post_conversation_message(conversation_id, author, kind, text="", **fields):
         # Best effort too, and never logging the URL: it is the credential
         message["armada_request"] = False
         callback = found.get("armada_callback")
-        if callback:
+        link = labyrinth_url(path)
+        if callback and not link.startswith(("http://", "https://")):
+            # Armada only takes absolute links; without this every ask failed
+            # with a bare 400
+            print("Armada request skipped: LABYRINTH_URL is not set")
+        elif callback:
             try:
                 response = requests.post(
                     callback,
                     json={
-                        "url": labyrinth_url(path),
+                        "url": link,
                         "title": ("Labyrinth: " + found["title"])[:200],
                         "message": summary[:1000],
                     },
@@ -2296,8 +2312,12 @@ def post_conversation_message(conversation_id, author, kind, text="", **fields):
                     ),
                 )
                 message["armada_request"] = True
-            except (OSError, ValueError, KeyError, requests.RequestException):
-                print("Armada request failed for conversation", conversation_id)
+            except (OSError, ValueError, KeyError, requests.RequestException) as e:
+                print(
+                    "Armada request failed for conversation",
+                    conversation_id,
+                    armada_failure(e),
+                )
 
     # The human's turn is over (as check_response counts it: a launch alone is
     # not), so finish what was raised in Armada.  So does closing, whoever
@@ -2310,8 +2330,12 @@ def post_conversation_message(conversation_id, author, kind, text="", **fields):
                 requests.delete(
                     "{}/{}".format(entry["callback"], entry["id"]), timeout=10
                 ).raise_for_status()
-            except (OSError, requests.RequestException):
-                print("Finishing an Armada request failed for", conversation_id)
+            except (OSError, requests.RequestException) as e:
+                print(
+                    "Finishing an Armada request failed for",
+                    conversation_id,
+                    armada_failure(e),
+                )
     return message
 
 
