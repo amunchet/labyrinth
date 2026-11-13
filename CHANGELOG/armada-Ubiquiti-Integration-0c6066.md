@@ -28,3 +28,8 @@ Fixes from reviewing PR #88:
 - Changing a controller's URL now requires its API key or password again, so saved credentials are never sent to a new address unseen (the settings form says so too).
 - Only wired clients are remembered after they disconnect: wireless ones say nothing about cabling and piled up on guest Wi-Fi.
 - The connection budget in MONGO_MIGRATION.md now counts the per-minute UniFi refresh.
+
+## 2026-11-13 16:44 CST
+CI fixes for PR #88:
+- The linting job runs Black on Python 3.12, with its hash-locked requirements regenerated for that version (black itself stays at 24.8.0, so nothing is reformatted). GitHub's ubuntu-latest moved to Ubuntu 26.04, which has no Python 3.8, so the job had been failing at "Sets up Python" on every branch since 2026-11-12.
+- SonarCloud's quality gate failed on reliability: the switch-port list had no table header cells (the port number is now a row header), and the settings form stripped trailing slashes with a backtracking regex (now a plain loop). Also cleared the smaller findings: nested conditionals, composite test assertions, Sets for membership checks, optional chaining, and placing rack suggestions in parallel instead of awaiting in a loop. The "cognitive complexity" findings are left as they are: splitting those functions into single-use helpers goes against this project's code style, and master already carries 39 of them.

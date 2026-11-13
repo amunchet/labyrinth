@@ -247,7 +247,7 @@ export default {
     cameras() {
       let retval = [];
       this.status.controllers.forEach((controller) =>
-        ((controller.protect || {}).cameras || []).forEach((camera) =>
+        (controller.protect?.cameras || []).forEach((camera) =>
           retval.push({ ...camera, controller: controller.name })
         )
       );
@@ -255,7 +255,7 @@ export default {
     },
     protect_errors() {
       return this.status.controllers.filter(
-        (x) => x.protect && x.protect.error && !x.error
+        (x) => x.protect?.error && !x.error
       );
     },
     summary_cards() {

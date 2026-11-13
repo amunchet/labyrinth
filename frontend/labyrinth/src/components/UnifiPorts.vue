@@ -13,7 +13,7 @@
     </div>
     <table class="table table-sm mb-0 mt-1 port-list">
       <tr v-for="port in in_use" :key="port.idx">
-        <td class="idx">{{ port.idx }}</td>
+        <th scope="row" class="idx">{{ port.idx }}</th>
         <td>
           <div
             v-for="item in port.connected"
@@ -48,7 +48,7 @@ export default {
   },
   computed: {
     in_use() {
-      return this.ports.filter((x) => x.connected && x.connected.length);
+      return this.ports.filter((x) => x.connected?.length);
     },
   },
   methods: {
@@ -71,7 +71,7 @@ export default {
       let lines = [
         port.name +
           " – " +
-          (port.enabled ? (port.up ? "up" : "down") : "disabled") +
+          this.portState(port) +
           (port.speed ? " " + this.portSpeed(port) : "") +
           (port.media ? " " + port.media : ""),
       ];
@@ -115,8 +115,12 @@ export default {
 .port-list {
   font-size: 0.8rem;
 }
-.port-list td {
+.port-list td,
+.port-list th {
   padding: 0.1rem 0.3rem;
+}
+.port-list th {
+  font-weight: normal;
 }
 .idx,
 .speed {

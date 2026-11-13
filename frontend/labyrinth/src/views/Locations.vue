@@ -581,7 +581,7 @@ export default {
       // are mostly in other closets), ones that live elsewhere by type, nor
       // ones sharing their port (a hypervisor's VMs, a desk switch) unless
       // they are rack equipment
-      let elsewhere = [
+      let elsewhere = new Set([
         "pc",
         "laptop",
         "phone",
@@ -591,8 +591,8 @@ export default {
         "iot",
         "plc",
         "bridge",
-      ];
-      let rack_types = [
+      ]);
+      let rack_types = new Set([
         "server",
         "storage",
         "switch",
@@ -600,7 +600,7 @@ export default {
         "firewall",
         "ups",
         "patch-panel",
-      ];
+      ]);
       let racked = {};
       let taken = {};
       this.rack_layouts.forEach((rack) => {
@@ -616,21 +616,21 @@ export default {
       this.unracked.forEach((device) => {
         let unifi = device._live.unifi || {};
         let uplink = unifi.uplink;
-        let found = uplink && uplink.key && racked[uplink.key];
+        let found = uplink?.key && racked[uplink.key];
         if (
           !found ||
           uplink.wireless ||
           unifi.kind == "device" ||
-          elsewhere.includes(device._live.type)
+          elsewhere.has(device._live.type)
         ) {
           return;
         }
-        let port = ((found.item.device._live.unifi || {}).ports || []).find(
+        let port = (found.item.device._live.unifi?.ports || []).find(
           (x) => x.idx == uplink.port
         );
         let shared =
           port && port.connected.filter((x) => !x.upstream).length > 1;
-        if (shared && !rack_types.includes(device._live.type)) {
+        if (shared && !rack_types.has(device._live.type)) {
           return;
         }
         let height = device.rack_height || 1;
@@ -684,11 +684,11 @@ export default {
           }
           // Its own uplink, else the switch or access point UniFi sees it on
           let uplink = this.device_map[device._live.uplink || device.uplink];
-          let unifi = (device._live.unifi || {}).uplink;
+          let unifi = device._live.unifi?.uplink;
           let uplink_label = uplink
             ? Helper.deviceName(uplink)
-            : (unifi && unifi.name) || "";
-          if (!device.uplink && unifi && unifi.port) {
+            : unifi?.name || "";
+          if (!device.uplink && unifi?.port) {
             uplink_label += " port " + unifi.port;
           }
           let link_type = device._live.link_type || device.link_type;
@@ -818,13 +818,15 @@ export default {
       return best;
     },
     placeSuggestions: /* istanbul ignore next */ async function (items) {
-      for (let item of items) {
-        await this.updateInventory(
-          item.device,
-          { location: this.selected, rack: item.rack, rack_unit: item.unit },
-          false
-        );
-      }
+      await Promise.all(
+        items.map((item) =>
+          this.updateInventory(
+            item.device,
+            { location: this.selected, rack: item.rack, rack_unit: item.unit },
+            false
+          )
+        )
+      );
       await this.loadInventory();
     },
     dragStart(event, device) {

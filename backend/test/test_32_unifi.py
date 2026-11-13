@@ -322,7 +322,8 @@ def test_mac_normalization():
 def test_refresh_reads_sites_devices_clients_and_cameras(setup, fake):
     """An API key snapshot of a UniFi OS console, skipping unmonitored sites"""
     snapshot = unifi_helper.refresh(CONTROLLER, rc)
-    assert snapshot["error"] == "" and not snapshot["stale"]
+    assert snapshot["error"] == ""
+    assert not snapshot["stale"]
     assert [(s["site"], s["monitored"]) for s in snapshot["sites"]] == [
         ("default", True),
         ("lab", False),
@@ -337,12 +338,14 @@ def test_refresh_reads_sites_devices_clients_and_cameras(setup, fake):
         "US48PRO",
         "7.1.26",
     )
-    assert core["uplink"]["mac"] == key(GW) and core["uplink"]["port"] == 11
+    assert core["uplink"]["mac"] == key(GW)
+    assert core["uplink"]["port"] == 11
     assert [p["poe"] for p in core["ports"]][2:5] == [6.5, None, 4.2]
     # A disconnected device keeps its last uplink
     assert devices[key(EDGE)]["state"] == "disconnected"
     assert devices[key(EDGE)]["uplink"]["mac"] == key(CORE)
-    assert devices[key(GW)]["type"] == "router" and devices[key(GW)]["uplink"] is None
+    assert devices[key(GW)]["type"] == "router"
+    assert devices[key(GW)]["uplink"] is None
 
     clients = {c["mac"]: c for c in snapshot["sites"][0]["clients"]}
     assert clients[key(PVE)]["uplink"] == {
@@ -403,22 +406,20 @@ def test_link_ports_uplinks_and_hosts(setup, fake):
     assert core["ports"][0]["connected"][0]["active"] is True
     assert ports_of(gw) == {1: ["printer"], 11: ["USW-Pro-48"]}
 
-    assert (
-        core["uplink"]["name"] == "UDM Pro" and core["uplink"]["link_type"] == "fiber"
-    )
+    assert core["uplink"]["name"] == "UDM Pro"
+    assert core["uplink"]["link_type"] == "fiber"
     assert devices[key(AP)]["uplink"]["link_type"] == "ethernet"
     assert devices[key(MESH)]["uplink"]["link_type"] == "wireless"
     assert core["clients"] == 4
     # AP + MESH + laptop, EDGE + LEAF, and four wired clients
     assert core["downstream"] == 9
     assert gw["downstream"] == 11
-    assert (
-        devices[key(LEAF)]["behind_offline"]
-        and not devices[key(EDGE)]["behind_offline"]
-    )
+    assert devices[key(LEAF)]["behind_offline"]
+    assert not devices[key(EDGE)]["behind_offline"]
 
     assert core["key"] == key(CORE)
-    assert by_host[key(CORE)]["kind"] == "device" and by_host[key(CORE)]["online"]
+    assert by_host[key(CORE)]["kind"] == "device"
+    assert by_host[key(CORE)]["online"]
     pve = by_host["10.0.0.10"]
     assert (
         pve["kind"],
@@ -446,7 +447,8 @@ def test_cameras_join_their_switch_port(setup, fake):
         "connected",
         True,
     )
-    assert back["key"] == "" and back["uplink"] is None
+    assert back["key"] == ""
+    assert back["uplink"] is None
 
 
 def test_login_session_is_kept_between_runs(setup, fake):
@@ -469,7 +471,8 @@ def test_login_session_is_kept_between_runs(setup, fake):
     rc.delete(unifi_helper.SESSION_KEY.format(controller["_id"]))
     wrong = dict(controller, password="wrong")
     snapshot = unifi_helper.refresh(wrong, rc)
-    assert snapshot["error"] == "Login refused (HTTP 403)" and snapshot["stale"]
+    assert snapshot["error"] == "Login refused (HTTP 403)"
+    assert snapshot["stale"]
     snapshot = unifi_helper.refresh(wrong, rc)
     assert snapshot["error"].startswith("Login refused; trying again")
     assert fake.logins == 3
@@ -520,7 +523,8 @@ def test_outage_keeps_last_snapshot_and_remembers_clients(setup, fake, monkeypat
         snapshot["protect"]["error"]
         == "HTTP 502 from /proxy/protect/integration/v1/cameras"
     )
-    assert snapshot["protect"]["stale"] and len(snapshot["protect"]["cameras"]) == 2
+    assert snapshot["protect"]["stale"]
+    assert len(snapshot["protect"]["cameras"]) == 2
 
     fake.up = False
     snapshot = unifi_helper.refresh(CONTROLLER, rc)
@@ -534,7 +538,8 @@ def test_outage_keeps_last_snapshot_and_remembers_clients(setup, fake, monkeypat
     assert (
         snapshot["error"] == "Unexpected answer from the controller (see the cron log)"
     )
-    assert snapshot["stale"] and len(snapshot["sites"][0]["devices"]) == 6
+    assert snapshot["stale"]
+    assert len(snapshot["sites"][0]["devices"]) == 6
 
     # Never reached at all: nothing to show, not stale
     rc.delete(unifi_helper.CACHE_KEY.format(CONTROLLER["_id"]))
@@ -625,9 +630,11 @@ def test_add_hosts(setup, fake):
         gw["vendor"],
         gw["model"],
     ) == ("UDM Pro", "10.0.0.1", "10.0.0", "router", "Ubiquiti", "UDMPRO")
-    assert gw["monitor"] is False and gw["services"] == []
+    assert gw["monitor"] is False
+    assert gw["services"] == []
     assert added[key(FRONT)]["device_type"] == "camera"
-    assert added[key(BACK)]["ip"] == "" and added[key(BACK)]["subnet"] == ""
+    assert added[key(BACK)]["ip"] == ""
+    assert added[key(BACK)]["subnet"] == ""
     assert (added[key(CORE)]["ip"], added[key(CORE)]["subnet"]) == (
         "10.0.0.2",
         "10.0.0",
@@ -711,7 +718,8 @@ def test_controller_routes(setup):
     [listed] = json.loads(unwrap(serve.list_unifi_controllers)()[0])
     assert listed["url"] == "https://unifi.test"
     assert (listed["has_api_key"], listed["has_password"]) == (True, False)
-    assert "api_key" not in listed and "password" not in listed
+    assert "api_key" not in listed
+    assert "password" not in listed
     assert (listed["verify_ssl"], listed["protect"], listed["add_devices"]) == (
         False,
         False,
@@ -824,13 +832,15 @@ def test_status_and_refresh_routes(setup, fake):
         make_controller(protect=True, sites=[{"site": "default", "location": "HQ"}])[0]
     )["_id"]
     status = json.loads(unwrap(serve.unifi_status)()[0])
-    assert status["controllers"][0]["fetched_at"] is None and status["problems"] == []
+    assert status["controllers"][0]["fetched_at"] is None
+    assert status["problems"] == []
 
     status = json.loads(unwrap(serve.refresh_unifi)()[0])
     [controller] = status["controllers"]
     assert controller["_id"] == controller_id
     site = controller["sites"][0]
-    assert site["client_count"] == 6 and "clients" not in site
+    assert site["client_count"] == 6
+    assert "clients" not in site
     assert site["location"] == "HQ"
     assert [p["instance"] for p in status["problems"]] == ["USW-Lite-8", "Back Lot"]
 
@@ -890,10 +900,8 @@ def test_inventory_uses_unifi(setup, fake, monkeypatch):
         core["location_source"],
         core["status"],
     ) == ("switch", "HQ", "unifi", "up")
-    assert (
-        core["uplink"] == ""
-        and core["unifi"]["ports"][0]["connected"][0]["key"] == "10.0.0.10"
-    )
+    assert core["uplink"] == ""
+    assert core["unifi"]["ports"][0]["connected"][0]["key"] == "10.0.0.10"
     assert (edge["status"], edge["unifi"]["state"]) == ("down", "disconnected")
     assert (pve["status"], pve["location"], pve["uplink"], pve["link_type"]) == (
         "up",
@@ -921,7 +929,8 @@ def test_mcp_tool(setup, fake, monkeypatch):
 
     data = client.get_unifi(refresh=True)
     devices = data["controllers"][0]["sites"][0]["devices"]
-    assert len(devices) == 6 and "ports" not in devices[0]
+    assert len(devices) == 6
+    assert "ports" not in devices[0]
     assert [p["instance"] for p in data["problems"]] == ["USW-Lite-8"]
     assert (
         "ports"
@@ -937,5 +946,6 @@ def test_mcp_tool(setup, fake, monkeypatch):
     judged.__wrapped__ = lambda: (json.dumps([]), 200)
     monkeypatch.setattr(serve, "dashboard", judged)
     [pve] = client.get_inventory()["devices"]
-    assert pve["unifi"]["uplink"]["port"] == 1 and pve["location"] == "HQ"
+    assert pve["unifi"]["uplink"]["port"] == 1
+    assert pve["location"] == "HQ"
     assert pve["effective_uplink"] == ""  # its switch is not a host

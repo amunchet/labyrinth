@@ -217,10 +217,11 @@ export default {
     keeps_secrets() {
       // The saved key and password are only reused at the address they were
       // entered for (the backend asks for them again at a new one)
-      return (
-        !!this.form._id &&
-        this.form.url.trim().replace(/\/+$/, "") == this.form.saved_url
-      );
+      let url = this.form.url.trim();
+      while (url.endsWith("/")) {
+        url = url.slice(0, -1);
+      }
+      return !!this.form._id && url == this.form.saved_url;
     },
     form_problem() {
       let form = this.form;
@@ -262,11 +263,11 @@ export default {
         let found = this.status.controllers.find(
           (x) => x._id == controller._id
         );
-        sites[controller._id] = ((found && found.sites) || []).map((x) => ({
+        sites[controller._id] = (found?.sites || []).map((x) => ({
           site: x.site,
           name: x.name,
-          location: (saved[x.site] || {}).location || "",
-          monitor: (saved[x.site] || {}).monitor !== false,
+          location: saved[x.site]?.location || "",
+          monitor: saved[x.site]?.monitor !== false,
         }));
       });
       this.sites = sites;

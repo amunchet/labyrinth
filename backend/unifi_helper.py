@@ -279,7 +279,10 @@ def fetch(controller, rc):
             if not mac(c.get("mac")):
                 continue
             wired = bool(c.get("is_wired"))
-            parent = mac(c.get("sw_mac") if wired else c.get("ap_mac"))
+            if wired:
+                uplink = {"mac": mac(c.get("sw_mac")), "port": c.get("sw_port")}
+            else:
+                uplink = {"mac": mac(c.get("ap_mac")), "port": None}
             entry["clients"].append(
                 {
                     "mac": mac(c["mac"]),
@@ -289,13 +292,7 @@ def fetch(controller, rc):
                     "last_seen": c.get("last_seen") or now,
                     "active": True,
                     "uplink": (
-                        {
-                            "mac": parent,
-                            "port": c.get("sw_port") if wired else None,
-                            "wireless": not wired,
-                        }
-                        if parent
-                        else None
+                        dict(uplink, wireless=not wired) if uplink["mac"] else None
                     ),
                 }
             )
@@ -468,14 +465,16 @@ def link(controllers, hosts, rc):
             parent = devices.get(up["mac"])
             port = ports.get((up["mac"], up["port"]))
             media = (up.get("media") or (port or {}).get("media") or "").upper()
+            if up["wireless"]:
+                link_type = "wireless"
+            elif "SFP" in media:
+                link_type = "fiber"
+            else:
+                link_type = "ethernet"
             up.update(
                 name=parent["name"] if parent else "",
                 key=parent["key"] if parent else "",
-                link_type=(
-                    "wireless"
-                    if up["wireless"]
-                    else "fiber" if "SFP" in media else "ethernet"
-                ),
+                link_type=link_type,
             )
             children.setdefault(up["mac"], []).append(item)
             is_device = item["mac"] in devices

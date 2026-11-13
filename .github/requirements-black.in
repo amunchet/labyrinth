@@ -1,6 +1,7 @@
-# Black for the linting job in workflows/push.yml, which runs it on Python 3.8;
-# 24.8.0 is the last release that supports 3.8. requirements-black.txt is the
-# hash-locked file the job installs. Regenerate it from this directory with:
-#   docker run --rm -v "$PWD:/w" -w /w python:3.8-slim sh -c "pip install pip-tools && pip-compile --generate-hashes --allow-unsafe --strip-extras -o requirements-black.txt requirements-black.in"
+# Black for the linting job in workflows/push.yml, which runs it on Python 3.12
+# (the Ubuntu 26.04 runners have no 3.8 any more). Black stays at 24.8.0 so the
+# move did not reformat the backend. requirements-black.txt is the hash-locked
+# file the job installs. Regenerate it from this directory with:
+#   docker run --rm -v "$PWD:/w" -w /w python:3.12-slim sh -c "pip install pip-tools && pip-compile --generate-hashes --allow-unsafe --strip-extras -o requirements-black.txt requirements-black.in"
 
 black==24.8.0
