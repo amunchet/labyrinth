@@ -217,7 +217,7 @@ Hosts double as the device inventory (servers, VMs/LXCs, PCs, switches, bridges,
 - `mcp_list_locations` - List locations (sites/buildings) with their racks
 - `mcp_save_location(location_json)` - Create a location, or update/rename one by including its `_id`
 - `mcp_delete_location(name)` - Delete a location; its devices, subnets and maps become unassigned (not deleted)
-- `mcp_get_inventory(location, device_type, status)` - Devices with live status (optionally filtered), plus locations and the Proxmox node -> VM/LXC tree
+- `mcp_get_inventory(location, device_type, status)` - Devices with live status (optionally filtered) and, from UniFi, the switch port each is plugged into, plus locations and the Proxmox node -> VM/LXC tree
 - `mcp_set_device_inventory(host_key, fields_json)` - Change only a device's inventory fields (location, rack, type, uplink, ...); blank values clear a field
 - `mcp_check_device(host_key)` - Ping (or TCP-check) a device right now and record the result
 
@@ -238,8 +238,9 @@ Images are uploaded and deleted in the UI; the MCP container mounts uploads read
 - `mcp_get_proxmox_telegraf_check(stale_minutes)` / `mcp_get_proxmox_graylog_check` - Guests not reporting Telegraf metrics / not forwarding to Graylog
 - `mcp_list_proxmox_clusters` - Configured clusters, without token secrets
 - `mcp_get_ec2_instances` - EC2 instances across AWS accounts with host matches
+- `mcp_get_unifi(refresh, include_ports)` - UniFi sites' devices (state, uplink and port, clients, how much connects through each), Protect cameras and current problems; `include_ports` adds what is plugged into every switch port
 
-Deliberately not exposed: credentials and secrets (settings, Telegraf key, Alertmanager config, Proxmox/AWS account create/update, AI settings), service deletion (it removes snippet files, which the MCP container can't write), network scans (nmap runs in the cron container), and running Ansible directly (a human launches runs from the Deploy page).
+Deliberately not exposed: credentials and secrets (settings, Telegraf key, Alertmanager config, Proxmox/AWS/UniFi account create/update, AI settings), service deletion (it removes snippet files, which the MCP container can't write), network scans (nmap runs in the cron container), and running Ansible directly (a human launches runs from the Deploy page).
 
 ### Ansible Deployments and Conversations
 - `mcp_list_playbooks` / `mcp_get_playbook(name)` - List / read saved playbooks
@@ -313,7 +314,7 @@ Optional inventory fields:
 - `unknown` - has an IP but no recent check yet
 - `none` - no IP; a labelled device that is not monitored
 
-A device's `location` is its own, else that of the Proxmox node it runs on (VMs/LXCs), else that of its subnet (`location_source` says which).
+A device's `location` is its own, else that of the Proxmox node it runs on (VMs/LXCs), else that of the UniFi site it is seen at, else that of its subnet (`location_source` says which).
 
 ## Service Schema
 

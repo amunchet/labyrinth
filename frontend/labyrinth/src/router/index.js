@@ -117,6 +117,12 @@ const routes = [
     name: "AWS",
     component: () => import(/* webpackChunkName: "aws" */ "../views/AWS.vue"),
   },
+  {
+    path: "/unifi",
+    name: "UniFi",
+    component: () =>
+      import(/* webpackChunkName: "unifi" */ "../views/UniFi.vue"),
+  },
 ];
 
 const router = new VueRouter({

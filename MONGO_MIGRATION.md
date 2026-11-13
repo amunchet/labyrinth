@@ -233,14 +233,14 @@ Demand is `POSTGRES_POOL_MAX` per *process*, not per container:
 |---|---|
 | `backend` | 8 gunicorn workers |
 | `mcp` | 1 (production sets `POSTGRES_POOL_MAX: 4` - tools run on threads, one per connection) |
-| `cron` | up to ~4 overlapping on the same minute (finder, bulk_write, proxmox_refresh x2); the finder is resident, and briefly two of them while one recycles (see `FINDER_MAX_RUNTIME_SECONDS`) |
+| `cron` | up to ~5 overlapping on the same minute (finder, bulk_write, proxmox_refresh x2, unifi_refresh - which keeps its pool while it polls the UniFi controllers); the finder is resident, and briefly two of them while one recycles (see `FINDER_MAX_RUNTIME_SECONDS`) |
 
 At the previous hardcoded pool max of 5 that is `13 x 5 = 65` against an
 effective ~47 (50 minus `superuser_reserved_connections`) - i.e. the stack
 could exhaust the server with no leak involved at all. The default is now
-`POSTGRES_POOL_MAX=2` (`13 x 2 = 26`), which leaves real headroom. Sync
-gunicorn workers serve one request at a time and need exactly one
-connection; the headroom above 1 covers any background threads.
+`POSTGRES_POOL_MAX=2` (`14 x 2 = 28` with the UniFi refresh), which leaves
+real headroom. Sync gunicorn workers serve one request at a time and need
+exactly one connection; the headroom above 1 covers any background threads.
 
 If you raise `--workers`, raise `POSTGRES_MAX_CONNECTIONS` to match, or
 lower `POSTGRES_POOL_MAX`.

@@ -70,6 +70,37 @@ describe("DeviceCard.vue", () => {
     expect(mount({ mac: "device-1a2b", ip: "" }).vm.real_mac).toBe(false);
   });
 
+  test("says what UniFi knows of the device", () => {
+    let device = mount({
+      _live: {
+        location_source: "unifi",
+        unifi: {
+          kind: "device",
+          model: "US48PRO",
+          state: "connected",
+          version: "7.1.26",
+          ports: [],
+        },
+      },
+    });
+    expect(device.vm.unifi_label).toBe("US48PRO · connected · firmware 7.1.26");
+    expect(device.vm.location_source).toBe("its UniFi site");
+
+    let camera = mount({
+      _live: { unifi: { kind: "camera", state: "disconnected" } },
+    });
+    expect(camera.vm.unifi_label).toBe("Protect camera · disconnected");
+
+    let now = Date.now() / 1000;
+    let client = (active, last_seen) =>
+      mount({ _live: { unifi: { kind: "client", active, last_seen } } }).vm
+        .unifi_label;
+    expect(client(true, now)).toBe("Client, connected");
+    expect(client(false, now - 5 * 3600)).toBe("Client, last seen 5h ago");
+    expect(client(false, now - 3 * 86400)).toBe("Client, last seen 3d ago");
+    expect(mount({}).vm.unifi).toBe(null);
+  });
+
   test("summarises rack position, hardware and guests", () => {
     let wrapper = mount(
       {

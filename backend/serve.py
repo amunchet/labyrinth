@@ -12,6 +12,7 @@ import json
 import socket
 import datetime
 import time
+import urllib.parse
 import bson
 
 import pymongo
@@ -32,6 +33,7 @@ import proxmox_helper
 import proxmox_disk_check
 import aws_helper
 import ec2_unmatched_check
+import unifi_helper
 
 from ai.ai_settings import get_ai_alert_settings
 from ai.ai_pipeline import send_simple_test_email, send_full_test_email
@@ -2992,13 +2994,27 @@ def list_locations():
     )
 
 
+def _move_unifi_sites(old, new):
+    """Points UniFi site mappings at a renamed location, or unmaps them when `new` is blank"""
+    controllers = db["labyrinth"]["unifi_controllers"]
+    for controller in controllers.find({}):
+        sites = controller.get("sites") or []
+        moved = [
+            dict(x, location=new) if x.get("location") == old else x for x in sites
+        ]
+        if moved != sites:
+            controllers.update_one(
+                {"_id": controller["_id"]}, {"$set": {"sites": moved}}
+            )
+
+
 @app.route("/location/", methods=["POST"])
 @requires_auth_write
 def create_edit_location(inp=""):
     """
     Creates a location, or updates one when `_id` is given
-        - Names are unique (case-insensitive) and stored by name on hosts, subnets and maps,
-          so a rename is carried over to all of them
+        - Names are unique (case-insensitive) and stored by name on hosts, subnets, maps
+          and UniFi site mappings, so a rename is carried over to all of them
         - A rack sent with `previous_name` was renamed and keeps its hosts; hosts in racks
           that no longer exist are un-racked
     """
@@ -3067,6 +3083,7 @@ def create_edit_location(inp=""):
             labyrinth[collection].update_many(
                 {"location": existing["name"]}, {"$set": {"location": name}}
             )
+        _move_unifi_sites(existing["name"], name)
     for previous, new in renamed_racks.items():
         labyrinth["hosts"].update_many(
             {"location": name, "rack": previous}, {"$set": {"rack": new}}
@@ -3083,7 +3100,7 @@ def create_edit_location(inp=""):
 @app.route("/location/<location_id>", methods=["DELETE"])
 @requires_auth_write
 def delete_location(location_id):
-    """Deletes a location; its hosts, subnets and maps become unassigned, not deleted"""
+    """Deletes a location; its hosts, subnets, maps and UniFi sites become unassigned, not deleted"""
     try:
         object_id = _validate_object_id(location_id)
     except ValueError:
@@ -3105,6 +3122,7 @@ def delete_location(location_id):
     labyrinth["dashboards"].update_many(
         {"location": found["name"]}, {"$set": {"location": ""}}
     )
+    _move_unifi_sites(found["name"], "")
     return "Success", 200
 
 
@@ -3196,8 +3214,15 @@ def inventory():
     """
     Hosts viewed as a physical/virtual inventory (location maps, racks, the MCP)
         - Each host gains a `_live` block: its effective type and location (explicit,
-          else inherited from its Proxmox node, else from its subnet), its last
-          reachability check, a service summary, and a rolled-up `status`
+          else inherited from its Proxmox node, else from the UniFi site it is seen
+          at, else from its subnet), its last reachability check, a service summary,
+          a rolled-up `status`, and its effective `uplink`/`link_type` (its own,
+          else the switch or access point UniFi sees it on)
+        - `_live.unifi` is what UniFi knows of it (unifi_helper.link): the device,
+          camera or client it is, its state, the switch port it is on and, for a
+          switch, what is plugged into each port.  UniFi's view decides
+          reachability for what it covers: offline there means down, connected
+          means up even when pings go unanswered
         - `proxmox` is the cached node -> VM/LXC tree, with nodes and guests matched
           to hosts by explicit proxmox_node/proxmox_vmid, else by short hostname
     """
@@ -3295,6 +3320,10 @@ def inventory():
             }
         )
 
+    _, unifi = unifi_helper.link(
+        list(labyrinth["unifi_controllers"].find({})), hosts, rc
+    )
+
     # Judged services, as shown on the main dashboard
     judged = {}
     for subnet in json.loads(unwrap(dashboard)()[0]):
@@ -3313,8 +3342,12 @@ def inventory():
 
     for host in hosts:
         live = host["_live"]
+        live["unifi"] = unifi.get(host["mac"])
+        seen = live["unifi"] or {}
         if host.get("location"):
             live["location"], live["location_source"] = host["location"], "explicit"
+        elif seen.get("location"):
+            live["location"], live["location_source"] = seen["location"], "unifi"
         elif subnet_locations.get(host.get("subnet")):
             live["location"] = subnet_locations[host["subnet"]]
             live["location_source"] = "subnet"
@@ -3322,11 +3355,22 @@ def inventory():
             live["location"], live["location_source"] = "", ""
 
         kind = (live["proxmox"] or {}).get("kind")
-        live["type"] = host.get("device_type") or {
-            "node": "server",
-            "vm": "vm",
-            "lxc": "lxc",
-        }.get(kind, "")
+        live["type"] = (
+            host.get("device_type")
+            or {"node": "server", "vm": "vm", "lxc": "lxc"}.get(kind)
+            or {"device": seen.get("type"), "camera": "camera"}.get(seen.get("kind"))
+            or ""
+        )
+
+        if host.get("uplink"):
+            live["uplink"], live["link_type"] = host["uplink"], host.get(
+                "link_type", ""
+            )
+        elif (seen.get("uplink") or {}).get("key"):
+            live["uplink"] = seen["uplink"]["key"]
+            live["link_type"] = seen["uplink"]["link_type"]
+        else:
+            live["uplink"], live["link_type"] = "", ""
 
         # A stale record (alive cron not running) says nothing about now
         record = alive_records.get(host.get("ip") or "")
@@ -3358,17 +3402,29 @@ def inventory():
                     services["failed"] += 1
         live["services"] = services
 
-        # Hosts that drop pings but report healthy metrics are still up
+        # Hosts that drop pings but report healthy metrics, or that UniFi sees
+        # connected, are still up
         healthy_metrics = services and services["ok"] and not services["failed"]
         if not host.get("ip"):
             live["status"] = "none"
-        elif record and not record["up"] and not healthy_metrics:
+        elif seen.get("offline"):
+            live["status"] = "down"
+        elif (
+            record
+            and not record["up"]
+            and not healthy_metrics
+            and not seen.get("online")
+        ):
             live["status"] = "down"
         elif services and services["failed"]:
             live["status"] = "error"
         elif services and services["warning"]:
             live["status"] = "warning"
-        elif (record and record["up"]) or (services and services["ok"]):
+        elif (
+            (record and record["up"])
+            or (services and services["ok"])
+            or seen.get("online")
+        ):
             live["status"] = "up"
         else:
             live["status"] = "unknown"
@@ -4969,6 +5025,213 @@ def _get_ec2_test_email_recipients(data):
         {"name": "ec2_alert_recipients"}
     )
     return _parse_recipients_setting(recipients_setting)
+
+
+## UniFi
+#
+# Controllers - UniFi OS consoles or self-hosted Network applications - are
+# polled every minute by cron into Redis (unifi_helper.py); these routes manage
+# them and read the snapshots.  API keys and passwords never leave the backend.
+
+
+@app.route("/unifi/controllers/", methods=["GET"])
+@requires_auth_read
+def list_unifi_controllers():
+    """Lists the UniFi controllers, with whether a key/password is saved instead of it"""
+    controllers = list(
+        db["labyrinth"]["unifi_controllers"].find({}, sort=[("name", 1)])
+    )
+    for controller in controllers:
+        controller["has_api_key"] = bool(controller.pop("api_key", ""))
+        controller["has_password"] = bool(controller.pop("password", ""))
+    return json.dumps(controllers, default=str), 200
+
+
+@app.route("/unifi/controller/", methods=["POST"])
+@requires_auth_admin
+def create_edit_unifi_controller(inp=""):
+    """
+    Creates a UniFi controller, or updates one when `_id` is given
+        - `url` is the console's address; `auth` is "api_key" (UniFi OS) or
+          "login" (a local account, which also works on a self-hosted Network
+          application).  A blank API key or password keeps the saved one,
+          unless the URL changes: saved secrets are never sent to a new address
+        - `protect` also watches its Protect cameras; `add_devices` adds its
+          devices and cameras to the inventory
+        - `sites` maps UniFi site names to Labyrinth locations, and a site with
+          `monitor` false is not polled
+    """
+    if inp != "":
+        data = inp
+    else:  # pragma: no cover
+        data = json.loads(request.form.get("data"))
+
+    controllers = db["labyrinth"]["unifi_controllers"]
+    existing = {}
+    if data.get("_id"):
+        try:
+            object_id = _validate_object_id(str(data["_id"]))
+        except ValueError:
+            return "Invalid controller ID", 400
+        existing = controllers.find_one({"_id": object_id})
+        if not existing:
+            return "Controller not found", 404
+
+    def given(field, default=""):
+        return data[field] if field in data else existing.get(field, default)
+
+    name = str(given("name") or "").strip()
+    if not name:
+        return "A controller needs a name", 407
+    url = urllib.parse.urlsplit(str(given("url") or "").strip())
+    if (
+        url.scheme not in ("http", "https")
+        or not url.netloc
+        or url.path not in ("", "/")
+        or url.query
+        or url.fragment
+    ):
+        return (
+            "The URL must be just the controller's address, e.g. "
+            "https://192.168.1.1 or https://unifi.example.com:8443",
+            407,
+        )
+    doc = {
+        "name": name,
+        "name_key": name.casefold(),
+        "url": "{}://{}".format(url.scheme, url.netloc),
+        "verify_ssl": bool(given("verify_ssl", False)),
+        "protect": bool(given("protect", False)),
+        "add_devices": bool(given("add_devices", True)),
+    }
+    # Saved secrets stay with the URL they were entered for, so an admin cannot
+    # send credentials they are unable to read to an address of their choosing
+    keep = existing.get("url") == doc["url"]
+    for field in ("api_key", "username", "password"):
+        doc[field] = str(data.get(field) or "").strip() or (
+            existing.get(field, "") if keep or field == "username" else ""
+        )
+    again = " again for the new URL" if existing and not keep else ""
+    doc["auth"] = given("auth") or ("api_key" if doc["api_key"] else "login")
+    if doc["auth"] == "api_key" and not doc["api_key"]:
+        return "Enter the API key" + again, 407
+    if doc["auth"] == "login" and not (doc["username"] and doc["password"]):
+        return "Enter the local account's username and password" + again, 407
+    if doc["auth"] not in ("api_key", "login"):
+        return "auth must be api_key or login", 407
+
+    sites = given("sites", [])
+    if not isinstance(sites, list) or not all(
+        isinstance(x, dict) and str(x.get("site") or "").strip() for x in sites
+    ):
+        return "Sites must be a list of {site, location, monitor}", 407
+    locations = {x["name"] for x in db["labyrinth"]["locations"].find({})}
+    doc["sites"] = []
+    for site in sites:
+        location = str(site.get("location") or "").strip()
+        if location and location not in locations:
+            return "Unknown location", 404
+        doc["sites"].append(
+            {
+                "site": str(site["site"]).strip(),
+                "location": location,
+                "monitor": site.get("monitor") is not False,
+            }
+        )
+
+    clash = controllers.find_one({"name_key": doc["name_key"]})
+    if clash and str(clash["_id"]) != str(existing.get("_id")):
+        return "A controller with that name already exists", 409
+
+    doc["updated"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    if not existing:
+        doc["created"] = doc["updated"]
+        return json.dumps({"_id": str(controllers.insert_one(doc).inserted_id)}), 200
+
+    controllers.update_one({"_id": existing["_id"]}, {"$set": doc})
+    rc = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
+    # New credentials need a fresh login, and another console's data must not linger
+    if any(
+        doc[x] != existing.get(x)
+        for x in ("url", "auth", "api_key", "username", "password")
+    ):
+        rc.delete(
+            unifi_helper.SESSION_KEY.format(existing["_id"]),
+            unifi_helper.LOGIN_WAIT_KEY.format(existing["_id"]),
+        )
+    if doc["url"] != existing["url"]:
+        rc.delete(unifi_helper.CACHE_KEY.format(existing["_id"]))
+    return json.dumps({"_id": str(existing["_id"])}), 200
+
+
+@app.route("/unifi/controller/<controller_id>", methods=["DELETE"])
+@requires_auth_admin
+def delete_unifi_controller(controller_id):
+    """Deletes a UniFi controller and its cached data; hosts it added are kept"""
+    try:
+        object_id = _validate_object_id(controller_id)
+    except ValueError:
+        return "Invalid controller ID", 400
+    if (
+        not db["labyrinth"]["unifi_controllers"]
+        .delete_one({"_id": object_id})
+        .deleted_count
+    ):
+        return "Controller not found", 404
+    redis.Redis(host=os.environ.get("REDIS_HOST") or "redis").delete(
+        *[
+            key.format(object_id)
+            for key in (
+                unifi_helper.CACHE_KEY,
+                unifi_helper.SESSION_KEY,
+                unifi_helper.LOGIN_WAIT_KEY,
+            )
+        ]
+    )
+    return "Success", 200
+
+
+@app.route("/unifi/", methods=["GET"])
+@requires_auth_read
+def unifi_status():
+    """
+    Each UniFi controller's latest snapshot tied to hosts (unifi_helper.link),
+    and its current problems, those of stale snapshots marked `stale`
+        - Clients are only counted: the switch ports list the wired ones
+    """
+    snapshots, _ = unifi_helper.link(
+        list(db["labyrinth"]["unifi_controllers"].find({}, sort=[("name", 1)])),
+        list(db["labyrinth"]["hosts"].find({})),
+        redis.Redis(host=os.environ.get("REDIS_HOST") or "redis"),
+    )
+    alerts, held = unifi_helper.problems(snapshots)
+    for snapshot in snapshots:
+        for site in snapshot["sites"]:
+            site["client_count"] = len([x for x in site.pop("clients") if x["active"]])
+    return (
+        json.dumps(
+            {
+                "controllers": snapshots,
+                "problems": alerts + [dict(x, stale=True) for x in held],
+            },
+            default=str,
+        ),
+        200,
+    )
+
+
+@app.route("/unifi/refresh/", methods=["POST"])
+@requires_auth_write
+def refresh_unifi():
+    """
+    Polls every UniFi controller now instead of at the next cron run, and
+    answers as unifi_status() does.  New devices still join the inventory on
+    the cron run
+    """
+    rc = redis.Redis(host=os.environ.get("REDIS_HOST") or "redis")
+    for controller in db["labyrinth"]["unifi_controllers"].find({}):
+        unifi_helper.refresh(controller, rc)
+    return unwrap(unifi_status)()
 
 
 if __name__ == "__main__":  # pragma: no cover

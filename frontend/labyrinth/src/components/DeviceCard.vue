@@ -37,7 +37,7 @@
           <small
             v-if="live.location && live.location_source != 'explicit'"
             class="text-muted"
-            >(from its {{ live.location_source }})</small
+            >(from {{ location_source }})</small
           >
         </dd>
         <template v-if="device.rack">
@@ -68,6 +68,33 @@
             </span>
           </dd>
         </template>
+        <template v-if="unifi">
+          <dt>UniFi</dt>
+          <dd>
+            {{ unifi_label }}
+            <div class="text-muted">
+              {{ [unifi.site, unifi.controller].filter(Boolean).join(" · ") }}
+              <span v-if="unifi.stale" class="text-warning"
+                >(controller not answering)</span
+              >
+            </div>
+          </dd>
+          <template v-if="unifi.uplink && unifi.uplink.name">
+            <dt>Plugged into</dt>
+            <dd>
+              <b-link
+                v-if="unifi.uplink.key"
+                @click="$emit('select', unifi.uplink.key)"
+                >{{ unifi.uplink.name }}</b-link
+              >
+              <span v-else>{{ unifi.uplink.name }}</span>
+              <span v-if="unifi.uplink.port">
+                port {{ unifi.uplink.port }}</span
+              >
+              ({{ unifi.uplink.link_type }})
+            </dd>
+          </template>
+        </template>
         <template v-if="device.uplink">
           <dt>Uplink</dt>
           <dd>
@@ -84,6 +111,12 @@
           <dd class="notes">{{ device.notes }}</dd>
         </template>
       </dl>
+      <UnifiPorts
+        v-if="unifi && unifi.ports && unifi.ports.length"
+        class="mb-2"
+        :ports="unifi.ports"
+        @select="(key) => $emit('select', key)"
+      />
       <b-button size="sm" variant="outline-primary" @click="$emit('edit')">
         <font-awesome-icon icon="edit" /> Edit
       </b-button>
@@ -92,10 +125,13 @@
 </template>
 <script>
 import Helper from "@/helper";
+import UnifiPorts from "@/components/UnifiPorts";
 
-// Live details of one inventory device (as returned by /inventory/)
+// Live details of one inventory device (as returned by /inventory/); emits
+// `select` with the key of a device it links to (its switch, a port's device)
 export default {
   name: "DeviceCard",
+  components: { UnifiPorts },
   props: {
     device: { type: Object, required: true },
     uplink_device: { type: Object, default: null },
@@ -113,6 +149,39 @@ export default {
     },
     status() {
       return Helper.deviceStatuses[this.live.status];
+    },
+    location_source() {
+      return (
+        Helper.locationSources[this.live.location_source] ||
+        this.live.location_source
+      );
+    },
+    unifi() {
+      return this.live.unifi || null;
+    },
+    unifi_label() {
+      let unifi = this.unifi;
+      if (unifi.kind == "device") {
+        return [
+          unifi.model,
+          unifi.state,
+          unifi.version && "firmware " + unifi.version,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+      }
+      if (unifi.kind == "camera") {
+        return "Protect camera · " + unifi.state;
+      }
+      if (unifi.active) {
+        return "Client, connected";
+      }
+      let hours = Math.max(0, (Date.now() / 1000 - unifi.last_seen) / 3600);
+      return (
+        "Client, last seen " +
+        (hours < 48 ? Math.round(hours) + "h" : Math.round(hours / 24) + "d") +
+        " ago"
+      );
     },
     type_label() {
       let type = Helper.deviceTypes[this.live.type];

@@ -256,12 +256,55 @@
                   </div>
                 </div>
               </div>
+              <b-card v-if="rack_suggestions.length" no-body class="mb-2">
+                <b-card-header class="p-2 d-flex align-items-center">
+                  <span class="mr-auto">
+                    <font-awesome-icon icon="network-wired" class="mr-1" />
+                    Cabled into these racks ({{ rack_suggestions.length }})
+                  </span>
+                  <b-button
+                    size="sm"
+                    variant="outline-primary"
+                    @click="placeSuggestions(rack_suggestions)"
+                    >Place all</b-button
+                  >
+                </b-card-header>
+                <small class="text-muted px-2 pt-1"
+                  >UniFi sees these plugged into a switch in a rack here; each
+                  goes to the nearest free slot below that switch, or above it
+                  once below is full.</small
+                >
+                <div
+                  v-for="item in rack_suggestions"
+                  :key="item.device._live.key"
+                  class="suggestion d-flex align-items-center px-2 py-1"
+                >
+                  <div class="mr-auto">
+                    <font-awesome-icon
+                      :icon="deviceIcon(item.device)"
+                      class="mr-1"
+                    />
+                    {{ deviceName(item.device) }}
+                    <small class="d-block text-muted"
+                      >{{ item.switch_name }} port {{ item.port }} →
+                      {{ item.rack }} U{{ item.unit }}</small
+                    >
+                  </div>
+                  <b-button
+                    size="sm"
+                    variant="link"
+                    @click="placeSuggestions([item])"
+                    >Place</b-button
+                  >
+                </div>
+              </b-card>
               <DeviceCard
                 v-if="rack_device"
                 :device="rack_device"
                 :uplink_device="device_map[rack_device.uplink] || null"
                 :guests="guestsOf(rack_device)"
                 @edit="editDevice(rack_device)"
+                @select="(key) => (rack_key = key)"
               />
               <div v-else class="text-muted small">
                 Click a device for details.
@@ -378,7 +421,7 @@
               />
               <span v-else-if="row.item.location_source != 'explicit'">
                 <small class="text-muted"
-                  >from {{ row.item.location_source }}</small
+                  >from {{ sources[row.item.location_source] }}</small
                 >
               </span>
             </template>
@@ -430,6 +473,7 @@ export default {
       page: 1,
       timeout: null,
       statuses: Helper.deviceStatuses,
+      sources: Helper.locationSources,
       guest_fields: [
         { key: "kind", label: "Guest" },
         "name",
@@ -530,6 +574,88 @@ export default {
       }
       return null;
     },
+    rack_suggestions() {
+      // Unracked devices UniFi sees plugged into a switch racked here are most
+      // likely in that rack: each gets the free slot nearest the switch,
+      // below it first.  Not UniFi's own switches and APs (downstream ones
+      // are mostly in other closets), ones that live elsewhere by type, nor
+      // ones sharing their port (a hypervisor's VMs, a desk switch) unless
+      // they are rack equipment
+      let elsewhere = new Set([
+        "pc",
+        "laptop",
+        "phone",
+        "printer",
+        "camera",
+        "ap",
+        "iot",
+        "plc",
+        "bridge",
+      ]);
+      let rack_types = new Set([
+        "server",
+        "storage",
+        "switch",
+        "router",
+        "firewall",
+        "ups",
+        "patch-panel",
+      ]);
+      let racked = {};
+      let taken = {};
+      this.rack_layouts.forEach((rack) => {
+        taken[rack.name] = new Set();
+        rack.devices.forEach((item) => {
+          racked[item.device._live.key] = { rack: rack, item: item };
+          for (let u = item.bottom; u <= item.top; u++) {
+            taken[rack.name].add(u);
+          }
+        });
+      });
+      let retval = [];
+      this.unracked.forEach((device) => {
+        let unifi = device._live.unifi || {};
+        let uplink = unifi.uplink;
+        let found = uplink?.key && racked[uplink.key];
+        if (
+          !found ||
+          uplink.wireless ||
+          unifi.kind == "device" ||
+          elsewhere.has(device._live.type)
+        ) {
+          return;
+        }
+        let port = (found.item.device._live.unifi?.ports || []).find(
+          (x) => x.idx == uplink.port
+        );
+        let shared =
+          port && port.connected.filter((x) => !x.upstream).length > 1;
+        if (shared && !rack_types.has(device._live.type)) {
+          return;
+        }
+        let height = device.rack_height || 1;
+        let unit = this.freeUnit(
+          taken[found.rack.name],
+          found.rack.units,
+          height,
+          found.item
+        );
+        if (!unit) {
+          return;
+        }
+        for (let u = unit; u < unit + height; u++) {
+          taken[found.rack.name].add(u);
+        }
+        retval.push({
+          device: device,
+          rack: found.rack.name,
+          unit: unit,
+          switch_name: Helper.deviceName(found.item.device),
+          port: uplink.port,
+        });
+      });
+      return retval;
+    },
     type_filter_options() {
       return [{ value: "", text: "All types" }].concat(
         Object.keys(Helper.deviceTypes).map((x) => ({
@@ -556,10 +682,18 @@ export default {
           if (rack && device.rack_unit) {
             rack += " U" + device.rack_unit;
           }
-          let uplink = this.device_map[device.uplink];
-          let uplink_label = uplink ? Helper.deviceName(uplink) : "";
-          if (uplink && device.link_type) {
-            uplink_label += " (" + device.link_type + ")";
+          // Its own uplink, else the switch or access point UniFi sees it on
+          let uplink = this.device_map[device._live.uplink || device.uplink];
+          let unifi = device._live.unifi?.uplink;
+          let uplink_label = uplink
+            ? Helper.deviceName(uplink)
+            : unifi?.name || "";
+          if (!device.uplink && unifi?.port) {
+            uplink_label += " port " + unifi.port;
+          }
+          let link_type = device._live.link_type || device.link_type;
+          if (uplink_label && link_type) {
+            uplink_label += " (" + link_type + ")";
           }
           return {
             device: device,
@@ -663,6 +797,38 @@ export default {
         : { _id: "", name: "", address: "", notes: "", racks: [] };
       this.$bvModal.show("location_form");
     },
+    freeUnit(taken, units, height, near) {
+      // Bottom U of the free block of `height` nearest below the rack item
+      // `near`, else nearest above it; null when the rack is full
+      let best = null;
+      let best_score = Infinity;
+      for (let bottom = 1; bottom + height - 1 <= units; bottom++) {
+        let top = bottom + height - 1;
+        let free = true;
+        for (let u = bottom; u <= top; u++) {
+          free = free && !taken.has(u);
+        }
+        let score =
+          top < near.bottom ? near.bottom - top : units + bottom - near.top;
+        if (free && score < best_score) {
+          best = bottom;
+          best_score = score;
+        }
+      }
+      return best;
+    },
+    placeSuggestions: /* istanbul ignore next */ async function (items) {
+      await Promise.all(
+        items.map((item) =>
+          this.updateInventory(
+            item.device,
+            { location: this.selected, rack: item.rack, rack_unit: item.unit },
+            false
+          )
+        )
+      );
+      await this.loadInventory();
+    },
     dragStart(event, device) {
       event.dataTransfer.setData("text/plain", device._live.key);
     },
@@ -695,7 +861,8 @@ export default {
     },
     updateInventory: /* istanbul ignore next */ async function (
       device,
-      fields
+      fields,
+      reload = true
     ) {
       let formData = new FormData();
       formData.append("data", JSON.stringify(fields));
@@ -710,7 +877,9 @@ export default {
       } catch (e) {
         this.$store.commit("updateError", e);
       }
-      await this.loadInventory();
+      if (reload) {
+        await this.loadInventory();
+      }
     },
     saveLocation: /* istanbul ignore next */ async function () {
       let data = JSON.parse(JSON.stringify(this.form));

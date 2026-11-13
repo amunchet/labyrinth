@@ -250,6 +250,7 @@
           :uplink_device="device_map[active_device.uplink] || null"
           :guests="guestsOf(active_device)"
           @edit="$emit('edit-device', active_device)"
+          @select="(key) => (active_key = key)"
         />
         <div v-else class="text-muted small mt-2 mt-lg-0">
           Click a device for details.
@@ -391,12 +392,13 @@ export default {
       );
     },
     links() {
-      // Uplinks between two devices placed on this map (bridges, fiber, ...)
+      // Uplinks between two devices placed on this map (bridges, fiber, ...):
+      // a device's own, else the switch or access point UniFi sees it on
       let positions = {};
       this.placed.forEach((x) => (positions[x.device._live.key] = x));
       let retval = [];
       this.placed.forEach((item) => {
-        let other = positions[item.device.uplink];
+        let other = positions[item.device._live.uplink || item.device.uplink];
         if (!other) {
           return;
         }
@@ -413,7 +415,8 @@ export default {
           y1: item.y,
           x2: other.x,
           y2: other.y,
-          type: item.device.link_type || "ethernet",
+          type:
+            item.device._live.link_type || item.device.link_type || "ethernet",
           state: state,
         });
       });
