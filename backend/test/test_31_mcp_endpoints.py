@@ -5,10 +5,14 @@ addresses/groups, generic settings, alert backoff, integrations (Proxmox,
 AWS, UniFi) and test emails.
 """
 
+import base64
+import io
 import json
+import os
 from unittest.mock import patch
 
 import pytest
+from PIL import Image
 
 import serve
 from ai.mcp.client import LabyrinthClient
@@ -248,3 +252,117 @@ def test_send_test_email_routes_by_kind(client):
 def test_list_uploads_refuses_unknown_types(client):
     with pytest.raises(ValueError, match="file_type must be"):
         client.list_uploads("../etc")
+
+
+# File writes.  Names are unique to this file and removed afterwards: in CI
+# /src/uploads is the repository's backend/uploads.
+
+PLAYBOOK = "test_31_agent_playbook"
+PLAY = "- hosts: all\n  tasks:\n    - ansible.builtin.ping:\n"
+
+
+@pytest.fixture
+def files(client):
+    paths = [
+        f"/src/uploads/ansible/{PLAYBOOK}.yml",
+        "/src/uploads/telegraf/test_31_host.conf",
+        "/src/uploads/images/test_31_plan.png",
+        "/public/icons/test_31_icon.svg",
+    ]
+    for path in paths:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+    yield client
+    serve.db["labyrinth"]["ansible_requests"].delete_many({"playbook": PLAYBOOK})
+    serve.db["labyrinth"]["dashboards"].delete_many({})
+    for path in paths:
+        if os.path.exists(path):
+            os.remove(path)
+
+
+def test_playbooks_agent_owns_only_its_own(files):
+    path = f"/src/uploads/ansible/{PLAYBOOK}.yml"
+    assert files.save_playbook(PLAYBOOK + ".yml", PLAY) == PLAYBOOK
+    with open(path) as f:
+        assert f.readline().strip() == serve.AGENT_PLAYBOOK_MARKER
+    assert "ping" in files.get_playbook(PLAYBOOK)
+
+    # Its own playbook it may rewrite, and stage with new content
+    files.save_playbook(PLAYBOOK, PLAY.replace("ping", "setup"))
+    assert serve.agent_may_replace_playbook(PLAYBOOK)
+
+    # Once a human takes it over (drops the marker), it is theirs
+    with open(path, "w") as f:
+        f.write(PLAY)
+    with pytest.raises(ValueError, match="written by a human"):
+        files.save_playbook(PLAYBOOK, PLAY)
+    staged, status = unwrap(serve.create_ansible_request)(
+        json.dumps(
+            {"playbook": PLAYBOOK, "hosts": ["10.0.0.1"], "playbook_content": PLAY}
+        )
+    )
+    assert status == 409
+
+    with pytest.raises(ValueError, match="hosts: all"):
+        files.save_playbook("test_31_other", PLAY.replace("all", "10.0.0.1"))
+    assert not os.path.exists("/src/uploads/ansible/test_31_other.yml")
+
+
+def test_telegraf_config_round_trip(files):
+    config = '[agent]\ninterval = "10s"\n'
+    assert files.save_telegraf_config("test_31_host", config) == "test_31_host"
+    assert files.get_telegraf_config("test_31_host") == config
+    assert files.get_telegraf_config("test_31_host", raw=False) == {
+        "agent": {"interval": "10s"}
+    }
+    with pytest.raises(ValueError, match="TOML"):
+        files.save_telegraf_config("test_31_host", "[agent")
+
+
+def test_map_image_upload_and_guarded_delete(files):
+    out = io.BytesIO()
+    Image.new("RGB", (20, 10), "white").save(out, "PNG")
+    data = base64.b64encode(out.getvalue()).decode()
+    assert files.upload_map_image("test_31_plan.png", data) == "test_31_plan.png"
+    assert "test_31_plan.png" in files.list_map_images()
+
+    with pytest.raises(RuntimeError, match="Invalid file"):
+        files.upload_map_image("test_31_bad.png", base64.b64encode(b"nope").decode())
+    assert not os.path.exists("/tmp/test_31_bad.png")
+    with pytest.raises(ValueError, match="image extension"):
+        files.upload_map_image("test_31_plan.svg", data)
+
+    files.save_map({"name": "Plan", "background_image": "test_31_plan.png"})
+    with pytest.raises(ValueError, match="background of maps: Plan"):
+        files.delete_map_image("test_31_plan.png")
+    files.delete_map("Plan")
+    assert files.delete_map_image("test_31_plan.png") == "Success"
+
+
+SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><rect width="1" height="1"/></svg>'
+
+
+@pytest.mark.parametrize(
+    "svg, problem",
+    [
+        (SVG.replace("<rect", "<script>alert(1)</script><rect"), "scripts"),
+        (SVG.replace("<rect", '<rect onload="alert(1)"'), "event handlers"),
+        (
+            SVG.replace("<rect", '<a href="java script:x"><rect/></a><rect'),
+            "javascript",
+        ),
+        ("<html/>", "valid SVG"),
+        ("<svg", "valid SVG"),
+    ],
+)
+def test_unsafe_icons_are_refused(files, svg, problem):
+    with pytest.raises(ValueError, match=problem):
+        files.upload_icon("test_31_icon", svg)
+    assert not os.path.exists("/public/icons/test_31_icon.svg")
+
+
+def test_icon_upload_and_delete(files):
+    assert files.upload_icon("test_31_icon.svg", SVG) == "test_31_icon"
+    assert "test_31_icon" in files.list_icons()
+    assert files.delete_icon("test_31_icon") == "Success"
+    with pytest.raises(ValueError, match="No icon"):
+        files.delete_icon("test_31_icon")

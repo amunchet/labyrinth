@@ -172,12 +172,14 @@ services:
       - labyrinth
     volumes:
       - ./backend:/app/backend
-      # Read-only: MCP reads playbooks/become files and map images; the UI does the writing
-      - ./backend/uploads:/src/uploads:ro
+      # Playbooks, Telegraf configs and map images are written here too
+      - ./backend/uploads:/src/uploads
+      # So deleting a service also removes its snippet
+      - ./backend/snippets:/src/snippets
       # Read-only: the Alertmanager password, for listing/resolving alerts
       - ./alertmanager:/alertmanager:ro
-      # Read-only: icon names for hosts and groups
-      - ./frontend/labyrinth/public/icons:/public/icons:ro
+      # Host and group icons
+      - ./frontend/labyrinth/public/icons:/public/icons
     environment:
       DB_BACKEND: postgres
       POSTGRES_HOST: postgres

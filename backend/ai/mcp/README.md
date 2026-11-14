@@ -45,7 +45,7 @@ Environment variables:
 - `MONGO_HOST`, `MONGO_USERNAME`, `MONGO_PASSWORD` (when `DB_BACKEND=mongo`)
 - `REDIS_HOST`
 - `LABYRINTH_URL` - public base URL of the Labyrinth UI (e.g. `https://labyrinth.example.com`), used to build Deploy page deep links; without it links are relative (`/deploy?request=...`)
-- The container mounts `backend/uploads` read-only at `/src/uploads` so it can read playbooks and become files
+- The container mounts `backend/uploads` at `/src/uploads` (playbooks, become files, Telegraf configs, map images), `backend/snippets` and the frontend's `public/icons`, all writable, and runs as root like the backend and cron containers so it can write to those root-owned mounts. `alertmanager/` is mounted read-only
 
 `server.py` loads `backend/.env` explicitly before importing `serve`, so in
 production `MCP_KEY` and the Mongo credentials can live there alongside
@@ -209,7 +209,7 @@ which `common/auth.py` requires at import) as `-e` flags.
 - `mcp_get_metric_counts(host_key)` / `mcp_reset_metric_counts(host_key)` - Telegraf ingest counters for a host / zero them
 - `mcp_list_latest_metrics(count, name)` - Latest value of each series across all hosts, optionally one metric name
 - `mcp_delete_metric(metric_id)` - Delete one latest-metric row
-- `mcp_get_telegraf_config(host, raw)` - A host's saved Telegraf config (TOML, or parsed)
+- `mcp_get_telegraf_config(host, raw)` / `mcp_save_telegraf_config(host, config_toml)` - A host's saved Telegraf config (TOML, or parsed) / write one (checked to parse)
 - `mcp_list_uploads(file_type)` - Uploaded file names of one type (ssh, totp, become, telegraf, ansible, other)
 - `mcp_get_dashboard(subnet, problems_only)` - Every host's services judged `ok`/`failing`/`stale`, as the dashboard and watcher see them
 - `mcp_get_scan_output` - The finder's latest nmap output per subnet
@@ -239,7 +239,7 @@ A map is a floor plan image with devices placed on it. Positions are percentages
 - `mcp_place_devices(map_name, placements_json, remove)` - Place/move some devices (by key, MAC or IP) or take them off, leaving the rest
 - `mcp_delete_map(name)` - Delete a map (devices and image file stay)
 
-Images are uploaded and deleted in the UI; the MCP container mounts uploads read-only.
+- `mcp_upload_map_image(name, data_base64)` / `mcp_delete_map_image(name)` - Upload a floor plan (png/jpg/gif/bmp/webp, checked to be an image) / delete one no map uses
 
 ### Alerts and Monitoring Reports
 - `mcp_list_alerts` / `mcp_resolve_alert(fingerprint)` - Active Alertmanager alerts / resolve one
@@ -255,7 +255,7 @@ Images are uploaded and deleted in the UI; the MCP container mounts uploads read
 ### Settings and Integrations
 - `mcp_get_settings(name)` / `mcp_save_setting(name, value)` / `mcp_delete_setting(name)` - Generic settings (port_stale_hours, disk space threshold/recipients, proxmox_tag, QEMU agent exceptions, ec2_alert_recipients, ...); backoff and manual disk hosts must use their own tools
 - `mcp_list_themes` / `mcp_save_theme(theme_json)` / `mcp_delete_theme(name)` - Dashboard color themes
-- `mcp_list_icons` - Icon names for hosts and groups (`/public/icons`, mounted read-only)
+- `mcp_list_icons` / `mcp_upload_icon(name, svg)` / `mcp_delete_icon(name)` - Host and group icons. Icons are served publicly, so SVGs with scripts, event handlers, `foreignObject` or `javascript:` links are refused
 - `mcp_resolve_name(name)` - DNS lookup from inside the Labyrinth network
 - `mcp_get_disk_space_settings` / `mcp_add_manual_disk_host(...)` / `mcp_delete_manual_disk_host(host_id)` - Disk space alerting settings and manually monitored hosts
 - `mcp_get_ai_settings` / `mcp_save_ai_settings(settings_json)` - The hourly AI summary's prompt, model, recipients, subject and from name
@@ -269,12 +269,13 @@ Deliberately not exposed:
 - Secrets that would leave the backend: the Telegraf key, the Alertmanager password and `alertmanager.yml` (it holds SMTP/Slack credentials), uploading or reading become/ssh/totp files
 - Running Ansible, deploying or declining a staged deployment, and replying to a conversation: those are the human's side, and need the vault password
 - `settings/restart` (it would `sys.exit` the MCP server itself) and the per-user editor autosave
-- Filesystem writes: uploads (icons, map images, playbooks, Telegraf configs) and running a Telegraf test. The container is an unprivileged user over read-only mounts; images and icons are uploaded in the UI
+- Running a Telegraf test (`run_conf`): there is no Telegraf binary in the MCP image
 - Starting a scan (nmap runs in the cron container's resident finder, which rescans every subnet continuously - see `mcp_get_scan_output`) and a manual `bulk_insert` (the cron runs it under a lock so only one transfer runs at a time)
 - Telegraf ingest (`POST /metrics/`, Telegraf's own key)
 
 ### Ansible Deployments and Conversations
 - `mcp_list_playbooks` / `mcp_get_playbook(name)` - List / read saved playbooks
+- `mcp_save_playbook(name, content)` - Save a playbook, held to the same rules as staged `playbook_content`. Its first line is `serve.AGENT_PLAYBOOK_MARKER`; the agent may replace only playbooks carrying it (or that it staged as generated content), so a human takes one over by deleting that line. It has no `vars_files`: stage it with `mcp_prepare_deployment` and the same content to deploy it with a become file. Not checked with `ansible-playbook --check` (no Ansible in the MCP image)
 - `mcp_list_become_files` - List vault-encrypted become files a deployment can use
 - `mcp_start_conversation(title, message, needs_response)` - Open a conversation with the human, optionally with a first message or question
 - `mcp_send_message(conversation_id, text, needs_response)` - Post a message; `needs_response=true` makes it a question that flags and alerts the human
