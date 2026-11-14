@@ -22,9 +22,9 @@ RUN pip install --no-cache-dir --require-hashes --only-binary=:all: \
 # Copy source
 COPY backend /app/backend
 
-RUN useradd --system --no-create-home --shell /usr/sbin/nologin appuser \
-    && chown -R appuser:appuser /app
-USER appuser
+# Runs as root, like the backend and cron containers: its tools write
+# playbooks, Telegraf configs, map images and icons into the same root-owned
+# bind mounts they do
 
 EXPOSE 8765
 

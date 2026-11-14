@@ -992,6 +992,63 @@ async def mcp_delete_unifi_controller(controller_id: str) -> str:
     return await _blocking(client.delete_unifi_controller, controller_id)
 
 
+# File writes
+
+
+@app.tool()
+async def mcp_save_playbook(name: str, content: str) -> str:
+    """
+    Save an Ansible playbook for the Deploy page.  Held to the same rules as
+    mcp_prepare_deployment's playbook_content: `hosts: all` or `clients`, no
+    vars_files, no passwords.  It may replace only a playbook you wrote, never
+    one a human wrote (the file's first line marks it as yours; a human
+    deleting that line takes it over).  To run it with a become file, stage it
+    with mcp_prepare_deployment and the same playbook_content, which attaches
+    the credentials when the human deploys.
+    """
+    return await _blocking(client.save_playbook, name, content)
+
+
+@app.tool()
+async def mcp_save_telegraf_config(host: str, config_toml: str) -> str:
+    """
+    Write a host's Telegraf config (TOML, checked to parse), replacing the
+    saved one; read it back with mcp_get_telegraf_config.
+    """
+    return await _blocking(client.save_telegraf_config, host, config_toml)
+
+
+@app.tool()
+async def mcp_upload_map_image(name: str, data_base64: str) -> str:
+    """
+    Upload a floor plan image for maps (base64 of a png, jpg, gif, bmp or
+    webp; the name needs that extension).  Replaces an image of the same name.
+    """
+    return await _blocking(client.upload_map_image, name, data_base64)
+
+
+@app.tool()
+async def mcp_delete_map_image(name: str) -> str:
+    """Delete an uploaded map image; refused while a map uses it as its background."""
+    return await _blocking(client.delete_map_image, name)
+
+
+@app.tool()
+async def mcp_upload_icon(name: str, svg: str) -> str:
+    """
+    Add or replace a host/group icon from SVG markup.  Scripts, event
+    handlers, foreignObject and javascript: links are refused (icons are
+    served publicly).
+    """
+    return await _blocking(client.upload_icon, name, svg)
+
+
+@app.tool()
+async def mcp_delete_icon(name: str) -> str:
+    """Delete an icon (hosts and groups using it fall back to the default)."""
+    return await _blocking(client.delete_icon, name)
+
+
 def create_http_app():
     """
     Build the ASGI application uvicorn serves.

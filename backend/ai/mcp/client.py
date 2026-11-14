@@ -3,14 +3,19 @@ Thin wrapper around existing backend functions using unwrap, backing the
 host/service/metric tools of the standalone MCP server (mcp/server.py).
 """
 
+import base64
 import io
 import json
 import os
+import re
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import toml
 from PIL import Image
+from werkzeug.utils import secure_filename
 
 # Make backend modules importable when running from backend/ai/mcp
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
@@ -19,6 +24,7 @@ if str(BACKEND_ROOT) not in sys.path:
 
 from common.hostnames import hostnames_match  # type: ignore
 from common.test import unwrap  # type: ignore
+import ansible_helper  # type: ignore
 import serve  # type: ignore
 
 IMAGES_DIR = "/src/uploads/images"
@@ -938,4 +944,99 @@ class LabyrinthClient:
 
     def delete_unifi_controller(self, controller_id: str) -> str:
         call(serve.delete_unifi_controller, controller_id, decode=False)
+        return "Success"
+
+    # File writes: playbooks, Telegraf configs, map images and icons
+
+    def save_playbook(self, name: str, content: str) -> str:
+        """
+        Saves an agent-written playbook, held to the rules for staged generated
+        content; it may replace only a playbook the agent wrote
+        """
+        name = secure_filename(name).replace(".yml", "")
+        if not name:
+            raise ValueError("A playbook needs a name")
+        error = ansible_helper.validate_ai_playbook(content)
+        if error:
+            raise ValueError(error)
+        path = "/src/uploads/ansible/{}.yml".format(name)
+        if os.path.exists(path) and not serve.agent_may_replace_playbook(name):
+            raise ValueError(
+                f"Playbook {name} was written by a human; choose a new name"
+            )
+        os.makedirs("/src/uploads/ansible", exist_ok=True)
+        with open(path, "w") as f:
+            f.write(serve.AGENT_PLAYBOOK_MARKER + "\n" + content.rstrip() + "\n")
+        return name
+
+    def save_telegraf_config(self, host: str, config: str) -> str:
+        """Writes a host's Telegraf config (TOML) for deployment to it"""
+        host = secure_filename(host).replace(".conf", "")
+        if not host:
+            raise ValueError("A config needs a host name")
+        try:
+            toml.loads(config)
+        except Exception as exc:
+            raise ValueError(f"Not valid TOML: {exc}")
+        os.makedirs("/src/uploads/telegraf", exist_ok=True)
+        call(serve.save_conf, host, {}, config, decode=False)
+        return host
+
+    def upload_map_image(self, name: str, data_base64: str) -> str:
+        """Saves a floor plan image (replacing one of the same name)"""
+        name = secure_filename(name)
+        if not re.search(r"\.(png|jpe?g|gif|bmp|webp)$", name, re.I):
+            raise ValueError(
+                "The name needs an image extension: png, jpg, gif, bmp or webp"
+            )
+        with open("/tmp/" + name, "wb") as f:
+            f.write(base64.b64decode(data_base64, validate=True))
+        try:
+            call(serve.custom_dashboard_image_upload, name, decode=False)
+        finally:
+            if os.path.exists("/tmp/" + name):
+                os.remove("/tmp/" + name)
+        return name
+
+    def delete_map_image(self, name: str) -> str:
+        used = [x["name"] for x in self.list_maps() if x["background_image"] == name]
+        if used:
+            raise ValueError("Image is the background of maps: " + ", ".join(used))
+        call(serve.custom_dashboard_delete_image, name, decode=False)
+        return "Success"
+
+    def upload_icon(self, name: str, svg: str) -> str:
+        """
+        Saves an SVG icon.  Icons are public static files, so anything that
+        could run script in the Labyrinth origin is refused
+        """
+        name = secure_filename(name).replace(".svg", "")
+        if not name:
+            raise ValueError("An icon needs a name")
+        try:
+            root = ET.fromstring(svg)
+        except ET.ParseError:
+            raise ValueError("Not a valid SVG document")
+        if root.tag.split("}")[-1] != "svg":
+            raise ValueError("Not a valid SVG document")
+        for element in root.iter():
+            if element.tag.split("}")[-1].lower() in ("script", "foreignobject"):
+                raise ValueError("Icons may not contain scripts or foreign objects")
+            for attr, value in element.attrib.items():
+                if attr.split("}")[-1].lower().startswith("on") or (
+                    "javascript:" in value.lower().replace(" ", "")
+                ):
+                    raise ValueError(
+                        "Icons may not contain event handlers or javascript: links"
+                    )
+        path = "/tmp/{}.svg".format(name)
+        with open(path, "w") as f:
+            f.write(svg)
+        call(serve.upload_icon, path, decode=False)
+        return name
+
+    def delete_icon(self, name: str) -> str:
+        if name not in self.list_icons():
+            raise ValueError(f"No icon named {name}")
+        call(serve.delete_icon, name, decode=False)
         return "Success"

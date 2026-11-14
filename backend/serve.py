@@ -1890,6 +1890,28 @@ def get_ansible_run(job_id):
     return json.dumps(run), 200
 
 
+# First line of a playbook the MCP agent saved; deleting it hands the playbook to humans
+AGENT_PLAYBOOK_MARKER = (
+    "# Written by the Labyrinth agent - delete this line to stop it changing this file"
+)
+
+
+def agent_may_replace_playbook(playbook):
+    """
+    Whether agent content may overwrite a saved playbook: one the agent wrote
+    (staged generated content, or saved with the marker), never a human's
+    """
+    if db["labyrinth"]["ansible_requests"].find_one(
+        {"playbook": playbook, "generated": True}
+    ):
+        return True
+    path = "/src/uploads/ansible/{}.yml".format(playbook)
+    if not os.path.exists(path):
+        return False
+    with open(path) as f:
+        return f.readline().strip() == AGENT_PLAYBOOK_MARKER
+
+
 @app.route("/ansible_request/", methods=["POST"])
 @requires_auth_admin
 def create_ansible_request(inp_data=""):
@@ -1942,9 +1964,7 @@ def create_ansible_request(inp_data=""):
         if error:
             return error, 471
         # Generated content may replace an earlier generated playbook, never a human one
-        if playbook_exists and not requests.find_one(
-            {"playbook": playbook, "generated": True}
-        ):
+        if playbook_exists and not agent_may_replace_playbook(playbook):
             return (
                 "Playbook {} already exists; choose a new name".format(
                     escape(playbook)
