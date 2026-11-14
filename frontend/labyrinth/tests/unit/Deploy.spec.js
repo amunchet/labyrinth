@@ -73,21 +73,88 @@ describe("Deploy.vue", () => {
     expect(wrapper.isVueInstance).toBeTruthy();
   });
 
-  test("ansible encrypt", async () => {
-    wrapper.vm.$data.generated_ansible = {
+  describe("manual vault entry", () => {
+    const { Vault } = require("ansible-vault");
+    const entry = {
       vault_password: "testpassword",
-      ansible_user: "Test",
-      ssh_password: "testpass",
+      filename: "lab.yml",
+      ssh_username: "root",
+      ssh_password: 'p#ss: "wörd"',
       ssh_passphrase: "sshkeypass",
       ssh_key_file: "sshkeyfile",
     };
+    let modal;
 
-    await wrapper.vm.$forceUpdate();
-    await wrapper.vm.generateAnsibleVault();
+    beforeEach(() => {
+      wrapper.vm.$data.generated_ansible = { ...entry };
+      modal = { hide: jest.fn() };
+      Object.defineProperty(wrapper.vm, "$bvModal", { value: modal });
+    });
 
-    await wrapper.vm.$forceUpdate();
-    expect(wrapper.vm.loading_generated_vault_file).toBe(false);
-    expect(wrapper.vm.generated_vault_file).toContain("ANSIBLE_VAULT");
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    test("encrypts quoted YAML that decrypts back, non-ASCII included", async () => {
+      const encrypted = await wrapper.vm.generateAnsibleVault();
+      expect(encrypted.startsWith("$ANSIBLE_VAULT;1.1;AES256\n")).toBe(true);
+      const plain = await new Vault({ password: "testpassword" }).decrypt(
+        encrypted
+      );
+      // Quoted, so a password with "#", ": " or quotes stays valid YAML
+      expect(plain).toBe(
+        'ansible_user: "root"\n' +
+          'ansible_ssh_pass: "p#ss: \\"wörd\\""\n' +
+          'ansible_become_password: "p#ss: \\"wörd\\""\n' +
+          'ssh_key_pass: "sshkeypass"\n' +
+          'ssh_key_file: "/src/uploads/ssh/sshkeyfile"\n'
+      );
+    });
+
+    test("save encrypts, uploads and selects the new file", async () => {
+      const post = jest.spyOn(Helper, "apiPost").mockResolvedValue("lab.yml");
+      jest.spyOn(Helper, "apiCall").mockResolvedValue(["lab.yml"]);
+
+      await wrapper.vm.saveAnsibleVault({ preventDefault() {} });
+
+      const form = post.mock.calls[0][4];
+      expect(post.mock.calls[0].slice(0, 2)).toEqual(["upload", "/become"]);
+      expect(form.get("filename")).toBe("lab.yml");
+      expect(form.get("file")).toContain("$ANSIBLE_VAULT");
+      expect(wrapper.vm.selected.become).toBe("lab.yml");
+      expect(wrapper.vm.saving_vault).toBe(false);
+      expect(modal.hide).toHaveBeenCalledWith("add_vault");
+    });
+
+    test("save refuses an incomplete entry instead of uploading", async () => {
+      const post = jest.spyOn(Helper, "apiPost");
+      wrapper.vm.$data.generated_ansible = { ...entry, filename: ".yml" };
+
+      await wrapper.vm.saveAnsibleVault({ preventDefault() {} });
+
+      expect(post).not.toHaveBeenCalled();
+      expect(modal.hide).not.toHaveBeenCalled();
+      expect(store.state.error).toContain("filename");
+    });
+
+    test("save with nothing typed just closes", async () => {
+      const post = jest.spyOn(Helper, "apiPost");
+      wrapper.vm.$data.generated_ansible = { type: "Username and Password" };
+
+      await wrapper.vm.saveAnsibleVault({ preventDefault() {} });
+
+      expect(post).not.toHaveBeenCalled();
+      expect(modal.hide).toHaveBeenCalledWith("add_vault");
+    });
+
+    test("a failed upload keeps the dialog open", async () => {
+      jest.spyOn(Helper, "apiPost").mockRejectedValue(new Error("HTTP 522"));
+
+      await wrapper.vm.saveAnsibleVault({ preventDefault() {} });
+
+      expect(modal.hide).not.toHaveBeenCalled();
+      expect(wrapper.vm.saving_vault).toBe(false);
+    });
   });
 
   describe("deep links", () => {
