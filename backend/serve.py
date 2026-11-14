@@ -302,26 +302,30 @@ def upload(file_type, override_token):  # pragma: no cover
     if not os.path.exists("/src/uploads/{}".format(file_type)):
         os.mkdir("/src/uploads/{}".format(file_type))
 
-    if data:
-        data = data.replace("\r\n", "\n")
-        with open("/tmp/{}".format(filename), "w") as f:
-            f.write(data)
+    if file == "":
+        # A vault entered by hand.  Checked under a scratch name, so a file
+        # already saved under this name is replaced only by a valid one
+        if file_type != "become":
+            return "Only become files can be entered by hand", 412
+        if not data.strip():
+            return "No vault contents included", 407
+        if not filename.replace(".yml", ""):
+            return "A filename is required", 409
 
-        if "{}.yml".format(filename.replace(".yml", "")) in os.listdir(
-            "/src/uploads/become/"
-        ):
-            os.remove("/src/uploads/become/{}.yml".format(filename.replace(".yml", "")))
+        scratch = str(uuid.uuid4())
+        with open("/tmp/{}".format(scratch), "w") as f:
+            f.write(data.replace("\r\n", "\n"))
 
-        if ansible_helper.check_file(filename, file_type):
-            shutil.move(
-                "/tmp/{}".format(filename),
-                "/src/uploads/become/{}.yml".format(filename.replace(".yml", "")),
-            )
-            return escape(filename), 200
-        os.remove("/tmp/{}".format(filename))
-        return "File check failed", 522
+        if not ansible_helper.check_file(scratch, "become"):
+            os.remove("/tmp/{}".format(scratch))
+            return "File check failed", 522
 
-    elif file:
+        saved = "/src/uploads/become/{}.yml".format(filename.replace(".yml", ""))
+        shutil.move("/tmp/{}".format(scratch), saved)
+        os.chmod(saved, 0o600)
+        return escape(filename), 200
+
+    else:
         filename = secure_filename(file.filename)
 
         # file.save("/tmp/{}".format(filename))
