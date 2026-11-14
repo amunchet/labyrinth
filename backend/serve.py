@@ -28,6 +28,7 @@ import alive
 import ingest_counters
 
 import shutil
+import tempfile
 import services as svcs
 import proxmox_helper
 import proxmox_disk_check
@@ -312,17 +313,18 @@ def upload(file_type, override_token):  # pragma: no cover
         if not filename.replace(".yml", ""):
             return "A filename is required", 409
 
-        scratch = str(uuid.uuid4())
-        with open("/tmp/{}".format(scratch), "w") as f:
+        # mkstemp creates the scratch file 0600 beside its destination, never
+        # in a world-writable directory, and the rename into place is atomic
+        saved = "/src/uploads/become/{}.yml".format(filename.replace(".yml", ""))
+        fd, scratch = tempfile.mkstemp(prefix="upload-", dir=os.path.dirname(saved))
+        with os.fdopen(fd, "w") as f:
             f.write(data.replace("\r\n", "\n"))
 
-        if not ansible_helper.check_file(scratch, "become"):
-            os.remove("/tmp/{}".format(scratch))
+        if not ansible_helper.check_file(os.path.basename(scratch), "become"):
+            os.remove(scratch)
             return "File check failed", 522
 
-        saved = "/src/uploads/become/{}.yml".format(filename.replace(".yml", ""))
-        shutil.move("/tmp/{}".format(scratch), saved)
-        os.chmod(saved, 0o600)
+        os.replace(scratch, saved)
         return escape(filename), 200
 
     else:
@@ -1762,7 +1764,7 @@ def run_proxmox_deploy(inp_data=""):
             "action, credentials_file, vault_password, guests (and script for the script action) are required",
             482,
         )
-    if "{}.yml".format(credentials_file) not in os.listdir("/src/uploads/become"):
+    if f"{credentials_file}.yml" not in os.listdir("/src/uploads/become"):
         return "Credentials file not found", 483
 
     _, guests, _ = _proxmox_guests_with_matches()
@@ -1926,9 +1928,7 @@ def create_ansible_request(inp_data=""):
     if vault_format not in ansible_helper.VAULT_FORMATS:
         return INVALID_VAULT_FORMAT, 482
 
-    if become_file and "{}.yml".format(become_file) not in os.listdir(
-        "/src/uploads/become"
-    ):
+    if become_file and f"{become_file}.yml" not in os.listdir("/src/uploads/become"):
         return "Become file not found: {}".format(escape(become_file)), 483
 
     conversation = None
@@ -1940,7 +1940,7 @@ def create_ansible_request(inp_data=""):
             return "Conversation not found", 404
 
     requests = db["labyrinth"]["ansible_requests"]
-    playbook_exists = "{}.yml".format(playbook) in os.listdir("/src/uploads/ansible")
+    playbook_exists = f"{playbook}.yml" in os.listdir("/src/uploads/ansible")
     if content:
         error = ansible_helper.validate_ai_playbook(content, forbidden_hosts=hosts)
         if error:
@@ -2055,7 +2055,7 @@ def deploy_ansible_request(request_id, inp_data=""):
     )
     if not become_file:
         return "Choose a become file", 482
-    if "{}.yml".format(become_file) not in os.listdir("/src/uploads/become"):
+    if f"{become_file}.yml" not in os.listdir("/src/uploads/become"):
         return "Become file not found", 483
     # Requests staged before formats existed carry none
     vault_format = data.get("vault_format") or staged.get("vault_format", "standard")
