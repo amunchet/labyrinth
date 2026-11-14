@@ -4,6 +4,8 @@
       id="add_vault"
       title="Add Vault File"
       size="xl"
+      ok-title="Save"
+      :ok-disabled="saving_vault"
       @ok="saveAnsibleVault"
     >
       <b-row class="text-left no-ml">
@@ -81,7 +83,6 @@
               @click="
                 () => {
                   generated_ansible = { type: 'SSH Key' };
-                  generated_vault_file = '';
                   $bvModal.show('add_vault');
                 }
               "
@@ -199,29 +200,11 @@
             </b-col>
           </b-row>
           <b-row>
-            <b-col>
-              <b-button
-                class="float-right"
-                variant="primary"
-                style="width: 100%"
-                @click="
-                  () => {
-                    loading_generated_vault_file = true;
-                    $forceUpdate();
-                    generateAnsibleVault();
-                  }
-                "
-              >
-                Generate Ansible File
-              </b-button>
-            </b-col>
-          </b-row>
-          <b-row>
-            <b-col v-if="!loading_generated_vault_file">
-              {{ generated_vault_file }}
-            </b-col>
-            <b-col v-else>
-              <b-spinner class="m-2" />
+            <b-col class="small text-muted">
+              <i>Save</i> encrypts these details in the browser with the vault
+              password and uploads them as a Become Password file. The vault
+              password itself is not stored.
+              <b-spinner v-if="saving_vault" small class="ml-2" />
             </b-col>
           </b-row>
         </b-col>
@@ -493,7 +476,6 @@
                     @click="
                       () => {
                         generated_ansible = { type: 'Username and Password' };
-                        generated_vault_file = '';
                         $bvModal.show('add_vault');
                       }
                     "
@@ -722,7 +704,6 @@
                 @click="
                   () => {
                     generated_ansible = { type: 'Username and Password' };
-                    generated_vault_file = '';
 
                     $bvModal.show('add_vault');
                   }
@@ -919,8 +900,7 @@ export default {
       },
 
       generated_ansible: {},
-      generated_vault_file: "",
-      loading_generated_vault_file: false,
+      saving_vault: false,
 
       ip: "",
       sample_ip: "",
@@ -1068,53 +1048,76 @@ export default {
     },
   },
   methods: {
+    // Encrypts the manual entry as a become file.  Values are written as JSON
+    // strings, which YAML reads as double-quoted scalars, so a password holding
+    // "#", ": " or a leading "*" survives intact.
     generateAnsibleVault: async function () {
-      let a = new Vault({ password: this.generated_ansible.vault_password });
-      this.loading_generated_vault_file = true;
-
-      let item;
-      if (this.generated_ansible.type == "SSH Key") {
-        item = this.generated_ansible.ssh_key;
-      } else {
-        item = `ansible_user: ${this.generated_ansible.ssh_username}`;
-
-        item += `\nansible_ssh_pass: ${this.generated_ansible.ssh_password}\n`;
-        item += `\nansible_become_password: ${this.generated_ansible.ssh_password}\n`;
-
-        if (this.generated_ansible.ssh_passphrase > "") {
-          item += `\nssh_key_pass: ${this.generated_ansible.ssh_passphrase}`;
-        }
-        if (this.generated_ansible.ssh_key_file > "") {
-          item += `\nssh_key_file: /src/uploads/ssh/${this.generated_ansible.ssh_key_file}`;
-        }
+      const entry = this.generated_ansible;
+      const lines = [
+        `ansible_user: ${JSON.stringify(entry.ssh_username)}`,
+        `ansible_ssh_pass: ${JSON.stringify(entry.ssh_password)}`,
+        `ansible_become_password: ${JSON.stringify(entry.ssh_password)}`,
+      ];
+      if (entry.ssh_passphrase) {
+        lines.push(`ssh_key_pass: ${JSON.stringify(entry.ssh_passphrase)}`);
+      }
+      if (entry.ssh_key_file) {
+        const key_file = "/src/uploads/ssh/" + entry.ssh_key_file;
+        lines.push(`ssh_key_file: ${JSON.stringify(key_file)}`);
+      }
+      // Encrypt bytes, not a string: the library pads by string length, which
+      // corrupts the vault as soon as a value holds a non-ASCII character
+      const plain = Buffer.from(lines.join("\n") + "\n", "utf8");
+      return new Vault({ password: entry.vault_password }).encrypt(plain);
+    },
+    // Saves the manual entry as a become file and selects it
+    saveAnsibleVault: async function (e) {
+      e.preventDefault();
+      const entry = this.generated_ansible;
+      const touched = [
+        "vault_password",
+        "filename",
+        "ssh_username",
+        "ssh_password",
+      ];
+      if (!touched.some((field) => entry[field])) {
+        // Nothing typed in: an uploaded file is already saved on selection
+        this.$bvModal.hide("add_vault");
+        return;
+      }
+      let problem = "";
+      if (!entry.vault_password) problem = "Enter an Ansible Vault password";
+      else if (!(entry.filename || "").replace(/\.yml$/, "").trim()) {
+        problem = "Enter a filename for the vault file";
+      } else if (!entry.ssh_username) problem = "Enter the username";
+      else if (!entry.ssh_password) problem = "Enter the password";
+      if (problem) {
+        this.$store.commit("updateError", problem);
+        return;
       }
 
-      await a
-        .encrypt(item)
-        .then(async (x) => {
-          this.loading_generated_vault_file = false;
-          this.generated_vault_file = x;
-        })
-        .catch((e) => {
-          this.$store.commit("updateError", e);
-        });
-    },
-    saveAnsibleVault: /* istanbul ignore next */ function (e) {
-      e.preventDefault();
-      let auth = this.$auth;
-      let type = "become";
-      let formData = new FormData();
-      formData.append("file", this.generated_vault_file);
-      formData.append("filename", this.generated_ansible.filename);
-      Helper.apiPost("upload", "/" + type, auth.accessToken, auth, formData)
-        .then(async (res) => {
-          this.$store.commit("updateError", res);
-          await this.loadFilesList(type);
-          this.$bvModal.hide("add_vault");
-        })
-        .catch((e) => {
-          this.$store.commit("updateError", e);
-        });
+      const type = "become";
+      const auth = this.$auth;
+      this.saving_vault = true;
+      try {
+        const formData = new FormData();
+        formData.append("file", await this.generateAnsibleVault());
+        formData.append("filename", entry.filename.trim());
+        const saved = await Helper.apiPost(
+          "upload",
+          "/" + type,
+          auth.accessToken,
+          auth,
+          formData
+        );
+        await this.loadFilesList(type);
+        this.selected[type] = saved.replace(/\.yml$/, "") + ".yml";
+        this.$bvModal.hide("add_vault");
+      } catch (err) {
+        this.$store.commit("updateError", err);
+      } finally {
+        this.saving_vault = false;
+      }
     },
 
     uploadHelper: /* istanbul ignore next */ function (val, type) {

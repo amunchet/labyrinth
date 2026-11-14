@@ -28,6 +28,7 @@ import alive
 import ingest_counters
 
 import shutil
+import tempfile
 import services as svcs
 import proxmox_helper
 import proxmox_disk_check
@@ -302,26 +303,31 @@ def upload(file_type, override_token):  # pragma: no cover
     if not os.path.exists("/src/uploads/{}".format(file_type)):
         os.mkdir("/src/uploads/{}".format(file_type))
 
-    if data:
-        data = data.replace("\r\n", "\n")
-        with open("/tmp/{}".format(filename), "w") as f:
-            f.write(data)
+    if file == "":
+        # A vault entered by hand.  Checked under a scratch name, so a file
+        # already saved under this name is replaced only by a valid one
+        if file_type != "become":
+            return "Only become files can be entered by hand", 412
+        if not data.strip():
+            return "No vault contents included", 407
+        if not filename.replace(".yml", ""):
+            return "A filename is required", 409
 
-        if "{}.yml".format(filename.replace(".yml", "")) in os.listdir(
-            "/src/uploads/become/"
-        ):
-            os.remove("/src/uploads/become/{}.yml".format(filename.replace(".yml", "")))
+        # mkstemp creates the scratch file 0600 beside its destination, never
+        # in a world-writable directory, and the rename into place is atomic
+        saved = "/src/uploads/become/{}.yml".format(filename.replace(".yml", ""))
+        fd, scratch = tempfile.mkstemp(prefix="upload-", dir=os.path.dirname(saved))
+        with os.fdopen(fd, "w") as f:
+            f.write(data.replace("\r\n", "\n"))
 
-        if ansible_helper.check_file(filename, file_type):
-            shutil.move(
-                "/tmp/{}".format(filename),
-                "/src/uploads/become/{}.yml".format(filename.replace(".yml", "")),
-            )
-            return escape(filename), 200
-        os.remove("/tmp/{}".format(filename))
-        return "File check failed", 522
+        if not ansible_helper.check_file(os.path.basename(scratch), "become"):
+            os.remove(scratch)
+            return "File check failed", 522
 
-    elif file:
+        os.replace(scratch, saved)
+        return escape(filename), 200
+
+    else:
         filename = secure_filename(file.filename)
 
         # file.save("/tmp/{}".format(filename))
@@ -1758,7 +1764,7 @@ def run_proxmox_deploy(inp_data=""):
             "action, credentials_file, vault_password, guests (and script for the script action) are required",
             482,
         )
-    if "{}.yml".format(credentials_file) not in os.listdir("/src/uploads/become"):
+    if f"{credentials_file}.yml" not in os.listdir("/src/uploads/become"):
         return "Credentials file not found", 483
 
     _, guests, _ = _proxmox_guests_with_matches()
@@ -1922,9 +1928,7 @@ def create_ansible_request(inp_data=""):
     if vault_format not in ansible_helper.VAULT_FORMATS:
         return INVALID_VAULT_FORMAT, 482
 
-    if become_file and "{}.yml".format(become_file) not in os.listdir(
-        "/src/uploads/become"
-    ):
+    if become_file and f"{become_file}.yml" not in os.listdir("/src/uploads/become"):
         return "Become file not found: {}".format(escape(become_file)), 483
 
     conversation = None
@@ -1936,7 +1940,7 @@ def create_ansible_request(inp_data=""):
             return "Conversation not found", 404
 
     requests = db["labyrinth"]["ansible_requests"]
-    playbook_exists = "{}.yml".format(playbook) in os.listdir("/src/uploads/ansible")
+    playbook_exists = f"{playbook}.yml" in os.listdir("/src/uploads/ansible")
     if content:
         error = ansible_helper.validate_ai_playbook(content, forbidden_hosts=hosts)
         if error:
@@ -2051,7 +2055,7 @@ def deploy_ansible_request(request_id, inp_data=""):
     )
     if not become_file:
         return "Choose a become file", 482
-    if "{}.yml".format(become_file) not in os.listdir("/src/uploads/become"):
+    if f"{become_file}.yml" not in os.listdir("/src/uploads/become"):
         return "Become file not found", 483
     # Requests staged before formats existed carry none
     vault_format = data.get("vault_format") or staged.get("vault_format", "standard")
