@@ -1023,8 +1023,10 @@ class LabyrinthClient:
             if element.tag.split("}")[-1].lower() in ("script", "foreignobject"):
                 raise ValueError("Icons may not contain scripts or foreign objects")
             for attr, value in element.attrib.items():
+                # Browsers drop tabs, newlines and other control characters
+                # from URLs, so java&#9;script: still runs
                 if attr.split("}")[-1].lower().startswith("on") or (
-                    "javascript:" in value.lower().replace(" ", "")
+                    "javascript:" in re.sub(r"[\x00-\x20]", "", value.lower())
                 ):
                     raise ValueError(
                         "Icons may not contain event handlers or javascript: links"

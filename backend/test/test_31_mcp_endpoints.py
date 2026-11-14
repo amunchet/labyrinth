@@ -27,6 +27,7 @@ COLLECTIONS = [
     "aws_accounts",
     "unifi_controllers",
     "metrics-latest",
+    "dashboards",
 ]
 
 
@@ -110,6 +111,16 @@ def test_dashboard_states_and_problems_only(client):
 
 def test_host_group_and_address(client):
     assert client.set_host_group("core", "Core")["group"] == "Core"
+    # Links to the host follow it to its new key
+    serve.db["labyrinth"]["hosts"].update_one(
+        {"mac": "aa:01"}, {"$set": {"uplink": "aa:02"}}
+    )
+    client.save_map({"name": "Floor"})
+    client.place_devices(
+        "Floor",
+        [{"key": "aa:02", "x": 1, "y": 1}, {"key": "aa:01", "x": 2, "y": 2}],
+        [],
+    )
 
     moved = client.change_host_address("aa:02", new_ip="192.168.9.70")
     assert moved["ip"] == "192.168.9.70" and moved["mac"] == "aa:02"
@@ -119,6 +130,11 @@ def test_host_group_and_address(client):
     )
     assert (rekeyed["mac"], rekeyed["ip"]) == ("bb:02", "192.168.9.71")
     assert client.get_host("aa:02") is None
+    assert client.get_host("aa:01")["uplink"] == "bb:02"
+    assert [x["key"] for x in client.get_map("Floor")["placements"]] == [
+        "bb:02",
+        "aa:01",
+    ]
 
     with pytest.raises(ValueError, match="already exists"):
         client.change_host_address("bb:02", new_mac="aa:01")
@@ -348,6 +364,10 @@ SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><rect width="1"
         (SVG.replace("<rect", '<rect onload="alert(1)"'), "event handlers"),
         (
             SVG.replace("<rect", '<a href="java script:x"><rect/></a><rect'),
+            "javascript",
+        ),
+        (
+            SVG.replace("<rect", '<a href="java&#9;script:x"><rect/></a><rect'),
             "javascript",
         ),
         ("<html/>", "valid SVG"),

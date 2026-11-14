@@ -2445,8 +2445,24 @@ def close_conversation(conversation_id, inp_data=""):
 @app.route("/mac/<old_mac>/<new_mac>/")
 @requires_auth_write
 def update_mac(old_mac, new_mac):
-    """Updates the old mac to the new mac"""
-    db["labyrinth"]["hosts"].update_one({"mac": old_mac}, {"$set": {"mac": new_mac}})
+    """
+    Re-keys a host, carrying uplinks and map placements that named the old key
+    with it.  Metrics already recorded keep the old key.
+    """
+    hosts = db["labyrinth"]["hosts"]
+    if old_mac != new_mac and hosts.find_one({"mac": new_mac}):
+        return "A host already has that key", 409
+    hosts.update_one({"mac": old_mac}, {"$set": {"mac": new_mac}})
+    hosts.update_many({"uplink": old_mac}, {"$set": {"uplink": new_mac}})
+    for board in db["labyrinth"]["dashboards"].find({"placements": {"$exists": True}}):
+        placements = [
+            dict(p, key=new_mac) if p.get("key") == old_mac else p
+            for p in board["placements"]
+        ]
+        if placements != board["placements"]:
+            db["labyrinth"]["dashboards"].update_one(
+                {"_id": board["_id"]}, {"$set": {"placements": placements}}
+            )
     return "Success", 200
 
 

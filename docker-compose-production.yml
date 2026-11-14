@@ -177,7 +177,8 @@ services:
     networks:
       - labyrinth
     volumes:
-      - ./backend:/app/backend
+      # Read-only: as root it could otherwise rewrite code the backend runs
+      - ./backend:/app/backend:ro
       # Playbooks, Telegraf configs and map images are written here too
       - ./backend/uploads:/src/uploads
       # So deleting a service also removes its snippet

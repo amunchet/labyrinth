@@ -45,7 +45,7 @@ Environment variables:
 - `MONGO_HOST`, `MONGO_USERNAME`, `MONGO_PASSWORD` (when `DB_BACKEND=mongo`)
 - `REDIS_HOST`
 - `LABYRINTH_URL` - public base URL of the Labyrinth UI (e.g. `https://labyrinth.example.com`), used to build Deploy page deep links; without it links are relative (`/deploy?request=...`)
-- The container mounts `backend/uploads` at `/src/uploads` (playbooks, become files, Telegraf configs, map images), `backend/snippets` and the frontend's `public/icons`, all writable, and runs as root like the backend and cron containers so it can write to those root-owned mounts. `alertmanager/` is mounted read-only
+- The container mounts `backend/uploads` at `/src/uploads` (playbooks, become files, Telegraf configs, map images), `backend/snippets` and the frontend's `public/icons`, all writable, and runs as root like the backend and cron containers so it can write to those root-owned mounts. Its own code (`backend/` at `/app/backend`) and `alertmanager/` are mounted read-only, so a root process can't rewrite code the backend runs
 
 `server.py` loads `backend/.env` explicitly before importing `serve`, so in
 production `MCP_KEY` and the Mongo credentials can live there alongside
@@ -196,7 +196,7 @@ which `common/auth.py` requires at import) as `-e` flags.
 - `mcp_list_tags` / `mcp_list_hosts_by_tag(tag)` / `mcp_set_host_tags(host_key, tags)` - Tags (comma-separated)
 - `mcp_set_service_level(host_key, service, level)` - Report one host's failing service as `warning`/`error`; blank clears
 - `mcp_set_host_group(host_key, group)` - Move a host into a group of its subnet
-- `mcp_change_host_address(host_key, new_ip, new_mac)` - Change a host's IP and/or key; a new key is not carried to uplinks, placements or past metrics
+- `mcp_change_host_address(host_key, new_ip, new_mac)` - Change a host's IP and/or key. Uplinks and map placements follow a new key; metrics already recorded, and a Telegraf agent still tagging the old key, do not (save its Telegraf config again)
 
 ### Service Management
 - `mcp_list_services(include_full)` - List services (names only or full records)

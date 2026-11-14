@@ -721,8 +721,9 @@ async def mcp_change_host_address(
     host_key: str, new_ip: str = "", new_mac: str = ""
 ) -> Dict[str, Any]:
     """
-    Change a host's IP and/or its key (MAC).  A new key is not carried over to
-    uplinks, map placements or past metrics that name the old one.
+    Change a host's IP and/or its key (MAC).  Uplinks and map placements follow
+    a new key; metrics already recorded, and a Telegraf agent whose config still
+    tags the old key, do not - save the host's Telegraf config again after.
     """
     return await _blocking(client.change_host_address, host_key, new_ip, new_mac)
 
