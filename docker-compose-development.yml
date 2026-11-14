@@ -176,6 +176,8 @@ services:
       - ./backend/uploads:/src/uploads:ro
       # Read-only: the Alertmanager password, for listing/resolving alerts
       - ./alertmanager:/alertmanager:ro
+      # Read-only: icon names for hosts and groups
+      - ./frontend/labyrinth/public/icons:/public/icons:ro
     environment:
       DB_BACKEND: postgres
       POSTGRES_HOST: postgres

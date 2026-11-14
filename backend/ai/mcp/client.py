@@ -702,3 +702,240 @@ class LabyrinthClient:
                     for device in site["devices"]:
                         device.pop("ports", None)
         return data
+
+    # Service health, as the dashboard judges it
+
+    def get_dashboard(self, subnet: str = "", problems_only: bool = False) -> List:
+        """Each subnet's groups and hosts with every service's judged state"""
+        states = {True: "ok", False: "failing", -1: "stale"}
+        retval = []
+        for found in call(serve.dashboard):
+            if subnet and found.get("subnet") != subnet:
+                continue
+            groups = []
+            for group in found.get("groups", []):
+                hosts = []
+                for host in group["hosts"]:
+                    services = [
+                        {"name": x["name"], "state": states.get(x["state"], "failing")}
+                        for x in host.get("services") or []
+                        if isinstance(x, dict)
+                    ]
+                    if problems_only:
+                        services = [x for x in services if x["state"] != "ok"]
+                        if not services:
+                            continue
+                    hosts.append(
+                        {
+                            "key": host.get("mac", ""),
+                            "name": host.get("host", ""),
+                            "ip": host.get("ip", ""),
+                            "monitor": host.get("monitor", False),
+                            "services": services,
+                        }
+                    )
+                if hosts:
+                    groups.append({"name": group["name"], "hosts": hosts})
+            if groups or not problems_only:
+                retval.append({"subnet": found.get("subnet"), "groups": groups})
+        return retval
+
+    def get_scan_output(self) -> Dict[str, str]:
+        return call(serve.read_redis)
+
+    # Hosts
+
+    def set_host_group(self, host_key: str, group: str) -> Dict[str, Any]:
+        host = self.get_host(host_key)
+        if not host:
+            raise ValueError("Host not found")
+        if host.get("ip"):
+            call(serve.host_group_rename, host["ip"], group, decode=False)
+        else:
+            host["group"] = group
+            self.create_or_update_host(host)
+        return self.get_host(host["mac"])
+
+    def change_host_address(
+        self, host_key: str, new_ip: str = "", new_mac: str = ""
+    ) -> Dict[str, Any]:
+        """Change a host's IP and/or its key (MAC)"""
+        host = self.get_host(host_key)
+        if not host:
+            raise ValueError("Host not found")
+        if new_mac and new_mac != host["mac"]:
+            if self.get_host(new_mac):
+                raise ValueError(f"A host with key {new_mac} already exists")
+            call(serve.update_mac, host["mac"], new_mac, decode=False)
+            host["mac"] = new_mac
+        if new_ip:
+            call(serve.update_ip, host["mac"], new_ip, decode=False)
+        return self.get_host(host["mac"])
+
+    # Services and metrics
+
+    def delete_service(self, name: str) -> str:
+        self.get_service(name)
+        call(serve.delete_service, name, decode=False)
+        return "Success"
+
+    def list_latest_metrics(self, count: int = 100, name: str = "") -> List[Dict]:
+        found = call(serve.last_metrics, count)
+        if name:
+            found = [x for x in found if x.get("name") == name]
+        return found[-count:] if count > 0 else found
+
+    def delete_metric(self, metric_id: str) -> str:
+        call(serve.delete_metric, metric_id, decode=False)
+        return "Success"
+
+    def reset_metric_counts(self, host_key: str) -> Dict[str, Any]:
+        return call(serve.reset_metric_counts, host_key)
+
+    def get_telegraf_config(self, host: str, raw: bool = True) -> Any:
+        """A host's saved Telegraf config, as TOML text or parsed"""
+        found = call(serve.load_service, host, "toml" if raw else "json", decode=False)
+        if not found:
+            raise ValueError(f"No saved Telegraf config for {host}")
+        return found if raw else json.loads(found)
+
+    def list_uploads(self, file_type: str) -> List[str]:
+        if file_type not in serve.valid_type:
+            raise ValueError("file_type must be one of " + ", ".join(serve.valid_type))
+        return call(serve.list_uploads, file_type)
+
+    # Alerting
+
+    def send_test_alert(self) -> str:
+        return call(serve.alertmanager_test, decode=False)
+
+    def reload_alertmanager(self) -> str:
+        call(serve.restart_alertmanager, decode=False)
+        return "Reloaded"
+
+    def get_alert_backoff(self) -> Dict[str, Any]:
+        return call(serve.get_alert_backoff)
+
+    def save_alert_backoff(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        return call(serve.save_alert_backoff, method="POST", json=data)
+
+    # Settings, themes, icons
+
+    # Settings with their own validated tools
+    RESERVED_SETTINGS = (serve.watcher.BACKOFF_SETTING, "manual_disk_host_")
+
+    def get_settings(self, name: str = "") -> Dict[str, Any]:
+        if name:
+            raw, status = unwrap(serve.get_setting)(name)
+            if status != 200:
+                raise ValueError(f"No setting named {name}")
+            return {name: raw}
+        return {k: v for x in call(serve.get_setting) for k, v in x.items()}
+
+    def save_setting(self, name: str, value: str) -> str:
+        if not name.strip() or value == "":
+            raise ValueError("A setting needs a name and a value")
+        if name.startswith(self.RESERVED_SETTINGS):
+            raise ValueError(f"{name} has its own tool; use that instead")
+        call(serve.save_setting, name, value, decode=False)
+        return "Success"
+
+    def delete_setting(self, name: str) -> str:
+        if name.startswith(self.RESERVED_SETTINGS):
+            raise ValueError(f"{name} has its own tool; use that instead")
+        call(serve.delete_setting, name, decode=False)
+        return "Success"
+
+    def list_themes(self) -> List[Dict[str, Any]]:
+        themes = call(serve.list_themes)
+        for theme in themes:
+            theme.pop("_id", None)
+        return themes
+
+    def save_theme(self, theme: Dict[str, Any]) -> str:
+        theme.pop("_id", None)
+        call(serve.create_edit_theme, theme, decode=False)
+        return "Success"
+
+    def delete_theme(self, name: str) -> str:
+        call(serve.delete_theme, name, decode=False)
+        return "Success"
+
+    def list_icons(self) -> List[str]:
+        return sorted(call(serve.list_icons))
+
+    def resolve_name(self, name: str) -> str:
+        return call(serve.find_ip, name, decode=False)
+
+    # Disk space, AI summary and EC2 alert emails
+
+    def get_disk_space_settings(self) -> Dict[str, Any]:
+        return {
+            **call(serve.get_disk_space_settings),
+            **call(serve.get_manual_disk_space),
+        }
+
+    def add_manual_disk_host(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        return call(serve.add_manual_disk_host, method="POST", json=data)
+
+    def delete_manual_disk_host(self, host_id: str) -> str:
+        call(serve.delete_manual_disk_host, host_id)
+        return "Success"
+
+    def send_test_email(self, kind: str, mode: str, recipients: str) -> Dict:
+        """A test of the disk space, EC2 or AI summary email"""
+        handlers = {
+            "disk-space": serve.send_disk_space_test_email,
+            "ec2": serve.send_ec2_unmatched_test_email,
+            "ai": serve.send_ai_test_email,
+        }
+        if kind not in handlers:
+            raise ValueError("kind must be disk-space, ec2 or ai")
+        data = {"mode": mode, "recipients": recipients}
+        return call(handlers[kind], method="POST", json=data)
+
+    def get_ai_settings(self) -> Dict[str, Any]:
+        return call(serve.get_ai_settings)
+
+    def save_ai_settings(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        return call(serve.save_ai_settings, method="POST", json=data)
+
+    # Integrations: Proxmox clusters, AWS accounts, UniFi controllers.
+    # Secrets are write-only: no route returns them.
+
+    def save_proxmox_cluster(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Creates a cluster, or updates the one with `_id`; a blank secret keeps the saved one"""
+        data = {k: v for k, v in data.items() if not (k == "token_secret" and not v)}
+        cluster_id = str(data.pop("_id", "") or "")
+        if not cluster_id:
+            return call(serve.create_proxmox_cluster, method="POST", json=data)
+        return call(serve.update_proxmox_cluster, cluster_id, method="PUT", json=data)
+
+    def delete_proxmox_cluster(self, cluster_id: str) -> str:
+        call(serve.delete_proxmox_cluster, cluster_id)
+        return "Success"
+
+    def get_aws_settings(self) -> Dict[str, Any]:
+        return call(serve.get_aws_settings)
+
+    def save_aws_account(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Creates an account, or updates the one with `_id`; blank secrets keep the saved ones"""
+        data = dict(data)
+        account_id = str(data.pop("_id", "") or "")
+        if not account_id:
+            return call(serve.create_aws_account, method="POST", json=data)
+        return call(serve.update_aws_account, account_id, method="PUT", json=data)
+
+    def delete_aws_account(self, account_id: str) -> str:
+        call(serve.delete_aws_account, account_id)
+        return "Success"
+
+    def list_unifi_controllers(self) -> List[Dict[str, Any]]:
+        return call(serve.list_unifi_controllers)
+
+    def save_unifi_controller(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        return call(serve.create_edit_unifi_controller, data)
+
+    def delete_unifi_controller(self, controller_id: str) -> str:
+        call(serve.delete_unifi_controller, controller_id, decode=False)
+        return "Success"

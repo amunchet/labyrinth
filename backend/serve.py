@@ -879,8 +879,8 @@ def delete_service(name):
     db["labyrinth"]["hosts"].update_many(
         {"services": {"$in": [name]}}, {"$pull": {"services": name}}
     )
-    # Check if snippet exists
-    if name in os.listdir("/src/snippets/"):
+    # Check if snippet exists (the MCP container has no snippets directory)
+    if os.path.isdir("/src/snippets") and name in os.listdir("/src/snippets/"):
         os.remove("/src/snippets/{}".format(name))
 
     return "Success", 200

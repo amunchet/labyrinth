@@ -688,6 +688,310 @@ async def mcp_close_conversation(conversation_id: str, summary: str = "") -> str
     return await _blocking(client.close_conversation, conversation_id, summary)
 
 
+# Service health and scanning
+
+
+@app.tool()
+async def mcp_get_dashboard(
+    subnet: str = "", problems_only: bool = False
+) -> List[Dict[str, Any]]:
+    """
+    Every subnet's groups and hosts with each service's judged state: ok,
+    failing, or stale (no metric in the window expected) - what the Home
+    dashboard and the watcher's alerts go by.  problems_only keeps just the
+    hosts with a service that is not ok.
+    """
+    return await _blocking(client.get_dashboard, subnet, problems_only)
+
+
+@app.tool()
+async def mcp_get_scan_output() -> Dict[str, str]:
+    """The finder's latest nmap output per subnet (it rescans each subnet continuously)."""
+    return await _blocking(client.get_scan_output)
+
+
+@app.tool()
+async def mcp_set_host_group(host_key: str, group: str) -> Dict[str, Any]:
+    """Move one host into a group of its subnet (blank removes it from the dashboard's groups)."""
+    return await _blocking(client.set_host_group, host_key, group)
+
+
+@app.tool()
+async def mcp_change_host_address(
+    host_key: str, new_ip: str = "", new_mac: str = ""
+) -> Dict[str, Any]:
+    """
+    Change a host's IP and/or its key (MAC).  A new key is not carried over to
+    uplinks, map placements or past metrics that name the old one.
+    """
+    return await _blocking(client.change_host_address, host_key, new_ip, new_mac)
+
+
+@app.tool()
+async def mcp_delete_service(name: str) -> str:
+    """Delete a service definition and remove it from every host that has it."""
+    return await _blocking(client.delete_service, name)
+
+
+@app.tool()
+async def mcp_list_latest_metrics(
+    count: int = 100, name: str = ""
+) -> List[Dict[str, Any]]:
+    """
+    The latest stored value of each metric series across all hosts (last
+    `count`, 0 for all), optionally only one metric name such as `cpu`.
+    """
+    return await _blocking(client.list_latest_metrics, count, name)
+
+
+@app.tool()
+async def mcp_delete_metric(metric_id: str) -> str:
+    """Delete one latest-metric row by its _id (e.g. a stale series that keeps failing a check)."""
+    return await _blocking(client.delete_metric, metric_id)
+
+
+@app.tool()
+async def mcp_reset_metric_counts(host_key: str) -> Dict[str, Any]:
+    """Zero a host's Telegraf ingest counters, to measure a config change from a clean slate."""
+    return await _blocking(client.reset_metric_counts, host_key)
+
+
+@app.tool()
+async def mcp_get_telegraf_config(host: str, raw: bool = True) -> Any:
+    """A host's saved Telegraf config (from mcp_list_uploads("telegraf"), without .conf): TOML text, or parsed if raw=false."""
+    return await _blocking(client.get_telegraf_config, host, raw)
+
+
+@app.tool()
+async def mcp_list_uploads(file_type: str) -> List[str]:
+    """Uploaded files of one type: ssh, totp, become, telegraf, ansible or other (names only)."""
+    return await _blocking(client.list_uploads, file_type)
+
+
+# Alerting
+
+
+@app.tool()
+async def mcp_send_test_alert() -> str:
+    """Send a test alert through Alertmanager, to check notifications are delivered."""
+    return await _blocking(client.send_test_alert)
+
+
+@app.tool()
+async def mcp_reload_alertmanager() -> str:
+    """Make Alertmanager reload its configuration file."""
+    return await _blocking(client.reload_alertmanager)
+
+
+@app.tool()
+async def mcp_get_alert_backoff() -> Dict[str, Any]:
+    """Notification backoff: enabled, first_minutes, multiplier, max_hours."""
+    return await _blocking(client.get_alert_backoff)
+
+
+@app.tool()
+async def mcp_save_alert_backoff(settings_json: str) -> Dict[str, Any]:
+    """
+    Change notification backoff.  JSON with any of enabled (bool),
+    first_minutes (first reminder), multiplier (1-100, growth of each later
+    gap) and max_hours (longest gap, up to 8760); others keep their values.
+    """
+    return await _blocking(client.save_alert_backoff, json.loads(settings_json))
+
+
+# Settings, themes and utilities
+
+
+@app.tool()
+async def mcp_get_settings(name: str = "") -> Dict[str, Any]:
+    """
+    Generic settings as {name: value}, all or one.  Among them: port_stale_hours,
+    proxmox_tag, disk_space_alert_threshold, disk_space_alert_recipients,
+    proxmox_qemu_agent_ignore_vms, ec2_alert_recipients, check_graylog.
+    """
+    return await _blocking(client.get_settings, name)
+
+
+@app.tool()
+async def mcp_save_setting(name: str, value: str) -> str:
+    """
+    Set a generic setting (a string; JSON-encode structured values the way
+    mcp_get_settings shows them).  Backoff and manual disk hosts have their
+    own tools.
+    """
+    return await _blocking(client.save_setting, name, value)
+
+
+@app.tool()
+async def mcp_delete_setting(name: str) -> str:
+    """Delete a generic setting, so its default applies again."""
+    return await _blocking(client.delete_setting, name)
+
+
+@app.tool()
+async def mcp_list_themes() -> List[Dict[str, Any]]:
+    """Color themes for subnets/groups on the dashboard."""
+    return await _blocking(client.list_themes)
+
+
+@app.tool()
+async def mcp_save_theme(theme_json: str) -> str:
+    """Create or replace a theme by its "name" (same shape as mcp_list_themes)."""
+    return await _blocking(client.save_theme, json.loads(theme_json))
+
+
+@app.tool()
+async def mcp_delete_theme(name: str) -> str:
+    """Delete a theme."""
+    return await _blocking(client.delete_theme, name)
+
+
+@app.tool()
+async def mcp_list_icons() -> List[str]:
+    """Icon names usable for hosts and groups (e.g. with mcp_update_group)."""
+    return await _blocking(client.list_icons)
+
+
+@app.tool()
+async def mcp_resolve_name(name: str) -> str:
+    """Resolve a DNS name to an IP from inside the Labyrinth network."""
+    return await _blocking(client.resolve_name, name)
+
+
+# Disk space, AI summary and EC2 emails
+
+
+@app.tool()
+async def mcp_get_disk_space_settings() -> Dict[str, Any]:
+    """
+    Disk space alerting: threshold, recipients, Proxmox tag, QEMU agent
+    exceptions, clusters, Proxmox-tagged hosts with no cluster, and the
+    manually monitored hosts.  Change the first four with mcp_save_setting
+    (disk_space_alert_threshold, disk_space_alert_recipients, proxmox_tag,
+    proxmox_qemu_agent_ignore_vms).
+    """
+    return await _blocking(client.get_disk_space_settings)
+
+
+@app.tool()
+async def mcp_add_manual_disk_host(
+    name: str, ip: str, type: str, description: str = "", service: str = ""
+) -> Dict[str, Any]:
+    """Add a host to disk space monitoring by hand; type is ec2, oraclevbox or generic."""
+    return await _blocking(
+        client.add_manual_disk_host,
+        {
+            "name": name,
+            "ip": ip,
+            "type": type,
+            "description": description,
+            "service": service,
+        },
+    )
+
+
+@app.tool()
+async def mcp_delete_manual_disk_host(host_id: str) -> str:
+    """Remove a manually monitored disk space host by its id."""
+    return await _blocking(client.delete_manual_disk_host, host_id)
+
+
+@app.tool()
+async def mcp_send_test_email(
+    kind: str, mode: str = "simple", recipients: str = ""
+) -> Dict[str, Any]:
+    """
+    Send a test of an alert email.  kind: disk-space, ec2 or ai.  mode:
+    simple (checks delivery only) or full (the real report, sent even when
+    there is nothing to report; for ai this calls ChatGPT).  recipients:
+    comma-separated, blank for the saved ones.
+    """
+    return await _blocking(client.send_test_email, kind, mode, recipients)
+
+
+@app.tool()
+async def mcp_get_ai_settings() -> Dict[str, Any]:
+    """The hourly AI summary's prompt, model, recipients, subject template and from name."""
+    return await _blocking(client.get_ai_settings)
+
+
+@app.tool()
+async def mcp_save_ai_settings(settings_json: str) -> Dict[str, Any]:
+    """
+    Change the AI summary settings.  JSON with any of prompt, model,
+    recipients (comma-separated), subject_template ({time} is filled in),
+    from_name; others keep their values.
+    """
+    return await _blocking(client.save_ai_settings, json.loads(settings_json))
+
+
+# Integrations.  Secrets are write-only: no tool returns them.
+
+
+@app.tool()
+async def mcp_save_proxmox_cluster(cluster_json: str) -> Dict[str, Any]:
+    """
+    Add a Proxmox cluster: {"name", "host", "user" (e.g. root@pam),
+    "token_id", "token_secret", "verify_ssl"}.  Include "_id" (from
+    mcp_list_proxmox_clusters) to update one; a blank or missing token_secret
+    keeps the saved one, and the name cannot change.
+    """
+    return await _blocking(client.save_proxmox_cluster, json.loads(cluster_json))
+
+
+@app.tool()
+async def mcp_delete_proxmox_cluster(cluster_id: str) -> str:
+    """Delete a Proxmox cluster configuration and its cached data."""
+    return await _blocking(client.delete_proxmox_cluster, cluster_id)
+
+
+@app.tool()
+async def mcp_get_aws_settings() -> Dict[str, Any]:
+    """Configured AWS accounts (without secrets) and the EC2 alert recipients."""
+    return await _blocking(client.get_aws_settings)
+
+
+@app.tool()
+async def mcp_save_aws_account(account_json: str) -> Dict[str, Any]:
+    """
+    Add an AWS account: {"name", "region", "access_key_id",
+    "secret_access_key", "session_token" (optional)}.  Include "_id" to
+    update one; blank secrets keep the saved ones.
+    """
+    return await _blocking(client.save_aws_account, json.loads(account_json))
+
+
+@app.tool()
+async def mcp_delete_aws_account(account_id: str) -> str:
+    """Delete an AWS account configuration."""
+    return await _blocking(client.delete_aws_account, account_id)
+
+
+@app.tool()
+async def mcp_list_unifi_controllers() -> List[Dict[str, Any]]:
+    """UniFi controllers' settings (has_api_key/has_password instead of the secrets)."""
+    return await _blocking(client.list_unifi_controllers)
+
+
+@app.tool()
+async def mcp_save_unifi_controller(controller_json: str) -> Dict[str, Any]:
+    """
+    Add or update (with "_id") a UniFi console or Network application:
+    {"name", "url" (scheme://host[:port]), "auth": "api_key" | "login",
+    "api_key" or "username" + "password", "protect", "add_devices",
+    "verify_ssl", "sites": [{"site", "location", "monitor"}]}.  On an update,
+    fields left out keep their values and a blank secret keeps the saved one,
+    unless the URL changes.
+    """
+    return await _blocking(client.save_unifi_controller, json.loads(controller_json))
+
+
+@app.tool()
+async def mcp_delete_unifi_controller(controller_id: str) -> str:
+    """Delete a UniFi controller and its cached data; hosts it added stay."""
+    return await _blocking(client.delete_unifi_controller, controller_id)
+
+
 def create_http_app():
     """
     Build the ASGI application uvicorn serves.
