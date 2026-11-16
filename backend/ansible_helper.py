@@ -32,9 +32,10 @@ from typing import List
 VAULT_FORMATS = ("standard", "proxmox")
 
 
-def check_file(filename, file_type, raw=""):
+def check_file(filename, file_type, raw="", path=""):
     """
-    Verifies the file uploaded is a valid file of the specified type
+    Verifies the file uploaded is a valid file of the specified type; `path`
+    names a staged copy to check instead of the saved upload
     """
     retval = False
     temp_file = "/tmp/{}".format(str(uuid.uuid1()))
@@ -44,7 +45,9 @@ def check_file(filename, file_type, raw=""):
 
     look_file = "/src/uploads/{}/{}".format(file_type, filename)
 
-    if filename not in os.listdir("/src/uploads/{}".format(file_type)):
+    if path:
+        look_file = path
+    elif filename not in os.listdir("/src/uploads/{}".format(file_type)):
         look_file = "/tmp/{}".format(filename)
 
     if raw == "" and not os.path.exists(look_file):

@@ -392,3 +392,25 @@ def test_icon_upload_and_delete(files):
     assert files.delete_icon("test_31_icon") == "Success"
     with pytest.raises(ValueError, match="No icon"):
         files.delete_icon("test_31_icon")
+
+
+def test_failed_vault_upload_keeps_the_saved_one(files):
+    """Uploads are checked from a private staging copy, never /tmp"""
+    vault = "/src/uploads/become/test_31_vault.yml"
+    os.makedirs(os.path.dirname(vault), exist_ok=True)
+    with open(vault, "w") as f:
+        f.write("$ANSIBLE_VAULT;1.1;AES256\nsaved\n")
+    form = {"file": "not encrypted", "filename": "test_31_vault"}
+    try:
+        with serve.app.test_request_context(method="POST", data=form):
+            assert unwrap(serve.upload)("become", "x")[1] == 522
+        with open(vault) as f:
+            assert f.read().endswith("saved\n")
+
+        form["file"] = "$ANSIBLE_VAULT;1.1;AES256\r\nnew\r\n"
+        with serve.app.test_request_context(method="POST", data=form):
+            assert unwrap(serve.upload)("become", "x")[1] == 200
+        with open(vault) as f:
+            assert f.read() == "$ANSIBLE_VAULT;1.1;AES256\nnew\n"
+    finally:
+        os.remove(vault)

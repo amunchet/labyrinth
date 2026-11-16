@@ -18,3 +18,6 @@ Fixes from the PR #90 review. The SVG icon check now ignores tabs, newlines and 
 
 ## 2026-11-16 14:35 CST
 Cleared the SonarCloud gate failure on PR #90: four "temporary files in publicly writable directories" findings (S5443). `mcp_upload_map_image` now checks the image in memory and writes it straight to `/src/uploads/images`, and `mcp_upload_icon` writes straight to `/public/icons`. Neither goes through `/tmp` any more. A bad image is now refused with "Not a valid image" before anything is written. Also flattened `get_dashboard` to stay under Sonar's complexity limit, and split the composite asserts and multi-call `pytest.raises` blocks it flagged in `test_31`.
+
+## 2026-11-16 14:42 CST
+SonarCloud also counted three `/tmp` findings (S5443) against this PR in `serve.py`'s file upload route. Those lines are older than the PR, but they still failed the gate. Uploads are now staged in a private `tempfile.mkdtemp()` directory, and `ansible_helper.check_file` takes the staged `path` and checks that copy. Two existing bugs go away with this. A failed vault upload no longer deletes the vault already saved: the old code removed the saved file before checking the new one. And re-uploading a file whose name already exists now checks the new upload, not the saved file.

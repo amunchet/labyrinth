@@ -327,23 +327,19 @@ def upload(file_type, override_token):  # pragma: no cover
         os.replace(scratch, saved)
         return escape(filename), 200
 
-    else:
-        filename = secure_filename(file.filename)
+    # An uploaded file is checked the same way, under a scratch name beside
+    # its destination, so the check sees exactly what was sent
+    filename = secure_filename(file.filename)
+    saved = "/src/uploads/{}/{}".format(file_type, filename)
+    fd, scratch = tempfile.mkstemp(prefix="upload-", dir=os.path.dirname(saved))
+    with os.fdopen(fd, "w") as f:
+        f.write(file.read().decode("utf-8").replace("\r\n", "\n"))
 
-        # file.save("/tmp/{}".format(filename))
-        file_contents = file.read().decode("utf-8")
-        file_contents = file_contents.replace("\r\n", "\n")
-        with open(os.path.join("/tmp", filename), "w") as f:
-            f.write(file_contents)
-
-        check_results = ansible_helper.check_file(filename, file_type)
-        if check_results:
-            shutil.move(
-                "/tmp/{}".format(filename),
-                "/src/uploads/{}/{}".format(file_type, filename),
-            )
-        else:
-            return f"File check failed: {check_results}", 521
+    check_results = ansible_helper.check_file(filename, file_type, path=scratch)
+    if not check_results:
+        os.remove(scratch)
+        return f"File check failed: {check_results}", 521
+    os.replace(scratch, saved)
 
     # Chmod
     chmod_filename = "/src/uploads/{}/{}".format(file_type, filename)
