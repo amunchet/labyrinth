@@ -714,34 +714,35 @@ class LabyrinthClient:
     def get_dashboard(self, subnet: str = "", problems_only: bool = False) -> List:
         """Each subnet's groups and hosts with every service's judged state"""
         states = {True: "ok", False: "failing", -1: "stale"}
+        shown = {"failing", "stale"} if problems_only else {"ok", "failing", "stale"}
         retval = []
         for found in call(serve.dashboard):
             if subnet and found.get("subnet") != subnet:
                 continue
             groups = []
             for group in found.get("groups", []):
-                hosts = []
-                for host in group["hosts"]:
-                    services = [
-                        {"name": x["name"], "state": states.get(x["state"], "failing")}
-                        for x in host.get("services") or []
-                        if isinstance(x, dict)
-                    ]
-                    if problems_only:
-                        services = [x for x in services if x["state"] != "ok"]
-                        if not services:
-                            continue
-                    hosts.append(
-                        {
-                            "key": host.get("mac", ""),
-                            "name": host.get("host", ""),
-                            "ip": host.get("ip", ""),
-                            "monitor": host.get("monitor", False),
-                            "services": services,
-                        }
-                    )
-                if hosts:
-                    groups.append({"name": group["name"], "hosts": hosts})
+                hosts = [
+                    {
+                        "key": host.get("mac", ""),
+                        "name": host.get("host", ""),
+                        "ip": host.get("ip", ""),
+                        "monitor": host.get("monitor", False),
+                        "services": [
+                            {
+                                "name": x["name"],
+                                "state": states.get(x["state"], "failing"),
+                            }
+                            for x in host.get("services") or []
+                            if isinstance(x, dict)
+                            and states.get(x["state"], "failing") in shown
+                        ],
+                    }
+                    for host in group["hosts"]
+                ]
+                # With problems_only, hosts with nothing wrong are left out
+                hosts = [x for x in hosts if x["services"] or not problems_only]
+                groups.append({"name": group["name"], "hosts": hosts})
+            groups = [x for x in groups if x["hosts"]]
             if groups or not problems_only:
                 retval.append({"subnet": found.get("subnet"), "groups": groups})
         return retval
@@ -989,13 +990,15 @@ class LabyrinthClient:
             raise ValueError(
                 "The name needs an image extension: png, jpg, gif, bmp or webp"
             )
-        with open("/tmp/" + name, "wb") as f:
-            f.write(base64.b64decode(data_base64, validate=True))
+        data = base64.b64decode(data_base64, validate=True)
+        # Checked in memory and written straight into place, never via /tmp
         try:
-            call(serve.custom_dashboard_image_upload, name, decode=False)
-        finally:
-            if os.path.exists("/tmp/" + name):
-                os.remove("/tmp/" + name)
+            Image.open(io.BytesIO(data)).verify()
+        except Exception:
+            raise ValueError("Not a valid image")
+        os.makedirs(IMAGES_DIR, exist_ok=True)
+        with open(os.path.join(IMAGES_DIR, name), "wb") as f:
+            f.write(data)
         return name
 
     def delete_map_image(self, name: str) -> str:
@@ -1031,10 +1034,8 @@ class LabyrinthClient:
                     raise ValueError(
                         "Icons may not contain event handlers or javascript: links"
                     )
-        path = "/tmp/{}.svg".format(name)
-        with open(path, "w") as f:
+        with open("/public/icons/{}.svg".format(name), "w") as f:
             f.write(svg)
-        call(serve.upload_icon, path, decode=False)
         return name
 
     def delete_icon(self, name: str) -> str:

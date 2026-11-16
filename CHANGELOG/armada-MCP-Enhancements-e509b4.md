@@ -15,3 +15,6 @@ MCP file writes: `mcp_save_playbook`, `mcp_save_telegraf_config`, `mcp_upload_ma
 
 ## 2026-11-14 15:16 CST
 Fixes from the PR #90 review. The SVG icon check now ignores tabs, newlines and other control characters when looking for `javascript:`. Browsers drop those characters from URLs, so an encoded tab (`java&#9;script:`) used to get through. The mcp container now mounts its own code (`./backend`) read-only, so running as root can't rewrite code the backend runs. `update_mac` (used by the UI and `mcp_change_host_address`) now moves uplinks and map placements to the new key, and refuses a key another host already has.
+
+## 2026-11-16 14:35 CST
+Cleared the SonarCloud gate failure on PR #90: four "temporary files in publicly writable directories" findings (S5443). `mcp_upload_map_image` now checks the image in memory and writes it straight to `/src/uploads/images`, and `mcp_upload_icon` writes straight to `/public/icons`. Neither goes through `/tmp` any more. A bad image is now refused with "Not a valid image" before anything is written. Also flattened `get_dashboard` to stay under Sonar's complexity limit, and split the composite asserts and multi-call `pytest.raises` blocks it flagged in `test_31`.

@@ -123,7 +123,8 @@ def test_host_group_and_address(client):
     )
 
     moved = client.change_host_address("aa:02", new_ip="192.168.9.70")
-    assert moved["ip"] == "192.168.9.70" and moved["mac"] == "aa:02"
+    assert moved["ip"] == "192.168.9.70"
+    assert moved["mac"] == "aa:02"
 
     rekeyed = client.change_host_address(
         "aa:02", new_mac="bb:02", new_ip="192.168.9.71"
@@ -218,7 +219,8 @@ def test_proxmox_cluster_secret_is_write_only(client):
     updated = client.save_proxmox_cluster(
         {"_id": created["id"], "host": "10.0.0.3", "token_secret": ""}
     )
-    assert updated["host"] == "10.0.0.3" and "token_secret" not in updated
+    assert updated["host"] == "10.0.0.3"
+    assert "token_secret" not in updated
     stored = serve.db["labyrinth"]["proxmox_clusters"].find_one({"name": "pve"})
     assert stored["token_secret"] == "s3cret"
     assert client.delete_proxmox_cluster(created["id"]) == "Success"
@@ -247,7 +249,9 @@ def test_unifi_controllers(client):
     )
     client.save_unifi_controller({"_id": saved["_id"], "verify_ssl": True})
     [found] = client.list_unifi_controllers()
-    assert found["has_api_key"] and "api_key" not in found and found["verify_ssl"]
+    assert found["has_api_key"]
+    assert "api_key" not in found
+    assert found["verify_ssl"]
     assert client.delete_unifi_controller(saved["_id"]) == "Success"
     assert client.list_unifi_controllers() == []
     with pytest.raises(RuntimeError, match="needs a name"):
@@ -318,8 +322,9 @@ def test_playbooks_agent_owns_only_its_own(files):
     )
     assert status == 409
 
+    targeted = PLAY.replace("all", "10.0.0.1")
     with pytest.raises(ValueError, match="hosts: all"):
-        files.save_playbook("test_31_other", PLAY.replace("all", "10.0.0.1"))
+        files.save_playbook("test_31_other", targeted)
     assert not os.path.exists("/src/uploads/ansible/test_31_other.yml")
 
 
@@ -341,9 +346,10 @@ def test_map_image_upload_and_guarded_delete(files):
     assert files.upload_map_image("test_31_plan.png", data) == "test_31_plan.png"
     assert "test_31_plan.png" in files.list_map_images()
 
-    with pytest.raises(RuntimeError, match="Invalid file"):
-        files.upload_map_image("test_31_bad.png", base64.b64encode(b"nope").decode())
-    assert not os.path.exists("/tmp/test_31_bad.png")
+    bad = base64.b64encode(b"nope").decode()
+    with pytest.raises(ValueError, match="Not a valid image"):
+        files.upload_map_image("test_31_bad.png", bad)
+    assert "test_31_bad.png" not in files.list_map_images()
     with pytest.raises(ValueError, match="image extension"):
         files.upload_map_image("test_31_plan.svg", data)
 
