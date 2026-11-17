@@ -24,3 +24,11 @@ SonarCloud also counted three `/tmp` findings (S5443) against this PR in `serve.
 
 ## 2026-11-16 22:16 CST
 Fixed the 12 SonarCloud bugs listed under master's new code. These are in the frontend and predate this PR. Calls to async methods that already catch and report their own errors are now marked `void` (Sonar's floating-promise rule): disk space auto-refresh, map image loads and draft saves, and rack and location drops. The tag-key sort in `AwsInstancesView` and the service-type sort in `ProblemServices` now compare with `localeCompare` instead of the default sort.
+
+## 2026-11-16 23:28 CST
+Cleared the rest of SonarCloud's code-quality findings on PR #90:
+- `ansible_helper.check_file` was rewritten to bring it under the complexity limit, with the same results for every file type. Raw playbooks are still checked from a scratch copy and saved only if they pass. SSH keys and vault files are still recognised by their first line. The Telegraf check drops a redundant delete before copying the config.
+- `serve.py` gets `BECOME_DIR` and `become_file_exists()` in place of three copies of the become-folder lookup.
+- `custom_dashboard_image_upload` now stages browser uploads in a private temporary directory instead of `/tmp`.
+
+The Dockerfile's root user is left for acceptance in SonarCloud.

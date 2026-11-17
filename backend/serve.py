@@ -266,6 +266,13 @@ def secure():
 
 valid_type = ["ssh", "totp", "become", "telegraf", "ansible", "other"]
 
+BECOME_DIR = "/src/uploads/become"
+
+
+def become_file_exists(name):
+    """Whether an encrypted become (vault) file by this name has been uploaded"""
+    return name + ".yml" in os.listdir(BECOME_DIR)
+
 
 @app.route("/upload/<file_type>/<override_token>", methods=["POST"])
 @requires_auth_admin
@@ -1760,7 +1767,7 @@ def run_proxmox_deploy(inp_data=""):
             "action, credentials_file, vault_password, guests (and script for the script action) are required",
             482,
         )
-    if f"{credentials_file}.yml" not in os.listdir("/src/uploads/become"):
+    if not become_file_exists(credentials_file):
         return "Credentials file not found", 483
 
     _, guests, _ = _proxmox_guests_with_matches()
@@ -1946,7 +1953,7 @@ def create_ansible_request(inp_data=""):
     if vault_format not in ansible_helper.VAULT_FORMATS:
         return INVALID_VAULT_FORMAT, 482
 
-    if become_file and f"{become_file}.yml" not in os.listdir("/src/uploads/become"):
+    if become_file and not become_file_exists(become_file):
         return "Become file not found: {}".format(escape(become_file)), 483
 
     conversation = None
@@ -2071,7 +2078,7 @@ def deploy_ansible_request(request_id, inp_data=""):
     )
     if not become_file:
         return "Choose a become file", 482
-    if f"{become_file}.yml" not in os.listdir("/src/uploads/become"):
+    if not become_file_exists(become_file):
         return "Become file not found", 483
     # Requests staged before formats existed carry none
     vault_format = data.get("vault_format") or staged.get("vault_format", "standard")
@@ -2924,18 +2931,26 @@ def custom_dashboard_image_upload(override=""):
     if not os.path.exists("/src/uploads/images"):
         os.makedirs("/src/uploads/images")
 
-    if override:
-        filename = override
-    elif file:  # pragma: no cover
-        filename = secure_filename(file.filename)
-        file.save("/tmp/{}".format(filename))
-
+    # An upload is staged in a private directory; `override` names a file
+    # already waiting in /tmp
+    staging = tempfile.mkdtemp()
     try:
-        Image.open("/tmp/{}".format(filename)).verify()
-    except Exception:
-        return "Invalid file", 484
+        if override:
+            filename = override
+            staged = os.path.join("/tmp", filename)
+        else:  # pragma: no cover
+            filename = secure_filename(file.filename)
+            staged = os.path.join(staging, filename)
+            file.save(staged)
 
-    shutil.move("/tmp/{}".format(filename), "/src/uploads/images/{}".format(filename))
+        try:
+            Image.open(staged).verify()
+        except Exception:
+            return "Invalid file", 484
+
+        shutil.move(staged, os.path.join("/src/uploads/images", filename))
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
     return "Success", 200
 
 
