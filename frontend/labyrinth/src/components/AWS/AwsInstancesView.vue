@@ -203,7 +203,7 @@ export default {
     },
     formatTags(tags) {
       return Object.keys(tags || {})
-        .sort()
+        .sort((a, b) => a.localeCompare(b))
         .map((key) => ({ key, value: tags[key] }));
     },
     stateVariant(state) {

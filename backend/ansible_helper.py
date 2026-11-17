@@ -17,6 +17,7 @@ import os
 import re
 import subprocess
 import shutil
+import tempfile
 import uuid
 
 import ansi2html
@@ -32,94 +33,48 @@ from typing import List
 VAULT_FORMATS = ("standard", "proxmox")
 
 
-def check_file(filename, file_type, raw=""):
+def check_file(filename, file_type, raw="", path=""):
     """
-    Verifies the file uploaded is a valid file of the specified type
+    Verifies the file uploaded is a valid file of the specified type; `path`
+    names a staged copy to check instead of the saved upload
     """
-    retval = False
-    temp_file = "/tmp/{}".format(str(uuid.uuid1()))
-
     filename = secure_filename(filename)
     file_type = secure_filename(file_type)
 
-    look_file = "/src/uploads/{}/{}".format(file_type, filename)
-
-    if filename not in os.listdir("/src/uploads/{}".format(file_type)):
-        look_file = "/tmp/{}".format(filename)
+    look_file = path or "/src/uploads/{}/{}".format(file_type, filename)
 
     if raw == "" and not os.path.exists(look_file):
         return False
 
-    if file_type == "ansible" and filename and raw != "":
-        # We have a raw data to write out
-        with open(temp_file, "w") as f:
-            f.write(raw)
+    if file_type == "ansible":
+        # Raw content is checked from a scratch copy, then saved if it passes
+        target = look_file
+        if raw != "" and filename:
+            fd, target = tempfile.mkstemp(suffix=".yml")
+            with os.fdopen(fd, "w") as f:
+                f.write(raw)
+        x = subprocess.run(["ansible-playbook", target, "--check"], capture_output=True)
+        ok = x.returncode < 4
+        if ok and target != look_file:
+            os.makedirs("/src/uploads/ansible", exist_ok=True)
+            shutil.move(target, "/src/uploads/ansible/{}.yml".format(filename))
+        elif target != look_file:
+            os.remove(target)
+        return [ok, x.stdout, x.stderr]
 
-        x = subprocess.run(
-            ["ansible-playbook", temp_file, "--check"],
-            capture_output=True,
-        )
-        if x.returncode >= 4:
-            retval = False
-        else:
-            retval = True
-
-        if retval:
-            if not os.path.exists("/src/uploads/ansible"):  # pragma: no cover
-                os.makedirs("/src/uploads/ansible")
-            shutil.move(temp_file, "/src/uploads/ansible/{}.yml".format(filename))
-
-        return [retval, x.stdout, x.stderr]
-
-    elif file_type == "ansible":
-        x = subprocess.run(
-            ["ansible-playbook", look_file, "--check"],
-            capture_output=True,
-        )
-        if x.returncode >= 4:
-            retval = False
-        else:
-            retval = True
-        return [retval, x.stdout, x.stderr]
-
-    elif file_type == "telegraf":
-        if os.path.exists("/etc/telegraf/telegraf.conf"):  # pragma: no cover
-            os.remove("/etc/telegraf/telegraf.conf")
-
+    if file_type == "telegraf":
         shutil.copy(look_file, "/etc/telegraf/telegraf.conf")
-
         x = subprocess.run(["telegraf", "--test"], capture_output=True)
-        if x.returncode != 0:
-            retval = False
-        else:
-            retval = True
-
         os.remove("/etc/telegraf/telegraf.conf")
-        return [retval, x.stdout, x.stderr]
+        return [x.returncode == 0, x.stdout, x.stderr]
 
-    elif file_type == "other":
+    if file_type == "other":
         return True
-    elif file_type == "ssh":
-        # Checking for encrypted file
-        with open(look_file) as f:
-            count = 0
-            for item in f.readlines():
-                if count == 0:
-                    if "--BEGIN OPENSSH PRIVATE KEY--" in item:
-                        return True
-                break
-        return False
 
-    else:
-        # Checking for encrypted file
-        with open(look_file) as f:
-            count = 0
-            for item in f.readlines():
-                if count == 0:
-                    if "ANSIBLE_VAULT" in item:
-                        return True
-                break
-        return False
+    # SSH keys and encrypted vault files are recognised by their first line
+    marker = {"ssh": "--BEGIN OPENSSH PRIVATE KEY--"}.get(file_type, "ANSIBLE_VAULT")
+    with open(look_file) as f:
+        return marker in f.readline()
 
 
 def load_plays(raw):

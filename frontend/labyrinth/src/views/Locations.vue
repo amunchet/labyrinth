@@ -839,7 +839,7 @@ export default {
       }
       // The slot dropped on becomes the device's top U, kept inside the rack
       let height = device.rack_height || 1;
-      this.updateInventory(device, {
+      void this.updateInventory(device, {
         location: this.selected,
         rack: rack.name,
         rack_unit: Math.max(
@@ -851,12 +851,12 @@ export default {
     dropOnUnracked: /* istanbul ignore next */ function (event) {
       let device = this.device_map[event.dataTransfer.getData("text/plain")];
       if (device && device.rack) {
-        this.updateInventory(device, { rack: "" });
+        void this.updateInventory(device, { rack: "" });
       }
     },
     assign: /* istanbul ignore next */ function (device, location) {
       if (location) {
-        this.updateInventory(device, { location: location });
+        void this.updateInventory(device, { location: location });
       }
     },
     updateInventory: /* istanbul ignore next */ async function (

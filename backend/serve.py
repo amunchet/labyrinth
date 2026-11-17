@@ -27,6 +27,7 @@ import watcher
 import alive
 import ingest_counters
 
+import io
 import shutil
 import tempfile
 import services as svcs
@@ -266,6 +267,13 @@ def secure():
 
 valid_type = ["ssh", "totp", "become", "telegraf", "ansible", "other"]
 
+BECOME_DIR = "/src/uploads/become"
+
+
+def become_file_exists(name):
+    """Whether an encrypted become (vault) file by this name has been uploaded"""
+    return name + ".yml" in os.listdir(BECOME_DIR)
+
 
 @app.route("/upload/<file_type>/<override_token>", methods=["POST"])
 @requires_auth_admin
@@ -327,23 +335,19 @@ def upload(file_type, override_token):  # pragma: no cover
         os.replace(scratch, saved)
         return escape(filename), 200
 
-    else:
-        filename = secure_filename(file.filename)
+    # An uploaded file is checked the same way, under a scratch name beside
+    # its destination, so the check sees exactly what was sent
+    filename = secure_filename(file.filename)
+    saved = "/src/uploads/{}/{}".format(file_type, filename)
+    fd, scratch = tempfile.mkstemp(prefix="upload-", dir=os.path.dirname(saved))
+    with os.fdopen(fd, "w") as f:
+        f.write(file.read().decode("utf-8").replace("\r\n", "\n"))
 
-        # file.save("/tmp/{}".format(filename))
-        file_contents = file.read().decode("utf-8")
-        file_contents = file_contents.replace("\r\n", "\n")
-        with open(os.path.join("/tmp", filename), "w") as f:
-            f.write(file_contents)
-
-        check_results = ansible_helper.check_file(filename, file_type)
-        if check_results:
-            shutil.move(
-                "/tmp/{}".format(filename),
-                "/src/uploads/{}/{}".format(file_type, filename),
-            )
-        else:
-            return f"File check failed: {check_results}", 521
+    check_results = ansible_helper.check_file(filename, file_type, path=scratch)
+    if not check_results:
+        os.remove(scratch)
+        return f"File check failed: {check_results}", 521
+    os.replace(scratch, saved)
 
     # Chmod
     chmod_filename = "/src/uploads/{}/{}".format(file_type, filename)
@@ -885,8 +889,8 @@ def delete_service(name):
     db["labyrinth"]["hosts"].update_many(
         {"services": {"$in": [name]}}, {"$pull": {"services": name}}
     )
-    # Check if snippet exists
-    if name in os.listdir("/src/snippets/"):
+    # Check if snippet exists (the MCP container has no snippets directory)
+    if os.path.isdir("/src/snippets") and name in os.listdir("/src/snippets/"):
         os.remove("/src/snippets/{}".format(name))
 
     return "Success", 200
@@ -1764,7 +1768,7 @@ def run_proxmox_deploy(inp_data=""):
             "action, credentials_file, vault_password, guests (and script for the script action) are required",
             482,
         )
-    if f"{credentials_file}.yml" not in os.listdir("/src/uploads/become"):
+    if not become_file_exists(credentials_file):
         return "Credentials file not found", 483
 
     _, guests, _ = _proxmox_guests_with_matches()
@@ -1896,6 +1900,28 @@ def get_ansible_run(job_id):
     return json.dumps(run), 200
 
 
+# First line of a playbook the MCP agent saved; deleting it hands the playbook to humans
+AGENT_PLAYBOOK_MARKER = (
+    "# Written by the Labyrinth agent - delete this line to stop it changing this file"
+)
+
+
+def agent_may_replace_playbook(playbook):
+    """
+    Whether agent content may overwrite a saved playbook: one the agent wrote
+    (staged generated content, or saved with the marker), never a human's
+    """
+    if db["labyrinth"]["ansible_requests"].find_one(
+        {"playbook": playbook, "generated": True}
+    ):
+        return True
+    path = "/src/uploads/ansible/{}.yml".format(playbook)
+    if not os.path.exists(path):
+        return False
+    with open(path) as f:
+        return f.readline().strip() == AGENT_PLAYBOOK_MARKER
+
+
 @app.route("/ansible_request/", methods=["POST"])
 @requires_auth_admin
 def create_ansible_request(inp_data=""):
@@ -1928,7 +1954,7 @@ def create_ansible_request(inp_data=""):
     if vault_format not in ansible_helper.VAULT_FORMATS:
         return INVALID_VAULT_FORMAT, 482
 
-    if become_file and f"{become_file}.yml" not in os.listdir("/src/uploads/become"):
+    if become_file and not become_file_exists(become_file):
         return "Become file not found: {}".format(escape(become_file)), 483
 
     conversation = None
@@ -1946,9 +1972,7 @@ def create_ansible_request(inp_data=""):
         if error:
             return error, 471
         # Generated content may replace an earlier generated playbook, never a human one
-        if playbook_exists and not requests.find_one(
-            {"playbook": playbook, "generated": True}
-        ):
+        if playbook_exists and not agent_may_replace_playbook(playbook):
             return (
                 "Playbook {} already exists; choose a new name".format(
                     escape(playbook)
@@ -2055,7 +2079,7 @@ def deploy_ansible_request(request_id, inp_data=""):
     )
     if not become_file:
         return "Choose a become file", 482
-    if f"{become_file}.yml" not in os.listdir("/src/uploads/become"):
+    if not become_file_exists(become_file):
         return "Become file not found", 483
     # Requests staged before formats existed carry none
     vault_format = data.get("vault_format") or staged.get("vault_format", "standard")
@@ -2425,8 +2449,24 @@ def close_conversation(conversation_id, inp_data=""):
 @app.route("/mac/<old_mac>/<new_mac>/")
 @requires_auth_write
 def update_mac(old_mac, new_mac):
-    """Updates the old mac to the new mac"""
-    db["labyrinth"]["hosts"].update_one({"mac": old_mac}, {"$set": {"mac": new_mac}})
+    """
+    Re-keys a host, carrying uplinks and map placements that named the old key
+    with it.  Metrics already recorded keep the old key.
+    """
+    hosts = db["labyrinth"]["hosts"]
+    if old_mac != new_mac and hosts.find_one({"mac": new_mac}):
+        return "A host already has that key", 409
+    hosts.update_one({"mac": old_mac}, {"$set": {"mac": new_mac}})
+    hosts.update_many({"uplink": old_mac}, {"$set": {"uplink": new_mac}})
+    for board in db["labyrinth"]["dashboards"].find({"placements": {"$exists": True}}):
+        placements = [
+            dict(p, key=new_mac) if p.get("key") == old_mac else p
+            for p in board["placements"]
+        ]
+        if placements != board["placements"]:
+            db["labyrinth"]["dashboards"].update_one(
+                {"_id": board["_id"]}, {"$set": {"placements": placements}}
+            )
     return "Success", 200
 
 
@@ -2877,33 +2917,25 @@ def custom_dashboard_delete_image(dashboard_image):
 
 @app.route("/custom_dashboard_images/", methods=["POST"])
 @requires_auth_write
-def custom_dashboard_image_upload(override=""):
+def custom_dashboard_image_upload():
     """
-    Custom Dashboard Image Upload
+    Saves an uploaded floor plan image, refusing anything that isn't one.
+    Checked in memory and written straight into place, never via /tmp
     """
-    if override == "":  # pragma: no cover
-        if "file" not in request.files:
-            return "No file included", 407
-        file = request.files["file"]
-
-    if not os.path.exists("/src/uploads"):
-        os.makedirs("/src/uploads")
-
-    if not os.path.exists("/src/uploads/images"):
-        os.makedirs("/src/uploads/images")
-
-    if override:
-        filename = override
-    elif file:  # pragma: no cover
-        filename = secure_filename(file.filename)
-        file.save("/tmp/{}".format(filename))
-
+    if "file" not in request.files:
+        return "No file included", 407
+    file = request.files["file"]
+    filename = secure_filename(file.filename)
+    if not filename:
+        return "No file selected", 409
+    data = file.read()
     try:
-        Image.open("/tmp/{}".format(filename)).verify()
+        Image.open(io.BytesIO(data)).verify()
     except Exception:
         return "Invalid file", 484
-
-    shutil.move("/tmp/{}".format(filename), "/src/uploads/images/{}".format(filename))
+    os.makedirs("/src/uploads/images", exist_ok=True)
+    with open(os.path.join("/src/uploads/images", filename), "wb") as f:
+        f.write(data)
     return "Success", 200
 
 
