@@ -884,6 +884,9 @@
 <script>
 import Helper from "@/helper";
 import styles from "@/assets/variables.scss";
+// Pinned to 1.1.1 in package.json: later releases split the derived key with
+// subarray(), which under webpack 4's buffer@4 polyfill yields a plain
+// Uint8Array that the HMAC's Buffer.concat rejects in the browser
 const { Vault } = require("ansible-vault");
 export default {
   name: "Deploy",
