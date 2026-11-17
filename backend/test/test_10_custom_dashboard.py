@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import io
 import json
 import shutil
 
@@ -23,12 +24,6 @@ def tearDown():
     if os.path.exists("/src/uploads/images"):
         shutil.rmtree("/src/uploads/images")
 
-    if os.path.exists("/tmp/floorplan.jpg"):
-        os.remove("/tmp/floorplan.jpg")
-
-    if os.path.exists("/tmp/broken.jpg"):
-        os.remove("/tmp/broken.jpg")
-
     serve.db["labyrinth"]["dashboards"].delete_many({})
 
 
@@ -36,16 +31,17 @@ def tearDown():
 def setup():
     """Sets up"""
     tearDown()
-
-    floorplan = "/src/test/images/floorplan.jpg"
-    broken = "/src/test/images/broken.jpg"
-
-    shutil.copy(floorplan, "/tmp/floorplan.jpg")
-    shutil.copy(broken, "/tmp/broken.jpg")
-
     yield "Setting up"
     tearDown()
     return "Done"
+
+
+def upload_image(name):
+    """Posts one of the sample images the way the browser does"""
+    with open("/src/test/images/" + name, "rb") as f:
+        form = {"file": (io.BytesIO(f.read()), name)}
+    with serve.app.test_request_context(method="POST", data=form):
+        return unwrap(serve.custom_dashboard_image_upload)()
 
 
 # Main Dashboard
@@ -124,10 +120,10 @@ def test_image_upload(setup):
 
     assert not os.path.exists("/src/uploads/images")
 
-    a = unwrap(serve.custom_dashboard_image_upload)(override="floorplan.jpg")
+    a = upload_image("floorplan.jpg")
     assert a[1] == 200
 
-    a = unwrap(serve.custom_dashboard_image_upload)(override="broken.jpg")
+    a = upload_image("broken.jpg")
     assert a[1] == 484
 
     assert os.path.exists("/src/uploads/images/floorplan.jpg")
@@ -148,9 +144,7 @@ def test_images_need_a_login(setup):
     Map images (building floor plans) are only served to logged-in users
         - The token travels in the Authorization header; image URLs never carry one
     """
-    assert (
-        unwrap(serve.custom_dashboard_image_upload)(override="floorplan.jpg")[1] == 200
-    )
+    assert upload_image("floorplan.jpg")[1] == 200
 
     client = serve.app.test_client()
     assert client.get("/custom_dashboard_images/floorplan.jpg").status_code == 401
@@ -174,7 +168,7 @@ def test_images_list(setup):
     assert a[1] == 200
     assert json.loads(a[0]) == []
 
-    a = unwrap(serve.custom_dashboard_image_upload)(override="floorplan.jpg")
+    a = upload_image("floorplan.jpg")
     assert a[1] == 200
 
     a = unwrap(serve.custom_dashboard_list_images)()

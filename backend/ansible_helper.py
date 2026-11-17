@@ -17,6 +17,7 @@ import os
 import re
 import subprocess
 import shutil
+import tempfile
 import uuid
 
 import ansi2html
@@ -51,14 +52,17 @@ def check_file(filename, file_type, raw="", path=""):
         # Raw content is checked from a scratch copy, then saved if it passes
         target = look_file
         if raw != "" and filename:
-            target = "/tmp/{}".format(str(uuid.uuid1()))
-            with open(target, "w") as f:
+            fd, target = tempfile.mkstemp(suffix=".yml")
+            with os.fdopen(fd, "w") as f:
                 f.write(raw)
         x = subprocess.run(["ansible-playbook", target, "--check"], capture_output=True)
         ok = x.returncode < 4
-        if ok and target != look_file:
-            os.makedirs("/src/uploads/ansible", exist_ok=True)
-            shutil.move(target, "/src/uploads/ansible/{}.yml".format(filename))
+        if target != look_file:
+            if ok:
+                os.makedirs("/src/uploads/ansible", exist_ok=True)
+                shutil.move(target, "/src/uploads/ansible/{}.yml".format(filename))
+            else:
+                os.remove(target)
         return [ok, x.stdout, x.stderr]
 
     if file_type == "telegraf":

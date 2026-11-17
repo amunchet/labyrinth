@@ -32,3 +32,6 @@ Cleared the rest of SonarCloud's code-quality findings on PR #90:
 - `custom_dashboard_image_upload` now stages browser uploads in a private temporary directory instead of `/tmp`.
 
 The Dockerfile's root user is left for acceptance in SonarCloud.
+
+## 2026-11-16 23:31 CST
+SonarCloud's /tmp findings (S5443) also covered the two remaining /tmp paths on lines this PR edited. The map image route (`custom_dashboard_image_upload`) now checks the uploaded bytes in memory and writes the file straight to `/src/uploads/images`. Its test-only `override` hook is gone, and `test_10` posts real files instead. `check_file` now takes the scratch copy of a raw playbook from `tempfile.mkstemp` and deletes it when the check fails. Before, a failed check left the copy behind.

@@ -27,6 +27,7 @@ import watcher
 import alive
 import ingest_counters
 
+import io
 import shutil
 import tempfile
 import services as svcs
@@ -2916,41 +2917,25 @@ def custom_dashboard_delete_image(dashboard_image):
 
 @app.route("/custom_dashboard_images/", methods=["POST"])
 @requires_auth_write
-def custom_dashboard_image_upload(override=""):
+def custom_dashboard_image_upload():
     """
-    Custom Dashboard Image Upload
+    Saves an uploaded floor plan image, refusing anything that isn't one.
+    Checked in memory and written straight into place, never via /tmp
     """
-    if override == "":  # pragma: no cover
-        if "file" not in request.files:
-            return "No file included", 407
-        file = request.files["file"]
-
-    if not os.path.exists("/src/uploads"):
-        os.makedirs("/src/uploads")
-
-    if not os.path.exists("/src/uploads/images"):
-        os.makedirs("/src/uploads/images")
-
-    # An upload is staged in a private directory; `override` names a file
-    # already waiting in /tmp
-    staging = tempfile.mkdtemp()
+    if "file" not in request.files:
+        return "No file included", 407
+    file = request.files["file"]
+    filename = secure_filename(file.filename)
+    if not filename:
+        return "No file selected", 409
+    data = file.read()
     try:
-        if override:
-            filename = override
-            staged = os.path.join("/tmp", filename)
-        else:  # pragma: no cover
-            filename = secure_filename(file.filename)
-            staged = os.path.join(staging, filename)
-            file.save(staged)
-
-        try:
-            Image.open(staged).verify()
-        except Exception:
-            return "Invalid file", 484
-
-        shutil.move(staged, os.path.join("/src/uploads/images", filename))
-    finally:
-        shutil.rmtree(staging, ignore_errors=True)
+        Image.open(io.BytesIO(data)).verify()
+    except Exception:
+        return "Invalid file", 484
+    os.makedirs("/src/uploads/images", exist_ok=True)
+    with open(os.path.join("/src/uploads/images", filename), "wb") as f:
+        f.write(data)
     return "Success", 200
 
 
