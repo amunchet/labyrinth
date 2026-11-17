@@ -38,3 +38,6 @@ SonarCloud's /tmp findings (S5443) also covered the two remaining /tmp paths on 
 
 ## 2026-11-16 23:35 CST
 `check_file` no longer falls back to `/tmp/<filename>` when a file isn't among the saved uploads. Nothing relies on that any more: uploads pass their staged `path`, and the other callers pass raw content. Its cleanup branch is also flattened, which brings the function under Sonar's complexity limit.
+
+## 2026-11-16 23:50 CST
+Rebased onto master to take in #89 (adding an Ansible vault by hand on the Deploy page), which conflicted in `serve.py`'s upload route. Master's handling of a hand-entered vault is kept as it is: it validates the input, scratches the file beside its destination with `mkstemp` and moves it into place atomically. Browser file uploads now use the same scratch-beside-destination pattern, replacing this branch's temp directory. The become-file lookups use this branch's shared `become_file_exists()`.
