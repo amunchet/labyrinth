@@ -42,8 +42,6 @@ def check_file(filename, file_type, raw="", path=""):
     file_type = secure_filename(file_type)
 
     look_file = path or "/src/uploads/{}/{}".format(file_type, filename)
-    if not path and filename not in os.listdir("/src/uploads/{}".format(file_type)):
-        look_file = "/tmp/{}".format(filename)
 
     if raw == "" and not os.path.exists(look_file):
         return False
@@ -57,12 +55,11 @@ def check_file(filename, file_type, raw="", path=""):
                 f.write(raw)
         x = subprocess.run(["ansible-playbook", target, "--check"], capture_output=True)
         ok = x.returncode < 4
-        if target != look_file:
-            if ok:
-                os.makedirs("/src/uploads/ansible", exist_ok=True)
-                shutil.move(target, "/src/uploads/ansible/{}.yml".format(filename))
-            else:
-                os.remove(target)
+        if ok and target != look_file:
+            os.makedirs("/src/uploads/ansible", exist_ok=True)
+            shutil.move(target, "/src/uploads/ansible/{}.yml".format(filename))
+        elif target != look_file:
+            os.remove(target)
         return [ok, x.stdout, x.stderr]
 
     if file_type == "telegraf":
