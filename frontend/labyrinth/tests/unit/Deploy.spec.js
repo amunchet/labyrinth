@@ -95,6 +95,12 @@ describe("Deploy.vue", () => {
       jest.restoreAllMocks();
     });
 
+    // Jest runs on Node's native Buffer, so it cannot catch the browser-only
+    // failure of later releases ("list" argument must be an Array of Buffers)
+    test("keeps the browser-safe ansible-vault release", () => {
+      expect(require("ansible-vault/package.json").version).toBe("1.1.1");
+    });
+
     test("encrypts quoted YAML that decrypts back, non-ASCII included", async () => {
       const encrypted = await wrapper.vm.generateAnsibleVault();
       expect(encrypted.startsWith("$ANSIBLE_VAULT;1.1;AES256\n")).toBe(true);
