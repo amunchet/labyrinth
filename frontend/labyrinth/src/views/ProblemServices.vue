@@ -175,7 +175,9 @@ export default {
     availableServiceTypes: function () {
       let types = new Set();
       this.problems.forEach((item) => types.add(item.service_type));
-      return Array.from(types).sort();
+      return Array.from(types).sort((a, b) =>
+        String(a).localeCompare(String(b))
+      );
     },
     typeOptions: function () {
       return [{ value: "all", text: "All types" }].concat(

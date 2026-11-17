@@ -539,7 +539,7 @@ export default {
       this.editing = true;
       this.show_unplaced = true;
       this.active_key = "";
-      this.loadImages();
+      void this.loadImages();
     },
     stopEditing() {
       this.selected_name = this.draft.name;
@@ -569,14 +569,14 @@ export default {
         return;
       }
       this.draft.placements = this.draft.placements.filter((x) => x.key != key);
-      this.saveDraft();
+      void this.saveDraft();
     },
     setPlacement(key, x, y) {
       let placement = { key: key, x: +x.toFixed(2), y: +y.toFixed(2) };
       this.draft.placements = this.draft.placements
         .filter((item) => item.key != key)
         .concat([placement]);
-      this.saveDraft();
+      void this.saveDraft();
     },
 
     // Persistence
@@ -628,7 +628,7 @@ export default {
         this.draft_name = map.name;
         this.editing = true;
         this.show_unplaced = true;
-        this.loadImages();
+        void this.loadImages();
       } catch (e) {
         this.$store.commit("updateError", e);
       }
@@ -696,7 +696,7 @@ export default {
         let added = this.images.filter((x) => !before.has(x));
         let uploaded = added.length == 1 ? added[0] : file.name;
         this.forgetImage(uploaded);
-        this.loadImage(uploaded);
+        void this.loadImage(uploaded);
         if (this.draft && this.images.includes(uploaded)) {
           this.draft.background_image = uploaded;
           await this.saveDraft();

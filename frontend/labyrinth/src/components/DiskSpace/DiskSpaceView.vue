@@ -133,12 +133,12 @@ export default {
     scheduleNextRefresh() {
       this.stopAutoRefresh();
       this.autoRefreshTimer = window.setTimeout(() => {
-        this.refreshDataSilent();
+        void this.refreshDataSilent();
       }, 30000);
     },
 
     startAutoRefresh() {
-      this.refreshData();
+      void this.refreshData();
     },
 
     stopAutoRefresh() {

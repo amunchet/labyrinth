@@ -21,3 +21,6 @@ Cleared the SonarCloud gate failure on PR #90: four "temporary files in publicly
 
 ## 2026-11-16 14:42 CST
 SonarCloud also counted three `/tmp` findings (S5443) against this PR in `serve.py`'s file upload route. Those lines are older than the PR, but they still failed the gate. Uploads are now staged in a private `tempfile.mkdtemp()` directory, and `ansible_helper.check_file` takes the staged `path` and checks that copy. Two existing bugs go away with this. A failed vault upload no longer deletes the vault already saved: the old code removed the saved file before checking the new one. And re-uploading a file whose name already exists now checks the new upload, not the saved file.
+
+## 2026-11-16 22:16 CST
+Fixed the 12 SonarCloud bugs listed under master's new code. These are in the frontend and predate this PR. Calls to async methods that already catch and report their own errors are now marked `void` (Sonar's floating-promise rule): disk space auto-refresh, map image loads and draft saves, and rack and location drops. The tag-key sort in `AwsInstancesView` and the service-type sort in `ProblemServices` now compare with `localeCompare` instead of the default sort.
