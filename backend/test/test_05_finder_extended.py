@@ -636,6 +636,38 @@ class TestScanArguments:
         assert finder.PING_TIMEOUT_SECONDS > 0
 
 
+class TestPingSweepCommand:
+    """Only the hosts the sweep finds are port scanned, so it must find them."""
+
+    def test_default_sweep(self):
+        command = finder.ping_sweep_command("192.168.0.0/24")
+        assert command[:2] == ["nmap", "-sn"]
+        assert command[-3:] == ["-oX", "-", "192.168.0.0/24"]
+        # Hosts that drop ICMP (EC2, firewalled servers) answer on a service port
+        assert "-PE" in command
+        assert "-PS22,80,443" in command
+        # -T5's short timeouts lost most of a subnet behind a VPN on any one pass
+        assert "-T4" in command
+        assert "-T5" not in command
+
+    def test_override_is_split_into_arguments(self, monkeypatch):
+        monkeypatch.setattr(finder, "PING_SWEEP_ARGUMENTS", "-PE -PS22 -T3")
+        assert finder.ping_sweep_command("10.8.0.0/24") == [
+            "nmap",
+            "-sn",
+            "-PE",
+            "-PS22",
+            "-T3",
+            "-oX",
+            "-",
+            "10.8.0.0/24",
+        ]
+
+    def test_override_cannot_turn_it_into_a_port_scan(self, monkeypatch):
+        monkeypatch.setattr(finder, "PING_SWEEP_ARGUMENTS", "-PE")
+        assert "-sn" in finder.ping_sweep_command("10.8.0.0/24")
+
+
 class TestSubnetLock:
     """The per-subnet lock must not expire under, or outlive, its own scan."""
 

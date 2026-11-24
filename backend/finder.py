@@ -6,6 +6,7 @@ import collections
 import time
 import json
 import os
+import shlex
 import signal
 import subprocess
 import threading
@@ -97,8 +98,25 @@ PORT_SCAN_ARGUMENTS = os.environ.get(
     os.environ.get("FINDER_HOST_TIMEOUT") or "20m"
 )
 
+# Host discovery ahead of the port scan.  Only the hosts it finds are port
+# scanned, so a host it misses gets no open_ports metric and both of its port
+# checks fail.  An ICMP-only `-T5` sweep missed most of the routed South subnet
+# on any given pass (and every EC2 instance, whose security groups drop ICMP),
+# although alive.py's pings reached those hosts every minute.  TCP probes on the
+# common service ports, and `-T4`'s more patient timeouts, find them.  `-sn` is
+# always added: this is discovery, never a port scan.
+PING_SWEEP_ARGUMENTS = (
+    os.environ.get("FINDER_PING_ARGUMENTS") or "-PE -PS22,80,443 -PA80 -T4"
+)
+
 # How long the ping sweep is allowed to take before we give up on the subnet
 PING_TIMEOUT_SECONDS = _int_from_env("FINDER_PING_TIMEOUT_SECONDS", 900)
+
+
+def ping_sweep_command(search: str) -> List[str]:
+    """The nmap host discovery command for `search`, writing XML to stdout"""
+    return ["nmap", "-sn", *shlex.split(PING_SWEEP_ARGUMENTS), "-oX", "-", search]
+
 
 # The per-subnet scan log in Redis is display-only - cap it and let it expire
 OUTPUT_MAX_BYTES = _int_from_env("FINDER_OUTPUT_MAX_BYTES", 250000)
@@ -153,8 +171,7 @@ def scan(subnet: str, callback_fn, verbose=False) -> List:  # pragma: no cover
     # Ping version
     try:
         ping_output = subprocess.check_output(
-            ["nmap", "-PE", "-sn", "-T5", "-oX", "-", search],
-            timeout=PING_TIMEOUT_SECONDS,
+            ping_sweep_command(search), timeout=PING_TIMEOUT_SECONDS
         )
     except (subprocess.SubprocessError, OSError) as exc:
         callback_fn("\nPing sweep failed for {}: {}\n".format(subnet, exc))
