@@ -17,3 +17,11 @@ Live Labyrinth configuration fixed through the MCP in the same pass (not in git)
 - graylog.north: removed `graylog-metricbeat` (the container no longer exists).
 - judi: removed `judi-internal` (it probed the retired 192.168.0.176 server).
 - pve1: IP moved to 192.168.0.175, matching the 2026-11-17 `pve1-change-ip` run.
+
+## 2026-11-24 14:18 CST
+Staged six Ansible deployments in Labyrinth conversation d60bc857 for the problems a config change can't fix. Nothing runs until a human enters the vault password:
+- `opnsense-telegraf` (192.168.0.3): installs the bare telegraf package on the South OPNsense router, runs Labyrinth's saved config from /usr/local/etc/labyrinth-telegraf.conf as an rc.conf.d service. The router's cpu/mem/disk checks have never had data.
+- `opnsense-syslog-graylog` (192.168.0.3): adds a TLS syslog destination for Graylog South through OPNsense's own Syslog model.
+- `telegraf-merge-aggregator` (graylog.south): its config lacks `[[aggregators.merge]]`, so the `system` metric arrives split, load5 goes missing and cpu-4 fails. Labyrinth's saved copy of the config now has the block.
+- `venus-mars-cron-rename`: the cron container was stuck as `84af8c7da395_mars-cron-1` after a half-finished compose recreate.
+- `aptupdate` / `aptupdate-judi` for the nine hosts whose apt checks show pending updates.
