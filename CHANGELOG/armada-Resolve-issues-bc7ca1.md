@@ -33,7 +33,7 @@ First two staged runs succeeded:
 
 The generic `cpu` check fails above a load5 of 1.5 whatever the core count, which is also what put caddy.north in the alert email. Moved three hosts to the per-core checks the fleet already uses (live Labyrinth configuration, not in git): labyrinth (16 cores) to the new `cpu-16`, data.north and caddy.north (4 cores) to `cpu-4`.
 
-## 2026-11-24 17:15 CST
+## 2026-11-24 17:12 CST
 More of the staged runs came back:
 - `venus-mars-cron-rename` succeeded; venus `mars-docker-cron-new` passes.
 - `opnsense-syslog-graylog` stopped at OPNsense's validation ("A certificate is required for tls types") before saving anything. Restaged: it now uses the router's web GUI certificate as the client certificate, which Graylog South accepts because its input has client authentication off. It always removes its temporary helper, and it prints the generated syslog-ng block and syslog-ng's messages so a TLS handshake failure shows in the run.
