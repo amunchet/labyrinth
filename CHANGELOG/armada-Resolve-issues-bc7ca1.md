@@ -5,7 +5,7 @@
 - Base branch: `master`
 - Started: 2026-11-24 19:57 UTC
 
-Entries are appended newest last, each stamped with the UTC date and time.
+Entries are appended newest last, each stamped with the Central Time (US/Chicago) date and time.
 
 ## 2026-11-24 14:15 CST
 Finder ping sweep now also probes TCP 22/80/443 (`-PE -PS22,80,443 -PA80 -T4`, overridable with `FINDER_PING_ARGUMENTS`) instead of ICMP echo at `-T5`. Only hosts the sweep finds get port scanned, and the old sweep missed most of the routed South subnet on any given pass and every EC2 instance. Over the last 10 hours about 25 monitored hosts that alive.py pings fine (jupiter, medusa, equator, graylog.south, data.south, cloudflare-tunnel, the UniFi APs, the EC2 servers) never got an `open_ports` metric, so their open_ports/closed_ports checks always failed. Tests cover the built command.
@@ -25,3 +25,10 @@ Staged six Ansible deployments in Labyrinth conversation d60bc857 for the proble
 - `telegraf-merge-aggregator` (graylog.south): its config lacks `[[aggregators.merge]]`, so the `system` metric arrives split, load5 goes missing and cpu-4 fails. Labyrinth's saved copy of the config now has the block.
 - `venus-mars-cron-rename`: the cron container was stuck as `84af8c7da395_mars-cron-1` after a half-finished compose recreate.
 - `aptupdate` / `aptupdate-judi` for the nine hosts whose apt checks show pending updates.
+
+## 2026-11-24 17:03 CST
+First two staged runs succeeded:
+- `opnsense-telegraf`: the South router now sends cpu/mem/disk/system once a minute, and its cpu, mem and disk checks pass for the first time.
+- `telegraf-merge-aggregator`: graylog.south's `system` metric now arrives whole (load5 included) and `cpu-4` passes.
+
+The generic `cpu` check fails above a load5 of 1.5 whatever the core count, which is also what put caddy.north in the alert email. Moved three hosts to the per-core checks the fleet already uses (live Labyrinth configuration, not in git): labyrinth (16 cores) to the new `cpu-16`, data.north and caddy.north (4 cores) to `cpu-4`.
