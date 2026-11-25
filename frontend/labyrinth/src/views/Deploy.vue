@@ -313,17 +313,29 @@
               variant="primary"
               :disabled="running || !vault_password || !deep_link.become_file"
             >
-              <b-spinner small v-if="running" /> Deploy
+              <b-spinner small v-if="running" />
+              {{
+                running ? "Running" : deep_link_run ? "Deploy again" : "Deploy"
+              }}
             </b-button>
           </b-form>
+          <b-alert show class="mt-3" variant="info" v-if="running">
+            This deployment is running. It can be launched again once this run
+            finishes.
+          </b-alert>
           <b-alert
             show
             class="mt-3"
             v-if="deep_link_run"
             :variant="deep_link_run.outcome == 'success' ? 'success' : 'danger'"
           >
+            <span class="float-right small" v-if="deep_link_run.finished_at">
+              {{ new Date(deep_link_run.finished_at).toLocaleString() }}
+            </span>
             <b>{{
-              deep_link_run.outcome == "success" ? "Succeeded" : "Failed"
+              deep_link_run.outcome == "success"
+                ? "Last run succeeded"
+                : "Last run failed"
             }}</b>
             <span v-if="deep_link_run.error"> - {{ deep_link_run.error }}</span>
             <ul class="mb-0" v-if="deep_link_run.failures.length > 0">
@@ -1328,6 +1340,13 @@ export default {
           ...staged,
           vault_format: staged.vault_format || "standard",
         };
+        // Opened again while it runs, or after: show that run, not a fresh form
+        if (staged.active_job) {
+          this.watchDeepLinkRun(staged.active_job);
+        } else {
+          this.deep_link_run =
+            staged.runs.filter((x) => x.finished_at).pop() || null;
+        }
       } else if (query.playbook && query.become && ips.length > 0) {
         this.deep_link = {
           hosts: ips,
@@ -1398,12 +1417,16 @@ export default {
             vault_format: link.vault_format,
           });
         }
-        await this.pollAnsibleJob(job_id, (logs) => {
-          this.deep_link_logs = logs;
-        });
       } catch (e) {
+        this.running = false;
         const message = "" + (e.message || e);
-        if (message.indexOf("471") != -1) {
+        if (message.indexOf("409") != -1) {
+          this.$store.commit(
+            "updateError",
+            "This deployment is already running, launched from another window. Showing that run instead."
+          );
+          await this.loadDeepLink();
+        } else if (message.indexOf("471") != -1) {
           this.$store.commit(
             "updateError",
             "Error: The staged playbook failed validation (ansible-playbook --check). Check the vault password, or ask the agent to fix the playbook."
@@ -1416,19 +1439,30 @@ export default {
         } else {
           this.$store.commit("updateError", message);
         }
+        return;
       }
+      await this.watchDeepLinkRun(job_id);
+    },
 
+    // Follows a run of the prepared deployment to its end, then shows its recorded outcome
+    watchDeepLinkRun: /* istanbul ignore next */ async function (job_id) {
+      this.running = true;
+      try {
+        await this.pollAnsibleJob(job_id, (logs) => {
+          this.deep_link_logs = logs;
+        });
+      } catch (e) {
+        this.$store.commit("updateError", "" + (e.message || e));
+      }
       // The recorded run carries the outcome and failed tasks, even on error
-      if (job_id) {
-        try {
-          this.deep_link_run = await Helper.apiCall(
-            "ansible_run",
-            job_id,
-            auth
-          );
-        } catch (e) {
-          this.$store.commit("updateError", e);
-        }
+      try {
+        this.deep_link_run = await Helper.apiCall(
+          "ansible_run",
+          job_id,
+          this.$auth
+        );
+      } catch (e) {
+        this.$store.commit("updateError", e);
       }
       this.running = false;
     },

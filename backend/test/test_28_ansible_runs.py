@@ -4,9 +4,11 @@ Ansible run history (`ansible_runs`) and staged deployment requests
 """
 
 import json
+import os
 from unittest.mock import MagicMock, patch
 
 import pytest
+import redis
 import yaml
 import serve
 from ai.mcp.client import LabyrinthClient
@@ -14,11 +16,24 @@ from common.test import unwrap
 
 
 class FakeRedis:
-    """Minimal Redis stand-in for the hash/list calls the runner makes."""
+    """Minimal Redis stand-in for the hash/list/string calls the runner makes."""
 
     def __init__(self):
         self.h = {}
         self.l = {}
+        self.s = {}
+
+    def set(self, name, value, nx=False, ex=None):
+        if nx and name in self.s:
+            return None
+        self.s[name] = str(value).encode()
+        return True
+
+    def get(self, name):
+        return self.s.get(name)
+
+    def delete(self, name):
+        self.s.pop(name, None)
 
     def hset(self, name, key, value):
         self.h.setdefault(name, {})[key] = str(value).encode()
@@ -555,6 +570,100 @@ def test_deploy_request_refuses_bad_input(db, fake_redis, uploads):
             assert _deploy(request_id, vault_password="pw")[1] == 482
     process.assert_not_called()
     assert runs.count_documents({}) == 0
+
+
+def test_a_running_deployment_cannot_be_launched_again(db, uploads):
+    """
+    However many windows have the link open, one run at a time: the launch's
+    lock is held by the run itself until Ansible is done.  Real Redis, since
+    the guarantee is SET NX and the lock's Lua scripts.
+    """
+    runs, _ = db
+    resp, _ = unwrap(serve.create_ansible_request)(_request())
+    request_id = resp["request_id"]
+    lock = serve.ANSIBLE_REQUEST_LOCK.format(request_id)
+    rc = redis.Redis(host=os.environ.get("REDIS_HOST"))
+    try:
+        with patch("serve.Process") as process:
+            out, status = _deploy(request_id, vault_password="pw")
+            assert status == 200
+            # A second window launching before the run has even started
+            assert _deploy(request_id, vault_password="pw") == (
+                "This deployment is already running",
+                409,
+            )
+        process.assert_called_once()
+        assert runs.count_documents({"request_id": request_id}) == 1
+        found = json.loads(unwrap(serve.get_ansible_request)(request_id)[0])
+        assert found["active_job"] == out["job_id"]
+
+        # The run adopts the launch's lock and holds it while Ansible works
+        refused = []
+        listdir = serve.os.listdir
+
+        def ansible_running(**kwargs):
+            refused.append(_deploy(request_id, vault_password="pw")[1])
+            assert rc.get(lock) == out["job_id"].encode()
+            thread = MagicMock()
+            thread.is_alive.side_effect = [True, False]
+            return thread, MagicMock(events=[_stats()])
+
+        with patch(
+            "serve.ansible_helper.run_ansible", return_value=("/tmp/RUN_DIR_X", "pb")
+        ), patch("serve.ansible_runner.run_async", side_effect=ansible_running), patch(
+            "serve.os.listdir",
+            side_effect=lambda p: [] if p == "/tmp/RUN_DIR_X" else listdir(p),
+        ), patch(
+            "serve.shutil.rmtree"
+        ), patch(
+            "serve.time.sleep"
+        ):
+            serve.run_ansible_background(
+                out["job_id"], process.call_args.kwargs["args"][1]
+            )
+        assert refused == [409]
+        assert runs.find_one({"job_id": out["job_id"]})["outcome"] == "success"
+
+        # Once it ends, the deployment can be run again
+        found = json.loads(unwrap(serve.get_ansible_request)(request_id)[0])
+        assert found["active_job"] is None
+        with patch("serve.Process"):
+            assert _deploy(request_id, vault_password="pw")[1] == 200
+    finally:
+        rc.delete(lock)
+
+
+def test_a_failed_launch_does_not_hold_the_deployment(db, fake_redis, uploads):
+    """A staged playbook that fails to save leaves the deployment launchable."""
+    resp, _ = unwrap(serve.create_ansible_request)(
+        _request(playbook="ai_new", playbook_content=GENERATED)
+    )
+    request_id = resp["request_id"]
+    with patch(
+        "serve.ansible_helper.persist_reviewed_playbook",
+        return_value=[False, b"", b"ERROR! Decryption failed"],
+    ):
+        assert _deploy(request_id, vault_password="wrong")[1] == 471
+    with patch(
+        "serve.ansible_helper.persist_reviewed_playbook",
+        return_value=[True, b"", b""],
+    ), patch("serve.Process"):
+        assert _deploy(request_id, vault_password="pw")[1] == 200
+
+
+def test_a_refused_launch_does_not_touch_the_playbook(db, fake_redis, uploads):
+    """Saving the staged playbook bakes in the become file, so a refused launch must not."""
+    resp, _ = unwrap(serve.create_ansible_request)(
+        _request(playbook="ai_new", playbook_content=GENERATED)
+    )
+    request_id = resp["request_id"]
+    with patch(
+        "serve.ansible_helper.persist_reviewed_playbook",
+        return_value=[True, b"", b""],
+    ) as persist, patch("serve.Process"):
+        assert _deploy(request_id, vault_password="pw")[1] == 200
+        assert _deploy(request_id, vault_password="pw", become_file="creds")[1] == 409
+    persist.assert_called_once()
 
 
 def test_mcp_prepare_deployment_resolves_macs_and_links(db, uploads, monkeypatch):

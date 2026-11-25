@@ -250,6 +250,7 @@ describe("Deploy.vue", () => {
         vault_format: "proxmox",
         generated: true,
         playbook_content: "",
+        runs: [],
       });
       wrapper.vm.$route = { query: { request: "req-2" } };
       await wrapper.vm.loadDeepLink();
@@ -265,11 +266,86 @@ describe("Deploy.vue", () => {
         become_file: "creds",
         generated: true,
         playbook_content: "",
+        runs: [],
       });
       wrapper.vm.$route = { query: { request: "req-3" } };
       await wrapper.vm.loadDeepLink();
 
       expect(wrapper.vm.deep_link.vault_format).toBe("standard");
+    });
+
+    // Opening the same link in several windows must never offer a second run
+    const staged = (extra) => ({
+      request_id: "req-4",
+      hosts: ["10.0.0.7"],
+      playbook: "patch",
+      become_file: "creds",
+      generated: true,
+      playbook_content: "",
+      active_job: null,
+      runs: [],
+      ...extra,
+    });
+
+    test("a staged request opened while it runs follows that run", async () => {
+      jest.spyOn(Helper, "apiCall").mockResolvedValue(
+        staged({
+          active_job: "job-2",
+          runs: [{ job_id: "job-2", status: "running" }],
+        })
+      );
+      const watch = jest
+        .spyOn(wrapper.vm, "watchDeepLinkRun")
+        .mockResolvedValue();
+      wrapper.vm.$route = { query: { request: "req-4" } };
+      await wrapper.vm.loadDeepLink();
+
+      expect(watch).toHaveBeenCalledWith("job-2");
+    });
+
+    test("a staged request opened after it ran shows the last finished run", async () => {
+      jest.spyOn(Helper, "apiCall").mockResolvedValue(
+        staged({
+          runs: [
+            {
+              job_id: "job-1",
+              outcome: "failed",
+              finished_at: "2026-01-01",
+              failures: [],
+            },
+            {
+              job_id: "job-2",
+              outcome: "success",
+              finished_at: "2026-01-02",
+              failures: [],
+            },
+            // Left "running" by a backend restart: no lock, so not running
+            { job_id: "job-3", status: "running" },
+          ],
+        })
+      );
+      const watch = jest.spyOn(wrapper.vm, "watchDeepLinkRun");
+      wrapper.vm.$route = { query: { request: "req-4" } };
+      await wrapper.vm.loadDeepLink();
+
+      expect(watch).not.toHaveBeenCalled();
+      expect(wrapper.vm.deep_link_run.job_id).toBe("job-2");
+      expect(wrapper.vm.running).toBe(false);
+    });
+
+    test("a launch refused as already running follows that run instead", async () => {
+      jest
+        .spyOn(Helper, "apiPost")
+        .mockRejectedValue(new Error("HTTP error! Status: 409"));
+      const load = jest.spyOn(wrapper.vm, "loadDeepLink").mockResolvedValue();
+      const watch = jest.spyOn(wrapper.vm, "watchDeepLinkRun");
+      wrapper.vm.deep_link = staged();
+      wrapper.vm.vault_password = "pw";
+      await wrapper.vm.deployDeepLink();
+
+      expect(load).toHaveBeenCalled();
+      expect(watch).not.toHaveBeenCalled();
+      expect(wrapper.vm.running).toBe(false);
     });
 
     test("a deploy link carries the vault format", async () => {

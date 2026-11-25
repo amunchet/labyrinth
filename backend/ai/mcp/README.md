@@ -283,7 +283,7 @@ Deliberately not exposed:
 - `mcp_wait_for_response(conversation_id, since, timeout_seconds)` - Wait for the human's turn: a reply, a declined deployment, a finished run, or closing the conversation
 - `mcp_get_conversation(conversation_id)` / `mcp_list_conversations(waiting_only)` - Full history / recent conversations
 - `mcp_close_conversation(conversation_id, summary)` - Close a finished conversation
-- `mcp_get_deployment_request(request_id)` - A staged deployment plus the runs launched from it
+- `mcp_get_deployment_request(request_id)` - A staged deployment plus the runs launched from it, and `active_job`: the run going now, if any (one at a time - the human cannot launch it again until that run ends)
 - `mcp_list_deployments(limit)` - Recent runs, newest first (no logs)
 - `mcp_get_deployment(job_id, log_tail)` - One run's status, outcome, per-host stats, failed tasks and log tail
 
