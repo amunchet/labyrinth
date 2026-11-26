@@ -90,3 +90,10 @@ If a host fails those checks, the remaining hosts are not rebooted. Tested the b
 | datanorth | 149 s | 5.15.0-204 | 8 (was 7) | 244 (was 239) |
 
 On datanorth, `8153abe0f361_autopuller_autopuller_1` was stopped before the reboot and started at boot, because its restart policy brings it back whenever docker starts. Its hash-prefixed name is what docker-compose leaves after an interrupted recreate, like venus's `mars-cron` earlier. Left running and reported to the user. Also reported: `taxxon_review-server_1` and `taxxon_cloudflared_1` were restarting in a loop both before and after the reboot, and Labyrinth does not check either.
+
+## 2026-11-25 23:01 CST
+Staged `datanorth-autopuller-taxxon`. The user said the autopuller is unnecessary, and that the two restarting Taxxon containers belong to an unfinished manual-review process. The playbook does two things:
+- Removes every container whose image or compose project is the autopuller. A container that merely has "autopuller" in its name is skipped. Each removed container's `docker inspect` is kept first in `/root/labyrinth-backup/`, and the image is removed if nothing else uses it. It also reports any cron job or systemd unit that would start the autopuller again.
+- Takes a read-only look at `taxxon_review-server_1` and `taxxon_cloudflared_1`: restart count, exit code, their compose definition, the names of their environment variables, and their last 30 log lines. Environment values are never printed, and anything shaped like a token, password, key or URL credential is masked, because the run log is stored in Labyrinth.
+
+Tested both against stand-in containers, including secrets placed in commands, the environment and logs; none leaked.
