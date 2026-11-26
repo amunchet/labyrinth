@@ -45,7 +45,12 @@ from db import base as db_base
 
 from common import auth
 from common.test import unwrap
-from common.single_run import single_run, LockNotAcquired
+from common.single_run import (
+    DEFAULT_TTL_SECONDS,
+    LockNotAcquired,
+    RedisSingleRunLock,
+    single_run,
+)
 from flask import Flask, request, Response, send_file
 from markupsafe import escape
 from werkzeug.utils import secure_filename
@@ -1549,12 +1554,21 @@ def labyrinth_url(path):
 def run_ansible_background(job_id, data):
     """Run Ansible in the background, streaming logs to Redis and recording the outcome in `ansible_runs`."""
     redis_client = redis.Redis(host=os.environ.get("REDIS_HOST"))
+    # A staged deployment's launch took this lock under the job id; the run
+    # holds it until Ansible is done, so no other launch can overlap it
+    lock = (
+        RedisSingleRunLock(redis_client, data["lock"], wait=0, token=job_id)
+        if data.get("lock")
+        else None
+    )
     RUN_DIR = None
     results = []
     failures = []
     stats = None
     final = {}
     try:
+        if lock:
+            lock.acquire()
         if data.get("proxmox_targets"):
             RUN_DIR, playbook = ansible_helper.prepare_proxmox_run(
                 data["proxmox_targets"],
@@ -1641,6 +1655,8 @@ def run_ansible_background(job_id, data):
             os.remove(f"{RUN_DIR}/vault.pass")
         if RUN_DIR:
             shutil.rmtree(RUN_DIR)
+        if lock:
+            lock.release()
 
         logs = []
         size = 0
@@ -1922,6 +1938,10 @@ def agent_may_replace_playbook(playbook):
         return f.readline().strip() == AGENT_PLAYBOOK_MARKER
 
 
+# Held while a staged deployment runs (see deploy_ansible_request)
+ANSIBLE_REQUEST_LOCK = "ansible-request-run:{}"
+
+
 @app.route("/ansible_request/", methods=["POST"])
 @requires_auth_admin
 def create_ansible_request(inp_data=""):
@@ -2033,11 +2053,19 @@ def create_ansible_request(inp_data=""):
 @app.route("/ansible_request/<request_id>")
 @requires_auth_admin
 def get_ansible_request(request_id):
-    """A staged deployment along with summaries of the runs launched from it."""
+    """
+    A staged deployment along with summaries of the runs launched from it, and
+    `active_job`: the run going now, if any.  That comes from the run's lock,
+    not the run records, which a backend restart can leave saying "running".
+    """
     found = db["labyrinth"]["ansible_requests"].find_one({"request_id": request_id})
     if not found:
         return "Request not found", 404
     found.pop("_id", None)
+    active = redis.Redis(host=os.environ.get("REDIS_HOST")).get(
+        ANSIBLE_REQUEST_LOCK.format(request_id)
+    )
+    found["active_job"] = active.decode() if active else None
 
     runs = (
         db["labyrinth"]["ansible_runs"]
@@ -2057,7 +2085,8 @@ def deploy_ansible_request(request_id, inp_data=""):
     Launches a staged deployment; the human supplies only the vault password,
     plus the become file when the agent left it open (or to swap it, or its
     vault format).  Generated content is saved server-side first, so what runs
-    is exactly what was staged and reviewed.
+    is exactly what was staged and reviewed.  Only one run at a time, however
+    many windows have the deployment open: a launch while one runs gets 409.
     """
     if inp_data:
         data = inp_data
@@ -2086,6 +2115,14 @@ def deploy_ansible_request(request_id, inp_data=""):
     if vault_format not in ansible_helper.VAULT_FORMATS:
         return INVALID_VAULT_FORMAT, 482
 
+    # Taken before the playbook is saved, which a refused launch must not do
+    # (it would rewrite the running playbook's become file).  The run adopts it.
+    job_id = f"ansible_job_{uuid.uuid4()}"
+    lock = ANSIBLE_REQUEST_LOCK.format(request_id)
+    redis_client = redis.Redis(host=os.environ.get("REDIS_HOST"))
+    if not redis_client.set(lock, job_id, nx=True, ex=DEFAULT_TTL_SECONDS):
+        return "This deployment is already running", 409
+
     if staged["playbook_content"]:
         try:
             result = ansible_helper.persist_reviewed_playbook(
@@ -2095,8 +2132,10 @@ def deploy_ansible_request(request_id, inp_data=""):
                 forbidden_hosts=staged["hosts"],
             )
         except (ValueError, OSError):
+            redis_client.delete(lock)
             return "Unable to save the staged playbook", 482
         if not result[0]:
+            redis_client.delete(lock)
             return (
                 json.dumps(
                     {
@@ -2108,11 +2147,11 @@ def deploy_ansible_request(request_id, inp_data=""):
                 471,
             )
 
-    job_id = f"ansible_job_{uuid.uuid4()}"
     conversation_id = staged.get("conversation_id", "")
     start_ansible_job(
         job_id,
         {
+            "lock": lock,
             "request_id": request_id,
             "conversation_id": conversation_id,
             "hosts": staged["hosts"],

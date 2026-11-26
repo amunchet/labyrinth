@@ -72,13 +72,16 @@ class RedisSingleRunLock:
         ttl=DEFAULT_TTL_SECONDS,
         wait=DEFAULT_WAIT_SECONDS,
         poll_interval=DEFAULT_POLL_SECONDS,
+        token=None,
     ):
         self._redis = redis_client
         self._key = key
         self._ttl = float(ttl)
         self._wait = float(wait)
         self._poll = float(poll_interval)
-        self._token = uuid.uuid4().hex
+        # A known token lets one process take the lock (a plain SET NX under
+        # it) and hand the work to another, which acquires it with the same token
+        self._token = token or uuid.uuid4().hex
         self._heartbeat = None
         self._stop = threading.Event()
         self.waited_seconds = 0.0
@@ -86,14 +89,18 @@ class RedisSingleRunLock:
     # -- acquire / release ------------------------------------------------
 
     def acquire(self):
-        """Block until the lock is ours, or raise LockNotAcquired."""
+        """
+        Block until the lock is ours, or raise LockNotAcquired.  A lock already
+        held under this token is adopted, its TTL renewed.
+        """
         deadline = time.monotonic() + self._wait
         started = time.monotonic()
+        ttl_ms = int(self._ttl * 1000)
 
         while True:
             if self._redis.set(
-                self._key, self._token, nx=True, px=int(self._ttl * 1000)
-            ):
+                self._key, self._token, nx=True, px=ttl_ms
+            ) or self._redis.eval(_EXTEND_LUA, 1, self._key, self._token, ttl_ms):
                 self.waited_seconds = time.monotonic() - started
                 self._start_heartbeat()
                 return True
