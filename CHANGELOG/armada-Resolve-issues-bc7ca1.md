@@ -78,3 +78,15 @@ Staged `reboot-if-required` for website-staging, zeus and datanorth (become `man
 - telegraf still accepts its config, and cron has run it since boot.
 
 If a host fails those checks, the remaining hosts are not rebooted. Tested the before and after checks against real containers (restart policy always and none, stopped and back) and in Ubuntu 22.04 (the flag, waiting out dpkg, refusing while dpkg keeps running). The reboot step itself is Ansible's own `reboot` action.
+
+## 2026-11-25 22:56 CST
+`reboot-if-required` succeeded on all four hosts. Each came back on its new kernel with systemd `running`, no failed units, every container back, and telegraf 1.40.4 accepting its config and run from cron:
+
+| Host | Down for | Kernel now | Containers | Metrics per minute after |
+|---|---|---|---|---|
+| judi | 32 s | 6.8.0-149 | none | 17, as before |
+| website-staging | 33 s | 6.8.0-151 | 8 | 211 (was 214) |
+| zeus | 48 s | 5.15.0-204 | 23 | 185, as before |
+| datanorth | 149 s | 5.15.0-204 | 8 (was 7) | 244 (was 239) |
+
+On datanorth, `8153abe0f361_autopuller_autopuller_1` was stopped before the reboot and started at boot, because its restart policy brings it back whenever docker starts. Its hash-prefixed name is what docker-compose leaves after an interrupted recreate, like venus's `mars-cron` earlier. Left running and reported to the user. Also reported: `taxxon_review-server_1` and `taxxon_cloudflared_1` were restarting in a loop both before and after the reboot, and Labyrinth does not check either.
