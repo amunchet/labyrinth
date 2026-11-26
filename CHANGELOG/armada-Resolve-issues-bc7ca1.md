@@ -97,3 +97,11 @@ Staged `datanorth-autopuller-taxxon`. The user said the autopuller is unnecessar
 - Takes a read-only look at `taxxon_review-server_1` and `taxxon_cloudflared_1`: restart count, exit code, their compose definition, the names of their environment variables, and their last 30 log lines. Environment values are never printed, and anything shaped like a token, password, key or URL credential is masked, because the run log is stored in Labyrinth.
 
 Tested both against stand-in containers, including secrets placed in commands, the environment and logs; none leaked.
+
+## 2026-11-25 23:03 CST
+`datanorth-autopuller-taxxon` succeeded:
+- **Autopuller:** removed `8153abe0f361_autopuller_autopuller_1` (it was running, restart policy always) and its image. Its `docker inspect` is in `/root/labyrinth-backup/autopuller-20261126-050227/`, and no cron job or systemd unit mentions the autopuller. Its compose files are still at `/home/amunchet/config/autopuller`.
+- **`taxxon_review-server_1`:** exits with `REVIEW_SERVER_TOKEN must be set to at least 32 characters`. The variable is set but empty.
+- **`taxxon_cloudflared_1`:** `TUNNEL_TOKEN` is empty, so `cloudflared tunnel run` has no tunnel to run.
+- Both Taxxon containers come from the `taxxon` compose project in `/home/amunchet/config/taxxon`, created 2026-11-17, and restart about once a minute. That fits the user's note that the manual review process is unfinished; nothing was changed.
+- The report's "docker-compose.yml is gone" was wrong: the compose label holds a path relative to the project directory, and the script resolved it against its own working directory.
