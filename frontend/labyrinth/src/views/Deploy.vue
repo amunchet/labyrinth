@@ -1340,12 +1340,14 @@ export default {
           ...staged,
           vault_format: staged.vault_format || "standard",
         };
-        // Opened again while it runs, or after: show that run, not a fresh form
+        // Opened again while it runs, or after: show that run, not a fresh form.
+        // Not awaited, so the playbook below loads while the run is followed.
+        // (No findLast: CI's Node 16 and this core-js lack it.)
         if (staged.active_job) {
-          this.watchDeepLinkRun(staged.active_job);
+          void this.watchDeepLinkRun(staged.active_job);
         } else {
           this.deep_link_run =
-            staged.runs.filter((x) => x.finished_at).pop() || null;
+            [...staged.runs].reverse().find((x) => x.finished_at) || null;
         }
       } else if (query.playbook && query.become && ips.length > 0) {
         this.deep_link = {
@@ -1420,18 +1422,18 @@ export default {
       } catch (e) {
         this.running = false;
         const message = "" + (e.message || e);
-        if (message.indexOf("409") != -1) {
+        if (message.includes("409")) {
           this.$store.commit(
             "updateError",
             "This deployment is already running, launched from another window. Showing that run instead."
           );
           await this.loadDeepLink();
-        } else if (message.indexOf("471") != -1) {
+        } else if (message.includes("471")) {
           this.$store.commit(
             "updateError",
             "Error: The staged playbook failed validation (ansible-playbook --check). Check the vault password, or ask the agent to fix the playbook."
           );
-        } else if (message.indexOf("482") != -1) {
+        } else if (message.includes("482")) {
           this.$store.commit(
             "updateError",
             "Error: The staged playbook could not be saved. Ask the agent to stage it again."

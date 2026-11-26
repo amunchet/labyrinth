@@ -160,8 +160,9 @@ def test_release_does_not_delete_a_peers_lock(rc, key):
 def test_a_lock_taken_under_a_token_is_adopted_by_it(rc, key):
     """One process takes the lock under a job id; the job's own process holds it."""
     rc.set(key, "job-1", nx=True, px=2000)
+    other = RedisSingleRunLock(rc, key, wait=0.1, poll_interval=0.05)
     with pytest.raises(LockNotAcquired):
-        RedisSingleRunLock(rc, key, wait=0.1, poll_interval=0.05).acquire()
+        other.acquire()
 
     holder = RedisSingleRunLock(rc, key, ttl=30, wait=0, token="job-1")
     holder.acquire()
