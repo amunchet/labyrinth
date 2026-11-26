@@ -69,3 +69,12 @@ The `apt-upgrade-raw` reruns succeeded on all five held hosts (zeus, 10.237, 10.
 
 ## 2026-11-25 22:35 CST
 `labyrinth-master-conf-docker` succeeded on the Labyrinth server (backend container `labyrinth_backend_1`, checkout `/home/amunchet/config/labyrinth`). The live `master.conf` docker section was still the original sample text, so it now matches `backend/uploads/defaults/telegraf.conf`. It still parses to 199 input plugins, and the original is in `backend/uploads/master.conf.bak-20261125-223434`. Redis `master.data` was rebuilt: it had offered all three removed options, and now offers none, so the Services page no longer gives new docker hosts options that Telegraf 1.37 and later refuse.
+
+## 2026-11-25 22:44 CST
+Staged `reboot-if-required` for website-staging, zeus and datanorth (become `manual`), and separately for judi (become `judi`). It reboots one host at a time, and only hosts with `/var/run/reboot-required`. It waits out a running apt/dpkg/unattended-upgrade, and gives up after 10 minutes rather than reboot mid-install. Before rebooting it records the running containers and names those without a restart policy. Afterwards it checks:
+- the boot time and kernel changed, and the reboot flag is gone;
+- systemd has finished starting, and lists any failed units;
+- every container with a restart policy is running again within 5 minutes;
+- telegraf still accepts its config, and cron has run it since boot.
+
+If a host fails those checks, the remaining hosts are not rebooted. Tested the before and after checks against real containers (restart policy always and none, stopped and back) and in Ubuntu 22.04 (the flag, waiting out dpkg, refusing while dpkg keeps running). The reboot step itself is Ansible's own `reboot` action.
